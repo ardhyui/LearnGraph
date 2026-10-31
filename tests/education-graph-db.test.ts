@@ -7,13 +7,16 @@
  * - Data survives restart
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { EducationGraphDB } from '../src/db/EducationGraphDB.js';
-import { LearnerProfile, ConceptNode, KnowledgeState } from '../src/models/types.js';
-import * as fs from 'fs';
-import * as path from 'path';
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import type { EducationGraphDB } from '../src/lib/graph/education-graph-db.ts';
+import { expect } from './support/expect.ts';
+import { openTestGraphDB } from './support/graph-db.ts';
 
-const TEST_DB_PATH = './data/test-db';
+// On-disk PGlite (embedded Postgres) so restarts are real.
+const TEST_DB_PATH = path.join(os.tmpdir(), `learngraph-test-db-${process.pid}`);
 
 // Helper to clean up test database
 function cleanTestDB() {
@@ -27,8 +30,7 @@ describe('Phase 1: Core Database Foundation', () => {
 
   beforeEach(async () => {
     cleanTestDB();
-    db = new EducationGraphDB(TEST_DB_PATH);
-    await db.open();
+    db = await openTestGraphDB(TEST_DB_PATH);
   });
 
   afterEach(async () => {
@@ -54,8 +56,7 @@ describe('Phase 1: Core Database Foundation', () => {
       await db.close();
 
       // 3. Reopen the database
-      const db2 = new EducationGraphDB(TEST_DB_PATH);
-      await db2.open();
+      const db2 = await openTestGraphDB(TEST_DB_PATH);
 
       // 4. Verify learner persists
       const retrieved = await db2.getLearnerProfile('user-123');
@@ -78,8 +79,7 @@ describe('Phase 1: Core Database Foundation', () => {
 
       await db.close();
 
-      const db2 = new EducationGraphDB(TEST_DB_PATH);
-      await db2.open();
+      const db2 = await openTestGraphDB(TEST_DB_PATH);
 
       const concept = await db2.getConcept('algebra');
       expect(concept).not.toBeNull();
@@ -96,8 +96,7 @@ describe('Phase 1: Core Database Foundation', () => {
 
       await db.close();
 
-      const db2 = new EducationGraphDB(TEST_DB_PATH);
-      await db2.open();
+      const db2 = await openTestGraphDB(TEST_DB_PATH);
 
       const edge = await db2.getEdge('arithmetic', 'algebra');
       expect(edge).not.toBeNull();
@@ -115,8 +114,7 @@ describe('Phase 1: Core Database Foundation', () => {
 
       await db.close();
 
-      const db2 = new EducationGraphDB(TEST_DB_PATH);
-      await db2.open();
+      const db2 = await openTestGraphDB(TEST_DB_PATH);
 
       const state = await db2.getKnowledgeState('user-1', 'calc');
       expect(state).not.toBeNull();
