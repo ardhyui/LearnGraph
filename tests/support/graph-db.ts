@@ -45,6 +45,14 @@ export async function openTestGraphDB(
       await pg.close();
     },
   });
+  // Warm up PGlite's query paths (first statement per table pays a one-off
+  // planning/WASM cost, like opening a LevelDB) so the latency tests measure
+  // steady-state reads/writes. Scratch keys are removed again.
+  for (const key of ['learner:__warmup__', 'concept:__warmup__', 'index:domain:__warmup__:x']) {
+    await store.put(key, { warmup: true });
+    await store.get(key);
+    await store.del(key);
+  }
   const graph = new EducationGraphDB(store);
   await graph.open();
   return graph;
