@@ -142,6 +142,22 @@ try {
     `${passedText} passed, ${failedText} failed`,
   );
 
+  // Server-side input validation: a concept id with ":" (the storage key
+  // separator) is refused with a readable message, and nothing is saved.
+  {
+    await page.goto(`${BASE}/admin/concepts`, { waitUntil: 'networkidle' });
+    await page.getByRole('button', { name: 'Add Concept' }).first().click();
+    await page.getByPlaceholder('e.g., linear-equations').fill('smoke:bad-id');
+    await page.getByPlaceholder('e.g., Linear Equations').fill('Smoke Bad Id');
+    await page.locator('form button[type="submit"]').click();
+    const refused = await page
+      .getByText('must not contain ":"', { exact: false })
+      .first()
+      .waitFor({ timeout: 15000 })
+      .then(() => true, () => false);
+    check(refused, 'invalid input is rejected server-side with a readable message');
+  }
+
   // Sign out, then sign in again
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
   for (let i = 0; i < 10 && !page.url().includes('/sign-in'); i++) {

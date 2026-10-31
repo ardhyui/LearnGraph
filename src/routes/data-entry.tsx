@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -356,7 +356,7 @@ function DataEntryPage() {
         stateForm.userId,
         stateForm.conceptId,
         {
-          mastery: stateForm.mastery / 100, // Convert percentage to 0-1
+          mastery: stateForm.mastery, // stored as 0-100 (same scale as the engine thresholds)
           bloomLevel: stateForm.bloomLevel,
         }
       );

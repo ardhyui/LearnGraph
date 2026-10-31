@@ -737,8 +737,9 @@ function ProfilePage() {
                     await createLearner(learner.userId, {
                       name: learner.name,
                       email: learner.email,
-                      learningStyle: learner.learningStyle as any,
-                      cognitiveProfile: learner.cognitiveProfile as any,
+                      // The demo file's learningStyle/cognitiveProfile use an older
+                      // shape (plain string / 0–1 numbers) that the server rejects;
+                      // they are left out and can be derived from the scores later.
                       psychometricScores: learner.psychometricScores as any,
                       tags: learner.tags,
                       notes: learner.notes,
