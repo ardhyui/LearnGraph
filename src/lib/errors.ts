@@ -110,8 +110,9 @@ export function logError(
 /**
  * What the browser receives instead of an unexpected server error in
  * production: a generic message + the log ref, status 500, and no stack.
- * (TanStack Start serializes thrown errors with seroval, which ships `message`,
- * `stack` and every own property — e.g. Postgres `code`/`detail`/`query`.)
+ * (A production TanStack Start build ships a thrown error's `message` to the
+ * browser — e.g. `Learner not found: <id>` or Postgres text naming tables;
+ * plain seroval, as used in dev, also ships `stack` and every own property.)
  */
 export class InternalServerError extends Error {
   readonly status = 500;
