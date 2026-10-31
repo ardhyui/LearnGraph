@@ -53,7 +53,9 @@ export function securityHeaders({
 /**
  * Returns a response carrying the security headers. Headers already set by a
  * handler are kept. Some responses (e.g. `Response.redirect`) have immutable
- * headers; those are copied into a new Response first.
+ * headers; those are copied into a new Response first. The copy reuses the
+ * same body stream, so TanStack Start's response ownership is inherited and
+ * the body is not cancelled.
  */
 export function withSecurityHeaders(
   response: Response,
