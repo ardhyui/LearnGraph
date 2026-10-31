@@ -119,6 +119,21 @@ try {
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL((u) => u.pathname === '/', { timeout: 30000 });
   check(true, 'sign-in works');
+
+  // Brute-force protection: repeated wrong passwords get a friendly 429 message.
+  const ctx2 = await browser.newContext();
+  const p2 = await ctx2.newPage();
+  await p2.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
+  let limited = false;
+  for (let i = 0; i < 10 && !limited; i++) {
+    await p2.fill('#email', email);
+    await p2.fill('#password', `wrong-password-${i}`);
+    await p2.getByRole('button', { name: 'Sign in' }).click();
+    await p2.waitForTimeout(800);
+    limited = /Too many attempts/.test((await p2.getByRole('alert').allInnerTexts()).join(' '));
+  }
+  check(limited, 'repeated wrong passwords are rate-limited with a friendly message');
+  await ctx2.close();
   await page.screenshot({ path: process.env.SMOKE_SCREENSHOT ?? '/tmp/learngraph-smoke.png' });
 } catch (err) {
   check(false, 'smoke flow', err?.message ?? String(err));

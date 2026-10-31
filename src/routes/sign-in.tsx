@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { z } from 'zod';
 import { Loader2, Network } from 'lucide-react';
 import { authClient } from '@/lib/auth/client';
+import { rateLimitMessage } from '@/lib/auth/rate-limit';
 import { cn } from '@/lib/utils';
 
 const searchSchema = z.object({ redirect: z.string().optional() });
@@ -64,7 +65,11 @@ function SignInPage() {
               password: parsed.data.password,
             });
       if (result.error) {
-        setError(result.error.message ?? 'Something went wrong');
+        setError(
+          result.error.status === 429
+            ? rateLimitMessage()
+            : (result.error.message ?? 'Something went wrong'),
+        );
         return;
       }
       await router.invalidate();
