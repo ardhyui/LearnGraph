@@ -75,7 +75,7 @@ const zpd = await db.computeZPD('user-123');
 ---
 
 ## Architecture
-- **Database**: LevelDB with dual-graph model
+- **Database**: PostgreSQL (Kysely; PGlite for local dev/tests) with dual-graph model, data scoped per Better Auth account
 - **Graph A**: Learner Model (profiles, psychometrics, knowledge states, history)
 - **Graph B**: Knowledge Model (concepts, prerequisites, Bloom levels, difficulty)
 - **ZPD Bridge**: Computed from both graphs to determine optimal learning targets
@@ -98,7 +98,7 @@ const zpd = await db.computeZPD('user-123');
 ---
 
 ### Phase 1.5: Admin UI & Graph Visualization [DONE]
-- [x] Next.js App Router setup with API routes
+- [x] TanStack Start (file routes + server functions) setup — migrated from Next.js App Router
 - [x] Admin layout with navigation sidebar
 - [x] Learner form (add/edit/delete learners)
 - [x] Concept form (add/edit/delete concepts with difficulty)

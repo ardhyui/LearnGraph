@@ -55,7 +55,7 @@ LearnGraph is a **Graph RAG (Retrieval-Augmented Generation) knowledge base** th
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           LevelDB Instance                               │
+│                 PostgreSQL (one workspace per account)                   │
 │                                                                          │
 │  ┌─────────────────────────────┐    ┌─────────────────────────────────┐ │
 │  │     LEARNER MODEL          │    │      KNOWLEDGE MODEL            │ │
@@ -89,40 +89,88 @@ LearnGraph is a **Graph RAG (Retrieval-Augmented Generation) knowledge base** th
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or yarn
+- Node.js 22.6+ (tests use `node --test --experimental-strip-types`)
+- npm
+- Optional: a PostgreSQL database. Without one, local dev uses embedded
+  **PGlite** (Postgres compiled to WASM) automatically.
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone <repo-url>
 cd LearnGraph
-
-# Install dependencies
 npm install
 
-# Start the development server
-npm run dev
+# optional: copy and edit env vars (see "Environment variables")
+cp .env.example .env
+
+npm run dev            # http://localhost:8080
 ```
 
-### Access the Application
+Open http://localhost:8080, click **Create one** to sign up with email and
+password. Every new account gets its own workspace seeded with demo data
+(learners, concepts, prerequisites and knowledge states).
 
-- **Home Dashboard**: http://localhost:3000
-- **My Profile**: http://localhost:3000/profile (39 psychometric domains)
-- **Admin Panel**: http://localhost:3000/admin/learners
-- **Recommendations**: http://localhost:3000/recommendations
-- **Gap Analysis**: http://localhost:3000/gaps
-- **Graph Visualization**: http://localhost:3000/graph
-- **System Status**: http://localhost:3000/status
-- **Functional Tests**: http://localhost:3000/tests
+### Environment variables
 
-### Basic Usage
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Production | Postgres connection string (e.g. Neon / Vercel Postgres). Unset = embedded PGlite (local dev only). |
+| `BETTER_AUTH_SECRET` | Production | Random secret (>= 32 chars) used to sign sessions. Generate with `openssl rand -hex 32`. Local dev falls back to a per-process random secret. |
+| `BETTER_AUTH_URL` | Production | Public base URL of the app, e.g. `https://learngraph.vercel.app`. |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | No | Extra comma-separated origins allowed to call `/api/auth/*`. |
+| `DATABASE_POOL_MAX` | No | Max Postgres connections per server instance (pg default 10; keep small on serverless). |
+| `PGLITE_DATA_DIR` | No | Local dev only: directory to persist PGlite data (e.g. `.data/pglite`). Default is in-memory (reset on restart). |
+
+`.env` is loaded automatically by `npm run dev`, `npm run build` and
+`npm run preview` (via `scripts/with-app-env.mjs`); real environment
+variables win.
+
+### Database & migrations
+
+The schema lives in `migrations/*.sql` (single source of truth):
+
+- `0001_auth.sql` — Better Auth tables (`user`, `session`, `account`, `verification`)
+- `0002_learngraph.sql` — LearnGraph tables (`learners`, `concepts`,
+  `prerequisite_edges`, `related_edges`, `knowledge_states`, `graph_indexes`),
+  every row scoped by `owner_id` (the signed-in account)
+
+```bash
+DATABASE_URL=postgres://… npm run db:migrate   # apply pending migrations
+```
+
+`npm run build` runs the migrator after `vite build`, so every Vercel deploy
+applies new migrations. Applied files are recorded in `_migrations` and never
+run twice. With PGlite (no `DATABASE_URL`) migrations apply on startup.
+
+### Deploy (Vercel)
+
+`vite.config.ts` builds with Nitro's `vercel` preset. Set `DATABASE_URL`,
+`BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` in the Vercel project, keep the
+build command `npm run build`. `vercel.json` sets the install command.
+
+### Pages
+
+- **Home Dashboard**: http://localhost:8080
+- **My Profile**: http://localhost:8080/profile (39 psychometric domains)
+- **Admin Panel**: http://localhost:8080/admin/learners
+- **Recommendations**: http://localhost:8080/recommendations
+- **Gap Analysis**: http://localhost:8080/gaps
+- **Graph Visualization**: http://localhost:8080/graph
+- **System Status**: http://localhost:8080/status
+- **Functional Tests**: http://localhost:8080/tests
+- **Sign in / sign up**: http://localhost:8080/sign-in
+
+### Basic Usage (server-side)
+
+The engine runs on the server. In the app, the browser calls it through the
+`graphCall` server function (`src/server/graph.functions.ts`), always scoped
+to the signed-in user. Server-side code can use it directly:
 
 ```typescript
-import { getDB } from './lib/db';
+import { graphForOwner } from '@/lib/graph/server';
 
-const db = await getDB();
+const db = await graphForOwner(userId); // userId = verified Better Auth user id
 
 // 1. Create a learner
 await db.setLearnerProfile('student-001', {
@@ -438,28 +486,18 @@ const stats = await db.getStats()
 
 ---
 
-## REST API Endpoints
+## Server API
 
-All endpoints are available under `/api/`:
+There is no public REST API; the UI talks to the server through TanStack
+Start server functions, all protected by `authMiddleware` (session cookie +
+same-site check):
 
-| Endpoint | Methods | Description |
-|----------|---------|-------------|
-| `/api/learners` | GET, POST | List/create learners |
-| `/api/learners/[userId]` | GET, PUT, DELETE | Individual learner |
-| `/api/learners/[userId]/psychometrics` | PUT | Update psychometric scores |
-| `/api/concepts` | GET, POST | List/create concepts |
-| `/api/concepts/[conceptId]` | GET | Get concept details |
-| `/api/edges` | GET, POST, DELETE | Prerequisite edges |
-| `/api/states` | GET, POST, DELETE | Knowledge states |
-| `/api/graph` | GET | Full graph data for visualization |
-| `/api/zpd` | GET | ZPD recommendations for a learner |
-| `/api/learning-path` | GET | Personalized learning path |
-| `/api/gaps` | GET | Detect knowledge gaps (missing, partial, forgotten, misconceptions) |
-| `/api/decay` | GET | Predict memory decay using Ebbinghaus forgetting curve |
-| `/api/review-schedule` | GET | Schedule next review using SM-2 algorithm |
-| `/api/review-queue` | GET | Get prioritized review queue |
-| `/api/remediation` | GET | Generate remediation plan for gaps |
-| `/api/status` | GET | System health check (DB, algorithms, phases) |
+| Entry point | Description |
+|-------------|-------------|
+| `graphCall({ method, args })` | Runs one `EducationGraphDB` method (whitelist in `src/lib/graph/methods.ts`) against the caller's workspace |
+| `seedDemoData()` | Seeds the demo dataset when the caller's workspace is empty |
+| `getCurrentUser()` | Current session user (used by the route guard) |
+| `/api/auth/*` | Better Auth endpoints (sign-up, sign-in, sign-out, session) |
 
 ---
 
@@ -467,17 +505,19 @@ All endpoints are available under `/api/`:
 
 | Component | Technology | Version |
 |-----------|------------|---------|
-| **Database** | LevelDB (via classic-level) | 1.4.1 |
-| **Framework** | Next.js (App Router) | 14.0.4 |
-| **Language** | TypeScript | 5.3.2 |
-| **UI Library** | React | 18.2.0 |
-| **Styling** | TailwindCSS | 3.4.0 |
-| **Graph Visualization** | @xyflow/react (React Flow) | 12.0.0 |
-| **Forms** | react-hook-form | 7.49.2 |
-| **Validation** | Zod | 3.22.4 |
-| **Icons** | lucide-react | 0.294.0 |
-| **Testing** | Vitest | 1.0.4 |
-| **UUID** | uuid | 9.0.1 |
+| **Framework** | TanStack Start + TanStack Router (file routes) | 1.16x |
+| **Build** | Vite + Nitro (Vercel preset) | 8 / 3 beta |
+| **UI Library** | React | 19 |
+| **Styling** | Tailwind CSS (`@tailwindcss/vite`) | 4 |
+| **Database** | PostgreSQL via Kysely + `pg` (PGlite for dev/tests) | Kysely 0.28 |
+| **Auth** | Better Auth (email + password) | 1.6 |
+| **Validation** | Zod | 4 |
+| **State** | Zustand (available, same as michi) | 5 |
+| **Graph Visualization** | @xyflow/react (React Flow) | 12 |
+| **Animation** | framer-motion | 12 |
+| **Icons** | lucide-react | 0.510 |
+| **Testing** | `node --test` (+ Playwright smoke test) | Node 22+ |
+| **Lint / Format** | ESLint 9 flat config + Prettier 3 | |
 
 ---
 
@@ -487,10 +527,10 @@ Achieved benchmarks (Phase 1 testing):
 
 | Operation | Target | Actual |
 |-----------|--------|--------|
-| Write latency | < 5ms | **0.10ms** |
-| Read latency | < 2ms | **0.02ms** |
+| Write latency (PGlite, unit tests) | < 5ms | **passes** |
+| Read latency (PGlite, unit tests) | < 2ms | **passes** |
 | Data persistence | 100% | **100%** |
-| Test coverage | 37/37 | **37/37 passing** |
+| Test coverage | 37/37 | **37/37 passing** (+1 owner-isolation test) |
 | API response | < 500ms | **< 100ms** |
 | Graph render (100 nodes) | < 1s | **< 500ms** |
 
@@ -500,91 +540,34 @@ Achieved benchmarks (Phase 1 testing):
 
 ```
 LearnGraph/
-├── README.md                           # This file
-├── package.json                        # Dependencies and scripts
-├── tsconfig.json                       # TypeScript configuration
-├── next.config.js                      # Next.js configuration
-├── tailwind.config.js                  # TailwindCSS configuration
-│
-├── .claude/
-│   └── CLAUDE.md                       # Project memory and checklist
-│
-├── research/
-│   ├── graph-education.md              # Full PRD with schemas/algorithms
-│   ├── Fine-Tuned-Psychometrics.md     # 39 psychological domains
-│   ├── phases.md                       # Build phases with tests
-│   └── expert.md                       # Expert system foundations
-│
+├── migrations/                  # SQL schema (Better Auth + LearnGraph tables)
+├── scripts/
+│   ├── migrate.mjs              # applies migrations/ to DATABASE_URL
+│   ├── migration-plan.mjs       # shared migration bookkeeping
+│   ├── with-app-env.mjs         # loads .env for dev/build/preview
+│   └── smoke.mjs                # Playwright smoke test (sign-up, pages, sign-in)
 ├── src/
-│   ├── db/
-│   │   └── EducationGraphDB.ts         # Core database class (850+ lines)
-│   └── models/
-│       ├── types.ts                    # TypeScript interfaces (277 lines)
-│       └── psychometrics.ts            # 39 domains + derivations (811 lines)
-│
-├── lib/
-│   └── db.ts                           # Database singleton/connection
-│
-├── app/
-│   ├── page.tsx                        # Home dashboard
-│   ├── layout.tsx                      # Root layout
-│   ├── globals.css                     # Global styles
-│   │
-│   ├── admin/
-│   │   ├── learners/page.tsx           # Learner management
-│   │   ├── concepts/page.tsx           # Concept management
-│   │   ├── prerequisites/page.tsx      # Edge management
-│   │   ├── states/page.tsx             # Progress tracking
-│   │   └── psychometrics/page.tsx      # Psychometric updates
-│   │
-│   ├── profile/
-│   │   └── page.tsx                    # 39 psychometric domains with 4 input modes
-│   │
-│   ├── graph/
-│   │   └── page.tsx                    # Interactive visualization
-│   │
-│   ├── recommendations/
-│   │   └── page.tsx                    # ZPD recommendations page
-│   │
-│   ├── gaps/
-│   │   └── page.tsx                    # Knowledge gap dashboard
-│   │
-│   ├── status/
-│   │   └── page.tsx                    # System health monitoring
-│   │
-│   ├── tests/
-│   │   └── page.tsx                    # Functional test runner
-│   │
-│   └── api/
-│       ├── learners/
-│       │   ├── route.ts                # GET/POST learners
-│       │   └── [userId]/
-│       │       ├── route.ts            # GET/PUT/DELETE learner
-│       │       └── psychometrics/route.ts
-│       ├── concepts/
-│       │   ├── route.ts
-│       │   └── [conceptId]/route.ts
-│       ├── edges/route.ts
-│       ├── states/route.ts
-│       ├── graph/route.ts
-│       ├── zpd/route.ts                # ZPD recommendations
-│       ├── learning-path/route.ts      # Learning path generation
-│       ├── gaps/route.ts               # Gap detection
-│       ├── decay/route.ts              # Memory decay prediction
-│       ├── review-schedule/route.ts    # Review scheduling (SM-2)
-│       ├── review-queue/route.ts       # Prioritized review queue
-│       ├── remediation/route.ts        # Remediation plans
-│       └── status/route.ts             # System health monitoring
-│
-├── components/
-│   ├── AdminLayout.tsx                 # Admin panel layout
-│   └── Sidebar.tsx                     # Navigation sidebar
-│
-├── tests/
-│   └── db.test.ts                      # Database unit tests
-│
-└── data/
-    └── education-graph/                # LevelDB data directory
+│   ├── routes/                  # TanStack file routes (one file per page)
+│   │   ├── __root.tsx           # HTML shell, auth guard, providers
+│   │   ├── sign-in.tsx          # email/password sign-in & sign-up
+│   │   ├── index.tsx, profile.tsx, graph.tsx, gaps.tsx, …
+│   │   ├── admin/               # learners, concepts, prerequisites, states, psychometrics
+│   │   └── api/auth/$.ts        # Better Auth handler
+│   ├── server/                  # server functions (graphCall, seedDemoData, getCurrentUser)
+│   ├── lib/
+│   │   ├── graph/
+│   │   │   ├── education-graph-db.ts  # core engine: ZPD, gaps, SM-2, paths
+│   │   │   ├── store.ts               # Postgres store (Kysely), owner-scoped
+│   │   │   ├── types.ts, psychometrics.ts, seed.ts, methods.ts, server.ts
+│   │   ├── auth/                # Better Auth server/client/middleware
+│   │   ├── db.ts                # Kysely: pg (DATABASE_URL) or PGlite
+│   │   ├── DBContext.tsx        # React hooks (proxy to graphCall)
+│   │   └── assessments.ts, demo-data.ts, theme.tsx, utils.ts
+│   ├── components/              # Sidebar, AdminLayout, ui/*
+│   └── styles.css               # Tailwind 4 theme + components
+├── tests/                       # node --test suites (PGlite-backed)
+├── research/, docs/             # PRD and design docs
+├── vite.config.ts, eslint.config.mjs, .prettierrc, vercel.json
 ```
 
 ---
@@ -712,18 +695,17 @@ Automatically detects and categorizes learning gaps:
 ## Testing
 
 ```bash
-# Run unit tests
-npm test
+npm test             # unit tests (node --test, embedded Postgres via PGlite)
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint .
+npm run build:app    # vite build only (npm run build also runs migrations)
 
-# Run tests with coverage
-npm run test:coverage
-
-# Run tests in watch mode
-npm run test:watch
-
-# Use the in-app functional test runner
-# Navigate to http://localhost:3000/tests
+# end-to-end smoke test (needs a running server)
+npm run dev &
+npm run smoke        # BASE_URL=http://127.0.0.1:8081 npm run smoke for `npm run preview`
 ```
+
+The in-app functional test runner is at http://localhost:8080/tests.
 
 ---
 
