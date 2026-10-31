@@ -92,14 +92,12 @@ try {
   await page.getByRole('button', { name: 'Run All Tests' }).waitFor({ timeout: 180000 });
   const passedText = await page.locator('text=Passed').locator('xpath=preceding-sibling::div').first().innerText();
   const failedText = await page.locator('text=Failed').first().locator('xpath=preceding-sibling::div').first().innerText();
-  // Known, pre-existing (also fails on the old Next.js build): the "schedule
-  // review" check expects a concept reviewed seconds ago to be in the *due*
-  // queue, which the unchanged SM-2 engine correctly excludes.
-  const KNOWN_FAILURES = 1;
+  // Every in-app check must pass (the review-queue bug was fixed in 2026-10).
+  const KNOWN_FAILURES = 0;
   check(
     Number(failedText) <= KNOWN_FAILURES && Number(passedText) > 0,
     'in-app functional tests (/tests)',
-    `${passedText} passed, ${failedText} failed (${KNOWN_FAILURES} known pre-existing)`,
+    `${passedText} passed, ${failedText} failed`,
   );
 
   // Sign out, then sign in again

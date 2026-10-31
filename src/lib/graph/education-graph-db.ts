@@ -1761,7 +1761,13 @@ export class EducationGraphDB {
 
       const decay = this.predictDecay(state, concept);
       const schedule = this.scheduleNextReview(state, concept);
-      const nextReviewDate = new Date(schedule.nextReviewDate);
+      // scheduleNextReview() counts the interval from *now* (correct right after
+      // a review). For the queue, the item is due `intervalDays` after the
+      // last review, otherwise nothing would ever be overdue.
+      const reviewedAt = Date.parse(state.lastReviewed ?? state.firstSeen ?? '');
+      const nextReviewDate = Number.isFinite(reviewedAt)
+        ? new Date(reviewedAt + schedule.intervalDays * 24 * 60 * 60 * 1000)
+        : new Date(schedule.nextReviewDate);
       const isOverdue = nextReviewDate <= now;
 
       // Skip if not due and we're not including non-due items
@@ -1793,7 +1799,7 @@ export class EducationGraphDB {
         priority: schedule.priority,
         predictedRetention: Math.round(decay.predictedRetention),
         daysSinceReview: decay.daysSinceReview,
-        nextReviewDate: schedule.nextReviewDate,
+        nextReviewDate: nextReviewDate.toISOString(),
         reason,
         sortScore,
       });
