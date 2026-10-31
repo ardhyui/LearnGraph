@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from 'react';
 import { ThemeProvider, NO_FLASH_SCRIPT } from '@/lib/theme';
 import { DBProvider } from '@/lib/DBContext';
+import { ErrorPage, NotFoundPage } from '@/components/ErrorPages';
 import { getCurrentUser } from '@/server/session.functions';
 import appCss from '../styles.css?url';
 
@@ -50,6 +51,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     ],
   }),
   shellComponent: RootDocument,
+  errorComponent: ErrorPage,
+  notFoundComponent: NotFoundPage,
   component: RootComponent,
 });
 
