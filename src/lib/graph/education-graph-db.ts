@@ -1,12 +1,27 @@
 /**
- * Browser-compatible database using BrowserLevel (IndexedDB)
- * This allows the entire application to run client-side without server APIs
+ * EducationGraphDB - Core database class for LearnGraph
+ *
+ * Graph database for LearnGraph, persisted in Postgres (via Kysely) through a
+ * GraphStore. Stores, per signed-in owner:
+ * - Learner profiles (Graph A)
+ * - Knowledge concepts (Graph B)
+ * - Prerequisite edges
+ * - Knowledge states
+ *
+ * Key Schema:
+ * - learner:{userId} -> LearnerProfile
+ * - concept:{conceptId} -> ConceptNode
+ * - edge:prereq:{from}:{to} -> PrerequisiteEdge
+ * - edge:related:{edgeId} -> RelatedEdge
+ * - state:{userId}:{conceptId} -> KnowledgeState
+ * - index:domain:{domain}:{conceptId} -> conceptId
+ * - index:learner-states:{userId}:{conceptId} -> true
  */
 
-import { BrowserLevel } from 'browser-level';
-import { v4 as uuidv4 } from 'uuid';
-import {
-  KEY_PREFIXES,
+import { uuidv4 } from '../uuid.ts';
+import type { GraphStore } from './store.ts';
+import { KEY_PREFIXES } from './types.ts';
+import type {
   LearnerProfile,
   ConceptNode,
   PrerequisiteEdge,
@@ -25,36 +40,38 @@ import {
   ScaffoldingStrategy,
   ZPDRecommendation,
   LearningPathStep,
-} from '../src/models/types';
+} from './types.ts';
 import {
   deriveLearningStyle,
   estimateCognitiveProfile,
-} from '../src/models/psychometrics';
+} from './psychometrics.ts';
 
-/**
- * Browser-compatible EducationGraphDB using IndexedDB via BrowserLevel
- */
-export class BrowserEducationGraphDB {
-  private db: BrowserLevel<string, string>;
-  private dbName: string;
+export class EducationGraphDB {
+  private db: GraphStore;
   private isOpen: boolean = false;
 
-  constructor(dbName: string = 'learngraph-db') {
-    this.dbName = dbName;
-    this.db = new BrowserLevel(dbName, { valueEncoding: 'utf8' });
+  /**
+   * @param store Postgres-backed store, already scoped to one owner
+   *   (see `PostgresGraphStore` and `@/lib/graph/server`).
+   */
+  constructor(store: GraphStore) {
+    this.db = store;
   }
 
   // ===========================================================================
   // LIFECYCLE
   // ===========================================================================
 
+  /**
+   * Open the database (the Postgres connection is managed by the store).
+   */
   async open(): Promise<void> {
-    if (!this.isOpen) {
-      await this.db.open();
-      this.isOpen = true;
-    }
+    this.isOpen = true;
   }
 
+  /**
+   * Close the database (releases the store's connection if it owns one)
+   */
   async close(): Promise<void> {
     if (this.isOpen) {
       await this.db.close();
@@ -62,6 +79,9 @@ export class BrowserEducationGraphDB {
     }
   }
 
+  /**
+   * Check if database is open
+   */
   get opened(): boolean {
     return this.isOpen;
   }
@@ -102,100 +122,66 @@ export class BrowserEducationGraphDB {
   // LOW-LEVEL OPERATIONS
   // ===========================================================================
 
+  /**
+   * Get a value by key (null when missing)
+   */
   private async get<T>(key: string): Promise<T | null> {
-    try {
-      const value = await this.db.get(key);
-      if (value === undefined) return null;
-      return JSON.parse(value) as T;
-    } catch (error: unknown) {
-      if ((error as { code?: string }).code === 'LEVEL_NOT_FOUND') {
-        return null;
-      }
-      throw error;
-    }
+    return this.db.get<T>(key);
   }
 
+  /**
+   * Put a value
+   */
   private async put<T>(key: string, value: T): Promise<void> {
-    await this.db.put(key, JSON.stringify(value));
+    await this.db.put(key, value);
   }
 
+  /**
+   * Delete a key (no-op if it doesn't exist)
+   */
   private async del(key: string): Promise<void> {
-    try {
-      await this.db.del(key);
-    } catch (error: unknown) {
-      if ((error as { code?: string }).code === 'LEVEL_NOT_FOUND') {
-        return;
-      }
-      throw error;
-    }
+    await this.db.del(key);
   }
 
+  /**
+   * Check if a key exists
+   */
   private async exists(key: string): Promise<boolean> {
-    try {
-      await this.db.get(key);
-      return true;
-    } catch (error: unknown) {
-      if ((error as { code?: string }).code === 'LEVEL_NOT_FOUND') {
-        return false;
-      }
-      throw error;
-    }
+    return this.db.exists(key);
   }
 
+  /**
+   * List keys with prefix (byte-ordered, like LevelDB)
+   */
   private async listKeys(prefix: string, options: QueryOptions = {}): Promise<string[]> {
-    const keys: string[] = [];
-    const iterator = this.db.keys({
-      gte: prefix,
-      lt: prefix + '\xFF',
-      limit: options.limit,
-      reverse: options.reverse,
-    });
-
-    for await (const key of iterator) {
-      keys.push(key);
-    }
-
-    return keys;
+    return this.db.listKeys(prefix, options);
   }
 
+  /**
+   * List entries with prefix (byte-ordered, like LevelDB)
+   */
   private async listEntries<T>(prefix: string, options: QueryOptions = {}): Promise<{ key: string; value: T }[]> {
-    const entries: { key: string; value: T }[] = [];
-    const iterator = this.db.iterator({
-      gte: prefix,
-      lt: prefix + '\xFF',
-      limit: options.limit,
-      reverse: options.reverse,
-    });
-
-    for await (const [key, value] of iterator) {
-      entries.push({ key, value: JSON.parse(value) as T });
-    }
-
-    return entries;
+    return this.db.listEntries<T>(prefix, options);
   }
 
   // ===========================================================================
   // BATCH OPERATIONS
   // ===========================================================================
 
+  /**
+   * Execute multiple operations atomically (one Postgres transaction)
+   */
   async batch(operations: BatchOperation[]): Promise<void> {
-    const batch = this.db.batch();
-
-    for (const op of operations) {
-      if (op.type === 'put' && op.value !== undefined) {
-        batch.put(op.key, JSON.stringify(op.value));
-      } else if (op.type === 'del') {
-        batch.del(op.key);
-      }
-    }
-
-    await batch.write();
+    await this.db.batch(operations);
   }
 
   // ===========================================================================
   // LEARNER OPERATIONS (Graph A)
   // ===========================================================================
 
+  /**
+   * Create or update a learner profile
+   */
   async setLearnerProfile(userId: string, profile: Partial<LearnerProfile>): Promise<LearnerProfile> {
     const now = new Date().toISOString();
     const existing = await this.getLearnerProfile(userId);
@@ -213,13 +199,21 @@ export class BrowserEducationGraphDB {
     return fullProfile;
   }
 
+  /**
+   * Get a learner profile by ID
+   */
   async getLearnerProfile(userId: string): Promise<LearnerProfile | null> {
     return this.get<LearnerProfile>(this.learnerKey(userId));
   }
 
+  /**
+   * Delete a learner profile
+   */
   async deleteLearnerProfile(userId: string): Promise<void> {
+    // Delete the profile
     await this.del(this.learnerKey(userId));
 
+    // Delete all associated knowledge states
     const stateKeys = await this.listKeys(`${KEY_PREFIXES.STATE}:${userId}:`);
     const indexKeys = await this.listKeys(`${KEY_PREFIXES.INDEX}:learner-states:${userId}:`);
 
@@ -233,11 +227,17 @@ export class BrowserEducationGraphDB {
     }
   }
 
+  /**
+   * List all learner profiles
+   */
   async listLearnerProfiles(options: QueryOptions = {}): Promise<LearnerProfile[]> {
     const entries = await this.listEntries<LearnerProfile>(`${KEY_PREFIXES.LEARNER}:`, options);
     return entries.map(e => e.value);
   }
 
+  /**
+   * Update a specific psychometric domain score
+   */
   async updatePsychometricScore(
     userId: string,
     domain: string,
@@ -261,6 +261,9 @@ export class BrowserEducationGraphDB {
     await this.put(this.learnerKey(userId), profile);
   }
 
+  /**
+   * Bulk update multiple psychometric domain scores
+   */
   async updatePsychometricScores(
     userId: string,
     scores: Record<string, { score: number; confidence?: number; source?: string }>
@@ -286,6 +289,9 @@ export class BrowserEducationGraphDB {
     return profile;
   }
 
+  /**
+   * Compute and store derived learning style from psychometric scores
+   */
   async computeAndStoreLearningStyle(userId: string): Promise<LearnerProfile> {
     const profile = await this.getLearnerProfile(userId);
     if (!profile) {
@@ -299,6 +305,9 @@ export class BrowserEducationGraphDB {
     return profile;
   }
 
+  /**
+   * Compute and store cognitive profile from psychometric scores
+   */
   async computeAndStoreCognitiveProfile(userId: string): Promise<LearnerProfile> {
     const profile = await this.getLearnerProfile(userId);
     if (!profile) {
@@ -312,6 +321,9 @@ export class BrowserEducationGraphDB {
     return profile;
   }
 
+  /**
+   * Compute and store both learning style and cognitive profile
+   */
   async computeAndStoreDerivedProfiles(userId: string): Promise<LearnerProfile> {
     const profile = await this.getLearnerProfile(userId);
     if (!profile) {
@@ -326,6 +338,9 @@ export class BrowserEducationGraphDB {
     return profile;
   }
 
+  /**
+   * Get psychometric scores with their metadata
+   */
   async getPsychometricScores(userId: string): Promise<Record<string, PsychometricScore>> {
     const profile = await this.getLearnerProfile(userId);
     if (!profile) {
@@ -338,6 +353,9 @@ export class BrowserEducationGraphDB {
   // CONCEPT OPERATIONS (Graph B)
   // ===========================================================================
 
+  /**
+   * Add or update a concept
+   */
   async addConcept(concept: Partial<ConceptNode> & { conceptId: string }): Promise<ConceptNode> {
     const now = new Date().toISOString();
     const existing = await this.getConcept(concept.conceptId);
@@ -357,16 +375,25 @@ export class BrowserEducationGraphDB {
       updatedAt: now,
     };
 
+    // Store concept
     await this.put(this.conceptKey(concept.conceptId), fullConcept);
+
+    // Update domain index
     await this.put(this.domainIndexKey(fullConcept.domain, concept.conceptId), concept.conceptId);
 
     return fullConcept;
   }
 
+  /**
+   * Get a concept by ID
+   */
   async getConcept(conceptId: string): Promise<ConceptNode | null> {
     return this.get<ConceptNode>(this.conceptKey(conceptId));
   }
 
+  /**
+   * Delete a concept
+   */
   async deleteConcept(conceptId: string): Promise<void> {
     const concept = await this.getConcept(conceptId);
     if (!concept) return;
@@ -376,6 +403,7 @@ export class BrowserEducationGraphDB {
       { type: 'del', key: this.domainIndexKey(concept.domain, conceptId) },
     ];
 
+    // Delete all edges involving this concept
     const prereqFromKeys = await this.listKeys(`${KEY_PREFIXES.EDGE}:prereq:${conceptId}:`);
     const prereqToKeys = await this.getEdgesToConcept(conceptId);
 
@@ -387,11 +415,17 @@ export class BrowserEducationGraphDB {
     await this.batch(ops);
   }
 
+  /**
+   * List all concepts
+   */
   async listConcepts(options: QueryOptions = {}): Promise<ConceptNode[]> {
     const entries = await this.listEntries<ConceptNode>(`${KEY_PREFIXES.CONCEPT}:`, options);
     return entries.map(e => e.value);
   }
 
+  /**
+   * List concepts by domain
+   */
   async listConceptsByDomain(domain: string): Promise<ConceptNode[]> {
     const keys = await this.listKeys(`${KEY_PREFIXES.INDEX}:domain:${domain}:`);
     const concepts: ConceptNode[] = [];
@@ -411,6 +445,9 @@ export class BrowserEducationGraphDB {
   // EDGE OPERATIONS
   // ===========================================================================
 
+  /**
+   * Add a prerequisite edge
+   */
   async addEdge(edge: { from: string; to: string; strength?: string; reason?: string }): Promise<PrerequisiteEdge> {
     const fullEdge: PrerequisiteEdge = {
       edgeId: `${edge.from}:${edge.to}`,
@@ -425,33 +462,55 @@ export class BrowserEducationGraphDB {
     return fullEdge;
   }
 
+  /**
+   * Get a prerequisite edge
+   */
   async getEdge(from: string, to: string): Promise<PrerequisiteEdge | null> {
     return this.get<PrerequisiteEdge>(this.prereqEdgeKey(from, to));
   }
 
+  /**
+   * Delete a prerequisite edge
+   */
   async deleteEdge(from: string, to: string): Promise<void> {
     await this.del(this.prereqEdgeKey(from, to));
   }
 
+  /**
+   * Get all prerequisites for a concept (edges pointing TO this concept)
+   */
   private async getEdgesToConcept(conceptId: string): Promise<PrerequisiteEdge[]> {
     const allEdges = await this.listEntries<PrerequisiteEdge>(`${KEY_PREFIXES.EDGE}:prereq:`);
     return allEdges.filter(e => e.value.to === conceptId).map(e => e.value);
   }
 
+  /**
+   * Get direct prerequisites for a concept
+   */
   async getPrerequisites(conceptId: string): Promise<PrerequisiteEdge[]> {
     return this.getEdgesToConcept(conceptId);
   }
 
+  /**
+   * Get concepts that depend on this concept
+   */
   async getDependents(conceptId: string): Promise<PrerequisiteEdge[]> {
     const entries = await this.listEntries<PrerequisiteEdge>(`${KEY_PREFIXES.EDGE}:prereq:${conceptId}:`);
     return entries.map(e => e.value);
   }
 
+  /**
+   * List all prerequisite edges
+   */
   async listEdges(): Promise<PrerequisiteEdge[]> {
     const entries = await this.listEntries<PrerequisiteEdge>(`${KEY_PREFIXES.EDGE}:prereq:`);
     return entries.map(e => e.value);
   }
 
+  /**
+   * Get prerequisite chain with depth traversal
+   * Returns all prerequisites up to maxDepth levels deep
+   */
   async getPrerequisiteChain(
     conceptId: string,
     maxDepth: number = 5
@@ -480,6 +539,9 @@ export class BrowserEducationGraphDB {
     return result.sort((a, b) => a.depth - b.depth);
   }
 
+  /**
+   * Get dependent chain (concepts that depend on this one)
+   */
   async getDependentChain(
     conceptId: string,
     maxDepth: number = 5
@@ -508,6 +570,9 @@ export class BrowserEducationGraphDB {
     return result.sort((a, b) => a.depth - b.depth);
   }
 
+  /**
+   * Search concepts by name or description
+   */
   async searchConcepts(query: string, options: { limit?: number } = {}): Promise<ConceptNode[]> {
     const allConcepts = await this.listConcepts();
     const lowerQuery = query.toLowerCase();
@@ -520,6 +585,7 @@ export class BrowserEducationGraphDB {
       concept.tags?.some(tag => tag.toLowerCase().includes(lowerQuery))
     );
 
+    // Sort by relevance (exact name match first, then name contains, then description)
     matches.sort((a, b) => {
       const aNameExact = a.name.toLowerCase() === lowerQuery ? 0 : 1;
       const bNameExact = b.name.toLowerCase() === lowerQuery ? 0 : 1;
@@ -533,6 +599,9 @@ export class BrowserEducationGraphDB {
     return options.limit ? matches.slice(0, options.limit) : matches;
   }
 
+  /**
+   * List concepts by difficulty range
+   */
   async listConceptsByDifficulty(
     minDifficulty: number = 1,
     maxDifficulty: number = 10
@@ -545,7 +614,10 @@ export class BrowserEducationGraphDB {
     ).sort((a, b) => a.difficulty.absolute - b.difficulty.absolute);
   }
 
-  async listConceptsByBloomLevel(bloomLevel: keyof import('../src/models/types').BloomObjectives): Promise<ConceptNode[]> {
+  /**
+   * Get concepts with specific Bloom level objectives
+   */
+  async listConceptsByBloomLevel(bloomLevel: keyof import('./types.ts').BloomObjectives): Promise<ConceptNode[]> {
     const allConcepts = await this.listConcepts();
     return allConcepts.filter(
       concept => concept.bloomObjectives?.[bloomLevel]?.length
@@ -556,6 +628,9 @@ export class BrowserEducationGraphDB {
   // RELATED EDGE OPERATIONS
   // ===========================================================================
 
+  /**
+   * Add a related (non-prerequisite) edge between concepts
+   */
   async addRelatedEdge(
     conceptA: string,
     conceptB: string,
@@ -576,6 +651,9 @@ export class BrowserEducationGraphDB {
     return edge;
   }
 
+  /**
+   * Get all related edges for a concept
+   */
   async getRelatedEdges(conceptId: string): Promise<RelatedEdge[]> {
     const entries = await this.listEntries<RelatedEdge>(`${KEY_PREFIXES.EDGE}:related:`);
     return entries
@@ -586,10 +664,16 @@ export class BrowserEducationGraphDB {
       );
   }
 
+  /**
+   * Delete a related edge
+   */
   async deleteRelatedEdge(edgeId: string): Promise<void> {
     await this.del(this.relatedEdgeKey(edgeId));
   }
 
+  /**
+   * List all related edges
+   */
   async listRelatedEdges(): Promise<RelatedEdge[]> {
     const entries = await this.listEntries<RelatedEdge>(`${KEY_PREFIXES.EDGE}:related:`);
     return entries.map(e => e.value);
@@ -599,6 +683,9 @@ export class BrowserEducationGraphDB {
   // KNOWLEDGE STATE OPERATIONS
   // ===========================================================================
 
+  /**
+   * Set knowledge state for a learner on a concept
+   */
   async setKnowledgeState(
     userId: string,
     conceptId: string,
@@ -621,6 +708,7 @@ export class BrowserEducationGraphDB {
       ...state,
     };
 
+    // Set firstSeen if this is new
     if (!existing && !fullState.firstSeen) {
       fullState.firstSeen = now;
     }
@@ -629,25 +717,39 @@ export class BrowserEducationGraphDB {
     fullState.updatedAt = now;
 
     await this.put(this.stateKey(userId, conceptId), fullState);
+
+    // Update index
     await this.put(this.learnerStatesIndexKey(userId, conceptId), true);
 
     return fullState;
   }
 
+  /**
+   * Get knowledge state for a learner on a concept
+   */
   async getKnowledgeState(userId: string, conceptId: string): Promise<KnowledgeState | null> {
     return this.get<KnowledgeState>(this.stateKey(userId, conceptId));
   }
 
+  /**
+   * Delete knowledge state
+   */
   async deleteKnowledgeState(userId: string, conceptId: string): Promise<void> {
     await this.del(this.stateKey(userId, conceptId));
     await this.del(this.learnerStatesIndexKey(userId, conceptId));
   }
 
+  /**
+   * Get all knowledge states for a learner
+   */
   async getLearnerKnowledgeStates(userId: string): Promise<KnowledgeState[]> {
     const entries = await this.listEntries<KnowledgeState>(`${KEY_PREFIXES.STATE}:${userId}:`);
     return entries.map(e => e.value);
   }
 
+  /**
+   * Add a misconception to a knowledge state
+   */
   async addMisconception(
     userId: string,
     conceptId: string,
@@ -673,6 +775,9 @@ export class BrowserEducationGraphDB {
   // STATISTICS
   // ===========================================================================
 
+  /**
+   * Get database statistics
+   */
   async getStats(): Promise<DBStats> {
     const learners = await this.listKeys(`${KEY_PREFIXES.LEARNER}:`);
     const concepts = await this.listKeys(`${KEY_PREFIXES.CONCEPT}:`);
@@ -687,6 +792,9 @@ export class BrowserEducationGraphDB {
     };
   }
 
+  /**
+   * Clear all data (use with caution!)
+   */
   async clear(): Promise<void> {
     await this.db.clear();
   }
@@ -695,24 +803,39 @@ export class BrowserEducationGraphDB {
   // ZPD ENGINE (Zone of Proximal Development)
   // ===========================================================================
 
+  /**
+   * Mastery threshold for considering a concept "mastered"
+   */
   private readonly MASTERY_THRESHOLD = 80;
+
+  /**
+   * Threshold for partial mastery
+   */
   private readonly PARTIAL_MASTERY_THRESHOLD = 40;
 
+  /**
+   * Compute the Zone of Proximal Development for a learner
+   * This is the main entry point for ZPD recommendations
+   */
   async computeZPD(userId: string, options: { limit?: number } = {}): Promise<ZPDResult> {
     const startTime = Date.now();
     const limit = options.limit ?? 10;
 
+    // Get learner profile
     const profile = await this.getLearnerProfile(userId);
     if (!profile) {
       throw new Error(`Learner not found: ${userId}`);
     }
 
+    // Get all concepts and learner's knowledge states
     const concepts = await this.listConcepts();
     const states = await this.getLearnerKnowledgeStates(userId);
     const stateMap = new Map(states.map(s => [s.conceptId, s]));
 
+    // Compute psychometric adjustments
     const psychometricAdjustments = this.adjustForPsychometrics(profile);
 
+    // Partition all concepts into zones
     const zonedConcepts: ZonedConcept[] = [];
 
     for (const concept of concepts) {
@@ -724,6 +847,7 @@ export class BrowserEducationGraphDB {
       zonedConcepts.push(zonedConcept);
     }
 
+    // Partition into zones
     const tooEasy: ZonedConcept[] = [];
     const zpd: ZonedConcept[] = [];
     const tooHard: ZonedConcept[] = [];
@@ -742,8 +866,10 @@ export class BrowserEducationGraphDB {
       }
     }
 
+    // Sort ZPD concepts by readiness (highest first)
     zpd.sort((a, b) => b.readiness - a.readiness);
 
+    // Generate recommendations for top ZPD concepts
     const recommendations: ZPDRecommendation[] = [];
     for (const zc of zpd.slice(0, limit)) {
       const recommendation = await this.generateRecommendation(
@@ -754,6 +880,7 @@ export class BrowserEducationGraphDB {
       recommendations.push(recommendation);
     }
 
+    // Generate learning path
     const suggestedPath = await this.generateLearningPath(userId, limit);
 
     const computationTimeMs = Date.now() - startTime;
@@ -771,6 +898,9 @@ export class BrowserEducationGraphDB {
     };
   }
 
+  /**
+   * Classify a single concept into a zone for a learner
+   */
   private async classifyConcept(
     concept: ConceptNode,
     stateMap: Map<string, KnowledgeState>,
@@ -779,6 +909,7 @@ export class BrowserEducationGraphDB {
     const state = stateMap.get(concept.conceptId);
     const currentMastery = state?.mastery ?? 0;
 
+    // Get prerequisites and check how many are mastered
     const prereqs = await this.getPrerequisites(concept.conceptId);
     const missingPrerequisites: string[] = [];
     let prereqsMasteredCount = 0;
@@ -796,8 +927,9 @@ export class BrowserEducationGraphDB {
 
     const prerequisitesMet = prereqs.length > 0
       ? prereqsMasteredCount / prereqs.length
-      : 1;
+      : 1; // No prerequisites means all met
 
+    // Calculate readiness score
     const readiness = this.calculateReadiness(
       concept,
       currentMastery,
@@ -805,25 +937,31 @@ export class BrowserEducationGraphDB {
       adjustments
     );
 
+    // Determine zone based on current mastery and readiness
     let zone: ZoneType;
     let reason: string;
 
     if (currentMastery >= this.MASTERY_THRESHOLD) {
+      // Already mastered
       zone = 'too_easy';
       reason = `Already mastered (${currentMastery}% mastery)`;
     } else if (prerequisitesMet < 0.7) {
+      // Missing too many prerequisites
       zone = 'too_hard';
       reason = `Missing ${missingPrerequisites.length} prerequisite(s): ${missingPrerequisites.slice(0, 3).join(', ')}${missingPrerequisites.length > 3 ? '...' : ''}`;
     } else if (readiness >= 0.5) {
+      // Ready to learn
       zone = 'zpd';
       reason = prerequisitesMet === 1
         ? 'All prerequisites mastered - ready to learn!'
         : `Most prerequisites met (${Math.round(prerequisitesMet * 100)}%) - good candidate for learning`;
     } else {
+      // Too hard for now
       zone = 'too_hard';
       reason = `Low readiness (${Math.round(readiness * 100)}%) - build foundation first`;
     }
 
+    // Calculate recommended order (lower = sooner)
     const recommendedOrder = zone === 'zpd'
       ? Math.round((1 - readiness) * 100) + concept.difficulty.absolute
       : zone === 'too_easy' ? 1000 : 2000;
@@ -839,21 +977,28 @@ export class BrowserEducationGraphDB {
     };
   }
 
+  /**
+   * Calculate readiness score for a concept
+   */
   private calculateReadiness(
     concept: ConceptNode,
     currentMastery: number,
     prerequisitesMet: number,
     adjustments: PsychometricAdjustments
   ): number {
+    // Base readiness from prerequisites
     let readiness = prerequisitesMet;
 
+    // Reduce readiness if already have some mastery (less value in learning)
     const masteryPenalty = currentMastery / 100 * 0.3;
     readiness -= masteryPenalty;
 
+    // Adjust for difficulty relative to learner
     const adjustedDifficulty = concept.difficulty.absolute + (adjustments.difficultyModifier * 10);
-    const difficultyFactor = 1 - Math.abs(adjustedDifficulty - 5) / 10;
+    const difficultyFactor = 1 - Math.abs(adjustedDifficulty - 5) / 10; // Optimal around 5
     readiness *= (0.5 + difficultyFactor * 0.5);
 
+    // Boost readiness if cognitive load matches learner capacity
     if (adjustments.paceRecommendation === 'faster' && concept.difficulty.cognitiveLoad < 0.5) {
       readiness *= 1.1;
     } else if (adjustments.paceRecommendation === 'slower' && concept.difficulty.cognitiveLoad < 0.3) {
@@ -863,42 +1008,50 @@ export class BrowserEducationGraphDB {
     return Math.max(0, Math.min(1, readiness));
   }
 
+  /**
+   * Compute psychometric adjustments for a learner
+   */
   adjustForPsychometrics(profile: LearnerProfile): PsychometricAdjustments {
     const scores = profile.psychometricScores;
 
+    // Default values
     let difficultyModifier = 0;
     let paceRecommendation: 'slower' | 'normal' | 'faster' = 'normal';
     const attentionConsiderations: string[] = [];
     const scaffoldingStrategies = this.selectScaffoldingStrategies(profile);
     let presentationStyle: 'visual' | 'verbal' | 'hands_on' | 'mixed' = 'mixed';
 
+    // Analyze openness to experience (intellectual curiosity)
     const openness = scores['openness_to_experience']?.score;
     if (openness !== undefined) {
       if (openness > 70) {
-        difficultyModifier += 0.2;
+        difficultyModifier += 0.2; // Can handle harder material
       } else if (openness < 30) {
         difficultyModifier -= 0.1;
       }
     }
 
+    // Analyze conscientiousness (self-discipline)
     const conscientiousness = scores['conscientiousness']?.score;
     if (conscientiousness !== undefined) {
       if (conscientiousness > 70) {
-        paceRecommendation = 'faster';
+        paceRecommendation = 'faster'; // More self-disciplined can go faster
       } else if (conscientiousness < 30) {
         paceRecommendation = 'slower';
         attentionConsiderations.push('May need more structure and checkpoints');
       }
     }
 
+    // Analyze neuroticism (emotional stability)
     const neuroticism = scores['neuroticism']?.score;
     if (neuroticism !== undefined) {
       if (neuroticism > 70) {
-        difficultyModifier -= 0.2;
+        difficultyModifier -= 0.2; // Reduce stress with easier material
         attentionConsiderations.push('Keep encouragement high, minimize failure scenarios');
       }
     }
 
+    // Analyze extraversion
     const extraversion = scores['extraversion']?.score;
     if (extraversion !== undefined) {
       if (extraversion > 70) {
@@ -908,6 +1061,7 @@ export class BrowserEducationGraphDB {
       }
     }
 
+    // Determine presentation style from learning style
     if (profile.learningStyle) {
       switch (profile.learningStyle.primary) {
         case 'visual':
@@ -924,6 +1078,7 @@ export class BrowserEducationGraphDB {
       }
     }
 
+    // Cap difficulty modifier
     difficultyModifier = Math.max(-0.5, Math.min(0.5, difficultyModifier));
 
     return {
@@ -935,16 +1090,21 @@ export class BrowserEducationGraphDB {
     };
   }
 
+  /**
+   * Select scaffolding strategies based on learner profile
+   */
   selectScaffoldingStrategies(profile: LearnerProfile): ScaffoldingStrategy[] {
     const strategies: ScaffoldingStrategy[] = [];
     const scores = profile.psychometricScores;
 
+    // Default strategy everyone benefits from
     strategies.push({
       type: 'worked_example',
       reason: 'Universal foundation for learning new concepts',
       priority: 8,
     });
 
+    // Visual learners
     if (profile.learningStyle?.primary === 'visual') {
       strategies.push({
         type: 'visual_aids',
@@ -953,6 +1113,7 @@ export class BrowserEducationGraphDB {
       });
     }
 
+    // High neuroticism - need more support
     const neuroticism = scores['neuroticism']?.score;
     if (neuroticism !== undefined && neuroticism > 60) {
       strategies.push({
@@ -967,6 +1128,7 @@ export class BrowserEducationGraphDB {
       });
     }
 
+    // Low working memory - need chunking
     if (profile.cognitiveProfile?.workingMemoryCapacity === 'low') {
       strategies.push({
         type: 'chunking',
@@ -975,6 +1137,7 @@ export class BrowserEducationGraphDB {
       });
     }
 
+    // High extraversion - social learning
     const extraversion = scores['extraversion']?.score;
     if (extraversion !== undefined && extraversion > 70) {
       strategies.push({
@@ -984,6 +1147,7 @@ export class BrowserEducationGraphDB {
       });
     }
 
+    // Low openness - needs analogies to familiar concepts
     const openness = scores['openness_to_experience']?.score;
     if (openness !== undefined && openness < 40) {
       strategies.push({
@@ -993,6 +1157,7 @@ export class BrowserEducationGraphDB {
       });
     }
 
+    // Short attention span - needs repetition
     if (profile.cognitiveProfile?.attentionSpan === 'short') {
       strategies.push({
         type: 'repetition',
@@ -1001,6 +1166,7 @@ export class BrowserEducationGraphDB {
       });
     }
 
+    // Kinesthetic learners
     if (profile.learningStyle?.primary === 'kinesthetic') {
       strategies.push({
         type: 'guided_practice',
@@ -1009,11 +1175,15 @@ export class BrowserEducationGraphDB {
       });
     }
 
+    // Sort by priority descending
     strategies.sort((a, b) => b.priority - a.priority);
 
     return strategies;
   }
 
+  /**
+   * Generate a recommendation for a ZPD concept
+   */
   private async generateRecommendation(
     zonedConcept: ZonedConcept,
     profile: LearnerProfile,
@@ -1021,9 +1191,11 @@ export class BrowserEducationGraphDB {
   ): Promise<ZPDRecommendation> {
     const concept = zonedConcept.concept;
 
+    // Get prerequisite chain for context
     const prereqChain = await this.getPrerequisiteChain(concept.conceptId, 3);
     const prerequisiteChain = prereqChain.map(p => p.concept.name);
 
+    // Estimate mastery time based on difficulty and learner profile
     let baseTime = concept.timeEstimates?.basicMastery ?? (concept.difficulty.absolute * 15);
 
     if (adjustments.paceRecommendation === 'slower') {
@@ -1032,8 +1204,10 @@ export class BrowserEducationGraphDB {
       baseTime *= 0.8;
     }
 
+    // Calculate psychometric match score
     const psychometricMatch = this.calculatePsychometricMatch(concept, profile, adjustments);
 
+    // Generate reasons
     const reasons: string[] = [];
 
     if (zonedConcept.prerequisitesMet === 1) {
@@ -1065,13 +1239,17 @@ export class BrowserEducationGraphDB {
     };
   }
 
+  /**
+   * Calculate how well a concept matches the learner's psychometric profile
+   */
   private calculatePsychometricMatch(
     concept: ConceptNode,
     profile: LearnerProfile,
     adjustments: PsychometricAdjustments
   ): number {
-    let match = 0.5;
+    let match = 0.5; // Base match
 
+    // Abstract concepts match high openness
     const openness = profile.psychometricScores['openness_to_experience']?.score;
     if (openness !== undefined) {
       if (concept.difficulty.abstractness > 0.7 && openness > 60) {
@@ -1081,20 +1259,25 @@ export class BrowserEducationGraphDB {
       }
     }
 
+    // High cognitive load concepts match high working memory
     if (profile.cognitiveProfile?.workingMemoryCapacity === 'high' && concept.difficulty.cognitiveLoad > 0.7) {
       match += 0.15;
     } else if (profile.cognitiveProfile?.workingMemoryCapacity === 'low' && concept.difficulty.cognitiveLoad > 0.7) {
       match -= 0.15;
     }
 
+    // Adjust based on difficulty modifier alignment
     const adjustedDifficulty = concept.difficulty.absolute + (adjustments.difficultyModifier * 10);
     if (adjustedDifficulty >= 4 && adjustedDifficulty <= 7) {
-      match += 0.1;
+      match += 0.1; // Optimal difficulty range
     }
 
     return Math.max(0, Math.min(1, match));
   }
 
+  /**
+   * Generate an optimal learning path for a learner
+   */
   async generateLearningPath(userId: string, maxConcepts: number = 10): Promise<LearningPathStep[]> {
     const profile = await this.getLearnerProfile(userId);
     if (!profile) {
@@ -1106,13 +1289,15 @@ export class BrowserEducationGraphDB {
     const stateMap = new Map(states.map(s => [s.conceptId, s]));
     const adjustments = this.adjustForPsychometrics(profile);
 
+    // Find all concepts not yet mastered
     const unmasteredConcepts = concepts.filter(c => {
       const state = stateMap.get(c.conceptId);
       return !state || state.mastery < this.MASTERY_THRESHOLD;
     });
 
+    // Build dependency graph
     const edges = await this.listEdges();
-    const dependencies = new Map<string, Set<string>>();
+    const dependencies = new Map<string, Set<string>>(); // conceptId -> set of prerequisite IDs
 
     for (const concept of concepts) {
       dependencies.set(concept.conceptId, new Set());
@@ -1125,15 +1310,18 @@ export class BrowserEducationGraphDB {
       }
     }
 
+    // Topological sort with priority based on readiness
     const path: LearningPathStep[] = [];
     const visited = new Set<string>();
     const inPath = new Set<string>();
 
+    // Priority queue based on readiness and mastery
     const getScore = (conceptId: string): number => {
       const concept = concepts.find(c => c.conceptId === conceptId)!;
       const state = stateMap.get(conceptId);
       const mastery = state?.mastery ?? 0;
 
+      // Count unmastered dependencies
       const deps = dependencies.get(conceptId) || new Set();
       let unmasteredDeps = 0;
       for (const dep of deps) {
@@ -1143,13 +1331,17 @@ export class BrowserEducationGraphDB {
         }
       }
 
+      // Lower score = higher priority
+      // Prefer: low unmastered deps, low current mastery, moderate difficulty
       return unmasteredDeps * 100 + (100 - mastery) * 0.5 + Math.abs(concept.difficulty.absolute - 5) * 10;
     };
 
+    // Process concepts in priority order
     const queue = [...unmasteredConcepts.map(c => c.conceptId)];
     queue.sort((a, b) => getScore(a) - getScore(b));
 
     while (queue.length > 0 && path.length < maxConcepts) {
+      // Find first concept with all deps satisfied
       let foundIdx = -1;
       for (let i = 0; i < queue.length; i++) {
         const conceptId = queue[i];
@@ -1172,12 +1364,14 @@ export class BrowserEducationGraphDB {
       }
 
       if (foundIdx === -1) {
+        // No concept with satisfied deps - take first unvisited dep
         for (const conceptId of queue) {
           const deps = dependencies.get(conceptId) || new Set();
           for (const dep of deps) {
             if (!inPath.has(dep) && !visited.has(dep)) {
               foundIdx = queue.indexOf(dep);
               if (foundIdx === -1) {
+                // Add the dep to queue
                 queue.push(dep);
                 foundIdx = queue.length - 1;
               }
@@ -1187,7 +1381,7 @@ export class BrowserEducationGraphDB {
           if (foundIdx !== -1) break;
         }
 
-        if (foundIdx === -1) break;
+        if (foundIdx === -1) break; // No more concepts to add
       }
 
       const conceptId = queue[foundIdx];
@@ -1199,6 +1393,7 @@ export class BrowserEducationGraphDB {
       const concept = concepts.find(c => c.conceptId === conceptId);
       if (!concept) continue;
 
+      // Calculate duration based on profile
       let duration = concept.timeEstimates?.basicMastery ?? (concept.difficulty.absolute * 15);
       if (adjustments.paceRecommendation === 'slower') {
         duration *= 1.3;
@@ -1206,6 +1401,7 @@ export class BrowserEducationGraphDB {
         duration *= 0.8;
       }
 
+      // Generate milestones from bloom objectives
       const milestones: string[] = [];
       if (concept.bloomObjectives?.understand) {
         milestones.push(...concept.bloomObjectives.understand.slice(0, 2));
@@ -1232,16 +1428,30 @@ export class BrowserEducationGraphDB {
   // PHASE 5: KNOWLEDGE GAP ANALYSIS
   // ===========================================================================
 
+  /**
+   * Gap types for classification
+   */
   private readonly GAP_TYPES = {
-    MISSING: 'missing',
-    PARTIAL: 'partial',
-    FORGOTTEN: 'forgotten',
-    MISCONCEPTION: 'misconception',
+    MISSING: 'missing',      // Concept never learned
+    PARTIAL: 'partial',      // Started but not mastered
+    FORGOTTEN: 'forgotten',  // Mastered but decayed over time
+    MISCONCEPTION: 'misconception', // Has active misconceptions
   } as const;
 
+  /**
+   * Retention threshold below which we consider knowledge "forgotten"
+   */
   private readonly FORGOTTEN_THRESHOLD = 60;
-  private readonly BASE_STABILITY = 7;
 
+  /**
+   * Stability factor for forgetting curve (higher = slower decay)
+   * Base value, adjusted by difficulty and review count
+   */
+  private readonly BASE_STABILITY = 7; // days
+
+  /**
+   * Detect all knowledge gaps for a learner
+   */
   async detectGaps(
     userId: string,
     options: {
@@ -1274,7 +1484,9 @@ export class BrowserEducationGraphDB {
     for (const concept of concepts) {
       const state = stateMap.get(concept.conceptId);
 
+      // Check for missing knowledge (never learned)
       if ((type === 'all' || type === 'missing') && !state) {
+        // Only flag as missing if prerequisites are met (otherwise it's just "not ready yet")
         const prereqs = await this.getPrerequisites(concept.conceptId);
         let prereqsMet = true;
 
@@ -1297,6 +1509,7 @@ export class BrowserEducationGraphDB {
 
       if (!state) continue;
 
+      // Check for partial mastery
       if ((type === 'all' || type === 'partial') &&
           state.mastery >= this.PARTIAL_MASTERY_THRESHOLD &&
           state.mastery < this.MASTERY_THRESHOLD) {
@@ -1308,6 +1521,7 @@ export class BrowserEducationGraphDB {
         });
       }
 
+      // Check for forgotten knowledge (decay)
       if (type === 'all' || type === 'forgotten') {
         if (state.mastery >= this.PARTIAL_MASTERY_THRESHOLD && state.lastReviewed) {
           const decay = this.predictDecay(state, concept);
@@ -1324,9 +1538,11 @@ export class BrowserEducationGraphDB {
         }
       }
 
+      // Check for misconceptions
       if ((type === 'all' || type === 'misconceptions') &&
           state.misconceptions &&
           state.misconceptions.length > 0) {
+        // Only include unresolved misconceptions
         const unresolvedMisconceptions = state.misconceptions.filter(m => !m.resolved);
         if (unresolvedMisconceptions.length > 0) {
           misconceptions.push({
@@ -1339,6 +1555,7 @@ export class BrowserEducationGraphDB {
       }
     }
 
+    // Calculate summary
     const total = missing.length + partial.length + forgotten.length + misconceptions.length;
     const critical = forgotten.filter(f => f.predictedRetention < 40).length +
                     misconceptions.filter(m => m.misconceptions.some(mc => mc.severity === 'major')).length;
@@ -1361,6 +1578,13 @@ export class BrowserEducationGraphDB {
     };
   }
 
+  /**
+   * Predict memory decay using Ebbinghaus forgetting curve
+   * R = e^(-t/S) where:
+   *   R = retention (0-100)
+   *   t = time since last review (days)
+   *   S = stability factor (higher = slower decay)
+   */
   predictDecay(
     state: KnowledgeState,
     concept: ConceptNode
@@ -1374,6 +1598,10 @@ export class BrowserEducationGraphDB {
     const lastReview = state.lastReviewed ? new Date(state.lastReviewed) : new Date(state.updatedAt);
     const daysSinceReview = Math.max(0, (now.getTime() - lastReview.getTime()) / (1000 * 60 * 60 * 24));
 
+    // Calculate stability factor based on:
+    // - Review count (more reviews = more stable)
+    // - Current mastery (higher mastery = more stable)
+    // - Concept difficulty (harder concepts decay faster)
     const reviewBonus = Math.log2(Math.max(1, state.reviewCount || 1)) * 2;
     const masteryBonus = (state.mastery / 100) * 3;
     const difficultyPenalty = (concept.difficulty.absolute / 10) * 2;
@@ -1381,6 +1609,7 @@ export class BrowserEducationGraphDB {
     const stabilityFactor = this.BASE_STABILITY + reviewBonus + masteryBonus - difficultyPenalty;
     const clampedStability = Math.max(1, stabilityFactor);
 
+    // Ebbinghaus forgetting curve: R = e^(-t/S) * initial_mastery
     const decayRate = 1 / clampedStability;
     const retentionFactor = Math.exp(-daysSinceReview * decayRate);
     const predictedRetention = state.mastery * retentionFactor;
@@ -1393,6 +1622,10 @@ export class BrowserEducationGraphDB {
     };
   }
 
+  /**
+   * Schedule next review using SM-2 inspired spaced repetition
+   * Intervals grow exponentially with successful reviews
+   */
   scheduleNextReview(
     state: KnowledgeState,
     concept: ConceptNode,
@@ -1407,20 +1640,24 @@ export class BrowserEducationGraphDB {
     const decay = this.predictDecay(state, concept);
     const reviewCount = state.reviewCount || 0;
 
+    // Base interval calculation (SM-2 inspired)
+    // I(n) = I(n-1) * EF where EF is easiness factor
     let baseInterval: number;
 
     if (reviewCount === 0) {
-      baseInterval = 1;
+      baseInterval = 1; // First review in 1 day
     } else if (reviewCount === 1) {
-      baseInterval = 3;
+      baseInterval = 3; // Second review in 3 days
     } else if (reviewCount === 2) {
-      baseInterval = 7;
+      baseInterval = 7; // Third review in 1 week
     } else {
+      // Exponential growth based on stability
       const easinessFactor = 1.5 + (state.mastery / 100) * 1;
       const previousInterval = Math.pow(2, reviewCount - 1);
       baseInterval = previousInterval * easinessFactor;
     }
 
+    // Adjust based on performance if provided
     let intervalMultiplier = 1;
     if (performance) {
       switch (performance) {
@@ -1439,19 +1676,23 @@ export class BrowserEducationGraphDB {
       }
     }
 
+    // Adjust based on current retention
     if (decay.predictedRetention < 50) {
-      intervalMultiplier *= 0.5;
+      intervalMultiplier *= 0.5; // Review sooner if retention is low
     }
 
     const intervalDays = Math.max(1, Math.round(baseInterval * intervalMultiplier));
 
+    // Calculate dates
     const now = new Date();
     const nextReview = new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000);
 
+    // Optimal window is ±20% of interval
     const windowBuffer = Math.max(1, Math.round(intervalDays * 0.2));
     const windowStart = new Date(nextReview.getTime() - windowBuffer * 24 * 60 * 60 * 1000);
     const windowEnd = new Date(nextReview.getTime() + windowBuffer * 24 * 60 * 60 * 1000);
 
+    // Determine priority
     let priority: 'urgent' | 'normal' | 'low';
     if (decay.predictedRetention < 40 || (state.misconceptions?.length ?? 0) > 0) {
       priority = 'urgent';
@@ -1470,6 +1711,9 @@ export class BrowserEducationGraphDB {
     };
   }
 
+  /**
+   * Get prioritized review queue for a learner
+   */
   async getReviewQueue(
     userId: string,
     options: { limit?: number; includeNotDue?: boolean } = {}
@@ -1509,6 +1753,7 @@ export class BrowserEducationGraphDB {
     }[] = [];
 
     for (const state of states) {
+      // Skip concepts with very low mastery (not really "learned" yet)
       if (state.mastery < this.PARTIAL_MASTERY_THRESHOLD) continue;
 
       const concept = await this.getConcept(state.conceptId);
@@ -1519,8 +1764,10 @@ export class BrowserEducationGraphDB {
       const nextReviewDate = new Date(schedule.nextReviewDate);
       const isOverdue = nextReviewDate <= now;
 
+      // Skip if not due and we're not including non-due items
       if (!isOverdue && !includeNotDue) continue;
 
+      // Generate reason
       let reason: string;
       if (isOverdue) {
         reason = `Overdue for review - retention at ${Math.round(decay.predictedRetention)}%`;
@@ -1532,6 +1779,8 @@ export class BrowserEducationGraphDB {
         reason = `Scheduled review to maintain mastery`;
       }
 
+      // Calculate sort score (lower = higher priority)
+      // Priority order: overdue urgent > overdue normal > urgent > normal > low
       let sortScore = decay.predictedRetention;
       if (isOverdue) sortScore -= 100;
       if (schedule.priority === 'urgent') sortScore -= 50;
@@ -1550,8 +1799,10 @@ export class BrowserEducationGraphDB {
       });
     }
 
+    // Sort by priority score
     queue.sort((a, b) => a.sortScore - b.sortScore);
 
+    // Calculate stats
     const now_time = now.getTime();
     const stats = {
       totalItems: queue.length,
@@ -1561,12 +1812,16 @@ export class BrowserEducationGraphDB {
       overdue: queue.filter(q => new Date(q.nextReviewDate).getTime() <= now_time).length,
     };
 
+    // Return limited results (without sortScore)
     return {
       queue: queue.slice(0, limit).map(({ sortScore, ...item }) => item),
       stats,
     };
   }
 
+  /**
+   * Generate a remediation plan for a learner's gaps
+   */
   async generateRemediationPlan(
     userId: string,
     options: { maxSteps?: number; focusType?: 'missing' | 'partial' | 'forgotten' | 'misconceptions' } = {}
@@ -1615,6 +1870,11 @@ export class BrowserEducationGraphDB {
       priority: number;
     }[] = [];
 
+    // Priority order: misconceptions > forgotten > partial > missing
+    // This is because misconceptions can propagate, and forgotten knowledge
+    // is easier to recover than partial knowledge
+
+    // Add misconception corrections (highest priority)
     if (!options.focusType || options.focusType === 'misconceptions') {
       for (const gap of gaps.misconceptions) {
         const severity = gap.misconceptions.reduce((max, m) => {
@@ -1635,6 +1895,7 @@ export class BrowserEducationGraphDB {
       }
     }
 
+    // Add forgotten reviews (second priority - easier to recover)
     if (!options.focusType || options.focusType === 'forgotten') {
       for (const gap of gaps.forgotten) {
         const urgency = (100 - gap.predictedRetention) / 10;
@@ -1655,6 +1916,7 @@ export class BrowserEducationGraphDB {
       }
     }
 
+    // Add partial mastery reinforcement
     if (!options.focusType || options.focusType === 'partial') {
       for (const gap of gaps.partial) {
         const progress = gap.mastery / this.MASTERY_THRESHOLD;
@@ -1672,6 +1934,7 @@ export class BrowserEducationGraphDB {
       }
     }
 
+    // Add missing concepts (lowest priority - new learning takes more effort)
     if (!options.focusType || options.focusType === 'missing') {
       for (const gap of gaps.missing) {
         steps.push({
@@ -1682,20 +1945,24 @@ export class BrowserEducationGraphDB {
           action: `Learn new concept - prerequisites are ready`,
           estimatedTime: gap.concept.timeEstimates?.basicMastery ?? (gap.concept.difficulty.absolute * 15),
           scaffolding: adjustments.scaffoldingStrategies,
-          priority: 40 - gap.concept.difficulty.absolute,
+          priority: 40 - gap.concept.difficulty.absolute, // Easier concepts first
         });
       }
     }
 
+    // Sort by priority and assign order
     steps.sort((a, b) => b.priority - a.priority);
     steps.forEach((step, idx) => {
       step.order = idx + 1;
     });
 
+    // Limit steps
     const limitedSteps = steps.slice(0, maxSteps).map(({ priority, ...step }) => step);
 
+    // Calculate total time
     const estimatedTotalTime = limitedSteps.reduce((sum, step) => sum + step.estimatedTime, 0);
 
+    // Determine priority focus
     let priorityFocus: string;
     if (gaps.misconceptions.length > 0) {
       priorityFocus = 'Addressing misconceptions first to prevent learning interference';
@@ -1718,24 +1985,4 @@ export class BrowserEducationGraphDB {
       gaps,
     };
   }
-}
-
-// Singleton instance for client-side use
-let dbInstance: BrowserEducationGraphDB | null = null;
-
-export async function getBrowserDB(): Promise<BrowserEducationGraphDB> {
-  if (typeof window === 'undefined') {
-    throw new Error('getBrowserDB can only be called in browser environment');
-  }
-
-  if (!dbInstance) {
-    dbInstance = new BrowserEducationGraphDB('learngraph-db');
-    await dbInstance.open();
-  }
-
-  return dbInstance;
-}
-
-export function resetBrowserDB(): void {
-  dbInstance = null;
 }

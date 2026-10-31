@@ -628,7 +628,7 @@ export function getDomainMetadata(domainId: PsychometricDomainId): DomainMetadat
 // LEARNING STYLE DERIVATION
 // =============================================================================
 
-import type { LearningStyle, LearningModality, CognitiveProfile, PsychometricScore } from './types';
+import type { LearningStyle, LearningModality, CognitiveProfile, PsychometricScore } from './types.ts';
 
 /**
  * Derive learning style from psychometric scores
