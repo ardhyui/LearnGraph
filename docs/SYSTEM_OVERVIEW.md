@@ -759,8 +759,8 @@ const context = await db.getRAGContext('user-123', 'explain algebra');
 ## System Requirements
 
 - **Runtime**: Node.js 18+ or Bun
-- **Database**: LevelDB (embedded, no separate server)
-- **Framework**: Next.js 14+ with App Router
+- **Database**: PostgreSQL via Kysely (embedded PGlite in local dev), originally LevelDB
+- **Framework**: TanStack Start + Router on Vite 8, React 19, Better Auth
 - **Storage**: ~50MB for database + indexes
 
 ---
