@@ -29,15 +29,6 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.4, ease: 'easeOut' as const },
-  },
-};
-
 function getMasteryColor(mastery: number): string {
   if (mastery >= 80) return 'bg-emerald-500';
   if (mastery >= 40) return 'bg-amber-500';
@@ -85,7 +76,7 @@ function StatesPage() {
         allStates.push(...learnerStates);
       }
       setStates(allStates);
-    } catch (err) {
+    } catch {
       setError('Failed to fetch knowledge states');
     } finally {
       setStatesLoading(false);
@@ -121,7 +112,8 @@ function StatesPage() {
     try {
       await db.setKnowledgeState(formData.userId, formData.conceptId, {
         mastery: formData.mastery,
-        bloomLevel: formData.bloomLevel as any,
+        // Stored as Bloom level 1–6 (the select holds the level name).
+        bloomLevel: (BLOOM_LEVELS.indexOf(formData.bloomLevel) + 1 || 2) as 1 | 2 | 3 | 4 | 5 | 6,
       });
 
       setShowForm(false);

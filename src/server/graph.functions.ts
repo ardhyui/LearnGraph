@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { authMiddleware } from '@/lib/auth/middleware';
 import { REMOTE_GRAPH_METHODS } from '@/lib/graph/methods';
+import { assertGraphCallSize, parseGraphArgs } from '@/lib/graph/rpc-schemas';
 
 const graphCallInput = z.object({
   method: z.enum(REMOTE_GRAPH_METHODS),
@@ -14,7 +15,13 @@ const graphCallInput = z.object({
  */
 export const graphCall = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
-  .validator((data: unknown) => graphCallInput.parse(data))
+  .validator((data: unknown) => {
+    // 1) payload size cap, 2) method allow-list, 3) per-method argument schema
+    // (ids, ranges, lengths — see rpc-schemas.ts). Only parsed args reach the engine.
+    assertGraphCallSize(data);
+    const { method, args } = graphCallInput.parse(data);
+    return { method, args: parseGraphArgs(method, args) };
+  })
   .handler(async ({ data, context }) => {
     const { graphForOwner } = await import('@/lib/graph/server');
     const graph = await graphForOwner(context.userId);
