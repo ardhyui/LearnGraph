@@ -33,7 +33,7 @@ const globalAuthRef = globalThis as typeof globalThis & { __learngraphDevAuthSec
 function authSecret(): string {
   const configured = env('BETTER_AUTH_SECRET');
   if (configured) return configured;
-  if (isProduction && env('DATABASE_URL')) {
+  if (isProduction && (env('DATABASE_URL') || env('VERCEL'))) {
     throw new Error('[auth] BETTER_AUTH_SECRET must be set in production.');
   }
   globalAuthRef.__learngraphDevAuthSecret__ ??= randomBytes(32).toString('hex');

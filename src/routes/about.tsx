@@ -1388,7 +1388,7 @@ function AboutPage() {
           {/* QUICK TEST - MOVED DOWN */}
           <Section id="quick-test" title="Try It Yourself: 5-Minute Demo" icon={Play}>
             <p className="text-muted-foreground mb-6">
-              See LearnGraph in action. After starting the app, run these commands:
+              See LearnGraph in action. After starting the app (<code className="bg-muted px-1 rounded">npm run dev</code>) and signing in, follow these steps. There is no public REST API: pages call the engine through authenticated server functions, scoped to your account.
             </p>
 
             <div className="space-y-4">
@@ -1397,10 +1397,7 @@ function AboutPage() {
                   <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-sm flex items-center justify-center">1</span>
                   Create Your Learner Profile
                 </h4>
-                <CodeBlock>{`curl -X POST http://localhost:3000/api/learners \\
-  -H "Content-Type: application/json" \\
-  -d '{"name": "Your Name", "email": "you@example.com"}'`}</CodeBlock>
-                <p className="text-xs text-muted-foreground">Save the <code className="bg-muted px-1 rounded">userId</code> from the response.</p>
+                <p className="text-sm text-muted-foreground">Open <code className="bg-muted px-1 rounded">/admin/learners</code> and click <strong>Add Learner</strong>, or fill in your psychometrics on <code className="bg-muted px-1 rounded">/profile</code>.</p>
               </div>
 
               <div className="p-4 rounded-lg border border-border/50 bg-card/50">
@@ -1408,7 +1405,7 @@ function AboutPage() {
                   <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-sm flex items-center justify-center">2</span>
                   Load Sample Curriculum
                 </h4>
-                <CodeBlock>{`curl -X POST http://localhost:3000/api/seed-concepts`}</CodeBlock>
+                <p className="text-sm text-muted-foreground">Demo learners, concepts and prerequisites are seeded automatically the first time your account opens the app. Add more on <code className="bg-muted px-1 rounded">/admin/concepts</code> and <code className="bg-muted px-1 rounded">/admin/prerequisites</code>.</p>
               </div>
 
               <div className="p-4 rounded-lg border border-border/50 bg-card/50">
@@ -1416,9 +1413,7 @@ function AboutPage() {
                   <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-sm flex items-center justify-center">3</span>
                   Track Some Knowledge
                 </h4>
-                <CodeBlock>{`curl -X POST http://localhost:3000/api/knowledge-state \\
-  -H "Content-Type: application/json" \\
-  -d '{"userId": "YOUR_USER_ID", "conceptId": "arithmetic", "mastery": 85}'`}</CodeBlock>
+                <p className="text-sm text-muted-foreground">Set mastery levels on <code className="bg-muted px-1 rounded">/admin/states</code> (or <code className="bg-muted px-1 rounded">/data-entry</code>).</p>
               </div>
 
               <div className="p-4 rounded-lg border border-green-500/50 bg-green-500/5">
@@ -1426,8 +1421,8 @@ function AboutPage() {
                   <span className="w-6 h-6 rounded-full bg-green-500/20 text-green-500 text-sm flex items-center justify-center">4</span>
                   Ask "What Should I Learn Next?"
                 </h4>
-                <CodeBlock>{`curl "http://localhost:3000/api/zpd?userId=YOUR_USER_ID"`}</CodeBlock>
-                <p className="text-xs text-green-500">→ Returns concepts in your Zone of Proximal Development</p>
+                <p className="text-sm text-muted-foreground">Open <code className="bg-muted px-1 rounded">/recommendations</code> and pick a learner.</p>
+                <p className="text-xs text-green-500">→ Shows concepts in the Zone of Proximal Development and a learning path</p>
               </div>
 
               <div className="p-4 rounded-lg border border-amber-500/50 bg-amber-500/5">
@@ -1435,8 +1430,20 @@ function AboutPage() {
                   <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-500 text-sm flex items-center justify-center">5</span>
                   Check for Knowledge Gaps
                 </h4>
-                <CodeBlock>{`curl "http://localhost:3000/api/gaps?userId=YOUR_USER_ID"`}</CodeBlock>
-                <p className="text-xs text-amber-500">→ Returns missing, partial, forgotten, and misconception gaps</p>
+                <p className="text-sm text-muted-foreground">Open <code className="bg-muted px-1 rounded">/gaps</code>.</p>
+                <p className="text-xs text-amber-500">→ Shows missing, partial, forgotten, and misconception gaps plus the review queue</p>
+              </div>
+
+              <div className="p-4 rounded-lg border border-border/50 bg-card/50">
+                <h4 className="font-semibold mb-2">From server code</h4>
+                <CodeBlock>{`import { graphForOwner } from '@/lib/graph/server';
+
+// ownerId = the verified Better Auth user id (see authMiddleware)
+const db = await graphForOwner(ownerId);
+await db.setLearnerProfile('student-1', { name: 'Your Name' });
+await db.setKnowledgeState('student-1', 'arithmetic', { mastery: 85 });
+const zpd = await db.computeZPD('student-1');
+const gaps = await db.detectGaps('student-1');`}</CodeBlock>
               </div>
 
               <div className="p-4 rounded-lg border border-blue-500/50 bg-blue-500/5">
@@ -1573,23 +1580,20 @@ function AboutPage() {
 │                                                                          │
 │  PERFORMANCE                                                             │
 │  ───────────                                                             │
-│  Read: 0.02ms avg    Write: 0.10ms avg    Traversal (depth 5): <100ms   │
+│  Read: <2ms          Write: <5ms (unit-test targets, embedded Postgres)  │
 └──────────────────────────────────────────────────────────────────────────┘`}</CodeBlock>
 
-              <h3 className="text-xl font-semibold mt-8">API Endpoints</h3>
+              <h3 className="text-xl font-semibold mt-8">Server Entry Points</h3>
+              <p className="text-sm text-muted-foreground">
+                There is no public REST API. The UI calls TanStack Start server functions; every one requires a signed-in session and only touches that account&apos;s data.
+              </p>
               <Table
-                headers={['Endpoint', 'Method', 'Purpose']}
+                headers={['Entry point', 'Type', 'Purpose']}
                 rows={[
-                  [<code key="1">/api/learners</code>, 'GET, POST', 'List/create learner profiles'],
-                  [<code key="2">/api/learners/[id]</code>, 'GET, PUT, DELETE', 'Individual learner CRUD'],
-                  [<code key="3">/api/concepts</code>, 'GET, POST', 'List/create concepts'],
-                  [<code key="4">/api/prerequisites</code>, 'GET, POST, DELETE', 'Manage prerequisite edges'],
-                  [<code key="5">/api/knowledge-state</code>, 'GET, POST', 'Track learner mastery'],
-                  [<code key="6">/api/zpd</code>, 'GET', 'Compute Zone of Proximal Development'],
-                  [<code key="7">/api/gaps</code>, 'GET', 'Detect knowledge gaps'],
-                  [<code key="8">/api/decay</code>, 'GET', 'Predict memory decay'],
-                  [<code key="9">/api/review-schedule</code>, 'GET', 'Get spaced repetition schedule'],
-                  [<code key="10">/api/remediation</code>, 'GET', 'Generate remediation plans'],
+                  [<code key="1">graphCall({'{ method, args }'})</code>, 'Server function (POST)', 'Run one whitelisted EducationGraphDB method (learners, concepts, edges, states, ZPD, gaps, decay, review schedule, remediation)'],
+                  [<code key="2">seedDemoData()</code>, 'Server function (POST)', 'Seed demo data into an empty workspace'],
+                  [<code key="3">getCurrentUser()</code>, 'Server function (GET)', 'Current session user'],
+                  [<code key="4">/api/auth/*</code>, 'HTTP (Better Auth)', 'Sign up, sign in, sign out, session'],
                 ]}
               />
 

@@ -9,7 +9,7 @@ const searchSchema = z.object({ redirect: z.string().optional() });
 
 /** Only same-app relative paths are allowed as post-login targets. */
 function safeRedirect(target: string | undefined): string {
-  if (!target || !target.startsWith('/') || target.startsWith('//')) return '/';
+  if (!target || !target.startsWith('/') || target.startsWith('//') || target.includes('\\')) return '/';
   return target;
 }
 

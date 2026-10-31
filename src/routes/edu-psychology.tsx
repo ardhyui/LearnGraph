@@ -453,7 +453,7 @@ function CodeLocation({ file, description, endpoint }: { file: string; descripti
         <div className="text-gray-400 mt-1 ml-4">{description}</div>
         {endpoint && (
           <div className="text-purple-400 mt-2">
-            🔗 API: <span className="text-yellow-300">{endpoint}</span>
+            🔗 Engine: <span className="text-yellow-300">{endpoint}</span>
           </div>
         )}
       </div>
@@ -587,7 +587,7 @@ function EduPsychologyPage() {
           <CodeLocation
             file="src/db/EducationGraphDB.ts → computeZPD()"
             description="Calculates ZPD by checking prerequisite mastery and concept difficulty"
-            endpoint="/api/zpd?learnerId=xxx"
+            endpoint="db.computeZPD(learnerId)"
           />
         </ExpandableSection>
 
@@ -632,7 +632,7 @@ function EduPsychologyPage() {
           <CodeLocation
             file="src/models/types.ts → ConceptNode.bloomLevel"
             description="Each concept stores its Bloom level (1=Remember, 6=Create)"
-            endpoint="/api/concepts"
+            endpoint="db.listConcepts()"
           />
         </ExpandableSection>
 
@@ -660,7 +660,7 @@ function EduPsychologyPage() {
           <CodeLocation
             file="src/db/EducationGraphDB.ts → selectScaffoldingStrategies()"
             description="Selects scaffolding based on learner's psychometric profile (39 domains)"
-            endpoint="/api/zpd?learnerId=xxx (returns scaffolding recommendations)"
+            endpoint="db.computeZPD(learnerId) (returns scaffolding recommendations)"
           />
         </ExpandableSection>
 
@@ -715,7 +715,7 @@ function EduPsychologyPage() {
           <CodeLocation
             file="src/db/EducationGraphDB.ts → predictDecay() [Phase 5]"
             description="Will calculate retention based on time since last review and difficulty"
-            endpoint="/api/review-queue [Coming Soon]"
+            endpoint="db.getReviewQueue(learnerId)"
           />
         </ExpandableSection>
 
@@ -764,7 +764,7 @@ function EduPsychologyPage() {
           <CodeLocation
             file="src/models/types.ts → LearnerProfile.psychometrics"
             description="Stores 39 domain scores with confidence levels for each learner"
-            endpoint="/api/learners/:id"
+            endpoint="db.getLearnerProfile(learnerId)"
           />
         </ExpandableSection>
 
@@ -839,7 +839,7 @@ function EduPsychologyPage() {
           <CodeLocation
             file="src/db/EducationGraphDB.ts → addEdge(), getPrerequisites()"
             description="Stores and traverses prerequisite relationships between concepts"
-            endpoint="/api/prerequisites"
+            endpoint="db.getPrerequisiteChain(conceptId)"
           />
         </ExpandableSection>
 
