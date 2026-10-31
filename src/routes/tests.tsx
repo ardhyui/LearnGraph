@@ -1154,10 +1154,13 @@ function TestsPage() {
     const scheduleReviewOk = await runTest(phase5Index, 7, async () => {
       if (!phase5UserId) throw new Error('No user ID');
       const result = await db.getReviewQueue(phase5UserId, { limit: 10 });
-      // Find the item for phase5-known
-      const knownItem = result.queue.find(item => item.conceptId === 'phase5-known');
-      if (!knownItem) throw new Error('phase5-known not in review queue');
-      if (!knownItem.nextReviewDate) throw new Error('No next review date returned');
+      // A concept reviewed just now is not due yet; one reviewed 30 days ago is.
+      const dueItem = result.queue.find(item => item.conceptId === 'phase5-forgotten');
+      if (!dueItem) throw new Error('phase5-forgotten (reviewed 30 days ago) not in review queue');
+      if (!dueItem.nextReviewDate) throw new Error('No next review date returned');
+      if (result.queue.some(item => item.conceptId === 'phase5-known')) {
+        throw new Error('phase5-known (just reviewed) should not be due yet');
+      }
     });
     if (scheduleReviewOk) passed++;
     else failed++;
