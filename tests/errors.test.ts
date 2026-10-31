@@ -7,7 +7,11 @@ import {
   describeError,
   formatErrorLog,
   isExpectedError,
+  GENERIC_SERVER_ERROR,
+  InternalServerError,
   logError,
+  refOf,
+  toClientError,
   userFacingMessage,
 } from '../src/lib/errors.ts';
 
@@ -111,5 +115,80 @@ describe('userFacingMessage', () => {
       userFacingMessage(new StatusError('Unauthorized', 401, 'UnauthorizedError'), false),
       /sign in again/,
     );
+  });
+});
+
+describe('toClientError (what server functions send to the browser)', () => {
+  const dbError = () => {
+    const e = new Error('relation "secret_table" does not exist') as Error & Record<string, unknown>;
+    e.code = '42P01';
+    e.query = 'SELECT * FROM secret_table WHERE owner_id = $1';
+    return e;
+  };
+
+  it('replaces unexpected errors in production with a generic 500 + ref, no internals', () => {
+    const out = toClientError(dbError(), { isDev: false, ref: 'abc123' });
+    assert.ok(out instanceof InternalServerError);
+    const e = out as InternalServerError;
+    assert.equal(e.status, 500);
+    assert.equal(e.ref, 'abc123');
+    assert.equal(e.message, `${GENERIC_SERVER_ERROR} (ref abc123)`);
+    assert.equal(e.stack, `InternalServerError: ${e.message}`);
+    const wire = JSON.stringify({ ...e, message: e.message, stack: e.stack });
+    for (const leak of ['secret_table', '42P01', 'SELECT', 'owner_id', '.ts:', 'at ']) {
+      assert.equal(wire.includes(leak), false, `leaked ${leak}`);
+    }
+    assert.equal(isExpectedError(e), false);
+  });
+
+  it('serializes without internals through seroval (the TanStack Start wire format)', async () => {
+    const { toCrossJSONAsync } = await import('seroval');
+    const out = toClientError(dbError(), { isDev: false, ref: 'r1' });
+    const wire = JSON.stringify(await toCrossJSONAsync(out, { refs: new Map() }));
+    assert.equal(wire.includes('secret_table'), false);
+    assert.equal(wire.includes('42P01'), false);
+    assert.equal(wire.includes('errors.ts'), false);
+    assert.ok(wire.includes('r1'));
+  });
+
+  it('generates a ref when none is given', () => {
+    const e = toClientError(new Error('x'), { isDev: false }) as InternalServerError;
+    assert.match(e.ref, /^[a-z0-9]+$/);
+    assert.equal(refOf(e), e.ref);
+  });
+
+  it('keeps expected errors (validation, 401, 429) but strips the server stack', () => {
+    const v = new StatusError('Invalid input for addConcept: argument 1.conceptId: must not contain ":"', 400, 'InvalidGraphInputError');
+    const out = toClientError(v, { isDev: false, ref: null });
+    assert.equal(out, v);
+    assert.equal(v.message.startsWith('Invalid input for addConcept'), true);
+    assert.equal(v.stack, `InvalidGraphInputError: ${v.message}`);
+    const u = new StatusError('Unauthorized', 401, 'UnauthorizedError');
+    assert.equal(toClientError(u, { isDev: false }), u);
+    assert.match(userFacingMessage(u, false), /sign in again/);
+  });
+
+  it('passes everything through unchanged in development', () => {
+    const e = dbError();
+    const stack = e.stack;
+    assert.equal(toClientError(e, { isDev: true, ref: 'x' }), e);
+    assert.equal(e.stack, stack);
+  });
+
+  it('client-side logError reuses the server ref of a sanitized error', () => {
+    const lines: string[] = [];
+    const orig = console.error;
+    console.error = (s: string) => lines.push(s);
+    try {
+      const sanitized = { name: 'InternalServerError', message: 'x', status: 500, ref: 'srv42' };
+      assert.equal(logError('ui', sanitized), 'srv42');
+      assert.equal(JSON.parse(lines[0]).ref, 'srv42');
+      assert.equal(refOf({ ref: '<script>' }), null);
+      // Production wire format keeps only `message`: ref is read from its suffix.
+      assert.equal(refOf(new Error(`${GENERIC_SERVER_ERROR} (ref k9x2)`)), 'k9x2');
+      assert.equal(refOf(new Error('Learner not found (ref k9x2)')), null);
+    } finally {
+      console.error = orig;
+    }
   });
 });
