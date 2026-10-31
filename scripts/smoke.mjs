@@ -53,6 +53,27 @@ try {
   await page.waitForFunction(() => document.readyState === 'complete');
   check(page.url().includes('/sign-in'), 'signed-out visitor is redirected to /sign-in');
 
+  // Security headers on every response (CSP, anti-framing, nosniff …).
+  {
+    const res = await fetch(`${BASE}/sign-in`);
+    const csp = res.headers.get('content-security-policy') ?? '';
+    check(
+      /frame-ancestors 'none'/.test(csp) &&
+        /object-src 'none'/.test(csp) &&
+        res.headers.get('x-frame-options') === 'DENY' &&
+        res.headers.get('x-content-type-options') === 'nosniff' &&
+        !!res.headers.get('referrer-policy'),
+      'security headers are sent',
+      csp ? '' : 'no Content-Security-Policy header',
+    );
+    // Server functions refuse cross-site calls (CSRF).
+    const xs = await fetch(`${BASE}/_serverFn/smoke-csrf-probe`, {
+      method: 'POST',
+      headers: { 'sec-fetch-site': 'cross-site', origin: 'https://evil.example' },
+    });
+    check(xs.status === 403, 'cross-site server function call is rejected', `HTTP ${xs.status}`);
+  }
+
   // Sign up
   // Retry the toggle until hydrated (a click before hydration is a no-op).
   for (let i = 0; i < 20 && !(await page.locator('#name').isVisible()); i++) {
