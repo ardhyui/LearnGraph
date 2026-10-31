@@ -1,5 +1,6 @@
 import { createRouter } from '@tanstack/react-router';
 import { routeTree } from './routeTree.gen';
+import { ErrorPage, NotFoundPage } from './components/ErrorPages';
 
 export function getRouter() {
   return createRouter({
@@ -7,11 +8,8 @@ export function getRouter() {
     scrollRestoration: true,
     defaultPreload: 'intent',
     context: { user: null },
-    defaultNotFoundComponent: () => (
-      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
-        Page not found.
-      </div>
-    ),
+    defaultNotFoundComponent: NotFoundPage,
+    defaultErrorComponent: ErrorPage,
   });
 }
 

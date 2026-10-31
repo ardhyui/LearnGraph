@@ -85,6 +85,27 @@ try {
     );
   }
 
+  // Unknown URLs get the friendly 404 page (HTTP 404), with a way back home.
+  {
+    const before = errors.length;
+    const res = await page.goto(`${BASE}/this-page-does-not-exist`, { waitUntil: 'networkidle' });
+    const heading = await page
+      .getByRole('heading', { name: 'Page not found' })
+      .isVisible()
+      .catch(() => false);
+    const newErrors = errors.slice(before).filter((e) => !/404/.test(e));
+    check(
+      res?.status() === 404 && heading && newErrors.length === 0,
+      'unknown URL shows the friendly 404 page',
+      `HTTP ${res?.status()}${newErrors.length ? `, ${newErrors.join(' | ')}` : ''}`,
+    );
+    await page.getByRole('link', { name: 'Back to dashboard' }).click();
+    await page.waitForURL((u) => u.pathname === '/', { timeout: 15000 }).then(
+      () => check(true, '404 page links back to the dashboard'),
+      () => check(false, '404 page links back to the dashboard', page.url()),
+    );
+  }
+
   // The in-app "Functional Tests" page drives the whole engine (ZPD, gaps,
   // SM-2 …) through the server — a good end-to-end check of the RPC layer.
   await page.goto(`${BASE}/tests`, { waitUntil: 'networkidle' });

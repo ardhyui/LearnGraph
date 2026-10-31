@@ -12,7 +12,8 @@ secret, atau keputusan biaya dari pemilik ditandai 🔒 dan dilewati sampai ada 
 ### P0 — Aman & andal
 1. ~~CI sebagai gerbang setiap merge~~ ✅ 2026-10-31 — lokal: `npm run ci` (pemilik tidak ingin GitHub Actions).
 2. ~~Rate limiting endpoint auth (sign-in/sign-up)~~ ✅ 2026-10-31
-3. Error boundary global + halaman 404/500 yang ramah; log error server yang konsisten.
+3. ~~Error boundary global + halaman 404/500 yang ramah; log error server yang konsisten~~ ✅ 2026-11-01
+   - Lanjutan: pesan error mentah dari server function masih ikut terkirim ke klien (UI sudah menyembunyikannya di produksi); pertimbangkan menyaring pesan error 5xx di sisi server.
 4. Header keamanan (CSP, X-Frame-Options, Referrer-Policy) lewat `vercel.json`/middleware.
 5. Validasi input server-side dengan Zod untuk semua server function yang menulis data.
 6. Bersihkan 89 warning lint (bertahap) lalu jadikan `--max-warnings` ketat di CI.
@@ -38,3 +39,4 @@ secret, atau keputusan biaya dari pemilik ditandai 🔒 dan dilewati sampai ada 
 
 - **2026-10-31** — Putaran #1: menyiapkan workflow CI di `docs/ci/ci.yml` (belum aktif: push ke `.github/workflows` ditolak karena token tanpa scope `workflow`). Memperbaiki bug engine spaced repetition: `getReviewQueue` menghitung tanggal review berikutnya dari *sekarang*, sehingga antrean review jatuh tempo (halaman Gaps) selalu kosong. Kini dihitung dari tanggal review terakhir + interval; ditambah test unit baru. Cek Fase 5 di `/tests` diperbaiki (konsep yang di-review 30 hari lalu harus jatuh tempo, yang baru di-review tidak) dan smoke test kini mewajibkan 0 kegagalan. Menyusun roadmap ini.
 - **2026-10-31** — Putaran #2: CI lokal `npm run ci` (`scripts/ci.mjs`) menggantikan rencana GitHub Actions; `docs/ci/ci.yml` dihapus. Rate limiting auth via rate limiter bawaan Better Auth dengan storage Postgres (migrasi aditif `0003_rate_limit.sql`): sign-in 10×/menit, sign-up 5×/10 menit per IP; pesan ramah di UI saat kena batas; test unit + cek smoke baru.
+- **2026-11-01** — Putaran #3: error boundary global + halaman 404/error yang ramah (`src/components/ErrorPages.tsx`): URL tak dikenal kini memberi HTTP 404 dengan tautan kembali ke dashboard; error render/loader menampilkan halaman "Something went wrong" dengan tombol *Try again*, tautan ke dashboard, dan kode referensi. Di produksi detail error disembunyikan (bisa berisi SQL/internal), di dev ditampilkan. Log error konsisten (`src/lib/errors.ts`): satu baris JSON per error tak terduga (`level`, `time`, `scope`, `ref`, `userId`/`path`, `name`, `message`, `stack` dipangkas); error wajar (401/403/429/validasi Zod) tidak dicatat sebagai error. `authMiddleware` mencatat error tak terduga dari semua server function lalu melempar ulang tanpa diubah. Test unit baru (8) + cek smoke 404. Tanpa migrasi.
