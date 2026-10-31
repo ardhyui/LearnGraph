@@ -16,6 +16,7 @@ import { tanstackStartCookies } from 'better-auth/tanstack-start';
 import { randomBytes } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import { getDb } from '../db';
+import { authRateLimit } from './rate-limit';
 
 const env = (key: string): string | undefined => {
   const value = process.env[key]?.trim();
@@ -78,6 +79,7 @@ export const auth = betterAuth({
     minPasswordLength: 8,
     autoSignIn: true,
   },
+  rateLimit: authRateLimit,
   session: { cookieCache: { enabled: true, maxAge: 300 } },
   // Bridges Better Auth's Set-Cookie into TanStack Start responses. Keep last.
   plugins: [tanstackStartCookies()],

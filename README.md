@@ -694,6 +694,21 @@ Automatically detects and categorizes learning gaps:
 
 ## Testing
 
+### CI (local, required before every merge)
+
+There is no hosted CI (no GitHub Actions). The single gate is:
+
+```bash
+npm run ci                  # clean npm ci → typecheck → lint → tests → build → Playwright smoke
+npm run ci -- --no-install  # same, without the clean reinstall
+```
+
+It starts its own dev server on port 8081 (`CI_PORT` to change) with a fresh
+in-memory PGlite database — `DATABASE_URL` from `.env` is ignored — and prints
+a PASS/FAIL summary. Every PR must show a green `npm run ci` before merging.
+
+### Individual commands
+
 ```bash
 npm test             # unit tests (node --test, embedded Postgres via PGlite)
 npm run typecheck    # tsc --noEmit
@@ -706,6 +721,13 @@ npm run smoke        # BASE_URL=http://127.0.0.1:8081 npm run smoke for `npm run
 ```
 
 The in-app functional test runner is at http://localhost:8080/tests.
+
+### Security: auth rate limiting
+
+Sign-in is limited to 10 attempts per minute and sign-up to 5 per 10 minutes per
+client IP (Better Auth's rate limiter, counters in the Postgres `rateLimit`
+table so limits hold across serverless instances). Rules live in
+`src/lib/auth/rate-limit.ts`.
 
 ---
 
