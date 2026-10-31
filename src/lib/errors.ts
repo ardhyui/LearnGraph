@@ -10,6 +10,8 @@
  *   contain SQL or internals); a short `ref` lets support match UI ↔ log line.
  */
 
+export const GENERIC_SERVER_ERROR = 'Something went wrong on our side. Please try again.';
+
 export type ErrorInfo = { name: string; message: string; status?: number; stack?: string };
 
 /** Normalize anything thrown into `{ name, message, status?, stack? }`. */
@@ -73,6 +75,24 @@ export function formatErrorLog(
   return safeStringify(record);
 }
 
+const REF_RE = /^[a-z0-9]{1,32}$/i;
+const MESSAGE_REF_RE = /\(ref ([a-z0-9]{1,32})\)$/i;
+
+/**
+ * The server-assigned ref carried by a sanitized error (see `toClientError`).
+ * Production TanStack Start only serializes an error's `message` to the
+ * browser, so the ref is also read back from the message suffix.
+ */
+export function refOf(err: unknown): string | null {
+  if (!err || typeof err !== 'object') return null;
+  const { ref, message } = err as { ref?: unknown; message?: unknown };
+  if (typeof ref === 'string' && REF_RE.test(ref)) return ref;
+  if (typeof message === 'string' && message.startsWith(GENERIC_SERVER_ERROR)) {
+    return MESSAGE_REF_RE.exec(message)?.[1] ?? null;
+  }
+  return null;
+}
+
 /** Log an unexpected error (no-op for expected ones). Returns the ref used, if logged. */
 export function logError(
   scope: string,
@@ -80,9 +100,53 @@ export function logError(
   extra: Record<string, string | number | boolean | null | undefined> = {},
 ): string | null {
   if (isExpectedError(err)) return null;
-  const ref = typeof extra.ref === 'string' ? extra.ref : errorRef();
+  // Reuse the server ref when the client logs an already-sanitized error, so
+  // the ref on the error page matches the server log line.
+  const ref = typeof extra.ref === 'string' ? extra.ref : (refOf(err) ?? errorRef());
   console.error(formatErrorLog(scope, err, { ...extra, ref }));
   return ref;
+}
+
+/**
+ * What the browser receives instead of an unexpected server error in
+ * production: a generic message + the log ref, status 500, and no stack.
+ * (A production TanStack Start build ships a thrown error's `message` to the
+ * browser — e.g. `Learner not found: <id>` or Postgres text naming tables;
+ * plain seroval, as used in dev, also ships `stack` and every own property.)
+ */
+export class InternalServerError extends Error {
+  readonly status = 500;
+  readonly ref: string;
+  constructor(ref: string) {
+    super(`${GENERIC_SERVER_ERROR} (ref ${ref})`);
+    this.name = 'InternalServerError';
+    this.ref = ref;
+    this.stack = `${this.name}: ${this.message}`;
+  }
+}
+
+/**
+ * Turn an error thrown by a server function into what may be sent to the client.
+ * - Development: unchanged (full details help debugging).
+ * - Expected errors (401/403/429/validation): same object and message (users
+ *   need e.g. the validation text), but the server stack trace is removed.
+ * - Anything else: replaced by `InternalServerError(ref)`; the original is
+ *   only in the server log (logged by the caller under the same `ref`).
+ */
+export function toClientError(err: unknown, opts: { isDev: boolean; ref?: string | null }): unknown {
+  if (opts.isDev) return err;
+  if (isExpectedError(err)) {
+    if (err instanceof Error) {
+      const { name, message } = describeError(err);
+      try {
+        err.stack = `${name}: ${message}`;
+      } catch {
+        // non-writable stack: fall through with the original
+      }
+    }
+    return err;
+  }
+  return new InternalServerError(opts.ref ?? refOf(err) ?? errorRef());
 }
 
 /** Text safe to show users: details only in development. */
@@ -92,7 +156,7 @@ export function userFacingMessage(err: unknown, isDev: boolean): string {
   if (info.name === 'UnauthorizedError' || info.status === 401)
     return 'Your session has ended. Please sign in again.';
   if (isDev && info.message) return info.message;
-  return 'Something went wrong on our side. Please try again.';
+  return GENERIC_SERVER_ERROR;
 }
 
 function truncate(s: string, n: number): string {
