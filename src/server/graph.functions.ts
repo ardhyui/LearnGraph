@@ -37,7 +37,10 @@ export const seedDemoData = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const { graphForOwner } = await import('@/lib/graph/server');
-    const { seedDemoDataIfEmpty } = await import('@/lib/graph/seed');
+    const { seedDemoDataIfEmpty, repairDemoKnowledgeStates } = await import('@/lib/graph/seed');
     const graph = await graphForOwner(context.userId);
-    return { seeded: await seedDemoDataIfEmpty(graph) };
+    const seeded = await seedDemoDataIfEmpty(graph);
+    // Older workspaces: attach demo progress to the demo learners (no-op once done).
+    if (!seeded) await repairDemoKnowledgeStates(graph);
+    return { seeded };
   });
