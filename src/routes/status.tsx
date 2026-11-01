@@ -351,7 +351,7 @@ function StatusPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <main className="max-w-6xl mx-auto p-8">
+      <main className="max-w-6xl mx-auto p-4 sm:p-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}

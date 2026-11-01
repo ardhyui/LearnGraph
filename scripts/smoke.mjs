@@ -97,7 +97,9 @@ try {
     const before = errors.length;
     const res = await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
     const status = res?.status() ?? 0;
-    const hasSidebar = await page.getByText('LearnGraph').first().isVisible().catch(() => false);
+    // Desktop: the sidebar (or /status's own header) shows the brand; the phone
+    // top bar's copy is hidden at this width, so match visible text only.
+    const hasSidebar = await page.locator('text=LearnGraph >> visible=true').first().isVisible().catch(() => false);
     const newErrors = errors.slice(before);
     check(
       status === 200 && hasSidebar && newErrors.length === 0 && new URL(page.url()).pathname === path,
@@ -156,6 +158,76 @@ try {
     }
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'dashboard study loop has no page errors', newErrors.join(' | '));
+  }
+
+  // Phone layout (390×844): the sidebar becomes a drawer behind a menu
+  // button, so content gets the full width and nothing scrolls sideways.
+  {
+    const before = errors.length;
+    const mctx = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      storageState: await page.context().storageState(),
+    });
+    const m = await mctx.newPage();
+    m.on('pageerror', (e) => errors.push(`pageerror (mobile): ${e.message}`));
+    const fits = async () =>
+      m.evaluate(() => {
+        const main = document.querySelector('main')?.getBoundingClientRect();
+        return {
+          main: Math.round(main?.width ?? 0),
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+    const narrow = [];
+    for (const path of ['/', '/profile', '/recommendations', '/gaps', '/admin/learners', '/about']) {
+      await m.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+      const r = await fits();
+      if (r.main < 350 || r.overflow > 1) narrow.push(`${path}: main ${r.main}px, overflow ${r.overflow}px`);
+    }
+    check(narrow.length === 0, 'mobile: pages use the full width without sideways scrolling', narrow.join('; '));
+
+    await m.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const drawer = m.locator('#app-sidebar');
+    const menu = m.getByRole('button', { name: 'Open menu' });
+    const hiddenAtStart = !(await drawer.isVisible());
+    // Retry until hydrated (a tap before hydration is a no-op).
+    for (let i = 0; i < 20 && !(await drawer.isVisible()); i++) {
+      await menu.click();
+      await m.waitForTimeout(400);
+    }
+    const opened = (await drawer.isVisible()) && (await menu.getAttribute('aria-expanded')) === 'true';
+    check(hiddenAtStart && opened, 'mobile: menu button opens the navigation drawer');
+    // Focus moves into the drawer and Tab cannot wander into the page behind it.
+    await m.keyboard.press('Shift+Tab');
+    const trapped = await m.evaluate(() => document.getElementById('app-sidebar')?.contains(document.activeElement));
+    check(trapped === true, 'mobile: keyboard focus stays inside the open drawer');
+    await m.keyboard.press('Escape');
+    await drawer.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    const escClosed = !(await drawer.isVisible());
+    const focusBack = await m.evaluate(() => document.activeElement?.getAttribute('aria-label'));
+    check(escClosed && focusBack === 'Open menu', 'mobile: Escape closes the drawer and returns focus', `focus on ${focusBack}`);
+    await menu.click();
+    await drawer.getByRole('link', { name: /Recommendations/ }).click();
+    await m.waitForURL((u) => u.pathname === '/recommendations', { timeout: 15000 }).catch(() => {});
+    await drawer.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    check(
+      new URL(m.url()).pathname === '/recommendations' && !(await drawer.isVisible()),
+      'mobile: picking a page navigates and closes the drawer',
+      m.url(),
+    );
+    // Only the current page is marked as such for screen readers.
+    // (textContent: the closed drawer is visibility:hidden, so innerText is empty.)
+    const current = await drawer.locator('[aria-current="page"]').allTextContents();
+    check(
+      current.length === 1 && current[0].includes('Recommendations'),
+      'navigation marks only the current page (aria-current)',
+      JSON.stringify(current),
+    );
+    await mctx.close();
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'mobile layout has no page errors', newErrors.join(' | '));
   }
 
   // Unknown URLs get the friendly 404 page (HTTP 404), with a way back home.

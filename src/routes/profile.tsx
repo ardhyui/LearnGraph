@@ -682,10 +682,10 @@ function ProfilePage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-background">
       <Sidebar />
 
-      <main className="flex-1 px-8 py-10 max-w-6xl mx-auto">
+      <main className="flex-1 min-w-0 w-full px-4 py-6 sm:px-8 sm:py-10 max-w-6xl mx-auto">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
