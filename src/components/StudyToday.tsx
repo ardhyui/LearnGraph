@@ -5,8 +5,9 @@
  * (server-validated, scoped to the signed-in account) and the panel reloads.
  */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useRouteContext } from '@tanstack/react-router';
 import { CheckCircle2, Clock, Loader2, RefreshCw, RotateCcw, Sparkles, Target, UserPlus } from 'lucide-react';
+import { Onboarding } from '@/components/Onboarding';
 import { useDB, useLearners } from '@/lib/DBContext';
 import type { ConceptNode, KnowledgeState, ZPDRecommendation } from '@/lib/graph/types';
 import {
@@ -18,9 +19,12 @@ import {
   type ReviewOutcome,
   type StudyOutcome,
 } from '@/lib/study';
+import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
 import { cn } from '@/lib/utils';
 
 const ACTIVE_LEARNER_KEY = 'learngraph.activeLearner';
+/** Set (per account) when the user chose to explore the example learners instead of onboarding. */
+const ONBOARDING_SKIPPED_KEY = 'learngraph.onboardingSkipped';
 
 interface ReviewItem {
   conceptId: string;
@@ -38,25 +42,35 @@ interface TodayData {
   next: ZPDRecommendation[];
 }
 
-function readRemembered(): string | null {
+function readStored(key: string): string | null {
   try {
-    return window.localStorage.getItem(ACTIVE_LEARNER_KEY);
+    return window.localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function remember(id: string) {
+function store(key: string, value: string) {
   try {
-    window.localStorage.setItem(ACTIVE_LEARNER_KEY, id);
+    window.localStorage.setItem(key, value);
   } catch {
     // Private mode / storage disabled: the choice just isn't remembered.
   }
 }
 
+const readRemembered = () => readStored(ACTIVE_LEARNER_KEY);
+const remember = (id: string) => store(ACTIVE_LEARNER_KEY, id);
+
 export function StudyToday() {
   const { db, isReady } = useDB();
-  const { learners, loading: learnersLoading } = useLearners();
+  const { learners, loading: learnersLoading, refresh: refreshLearners } = useLearners();
+  const { user } = useRouteContext({ from: '__root__' });
+  // Per account: skipping on a shared browser must not hide onboarding from the next account.
+  const skippedKey = `${ONBOARDING_SKIPPED_KEY}.${user?.id ?? 'anonymous'}`;
+  // `null` until read from the browser (avoids an SSR/hydration mismatch).
+  const [onboardingSkipped, setOnboardingSkipped] = useState<boolean | null>(null);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [welcome, setWelcome] = useState<string | null>(null);
   const [learnerId, setLearnerId] = useState<string | null>(null);
   const [data, setData] = useState<TodayData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,6 +81,15 @@ export function StudyToday() {
   // Only the latest request may update the panel (switching learners while a
   // load is in flight must not show — or save against — the previous learner).
   const requestSeq = useRef(0);
+
+  useEffect(() => {
+    setOnboardingSkipped(readStored(skippedKey) === '1');
+  }, [skippedKey]);
+
+  // Subjects the active learner chose during onboarding (empty = everything).
+  const activeLearner = learners.find((l) => l.userId === learnerId);
+  const focus = focusDomains(activeLearner);
+  const focusKey = focus.join('\n');
 
   // Choose the learner once the list is known (remembered choice, else first).
   useEffect(() => {
@@ -81,13 +104,23 @@ export function StudyToday() {
     setLoading(true);
     setError(null);
     try {
-      const [concepts, states, queue, zpd] = await Promise.all([
+      const [allConcepts, states, queue, zpd] = await Promise.all([
         db.listConcepts(),
         db.getLearnerKnowledgeStates(learnerId),
         db.getReviewQueue(learnerId, { limit: 5 }),
-        db.computeZPD(learnerId, { limit: 8 }),
+        db.computeZPD(learnerId, { limit: focusKey ? 200 : 8 }),
       ]);
       if (seq !== requestSeq.current) return;
+      // Progress and "learn next" follow the learner's chosen subjects;
+      // reviews stay across everything they have learned.
+      const focusList = focusKey ? focusKey.split('\n') : [];
+      const concepts = inFocus(allConcepts, focusList, (c) => c.domain);
+      // While the focus subjects exist, only recommend inside them (even if
+      // nothing is ready there yet); a stale focus falls back to everything.
+      const focusApplies = concepts !== allConcepts;
+      const recommended = focusApplies
+        ? zpd.recommendations.filter((r) => focusList.includes(r.concept.domain))
+        : zpd.recommendations;
       setData({
         learnerId,
         progress: summarizeProgress(concepts, states),
@@ -95,7 +128,7 @@ export function StudyToday() {
         reviews: queue.queue,
         reviewsDue: queue.stats.totalItems,
         // A concept already listed for review isn't offered again as "learn next".
-        next: zpd.recommendations
+        next: recommended
           .filter((r) => !queue.queue.some((q) => q.conceptId === r.concept.conceptId))
           .slice(0, 3),
       });
@@ -106,7 +139,7 @@ export function StudyToday() {
     } finally {
       if (seq === requestSeq.current) setLoading(false);
     }
-  }, [db, isReady, learnerId]);
+  }, [db, isReady, learnerId, focusKey]);
 
   useEffect(() => {
     setData(null);
@@ -116,13 +149,31 @@ export function StudyToday() {
 
   const chooseLearner = (id: string) => {
     remember(id);
+    setWelcome(null);
     setLearnerId(id);
+  };
+
+  const onboarded = async (id: string, name: string) => {
+    remember(id);
+    // Reload the list first, so the welcome step doesn't flash back while the
+    // new learner is not in it yet.
+    await refreshLearners();
+    setLearnerId(id);
+    setOnboardingOpen(false);
+    setWelcome(`Welcome, ${name}! Here is your plan — start with the first concept under “Learn next”.`);
+  };
+
+  const skipOnboarding = () => {
+    store(skippedKey, '1');
+    setOnboardingSkipped(true);
+    setOnboardingOpen(false);
   };
 
   const save = async (concept: ConceptNode, outcome: StudyOutcome | ReviewOutcome) => {
     if (!db || !learnerId || busy || data?.learnerId !== learnerId) return;
     setBusy(concept.conceptId);
     setNotice(null);
+    setWelcome(null);
     try {
       const prior = data.states.find((s) => s.conceptId === concept.conceptId);
       const patch =
@@ -139,7 +190,7 @@ export function StudyToday() {
     }
   };
 
-  if (!isReady || learnersLoading) {
+  if (!isReady || learnersLoading || onboardingSkipped === null) {
     return (
       <section aria-labelledby="today-heading" className="glass-card mb-10 p-6">
         <h2 id="today-heading" className="text-lg font-semibold text-foreground">
@@ -152,22 +203,22 @@ export function StudyToday() {
     );
   }
 
-  if (learners.length === 0) {
+  // New users (no learner of their own yet) get the welcome step first. With
+  // no learners at all it is the only way forward, so it can't be skipped.
+  const noOwnLearner = needsOnboarding(learners);
+  if (learners.length === 0 || onboardingOpen || (noOwnLearner && !onboardingSkipped)) {
     return (
-      <section aria-labelledby="today-heading" className="glass-card mb-10 p-6">
-        <h2 id="today-heading" className="text-lg font-semibold text-foreground">
-          Today
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Create a learner profile to get a personal plan: what to learn next and what to review.
-        </p>
-        <Link
-          to="/admin/learners"
-          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          <UserPlus className="h-4 w-4" aria-hidden="true" /> Add a learner
-        </Link>
-      </section>
+      <Onboarding
+        existingIds={learners.map((l) => l.userId)}
+        onCreated={onboarded}
+        onSkip={
+          learners.length === 0
+            ? undefined
+            : onboardingOpen && onboardingSkipped
+              ? () => setOnboardingOpen(false)
+              : skipOnboarding
+        }
+      />
     );
   }
 
@@ -182,7 +233,23 @@ export function StudyToday() {
           <h2 id="today-heading" className="text-lg font-semibold text-foreground">
             Today
           </h2>
-          <p className="text-sm text-muted-foreground">Review what is fading, then learn something new.</p>
+          <p className="text-sm text-muted-foreground">
+            Review what is fading, then learn something new.
+            {focus.length > 0 && (
+              <span className="block text-xs" data-testid="focus-subjects">
+                Focus: {focus.map(domainLabel).join(', ')}
+              </span>
+            )}
+          </p>
+          {noOwnLearner && (
+            <button
+              type="button"
+              onClick={() => setOnboardingOpen(true)}
+              className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <UserPlus className="h-3 w-3" aria-hidden="true" /> Create my own learning plan
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <label htmlFor={selectId} className="text-sm text-muted-foreground">
@@ -221,8 +288,8 @@ export function StudyToday() {
         </div>
       )}
 
-      <p aria-live="polite" role="status" className={cn('text-sm text-emerald-700 dark:text-emerald-400', notice && 'mt-4')}>
-        {notice}
+      <p aria-live="polite" role="status" className={cn('text-sm text-emerald-700 dark:text-emerald-400', (notice || welcome) && 'mt-4')}>
+        {notice ?? welcome}
       </p>
 
       {/* Progress */}
