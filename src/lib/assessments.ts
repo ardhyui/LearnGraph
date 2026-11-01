@@ -55,14 +55,6 @@ function calculateMean(answers: Record<string, number>, questions: AssessmentQue
   return Math.round(((mean - 1) / (scaleMax - 1)) * 100);
 }
 
-function calculateSum(answers: Record<string, number>, questions: AssessmentQuestion[], scaleMax: number, maxPossible: number): number {
-  const sum = questions.reduce((total, q) => {
-    const answer = answers[q.id] || 0;
-    return total + (q.reverseScored ? (scaleMax - answer) : answer);
-  }, 0);
-  return Math.round((sum / maxPossible) * 100);
-}
-
 // Generic subscale calculation - calculates scores for each unique subscale in questions
 function calculateSubscales(
   answers: Record<string, number>,
@@ -1514,7 +1506,6 @@ export const socialSupport: { quick: Assessment; full: Assessment } = {
         .map(([k, v]) => ({ key: k, score: v, label: labels[k] }));
 
       const strongest = sorted[0];
-      const weakest = sorted[sorted.length - 1];
       const scoreStr = sorted.map(s => `${s.label}=${s.score}`).join(', ');
 
       // Check for imbalances
@@ -1974,7 +1965,6 @@ export const executiveFunctions: { quick: Assessment; full: Assessment } = {
         'monitor': 'Task Monitoring'
       };
       const scoreStr = formatSubscaleScores(subscales, labels);
-      const dominant = findDominant(subscales);
       const sorted = Object.entries(subscales)
         .sort(([, a], [, b]) => b - a);
 

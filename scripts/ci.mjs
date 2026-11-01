@@ -73,7 +73,7 @@ async function smoke() {
 const steps = [
   ...(skipInstall ? [] : [['install (npm ci)', () => run('npm', ['ci'])]]),
   ['typecheck', () => run('npm', ['run', 'typecheck'])],
-  ['lint (errors fail)', () => run('npm', ['run', 'lint'])],
+  ['lint (0 errors, 0 warnings)', () => run('npm', ['run', 'lint'])],
   ['tests', () => run('npm', ['test'])],
   ['build', () => run('npm', ['run', 'build'])],
   ['smoke (Playwright + PGlite)', smoke],

@@ -21,7 +21,6 @@ import { Sidebar } from '@/components/Sidebar';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { cn } from '@/lib/utils';
 import { useLearners, useConcepts, useEdges, useDB } from '@/lib/DBContext';
-import type { KnowledgeState } from '@/lib/graph/types';
 import {
   RefreshCw,
   User,
@@ -82,29 +81,6 @@ interface ConceptDetails {
   isForgotten?: boolean;
   prerequisites?: string[];
   dependents?: string[];
-}
-
-interface GraphData {
-  nodes: Node[];
-  edges: Edge[];
-  overlay?: {
-    userId: string;
-    learnerName: string;
-    masteryLevels: Record<string, number>;
-    zpdConcepts: string[];
-    forgottenConcepts: string[];
-  };
-  stats: {
-    learners: number;
-    concepts: number;
-    edges: number;
-    knowledgeStates: number;
-  };
-}
-
-interface LearnerProfile {
-  userId: string;
-  name?: string;
 }
 
 interface GraphOverlay {

@@ -40,7 +40,6 @@ import {
   ALL_ASSESSMENTS,
   ASSESSMENT_CATEGORIES,
   Assessment,
-  getAssessment,
 } from '@/lib/assessments';
 import { useDB, useLearners } from '@/lib/DBContext';
 import { demoLearners } from '@/lib/demo-data';
@@ -494,7 +493,7 @@ function ProfilePage() {
       setProfile(saved);
       setSuccess('Profile saved successfully!');
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
+    } catch {
       setError('Failed to save profile');
     } finally {
       setSaving(false);
@@ -611,13 +610,6 @@ function ProfilePage() {
     if (score >= 70) return 'bg-emerald-500';
     if (score >= 40) return 'bg-amber-500';
     return 'bg-red-500';
-  };
-
-  const getConfidenceLabel = (confidence: number | undefined) => {
-    if (confidence === undefined) return 'Unknown';
-    if (confidence >= 0.8) return 'High';
-    if (confidence >= 0.5) return 'Medium';
-    return 'Low';
   };
 
   const getModeConfig = (mode: ProfileMode) => {
@@ -747,7 +739,7 @@ function ProfilePage() {
                   }
                   setSuccess('Sample users created successfully!');
                   setTimeout(() => setSuccess(null), 3000);
-                } catch (err) {
+                } catch {
                   setError('Failed to create sample users');
                 }
                 setProfileLoading(false);

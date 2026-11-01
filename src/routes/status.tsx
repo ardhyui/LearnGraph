@@ -244,7 +244,7 @@ function PhaseCard({
 
 function StatusPage() {
   const { db, isLoading: dbLoading, error: dbError, isReady } = useDB();
-  const { stats, loading: statsLoading, refresh: refreshStats } = useDBStats();
+  const { stats, refresh: refreshStats } = useDBStats();
   const [statusData, setStatusData] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

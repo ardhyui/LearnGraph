@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft,
   Sparkles,
   Clock,
   Target,
-  BookOpen,
   TrendingUp,
   AlertTriangle,
   CheckCircle2,
@@ -79,11 +77,6 @@ interface ZPDResult {
   recommendations: ZPDRecommendation[];
   psychometricAdjustments: PsychometricAdjustments;
   suggestedPath: string[];
-}
-
-interface Learner {
-  userId: string;
-  name?: string;
 }
 
 const SCAFFOLDING_ICONS: Record<string, string> = {

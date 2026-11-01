@@ -12,7 +12,6 @@ import {
   RefreshCw,
   FlaskConical,
   Layers,
-  ChevronDown,
   ChevronRight,
   Loader2,
   AlertCircle,
@@ -167,7 +166,7 @@ const itemVariants = {
 };
 
 function TestsPage() {
-  const { db, isLoading: dbLoading, error: dbError, isReady } = useDB();
+  const { db, isLoading: dbLoading, error: dbError } = useDB();
   const [testGroups, setTestGroups] = useState<TestGroup[]>(initialTests);
   const [isRunning, setIsRunning] = useState(false);
   const [summary, setSummary] = useState({ total: 0, passed: 0, failed: 0 });
@@ -1222,8 +1221,6 @@ function TestsPage() {
     }
   }
 
-  const totalTests = testGroups.reduce((acc, g) => acc + g.tests.length, 0);
-
   const getGroupStats = (group: TestGroup) => {
     const passed = group.tests.filter((t) => t.status === 'passed').length;
     const failed = group.tests.filter((t) => t.status === 'failed').length;
@@ -1421,7 +1418,7 @@ function TestsPage() {
                         className="border-t border-border"
                       >
                         <div className="divide-y divide-border/50">
-                          {group.tests.map((test, testIndex) => (
+                          {group.tests.map((test) => (
                             <div
                               key={test.name}
                               className={cn(
