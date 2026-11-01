@@ -108,6 +108,49 @@ try {
     );
   }
 
+  // Navigation: learner pages are listed first; admin editors and developer
+  // tools sit in collapsible groups that start closed, open on their own
+  // pages, and remember the user's choice.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const nav = page.locator('#app-sidebar');
+    const manage = nav.getByRole('button', { name: 'Manage data' });
+    const dev = nav.getByRole('button', { name: 'Developer tools' });
+    const link = (name) => nav.getByRole('link', { name: new RegExp(`^${name}`) });
+    const learnerVisible = (await link('Recommendations').isVisible()) && (await link('My Profile').isVisible());
+    const adminHidden = !(await link('Concepts').isVisible()) && !(await link('Functional Tests').isVisible());
+    check(
+      learnerVisible && adminHidden &&
+        (await manage.getAttribute('aria-expanded')) === 'false' &&
+        (await dev.getAttribute('aria-expanded')) === 'false',
+      'navigation: learner pages shown, admin & developer tools tucked away',
+    );
+    // Retry until hydrated (a click before hydration is a no-op).
+    for (let i = 0; i < 20 && (await manage.getAttribute('aria-expanded')) !== 'true'; i++) {
+      await manage.click();
+      await page.waitForTimeout(300);
+    }
+    const expanded = (await link('Concepts').isVisible()) && (await manage.getAttribute('aria-expanded')) === 'true';
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(500);
+    const remembered = await link('Concepts').isVisible();
+    check(expanded && remembered, 'navigation: "Manage data" expands and stays open after reload');
+    await page.goto(`${BASE}/tests`, { waitUntil: 'networkidle' });
+    check(
+      (await link('Functional Tests').isVisible()) && (await dev.getAttribute('aria-expanded')) === 'true',
+      'navigation: the current page’s group opens automatically',
+    );
+    // Collapse "Manage data" again so later checks start from the default.
+    for (let i = 0; i < 20 && (await manage.getAttribute('aria-expanded')) !== 'false'; i++) {
+      await manage.click();
+      await page.waitForTimeout(300);
+    }
+    check(!(await link('Concepts').isVisible()), 'navigation: a group can be collapsed again');
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'navigation has no page errors', newErrors.join(' | '));
+  }
+
   // New-user onboarding: a fresh account (only the example learners) gets the
   // welcome step instead of the plan; it can be skipped to explore the demo.
   {
