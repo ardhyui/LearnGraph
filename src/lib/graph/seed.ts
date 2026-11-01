@@ -62,8 +62,10 @@ export async function seedDemoDataIfEmpty(db: EducationGraphDB): Promise<boolean
 
   // Seed knowledge states
   for (const state of demoKnowledgeStates) {
-    // Demo data uses 'learnerId' but format varies
-    const learnerId = ((state as any).learnerId || '').replace('demo-', '');
+    // Same id as the seeded learner profile (`demo-alice`). Until 2026-11-01
+    // the `demo-` prefix was stripped here, so the progress landed on a
+    // learner that does not exist (see repairDemoKnowledgeStates).
+    const learnerId = (state as any).learnerId || '';
     const conceptId = (state.conceptId || '').replace('concept:', '');
     const confidence = (state as any).confidence ?? 0.8;
     const lastReviewed = (state as any).lastReviewed || new Date().toISOString();
@@ -84,4 +86,32 @@ export async function seedDemoDataIfEmpty(db: EducationGraphDB): Promise<boolean
   }
 
   return true;
+}
+
+/**
+ * Workspaces seeded before 2026-11-01 have their demo progress stored under
+ * `alice`/`bob`/`carol` while the profiles are `demo-alice`/… — so the demo
+ * learners showed no progress at all. Copy those states onto the real demo
+ * learner, only when that is unambiguous: the `demo-*` profile exists, it has
+ * no knowledge states of its own yet, and there is no learner profile with the
+ * short id (so the states really are orphans). Additive and idempotent: the
+ * orphaned rows are left untouched. Returns the number of states copied.
+ */
+export async function repairDemoKnowledgeStates(db: EducationGraphDB): Promise<number> {
+  let copied = 0;
+  for (const learner of demoLearners) {
+    const demoId = learner.userId;
+    const shortId = demoId.replace(/^demo-/, '');
+    if (shortId === demoId) continue;
+    if (!(await db.getLearnerProfile(demoId))) continue;
+    if (await db.getLearnerProfile(shortId)) continue;
+    if ((await db.getLearnerKnowledgeStates(demoId)).length > 0) continue;
+    const orphans = await db.getLearnerKnowledgeStates(shortId);
+    for (const state of orphans) {
+      const { userId: _owner, conceptId, updatedAt: _updated, lastAccessed: _accessed, ...rest } = state;
+      await db.setKnowledgeState(demoId, conceptId, rest);
+      copied++;
+    }
+  }
+  return copied;
 }

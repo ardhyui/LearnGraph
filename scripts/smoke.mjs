@@ -106,6 +106,51 @@ try {
     );
   }
 
+  // Dashboard "Today": the core study loop. The demo learner's progress is
+  // shown (seeded states belong to the demo learners), a due review can be
+  // marked as remembered, and "I've got it" on a recommended concept raises
+  // the mastered count — all saved server-side and reloaded.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const today = page.getByTestId('study-today');
+    const mastered = today.getByTestId('mastered-count');
+    await mastered.waitFor({ timeout: 30000 });
+    const masteredBefore = Number(await mastered.innerText());
+    check(masteredBefore > 0, 'dashboard shows the demo learner progress', `${masteredBefore} mastered`);
+
+    const reviews = today.getByRole('list', { name: 'Reviews due' }).getByRole('listitem');
+    const reviewsBefore = await reviews.count();
+    if (reviewsBefore > 0) {
+      await reviews.first().getByRole('button', { name: 'I remembered it' }).click();
+      const saved = await today
+        .getByText('will come back after a longer break', { exact: false })
+        .waitFor({ timeout: 15000 })
+        .then(() => true, () => false);
+      check(saved, 'dashboard: a due review can be marked as remembered');
+    } else {
+      check(false, 'dashboard: a due review can be marked as remembered', 'no reviews due for the demo learner');
+    }
+
+    const next = today.getByRole('list', { name: 'Recommended next concepts' }).getByRole('listitem');
+    await next.first().waitFor({ timeout: 15000 }).catch(() => {});
+    if ((await next.count()) > 0) {
+      await next.first().getByRole('button', { name: "I've got it" }).click();
+      await today.getByText('is marked as mastered', { exact: false }).waitFor({ timeout: 15000 }).catch(() => {});
+      await page.waitForFunction(
+        (n) => Number(document.querySelector('[data-testid="mastered-count"]')?.textContent) > n,
+        masteredBefore,
+        { timeout: 15000 },
+      ).catch(() => {});
+      const masteredAfter = Number(await mastered.innerText());
+      check(masteredAfter > masteredBefore, 'dashboard: "I\'ve got it" raises the mastered count', `${masteredBefore} → ${masteredAfter}`);
+    } else {
+      check(false, 'dashboard: "I\'ve got it" raises the mastered count', 'no recommended concept');
+    }
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'dashboard study loop has no page errors', newErrors.join(' | '));
+  }
+
   // Unknown URLs get the friendly 404 page (HTTP 404), with a way back home.
   {
     const before = errors.length;

@@ -15,6 +15,7 @@ import {
   Info,
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
+import { StudyToday } from '@/components/StudyToday';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { cn } from '@/lib/utils';
 
@@ -125,13 +126,13 @@ function HomePage() {
           />
         </div>
 
-        <div className="relative z-10 px-8 py-10 max-w-7xl mx-auto">
+        <div className="relative z-10 px-4 py-8 sm:px-8 sm:py-10 max-w-7xl mx-auto">
           {/* Hero Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: 'easeOut' as const }}
-            className="mb-12"
+            className="mb-8"
           >
             <div className="flex items-center gap-3 mb-4">
               <motion.div
@@ -166,6 +167,9 @@ function HomePage() {
               <ArrowRight className="w-4 h-4" />
             </Link>
           </motion.div>
+
+          {/* Core study loop: progress, reviews due, what to learn next */}
+          <StudyToday />
 
           {/* Info Card */}
           <motion.div
