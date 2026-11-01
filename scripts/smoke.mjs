@@ -108,6 +108,25 @@ try {
     );
   }
 
+  // New-user onboarding: a fresh account (only the example learners) gets the
+  // welcome step instead of the plan; it can be skipped to explore the demo.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const onboarding = page.getByTestId('onboarding');
+    const shown = await onboarding.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    const todayHidden = (await page.getByTestId('study-today').count()) === 0;
+    const prefilled = shown ? await onboarding.getByLabel('What should we call you?').inputValue() : '';
+    check(shown && todayHidden && prefilled === 'Smoke Tester', 'onboarding: a new account is welcomed with a setup step', `name "${prefilled}"`);
+    await onboarding.getByRole('button', { name: 'Explore the example learners first' }).click();
+    const skipped = await page.getByTestId('study-today').waitFor({ timeout: 15000 }).then(() => true, () => false);
+    await page.reload({ waitUntil: 'networkidle' });
+    const staysSkipped = await page.getByTestId('study-today').waitFor({ timeout: 30000 }).then(() => true, () => false);
+    check(skipped && staysSkipped && (await onboarding.count()) === 0, 'onboarding: can be skipped to explore the example learners');
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'onboarding has no page errors', newErrors.join(' | '));
+  }
+
   // Dashboard "Today": the core study loop. The demo learner's progress is
   // shown (seeded states belong to the demo learners), a due review can be
   // marked as remembered, and "I've got it" on a recommended concept raises
@@ -158,6 +177,51 @@ try {
     }
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'dashboard study loop has no page errors', newErrors.join(' | '));
+  }
+
+  // Onboarding, for real: create my own plan (name, one subject, "I know the
+  // basics"). The plan switches to the new learner, follows the chosen subject,
+  // starts with the basics already known, and is remembered after a reload.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.getByTestId('study-today').waitFor({ timeout: 30000 });
+    await page.getByRole('button', { name: 'Create my own learning plan' }).click();
+    const onboarding = page.getByTestId('onboarding');
+    await onboarding.waitFor({ timeout: 15000 });
+    await onboarding.getByLabel('What should we call you?').fill('  ');
+    await onboarding.getByRole('button', { name: 'Start learning' }).click();
+    const nameRequired = await onboarding
+      .getByRole('alert')
+      .filter({ hasText: 'Please enter your name' })
+      .waitFor({ timeout: 5000 })
+      .then(() => true, () => false);
+    check(nameRequired, 'onboarding: a name is required');
+    await onboarding.getByLabel('What should we call you?').fill('Sari Smoke');
+    await onboarding.getByRole('checkbox', { name: /Mathematics/ }).check();
+    await onboarding.getByRole('radio', { name: /I know the basics/ }).check();
+    await onboarding.getByRole('button', { name: 'Start learning' }).click();
+    const today = page.getByTestId('study-today');
+    const welcomed = await today.getByText('Welcome, Sari Smoke!', { exact: false }).waitFor({ timeout: 30000 }).then(() => true, () => false);
+    const selected = welcomed ? await today.getByLabel('Learner', { exact: true }).evaluate((el) => el.selectedOptions[0]?.textContent) : '';
+    check(welcomed && selected === 'Sari Smoke', 'onboarding: creates my own learner and shows my plan', `selected "${selected}"`);
+    const focusText = await today.getByTestId('focus-subjects').innerText().catch(() => '');
+    const mastered = Number(await today.getByTestId('mastered-count').innerText().catch(() => '0'));
+    const nextItems = today.getByRole('list', { name: 'Recommended next concepts' }).getByRole('listitem');
+    await nextItems.first().waitFor({ timeout: 15000 }).catch(() => {});
+    check(
+      /Mathematics/.test(focusText) && mastered > 0 && (await nextItems.count()) > 0,
+      'onboarding: plan follows the chosen subject and skips the basics',
+      `focus "${focusText}", ${mastered} mastered, ${await nextItems.count()} to learn next`,
+    );
+    await page.reload({ waitUntil: 'networkidle' });
+    await today.waitFor({ timeout: 30000 });
+    await page.waitForFunction(() => document.querySelector('[data-testid="study-today"] select')?.selectedOptions[0]?.textContent === 'Sari Smoke', null, { timeout: 15000 }).catch(() => {});
+    const after = await today.getByLabel('Learner', { exact: true }).evaluate((el) => el.selectedOptions[0]?.textContent);
+    const noPrompt = (await page.getByRole('button', { name: 'Create my own learning plan' }).count()) === 0;
+    check(after === 'Sari Smoke' && noPrompt && (await onboarding.count()) === 0, 'onboarding: my plan is remembered after a reload', `selected "${after}"`);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'onboarding flow has no page errors', newErrors.join(' | '));
   }
 
   // Phone layout (390×844): the sidebar becomes a drawer behind a menu
