@@ -137,6 +137,24 @@ export class EducationGraphDB {
   }
 
   /**
+   * Server-internal bookkeeping flag for this workspace (e.g. "repair X done").
+   * Not part of REMOTE_GRAPH_METHODS, so the browser can't read or set it.
+   * Stored in the existing index table (`index:meta:…`, no other index scan
+   * matches that prefix), so it needs no migration and isn't counted as data.
+   */
+  async getMeta<T = unknown>(name: string): Promise<T | null> {
+    return this.get<T>(this.metaKey(name));
+  }
+
+  async setMeta<T>(name: string, value: T): Promise<void> {
+    await this.put(this.metaKey(name), value);
+  }
+
+  private metaKey(name: string): string {
+    return `${KEY_PREFIXES.INDEX}:meta:${name}`;
+  }
+
+  /**
    * Delete a key (no-op if it doesn't exist)
    */
   private async del(key: string): Promise<void> {

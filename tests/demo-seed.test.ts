@@ -57,6 +57,14 @@ describe('demo seed', () => {
     // additive: the old rows are untouched; idempotent: second run is a no-op
     assert.equal((await db.getLearnerKnowledgeStates('alice')).length, 6);
     assert.equal(await repairDemoKnowledgeStates(db), 0);
+    // runs once: if the user later resets the demo learner, it stays reset
+    for (const s of await db.getLearnerKnowledgeStates('demo-alice')) {
+      await db.deleteKnowledgeState('demo-alice', s.conceptId);
+    }
+    assert.equal(await repairDemoKnowledgeStates(db), 0);
+    assert.equal((await db.getLearnerKnowledgeStates('demo-alice')).length, 0);
+    // the flag is bookkeeping only: not counted as data
+    assert.equal((await db.getStats()).learnerCount, 3);
   });
 
   it('leaves real learners alone', async () => {

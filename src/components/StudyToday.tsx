@@ -4,7 +4,7 @@
  * learn next (ZPD). Self-reports are saved through `setKnowledgeState`
  * (server-validated, scoped to the signed-in account) and the panel reloads.
  */
-import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { CheckCircle2, Clock, Loader2, RefreshCw, RotateCcw, Sparkles, Target, UserPlus } from 'lucide-react';
 import { useDB, useLearners } from '@/lib/DBContext';
@@ -30,6 +30,7 @@ interface ReviewItem {
 }
 
 interface TodayData {
+  learnerId: string;
   progress: ProgressSummary;
   states: KnowledgeState[];
   reviews: ReviewItem[];
@@ -63,6 +64,9 @@ export function StudyToday() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const selectId = useId();
+  // Only the latest request may update the panel (switching learners while a
+  // load is in flight must not show — or save against — the previous learner).
+  const requestSeq = useRef(0);
 
   // Choose the learner once the list is known (remembered choice, else first).
   useEffect(() => {
@@ -73,6 +77,7 @@ export function StudyToday() {
 
   const load = useCallback(async () => {
     if (!db || !isReady || !learnerId) return;
+    const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
     try {
@@ -80,20 +85,26 @@ export function StudyToday() {
         db.listConcepts(),
         db.getLearnerKnowledgeStates(learnerId),
         db.getReviewQueue(learnerId, { limit: 5 }),
-        db.computeZPD(learnerId, { limit: 3 }),
+        db.computeZPD(learnerId, { limit: 8 }),
       ]);
+      if (seq !== requestSeq.current) return;
       setData({
+        learnerId,
         progress: summarizeProgress(concepts, states),
         states,
         reviews: queue.queue,
         reviewsDue: queue.stats.totalItems,
-        next: zpd.recommendations.slice(0, 3),
+        // A concept already listed for review isn't offered again as "learn next".
+        next: zpd.recommendations
+          .filter((r) => !queue.queue.some((q) => q.conceptId === r.concept.conceptId))
+          .slice(0, 3),
       });
     } catch (err) {
+      if (seq !== requestSeq.current) return;
       console.error('Failed to load today’s study plan:', err);
       setError(err instanceof Error ? err.message : 'Could not load your study plan.');
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   }, [db, isReady, learnerId]);
 
@@ -109,11 +120,11 @@ export function StudyToday() {
   };
 
   const save = async (concept: ConceptNode, outcome: StudyOutcome | ReviewOutcome) => {
-    if (!db || !learnerId || busy) return;
+    if (!db || !learnerId || busy || data?.learnerId !== learnerId) return;
     setBusy(concept.conceptId);
     setNotice(null);
     try {
-      const prior = data?.states.find((s) => s.conceptId === concept.conceptId);
+      const prior = data.states.find((s) => s.conceptId === concept.conceptId);
       const patch =
         outcome === 'remembered' || outcome === 'forgot'
           ? applyReviewOutcome(prior, outcome)
@@ -160,7 +171,9 @@ export function StudyToday() {
     );
   }
 
-  const progress = data?.progress;
+  // Never render (or act on) another learner's plan while the new one loads.
+  const current = data?.learnerId === learnerId ? data : null;
+  const progress = current?.progress;
 
   return (
     <section aria-labelledby="today-heading" className="glass-card mb-10 p-4 sm:p-6" data-testid="study-today">
@@ -226,7 +239,7 @@ export function StudyToday() {
           </p>
           {progress && (
             <p className="text-xs text-muted-foreground">
-              {progress.learning} in progress · {progress.notStarted} not started · {data?.reviewsDue ?? 0} to review
+              {progress.learning} in progress · {progress.notStarted} not started · {current?.reviewsDue ?? 0} to review
             </p>
           )}
         </div>
@@ -250,21 +263,21 @@ export function StudyToday() {
         <div>
           <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
             <RotateCcw className="h-4 w-4 text-amber-500" aria-hidden="true" /> Review now
-            {data && data.reviewsDue > 0 && (
+            {current && current.reviewsDue > 0 && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-400">
-                {data.reviewsDue}
+                {current.reviewsDue}
               </span>
             )}
           </h3>
-          {!data ? (
+          {!current ? (
             <Placeholder loading={loading} />
-          ) : data.reviews.length === 0 ? (
+          ) : current.reviews.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
               Nothing to review right now. Concepts come back here when they start to fade.
             </p>
           ) : (
             <ul className="space-y-2" aria-label="Reviews due">
-              {data.reviews.map((item) => (
+              {current.reviews.map((item) => (
                 <li key={item.conceptId} className="rounded-xl border border-border/50 bg-background/40 p-3">
                   <p className="font-medium text-foreground">{item.concept.name}</p>
                   <p className="text-xs text-muted-foreground">
@@ -299,11 +312,11 @@ export function StudyToday() {
           <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
             <Target className="h-4 w-4 text-indigo-500" aria-hidden="true" /> Learn next
           </h3>
-          {!data ? (
+          {!current ? (
             <Placeholder loading={loading} />
-          ) : data.next.length === 0 ? (
+          ) : current.next.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-              {data.progress.total === 0 ? (
+              {current.progress.total === 0 ? (
                 <>
                   No concepts yet.{' '}
                   <Link to="/admin/concepts" className="font-medium text-primary underline">
@@ -312,18 +325,22 @@ export function StudyToday() {
                   .
                 </>
               ) : (
+                current.reviewsDue > 0 ? (
+                  <>Start with your reviews — new concepts show up here once their prerequisites are fresh again.</>
+                ) : (
                 <>
-                  Nothing is ready to learn right now — keep up your reviews, or see the{' '}
+                  Nothing is ready to learn right now — see the{' '}
                   <Link to="/recommendations" className="font-medium text-primary underline">
                     full learning path
-                  </Link>
-                  .
+                  </Link>{' '}
+                  for what comes later.
                 </>
+                )
               )}
             </p>
           ) : (
             <ul className="space-y-2" aria-label="Recommended next concepts">
-              {data.next.map((rec) => (
+              {current.next.map((rec) => (
                 <li key={rec.concept.conceptId} className="rounded-xl border border-border/50 bg-background/40 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-medium text-foreground">{rec.concept.name}</p>

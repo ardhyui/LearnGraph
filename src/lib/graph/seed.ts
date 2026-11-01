@@ -94,10 +94,15 @@ export async function seedDemoDataIfEmpty(db: EducationGraphDB): Promise<boolean
  * learners showed no progress at all. Copy those states onto the real demo
  * learner, only when that is unambiguous: the `demo-*` profile exists, it has
  * no knowledge states of its own yet, and there is no learner profile with the
- * short id (so the states really are orphans). Additive and idempotent: the
- * orphaned rows are left untouched. Returns the number of states copied.
+ * short id (so the states really are orphans). Additive: the orphaned rows are
+ * left untouched. Runs once per workspace (a meta flag is set afterwards), so
+ * a user who later resets a demo learner's progress doesn't get it back.
+ * Returns the number of states copied.
  */
+export const DEMO_STATES_REPAIR_FLAG = 'repair:demo-knowledge-states';
+
 export async function repairDemoKnowledgeStates(db: EducationGraphDB): Promise<number> {
+  if (await db.getMeta(DEMO_STATES_REPAIR_FLAG)) return 0;
   let copied = 0;
   for (const learner of demoLearners) {
     const demoId = learner.userId;
@@ -113,5 +118,6 @@ export async function repairDemoKnowledgeStates(db: EducationGraphDB): Promise<n
       copied++;
     }
   }
+  await db.setMeta(DEMO_STATES_REPAIR_FLAG, { at: new Date().toISOString(), copied });
   return copied;
 }

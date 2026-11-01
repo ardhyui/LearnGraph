@@ -132,18 +132,25 @@ try {
       check(false, 'dashboard: a due review can be marked as remembered', 'no reviews due for the demo learner');
     }
 
+    // Reviewed concepts unlock new ones: keep reviewing until something is
+    // offered under "Learn next" (the demo learner starts with all reviews due).
     const next = today.getByRole('list', { name: 'Recommended next concepts' }).getByRole('listitem');
+    for (let i = 0; i < 8 && !(await next.count()) && (await reviews.count()) > 0; i++) {
+      await reviews.first().getByRole('button', { name: 'I remembered it' }).click();
+      await page.waitForTimeout(1500);
+    }
     await next.first().waitFor({ timeout: 15000 }).catch(() => {});
     if ((await next.count()) > 0) {
+      const beforeGotIt = Number(await mastered.innerText());
       await next.first().getByRole('button', { name: "I've got it" }).click();
       await today.getByText('is marked as mastered', { exact: false }).waitFor({ timeout: 15000 }).catch(() => {});
       await page.waitForFunction(
         (n) => Number(document.querySelector('[data-testid="mastered-count"]')?.textContent) > n,
-        masteredBefore,
+        beforeGotIt,
         { timeout: 15000 },
       ).catch(() => {});
       const masteredAfter = Number(await mastered.innerText());
-      check(masteredAfter > masteredBefore, 'dashboard: "I\'ve got it" raises the mastered count', `${masteredBefore} → ${masteredAfter}`);
+      check(masteredAfter > beforeGotIt, 'dashboard: "I\'ve got it" raises the mastered count', `${beforeGotIt} → ${masteredAfter}`);
     } else {
       check(false, 'dashboard: "I\'ve got it" raises the mastered count', 'no recommended concept');
     }
