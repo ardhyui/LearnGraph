@@ -217,6 +217,14 @@ try {
       'mobile: picking a page navigates and closes the drawer',
       m.url(),
     );
+    // Only the current page is marked as such for screen readers.
+    // (textContent: the closed drawer is visibility:hidden, so innerText is empty.)
+    const current = await drawer.locator('[aria-current="page"]').allTextContents();
+    check(
+      current.length === 1 && current[0].includes('Recommendations'),
+      'navigation marks only the current page (aria-current)',
+      JSON.stringify(current),
+    );
     await mctx.close();
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'mobile layout has no page errors', newErrors.join(' | '));

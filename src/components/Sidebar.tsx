@@ -137,7 +137,7 @@ export function Sidebar() {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <Link to="/" className="flex min-w-0 items-center gap-2">
+        <Link to="/" activeOptions={{ exact: true }} className="flex min-w-0 items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
             <Brain className="h-4 w-4 text-white" />
           </span>
@@ -224,7 +224,8 @@ export function Sidebar() {
                 <Link
                   to={item.href as any}
                   onClick={() => setOpen(false)}
-                  aria-current={isActive ? 'page' : undefined}
+                  // Same rule as isActive, so the router's aria-current="page" matches the highlight.
+                  activeOptions={{ exact: item.href === '/' }}
                   className={cn(
                     'group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200',
                     isActive
