@@ -84,7 +84,8 @@ describe('domains & focus', () => {
     const d = (c: { domain: string }) => c.domain;
     assert.deepEqual(inFocus(concepts, ['mathematics'], d).map((c) => c.conceptId), ['a', 'b']);
     assert.equal(inFocus(concepts, [], d).length, 4);
-    assert.equal(inFocus(concepts, ['history'], d).length, 4);
+    assert.strictEqual(inFocus(concepts, [], d), concepts); // same instance = no focus applied
+    assert.strictEqual(inFocus(concepts, ['history'], d), concepts);
   });
 
   it('basics = concepts of the chosen subjects without a prerequisite', () => {

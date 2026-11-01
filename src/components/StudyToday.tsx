@@ -5,7 +5,7 @@
  * (server-validated, scoped to the signed-in account) and the panel reloads.
  */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useRouteContext } from '@tanstack/react-router';
 import { CheckCircle2, Clock, Loader2, RefreshCw, RotateCcw, Sparkles, Target, UserPlus } from 'lucide-react';
 import { Onboarding } from '@/components/Onboarding';
 import { useDB, useLearners } from '@/lib/DBContext';
@@ -23,7 +23,7 @@ import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboa
 import { cn } from '@/lib/utils';
 
 const ACTIVE_LEARNER_KEY = 'learngraph.activeLearner';
-/** Set when the user chose to explore the example learners instead of onboarding. */
+/** Set (per account) when the user chose to explore the example learners instead of onboarding. */
 const ONBOARDING_SKIPPED_KEY = 'learngraph.onboardingSkipped';
 
 interface ReviewItem {
@@ -64,6 +64,9 @@ const remember = (id: string) => store(ACTIVE_LEARNER_KEY, id);
 export function StudyToday() {
   const { db, isReady } = useDB();
   const { learners, loading: learnersLoading, refresh: refreshLearners } = useLearners();
+  const { user } = useRouteContext({ from: '__root__' });
+  // Per account: skipping on a shared browser must not hide onboarding from the next account.
+  const skippedKey = `${ONBOARDING_SKIPPED_KEY}.${user?.id ?? 'anonymous'}`;
   // `null` until read from the browser (avoids an SSR/hydration mismatch).
   const [onboardingSkipped, setOnboardingSkipped] = useState<boolean | null>(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -80,8 +83,8 @@ export function StudyToday() {
   const requestSeq = useRef(0);
 
   useEffect(() => {
-    setOnboardingSkipped(readStored(ONBOARDING_SKIPPED_KEY) === '1');
-  }, []);
+    setOnboardingSkipped(readStored(skippedKey) === '1');
+  }, [skippedKey]);
 
   // Subjects the active learner chose during onboarding (empty = everything).
   const activeLearner = learners.find((l) => l.userId === learnerId);
@@ -105,14 +108,19 @@ export function StudyToday() {
         db.listConcepts(),
         db.getLearnerKnowledgeStates(learnerId),
         db.getReviewQueue(learnerId, { limit: 5 }),
-        db.computeZPD(learnerId, { limit: focusKey ? 30 : 8 }),
+        db.computeZPD(learnerId, { limit: focusKey ? 200 : 8 }),
       ]);
       if (seq !== requestSeq.current) return;
       // Progress and "learn next" follow the learner's chosen subjects;
       // reviews stay across everything they have learned.
       const focusList = focusKey ? focusKey.split('\n') : [];
       const concepts = inFocus(allConcepts, focusList, (c) => c.domain);
-      const recommended = inFocus(zpd.recommendations, focusList, (r) => r.concept.domain);
+      // While the focus subjects exist, only recommend inside them (even if
+      // nothing is ready there yet); a stale focus falls back to everything.
+      const focusApplies = concepts !== allConcepts;
+      const recommended = focusApplies
+        ? zpd.recommendations.filter((r) => focusList.includes(r.concept.domain))
+        : zpd.recommendations;
       setData({
         learnerId,
         progress: summarizeProgress(concepts, states),
@@ -156,7 +164,7 @@ export function StudyToday() {
   };
 
   const skipOnboarding = () => {
-    store(ONBOARDING_SKIPPED_KEY, '1');
+    store(skippedKey, '1');
     setOnboardingSkipped(true);
     setOnboardingOpen(false);
   };

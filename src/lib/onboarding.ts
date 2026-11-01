@@ -92,6 +92,7 @@ export function focusDomains(learner: Pick<LearnerProfile, 'tags'> | null | unde
  * Keep only items in the learner's focus subjects. Falls back to all items if
  * there is no focus, or if none of the focus subjects exist any more (e.g. the
  * domain was renamed) — the plan is never empty just because of a stale tag.
+ * Returns the same array instance when it falls back (callers may check that).
  */
 export function inFocus<T>(items: T[], focus: string[], domainOf: (item: T) => string | undefined): T[] {
   if (focus.length === 0) return items;
