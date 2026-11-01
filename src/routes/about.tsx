@@ -168,10 +168,10 @@ function TableOfContents() {
 
 function AboutPage() {
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-background">
       <Sidebar />
 
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 min-w-0 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-8 py-12">
           {/* Hero Section */}
           <motion.section

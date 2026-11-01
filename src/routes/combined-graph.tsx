@@ -450,10 +450,10 @@ function CombinedGraphPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-background">
       <Sidebar />
 
-      <main className="flex-1 relative overflow-hidden">
+      <main className="flex-1 min-w-0 relative overflow-hidden">
         {/* Background */}
         <div className="absolute inset-0 pointer-events-none">
           <EtherealShadow
