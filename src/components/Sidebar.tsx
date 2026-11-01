@@ -21,29 +21,44 @@ import {
   LogOut,
   Menu,
   X,
+  Database,
+  ChevronRight,
+  type LucideIcon,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { cn } from '@/lib/utils';
 import { authClient } from '@/lib/auth/client';
+import {
+  NAV_SECTIONS,
+  NAV_STORAGE_KEY,
+  isNavItemActive,
+  isSectionOpen,
+  parseNavOpenState,
+  sectionHasActive,
+  type NavIcon,
+  type NavOpenState,
+  type NavSection,
+} from '@/lib/navigation';
 
-const navItems = [
-  { href: '/', label: 'Dashboard', icon: Home, description: 'Overview' },
-  { href: '/profile', label: 'My Profile', icon: UserCircle, description: '39 psychometric domains' },
-  { href: '/admin/learners', label: 'Learners', icon: Users, description: 'Manage profiles' },
-  { href: '/admin/psychometrics', label: 'Psychometrics', icon: Brain, description: 'Cognitive traits' },
-  { href: '/admin/concepts', label: 'Concepts', icon: BookOpen, description: 'Knowledge nodes' },
-  { href: '/admin/prerequisites', label: 'Prerequisites', icon: GitBranch, description: 'Dependencies' },
-  { href: '/admin/states', label: 'Knowledge States', icon: BarChart3, description: 'Progress tracking' },
-  { href: '/recommendations', label: 'Recommendations', icon: Sparkles, description: 'ZPD & learning paths' },
-  { href: '/gaps', label: 'Gap Analysis', icon: AlertTriangle, description: 'Find knowledge gaps' },
-  { href: '/graph', label: 'Knowledge Graph', icon: Network, description: 'Concepts (Graph B)' },
-  { href: '/domains', label: 'Domain Graph', icon: Hexagon, description: 'Psychometrics (Graph A)' },
-  { href: '/combined-graph', label: 'Combined View', icon: Layers, description: 'Both graphs + bridge' },
-  { href: '/edu-psychology', label: 'Edu Psychology', icon: GraduationCap, description: 'Learn theory' },
-  { href: '/about', label: 'About LearnGraph', icon: Info, description: 'System overview' },
-  { href: '/status', label: 'System Status', icon: Activity, description: 'Health monitoring' },
-  { href: '/tests', label: 'Functional Tests', icon: TestTube2, description: 'Run tests' },
-];
+const icons: Record<NavIcon, LucideIcon> = {
+  home: Home,
+  sparkles: Sparkles,
+  alert: AlertTriangle,
+  network: Network,
+  user: UserCircle,
+  hexagon: Hexagon,
+  layers: Layers,
+  graduation: GraduationCap,
+  info: Info,
+  users: Users,
+  brain: Brain,
+  book: BookOpen,
+  branch: GitBranch,
+  chart: BarChart3,
+  database: Database,
+  activity: Activity,
+  test: TestTube2,
+};
 
 const navItemVariants = {
   initial: { opacity: 0, x: -20 },
@@ -65,6 +80,29 @@ export function Sidebar() {
     await authClient.signOut();
     await router.invalidate();
     await router.navigate({ to: '/sign-in', search: {} });
+  }
+
+  // Open/closed choice for the collapsible groups (Manage data, Developer
+  // tools), remembered in this browser. Read after mount so SSR and the first
+  // client render agree.
+  const [savedOpen, setSavedOpen] = useState<NavOpenState>({});
+  useEffect(() => {
+    try {
+      setSavedOpen(parseNavOpenState(window.localStorage.getItem(NAV_STORAGE_KEY)));
+    } catch {
+      // storage unavailable (private mode) — groups simply start closed
+    }
+  }, []);
+  function toggleSection(section: NavSection) {
+    // The group holding the current page stays open (you must see where you are).
+    if (sectionHasActive(section, pathname)) return;
+    const next = { ...savedOpen, [section.id]: !isSectionOpen(section, pathname, savedOpen) };
+    setSavedOpen(next);
+    try {
+      window.localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
   }
 
   // Below the `lg` breakpoint the sidebar is an off-canvas drawer opened from
@@ -204,64 +242,96 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-hide">
-          {navItems.map((item, index) => {
-            const Icon = item.icon;
-            const isActive =
-              pathname === item.href ||
-              (item.href !== '/' && pathname.startsWith(item.href));
-
+        {/* Navigation: learner pages first; admin & debug tools in collapsible groups */}
+        <nav aria-label="Pages" className="flex-1 p-4 overflow-y-auto scrollbar-hide">
+          {NAV_SECTIONS.map((section, sectionIndex) => {
+            const headingId = `nav-heading-${section.id}`;
+            const listId = `nav-list-${section.id}`;
+            const isOpen = isSectionOpen(section, pathname, savedOpen);
             return (
-              <motion.div
-                key={item.href}
-                variants={navItemVariants}
-                initial="initial"
-                animate="animate"
-                whileHover="hover"
-                transition={{ delay: index * 0.05, duration: 0.3 }}
-              >
-                <Link
-                  to={item.href as any}
-                  onClick={() => setOpen(false)}
-                  // Same rule as isActive, so the router's aria-current="page" matches the highlight.
-                  activeOptions={{ exact: item.href === '/' }}
-                  className={cn(
-                    'group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200',
-                    isActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
-                      : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-                  )}
-                >
-                  <motion.div
-                    variants={iconVariants}
-                    transition={{ duration: 0.3 }}
-                    className={cn(
-                      'flex items-center justify-center w-9 h-9 rounded-lg transition-colors',
-                      isActive
-                        ? 'bg-primary text-primary-foreground shadow-md'
-                        : 'bg-muted/50 group-hover:bg-muted'
-                    )}
+              <div key={section.id} className={cn(sectionIndex > 0 && 'mt-4')} data-testid={`nav-section-${section.id}`}>
+                {section.collapsible ? (
+                  <h2 id={headingId} className="m-0">
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(section)}
+                      aria-expanded={isOpen}
+                      aria-controls={listId}
+                      aria-disabled={sectionHasActive(section, pathname) || undefined}
+                      title={sectionHasActive(section, pathname) ? 'Contains the page you are on' : undefined}
+                      className="flex w-full min-h-10 items-center gap-2 rounded-lg px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-primary aria-disabled:cursor-default aria-disabled:hover:bg-transparent"
+                    >
+                      <ChevronRight
+                        aria-hidden="true"
+                        className={cn('h-4 w-4 shrink-0 transition-transform', isOpen && 'rotate-90')}
+                      />
+                      {section.title}
+                    </button>
+                  </h2>
+                ) : (
+                  <h2
+                    id={headingId}
+                    className="m-0 px-4 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                   >
-                    <Icon size={18} />
-                  </motion.div>
-                  <div className="flex-1 min-w-0">
-                    <span className="block text-sm font-medium truncate">
-                      {item.label}
-                    </span>
-                    <span className="block text-xs text-muted-foreground truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                      {item.description}
-                    </span>
-                  </div>
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeIndicator"
-                      className="w-1.5 h-8 rounded-full bg-primary"
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                    />
-                  )}
-                </Link>
-              </motion.div>
+                    {section.title}
+                  </h2>
+                )}
+                <ul id={listId} aria-labelledby={headingId} hidden={!isOpen} className="mt-1 space-y-1">
+                  {section.items.map((item, index) => {
+                    const Icon = icons[item.icon];
+                    const isActive = isNavItemActive(item.href, pathname);
+                    return (
+                      <motion.li
+                        key={item.href}
+                        variants={navItemVariants}
+                        initial="initial"
+                        animate="animate"
+                        whileHover="hover"
+                        transition={{ delay: Math.min(index, 6) * 0.04, duration: 0.3 }}
+                      >
+                        <Link
+                          to={item.href as any}
+                          onClick={() => setOpen(false)}
+                          // Same rule as isActive, so the router's aria-current="page" matches the highlight.
+                          activeOptions={{ exact: item.href === '/' }}
+                          className={cn(
+                            'group flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200',
+                            isActive
+                              ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
+                              : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                          )}
+                        >
+                          <motion.div
+                            variants={iconVariants}
+                            transition={{ duration: 0.3 }}
+                            className={cn(
+                              'flex items-center justify-center w-9 h-9 rounded-lg transition-colors',
+                              isActive
+                                ? 'bg-primary text-primary-foreground shadow-md'
+                                : 'bg-muted/50 group-hover:bg-muted'
+                            )}
+                          >
+                            <Icon size={18} aria-hidden="true" />
+                          </motion.div>
+                          <div className="flex-1 min-w-0">
+                            <span className="block text-sm font-medium truncate">{item.label}</span>
+                            <span className="block text-xs text-muted-foreground truncate">
+                              {item.description}
+                            </span>
+                          </div>
+                          {isActive && (
+                            <motion.div
+                              layoutId="activeIndicator"
+                              className="w-1.5 h-8 rounded-full bg-primary"
+                              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                            />
+                          )}
+                        </Link>
+                      </motion.li>
+                    );
+                  })}
+                </ul>
+              </div>
             );
           })}
         </nav>
@@ -269,15 +339,7 @@ export function Sidebar() {
         {/* Footer with Theme Toggle */}
         <div className="p-4 border-t border-sidebar-border">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
-                P5
-              </div>
-              <div>
-                <p className="text-xs font-medium text-sidebar-foreground">Phase 5</p>
-                <p className="text-[10px] text-muted-foreground">Gap Analysis</p>
-              </div>
-            </div>
+            <span className="text-xs text-muted-foreground">Theme</span>
             <ThemeToggle />
           </div>
           {user && (

@@ -5,7 +5,7 @@ import {
   Users,
   GitBranch,
   BarChart3,
-  FlaskConical,
+  UserCircle,
   Network,
   Database,
   Lightbulb,
@@ -91,7 +91,6 @@ const featureCards = [
     icon: AlertTriangle,
     gradient: 'from-red-500 to-orange-500',
     bg: 'bg-red-500/10',
-    badge: 'Phase 5',
   },
   {
     href: '/graph',
@@ -102,10 +101,10 @@ const featureCards = [
     bg: 'bg-indigo-500/10',
   },
   {
-    href: '/tests',
-    label: 'Functional Tests',
-    description: 'Verify system functionality across phases',
-    icon: FlaskConical,
+    href: '/profile',
+    label: 'My Profile',
+    description: 'See how you learn best and update your profile',
+    icon: UserCircle,
     gradient: 'from-slate-500 to-gray-500',
     bg: 'bg-slate-500/10',
   },
@@ -134,18 +133,6 @@ function HomePage() {
             transition={{ duration: 0.6, ease: 'easeOut' as const }}
             className="mb-8"
           >
-            <div className="flex items-center gap-3 mb-4">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                className="h-2 w-2 rounded-full bg-emerald-500"
-              />
-              <span className="text-sm font-medium text-muted-foreground">
-                Phase 5 Active
-              </span>
-            </div>
-
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-foreground mb-4">
               Welcome to{' '}
               <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
