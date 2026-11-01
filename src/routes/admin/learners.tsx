@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { Plus, Edit, Trash2, X, Save, User, Users, AlertCircle, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { uuidv4 } from '@/lib/uuid';
 
@@ -23,15 +22,6 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: { staggerChildren: 0.05 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.4, ease: 'easeOut' as const },
   },
 };
 

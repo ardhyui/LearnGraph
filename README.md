@@ -712,7 +712,7 @@ a PASS/FAIL summary. Every PR must show a green `npm run ci` before merging.
 ```bash
 npm test             # unit tests (node --test, embedded Postgres via PGlite)
 npm run typecheck    # tsc --noEmit
-npm run lint         # eslint .
+npm run lint         # eslint . --max-warnings 0 (any warning fails)
 npm run build:app    # vite build only (npm run build also runs migrations)
 
 # end-to-end smoke test (needs a running server)

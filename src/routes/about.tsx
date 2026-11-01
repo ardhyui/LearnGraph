@@ -10,79 +10,37 @@ import {
   Users,
   Sparkles,
   BookOpen,
-  BarChart3,
-  Shield,
   Zap,
   Heart,
   CheckCircle2,
-  ArrowRight,
   Database,
   Network,
   AlertTriangle,
-  TrendingUp,
   GraduationCap,
-  Terminal,
   Bot,
-  FileText,
   ClipboardList,
-  Settings,
-  Upload,
   Play,
-  RefreshCw,
-  ToggleLeft,
   Code,
-  Eye,
-  Ear,
-  Hand,
   BookMarked,
   Layers,
   Search,
-  Calendar,
-  Award,
-  MessageSquare,
-  PenTool,
   Puzzle,
   Scale,
-  Compass,
   Lock,
-  Info,
   ChevronRight,
   CheckCircle,
   XCircle,
-  HelpCircle,
   ShieldCheck,
   Fingerprint,
-  HeartHandshake,
-  Flame,
-  Star,
-  Trophy,
-  Frown,
-  Smile,
   Meh,
   BrainCircuit,
   Route as RouteIcon,
-  MapPin,
-  Gauge,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/about')({
   component: AboutPage,
 });
-
-const fadeInUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.5 },
-};
-
-const staggerChildren = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
 
 // Code block component for displaying code/ascii art
 function CodeBlock({ children, title }: { children: string; title?: string }) {

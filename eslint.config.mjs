@@ -37,10 +37,22 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-unused-vars": [
         "warn",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          // `({ omitted, ...rest }) => rest` is the idiomatic way to drop a key.
+          ignoreRestSiblings: true,
+        },
       ],
       "@typescript-eslint/no-explicit-any": "off",
     },
+  },
+  {
+    // Context modules intentionally export a provider together with its hooks
+    // (and, for the theme, the inline no-flash script). Editing them triggers a
+    // full page reload instead of fast refresh, which is acceptable.
+    files: ["src/lib/DBContext.tsx", "src/lib/theme.tsx"],
+    rules: { "react-refresh/only-export-components": "off" },
   },
   // Disable rules that conflict with Prettier formatting.
   prettier,

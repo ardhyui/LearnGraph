@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Clock, Brain, Target, RefreshCw, TrendingDown, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
@@ -40,11 +40,6 @@ interface RemediationStep {
   action: string;
   estimatedTime: number;
   priority: string;
-}
-
-interface Learner {
-  userId: string;
-  name?: string;
 }
 
 const containerVariants = {
@@ -320,7 +315,7 @@ function GapsDashboard() {
                   { label: 'Partial', value: gaps.partial.length, icon: Target, color: 'amber' },
                   { label: 'Forgotten', value: gaps.forgotten.length, icon: TrendingDown, color: 'orange' },
                   { label: 'Misconceptions', value: gaps.misconceptions.length, icon: AlertTriangle, color: 'purple' },
-                ].map((card, idx) => (
+                ].map((card) => (
                   <motion.div
                     key={card.label}
                     variants={itemVariants}

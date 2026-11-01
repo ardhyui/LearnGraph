@@ -15,7 +15,6 @@ import {
   Info,
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
-import { BackgroundBeamsWithCollision } from '@/components/ui/background-beams';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { cn } from '@/lib/utils';
 

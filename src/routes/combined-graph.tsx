@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import {
   ReactFlow,
   Node,
@@ -27,13 +27,10 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  BookOpen,
-  X,
   Loader2,
   AlertCircle,
 } from 'lucide-react';
 import {
-  ALL_DOMAIN_IDS,
   DOMAIN_METADATA,
 } from '@/lib/graph/psychometrics';
 import { useLearners, useConcepts, useDB } from '@/lib/DBContext';
@@ -282,10 +279,6 @@ function CombinedGraphPage() {
     }
   }, [selectedLearner, fetchLearnerData]);
 
-  useEffect(() => {
-    buildGraph();
-  }, [selectedLearnerData, knowledgeStates, showDomains, showConcepts, showBridges, concepts]);
-
   const buildGraph = useCallback(() => {
     if (!selectedLearnerData) {
       setNodes([]);
@@ -303,7 +296,6 @@ function CombinedGraphPage() {
     const domainsStartX = 400;
     const conceptsStartX = 800;
     const bridgeX = 600;
-    const ySpacing = 30;
 
     // 1. Add Learner Node (center-left)
     const domainCount = Object.keys(selectedLearnerData.psychometricScores || {}).length;
@@ -428,12 +420,10 @@ function CombinedGraphPage() {
     setLoading(false);
   }, [selectedLearnerData, knowledgeStates, showDomains, showConcepts, showBridges, concepts, setNodes, setEdges]);
 
-  const stats = useMemo(() => ({
-    learners: learners.length,
-    concepts: concepts.length,
-    domains: ALL_DOMAIN_IDS.length,
-    knowledgeStates: knowledgeStates.length,
-  }), [learners, concepts, knowledgeStates]);
+  // Rebuild whenever buildGraph's inputs change (declared after buildGraph to avoid a TDZ read).
+  useEffect(() => {
+    buildGraph();
+  }, [buildGraph]);
 
   // DB loading state
   if (dbLoading) {

@@ -127,6 +127,36 @@ try {
     );
   }
 
+  // Graph pages rebuild their React Flow graph from a useEffect keyed on the
+  // buildGraph callback: the graph must actually render nodes, and picking a
+  // learner must rebuild it (learner overlay) without page errors.
+  for (const [path, label] of [
+    ['/domains', 'domain graph'],
+    ['/combined-graph', 'combined graph'],
+  ]) {
+    const before = errors.length;
+    await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+    const nodes = page.locator('.react-flow__node');
+    const select = page.locator('select').first();
+    const firstLearner = await select
+      .locator('option')
+      .nth(1)
+      .getAttribute('value', { timeout: 15000 })
+      .catch(() => null);
+    if (firstLearner) await select.selectOption(firstLearner);
+    const rendered = await nodes
+      .first()
+      .waitFor({ state: 'visible', timeout: 15000 })
+      .then(() => true, () => false);
+    const count = await nodes.count();
+    const newErrors = errors.slice(before);
+    check(
+      Boolean(firstLearner) && rendered && count > 1 && newErrors.length === 0,
+      `${label} renders nodes for a selected learner`,
+      `${count} nodes${firstLearner ? '' : ', no learner to select'}${newErrors.length ? `, ${newErrors.join(' | ')}` : ''}`,
+    );
+  }
+
   // The in-app "Functional Tests" page drives the whole engine (ZPD, gaps,
   // SM-2 …) through the server — a good end-to-end check of the RPC layer.
   await page.goto(`${BASE}/tests`, { waitUntil: 'networkidle' });

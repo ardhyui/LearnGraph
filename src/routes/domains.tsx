@@ -34,8 +34,6 @@ import {
 import {
   ALL_DOMAIN_IDS,
   DOMAIN_METADATA,
-  DOMAIN_CATEGORIES,
-  getDomainsByCategory,
 } from '@/lib/graph/psychometrics';
 import { useLearners, useDB } from '@/lib/DBContext';
 
@@ -171,7 +169,6 @@ interface DomainDetails {
 }
 
 function DomainNode({ data }: { data: Record<string, unknown> }) {
-  const detailedCategory = data.category as string;
   const canonicalCategory = data.canonicalCategory as string;
   const isSelected = data.isSelected as boolean | undefined;
   const hasSubscales = data.hasSubscales as boolean | undefined;
@@ -263,10 +260,6 @@ function DomainsPage() {
   const [showSubscales, setShowSubscales] = useState(false);
   const [learnerScores, setLearnerScores] = useState<Record<string, number> | null>(null);
   const [selectedLearner, setSelectedLearner] = useState('');
-
-  useEffect(() => {
-    buildGraph();
-  }, [showCorrelations, showSubscales, learnerScores]);
 
   const fetchLearnerScores = useCallback(async (userId: string) => {
     try {
@@ -429,6 +422,11 @@ function DomainsPage() {
     setEdges(newEdges);
     setLoading(false);
   }, [showCorrelations, showSubscales, learnerScores, setNodes, setEdges]);
+
+  // Rebuild whenever buildGraph's inputs change (declared after buildGraph to avoid a TDZ read).
+  useEffect(() => {
+    buildGraph();
+  }, [buildGraph]);
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     if (node.type === 'subscale') return;

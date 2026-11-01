@@ -11,11 +11,8 @@ import {
   Code,
   BookOpen,
   Target,
-  TrendingDown,
   RefreshCw,
   ChevronDown,
-  ChevronUp,
-  ExternalLink
 } from 'lucide-react';
 
 export const Route = createFileRoute('/edu-psychology')({
@@ -419,7 +416,7 @@ function PsychometricWheel() {
         <div className="mt-6 bg-muted/50 rounded-xl p-4">
           <h4 className="font-semibold text-foreground mb-3">All 39 Domains Quick Reference</h4>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
-            {categories.flatMap(([categoryName, category]) =>
+            {categories.flatMap(([, category]) =>
               category.domains.map((domain) => (
                 <div
                   key={domain.id}

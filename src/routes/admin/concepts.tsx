@@ -33,15 +33,6 @@ const containerVariants = {
   },
 } as const;
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.4, ease: 'easeOut' as const },
-  },
-};
-
 function ConceptsPage() {
   const { isLoading: dbLoading, error: dbError } = useDB();
   const { concepts, loading, createConcept, updateConcept, deleteConcept } = useConcepts();
