@@ -141,6 +141,14 @@ try {
       (await link('Functional Tests').isVisible()) && (await dev.getAttribute('aria-expanded')) === 'true',
       'navigation: the current page’s group opens automatically',
     );
+    // …and cannot be collapsed while you are on one of its pages
+    // (force: Playwright refuses to click an aria-disabled button).
+    await dev.click({ force: true });
+    await page.waitForTimeout(300);
+    check(
+      (await link('Functional Tests').isVisible()) && (await dev.getAttribute('aria-disabled')) === 'true',
+      'navigation: the current page’s group stays open',
+    );
     // Collapse "Manage data" again so later checks start from the default.
     for (let i = 0; i < 20 && (await manage.getAttribute('aria-expanded')) !== 'false'; i++) {
       await manage.click();

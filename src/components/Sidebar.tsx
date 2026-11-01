@@ -34,6 +34,7 @@ import {
   isNavItemActive,
   isSectionOpen,
   parseNavOpenState,
+  sectionHasActive,
   type NavIcon,
   type NavOpenState,
   type NavSection,
@@ -93,6 +94,8 @@ export function Sidebar() {
     }
   }, []);
   function toggleSection(section: NavSection) {
+    // The group holding the current page stays open (you must see where you are).
+    if (sectionHasActive(section, pathname)) return;
     const next = { ...savedOpen, [section.id]: !isSectionOpen(section, pathname, savedOpen) };
     setSavedOpen(next);
     try {
@@ -254,7 +257,9 @@ export function Sidebar() {
                       onClick={() => toggleSection(section)}
                       aria-expanded={isOpen}
                       aria-controls={listId}
-                      className="flex w-full min-h-10 items-center gap-2 rounded-lg px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-primary"
+                      aria-disabled={sectionHasActive(section, pathname) || undefined}
+                      title={sectionHasActive(section, pathname) ? 'Contains the page you are on' : undefined}
+                      className="flex w-full min-h-10 items-center gap-2 rounded-lg px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-primary aria-disabled:cursor-default aria-disabled:hover:bg-transparent"
                     >
                       <ChevronRight
                         aria-hidden="true"
