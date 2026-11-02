@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Clock, Brain, Target, RefreshCw, TrendingDown, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
+import { GAP_KINDS, conceptLabel, countLabel, dueLabel, priorityLabel, stepTypeLabel } from '@/lib/gaps';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 
@@ -185,6 +186,10 @@ function GapsDashboard() {
     if (selectedLearnerId) fetchGapData(selectedLearnerId);
   }, [selectedLearnerId, fetchGapData]);
 
+  // Reference time for "Due today / Overdue by 3 days" (the analysis is only
+  // rendered client-side after loading, so this never differs from SSR).
+  const now = new Date();
+
   const handleLearnerChange = (userId: string) => {
     if (userId) setSelectedLearnerId(userId);
   };
@@ -251,13 +256,13 @@ function GapsDashboard() {
           className="mb-8"
         >
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 shadow-lg shadow-red-500/25">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 shadow-lg shadow-red-500/25" aria-hidden="true">
               <AlertTriangle className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-foreground">Knowledge Gap Analysis</h1>
+            <h1 className="text-3xl font-bold text-foreground">Gap Analysis</h1>
           </div>
-          <p className="text-muted-foreground ml-14">
-            Identify forgotten topics, track review schedules, and get personalized remediation plans
+          <p className="text-muted-foreground sm:ml-14">
+            What’s slipping, what’s due for review, and a short plan to catch up.
           </p>
         </motion.div>
 
@@ -312,7 +317,7 @@ function GapsDashboard() {
               >
                 <RefreshCw size={48} className="mx-auto text-primary" />
               </motion.div>
-              <p className="mt-4 text-muted-foreground">Analyzing knowledge gaps...</p>
+              <p className="mt-4 text-muted-foreground" role="status">Checking what needs attention…</p>
             </motion.div>
           )}
 
@@ -325,12 +330,12 @@ function GapsDashboard() {
             >
               {/* Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                {[
-                  { label: 'Missing', value: gaps.missing.length, icon: XCircle, color: 'red' },
-                  { label: 'Partial', value: gaps.partial.length, icon: Target, color: 'amber' },
-                  { label: 'Forgotten', value: gaps.forgotten.length, icon: TrendingDown, color: 'orange' },
-                  { label: 'Misconceptions', value: gaps.misconceptions.length, icon: AlertTriangle, color: 'purple' },
-                ].map((card) => (
+                {GAP_KINDS.map((kind) => ({
+                  ...kind,
+                  value: gaps[kind.key].length,
+                  icon: { missing: XCircle, partial: Target, forgotten: TrendingDown, misconceptions: AlertTriangle }[kind.key],
+                  color: { missing: 'red', partial: 'amber', forgotten: 'orange', misconceptions: 'purple' }[kind.key],
+                })).map((card) => (
                   <motion.div
                     key={card.label}
                     variants={itemVariants}
@@ -345,7 +350,7 @@ function GapsDashboard() {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">{card.label}</p>
+                        <p className="text-sm font-medium text-foreground">{card.label}</p>
                         <p className={cn(
                           'text-3xl font-bold',
                           card.color === 'red' && 'text-red-500',
@@ -355,8 +360,9 @@ function GapsDashboard() {
                         )}>
                           {card.value}
                         </p>
+                        <p className="text-xs text-muted-foreground mt-1">{card.hint}</p>
                       </div>
-                      <card.icon className={cn(
+                      <card.icon aria-hidden="true" className={cn(
                         'w-8 h-8',
                         card.color === 'red' && 'text-red-500',
                         card.color === 'amber' && 'text-amber-500',
@@ -373,14 +379,14 @@ function GapsDashboard() {
                 {/* Gap Details */}
                 <motion.div variants={itemVariants} className="glass-card p-6">
                   <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-foreground">
-                    <Brain className="text-primary" />
-                    Knowledge Gaps
+                    <Brain className="text-primary" aria-hidden="true" />
+                    Shaky spots
                   </h2>
 
                   {gaps.summary.total === 0 ? (
                     <div className="text-center py-12">
                       <CheckCircle size={48} className="mx-auto text-emerald-500 mb-2" />
-                      <p className="text-foreground font-medium">No knowledge gaps detected!</p>
+                      <p className="text-foreground font-medium">No shaky spots right now — nice work!</p>
                     </div>
                   ) : (
                     <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-hide">
@@ -394,10 +400,10 @@ function GapsDashboard() {
                           <div className="flex items-start gap-3">
                             {getGapIcon('missing')}
                             <div className="flex-1">
-                              <p className="font-medium text-foreground">{gap.conceptId}</p>
-                              <p className="text-sm opacity-75">Missing prerequisite knowledge</p>
+                              <p className="font-medium text-foreground">{conceptLabel(gap.conceptId, gap.conceptName)}</p>
+                              <p className="text-sm opacity-75">Ready to learn — not started yet</p>
                               {gap.blockedConcepts && gap.blockedConcepts.length > 0 && (
-                                <p className="text-xs mt-1 opacity-60">Blocks: {gap.blockedConcepts.join(', ')}</p>
+                                <p className="text-xs mt-1 opacity-60">Unlocks: {gap.blockedConcepts.map((id) => conceptLabel(id)).join(', ')}</p>
                               )}
                             </div>
                           </div>
@@ -414,8 +420,8 @@ function GapsDashboard() {
                           <div className="flex items-start gap-3">
                             {getGapIcon('partial')}
                             <div className="flex-1">
-                              <p className="font-medium text-foreground">{gap.conceptId}</p>
-                              <p className="text-sm opacity-75">Mastery: {gap.mastery}%</p>
+                              <p className="font-medium text-foreground">{conceptLabel(gap.conceptId, gap.conceptName)}</p>
+                              <p className="text-sm opacity-75">{gap.mastery}% mastered</p>
                             </div>
                           </div>
                         </motion.div>
@@ -431,10 +437,9 @@ function GapsDashboard() {
                           <div className="flex items-start gap-3">
                             {getGapIcon('forgotten')}
                             <div className="flex-1">
-                              <p className="font-medium text-foreground">{gap.conceptId}</p>
+                              <p className="font-medium text-foreground">{conceptLabel(gap.conceptId, gap.conceptName)}</p>
                               <p className="text-sm opacity-75">
-                                Predicted retention: {gap.predictedRetention?.toFixed(0)}%
-                                ({gap.daysSinceReview} days since review)
+                                About {gap.predictedRetention?.toFixed(0)}% remembered · last reviewed {countLabel(gap.daysSinceReview ?? 0, 'day')} ago
                               </p>
                             </div>
                           </div>
@@ -451,8 +456,8 @@ function GapsDashboard() {
                           <div className="flex items-start gap-3">
                             {getGapIcon('misconception')}
                             <div className="flex-1">
-                              <p className="font-medium text-foreground">{gap.conceptId}</p>
-                              <p className="text-sm opacity-75">{gap.incorrectUnderstanding || 'Incorrect understanding detected'}</p>
+                              <p className="font-medium text-foreground">{conceptLabel(gap.conceptId, gap.conceptName)}</p>
+                              <p className="text-sm opacity-75">{gap.incorrectUnderstanding || 'Something here was understood the wrong way'}</p>
                             </div>
                           </div>
                         </motion.div>
@@ -464,11 +469,11 @@ function GapsDashboard() {
                 {/* Review Queue */}
                 <motion.div variants={itemVariants} className="glass-card p-6">
                   <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-foreground">
-                    <Clock className="text-primary" />
-                    Review Queue
+                    <Clock className="text-primary" aria-hidden="true" />
+                    Reviews
                     {reviewQueue && (
                       <span className="text-sm font-normal text-muted-foreground ml-2">
-                        ({reviewQueue.stats.totalItems} items)
+                        ({countLabel(reviewQueue.stats.totalItems, 'concept')})
                       </span>
                     )}
                   </h2>
@@ -480,16 +485,19 @@ function GapsDashboard() {
                       className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl"
                     >
                       <p className="text-red-600 dark:text-red-400 font-medium flex items-center gap-2">
-                        <AlertTriangle size={16} />
-                        {reviewQueue.stats.overdue} overdue reviews!
+                        <AlertTriangle size={16} aria-hidden="true" />
+                        {countLabel(reviewQueue.stats.overdue, 'review')} overdue
                       </p>
+                      <Link to="/" className="mt-2 inline-flex text-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
+                        Do your reviews on the dashboard
+                      </Link>
                     </motion.div>
                   )}
 
                   {!reviewQueue || reviewQueue.queue.length === 0 ? (
                     <div className="text-center py-12">
                       <CheckCircle size={48} className="mx-auto text-emerald-500 mb-2" />
-                      <p className="text-foreground font-medium">No reviews scheduled</p>
+                      <p className="text-foreground font-medium">Nothing to review yet</p>
                     </div>
                   ) : (
                     <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-hide">
@@ -499,21 +507,20 @@ function GapsDashboard() {
                           whileHover={{ scale: 1.01 }}
                           className="p-4 bg-secondary/50 rounded-xl border border-border/50 flex items-center gap-3"
                         >
-                          <div className={cn('w-3 h-3 rounded-full', getPriorityColor(item.priority))} />
-                          <div className="flex-1">
-                            <p className="font-medium text-foreground">{item.conceptId}</p>
+                          <div aria-hidden="true" className={cn('w-3 h-3 rounded-full shrink-0', getPriorityColor(item.priority))} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-foreground">{conceptLabel(item.conceptId, item.conceptName)}</p>
                             <p className="text-sm text-muted-foreground">
-                              Retention: {item.predictedRetention.toFixed(0)}% •
-                              Next review: {new Date(item.nextReviewDate).toLocaleDateString()}
+                              {dueLabel(item.nextReviewDate, now)} · about {item.predictedRetention.toFixed(0)}% remembered
                             </p>
                           </div>
                           <span className={cn(
-                            'px-2.5 py-1 text-xs rounded-full font-medium',
+                            'px-2.5 py-1 text-xs rounded-full font-medium whitespace-nowrap',
                             item.priority === 'urgent' && 'bg-red-500/10 text-red-600 dark:text-red-400',
                             item.priority === 'normal' && 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
                             item.priority === 'low' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                           )}>
-                            {item.priority}
+                            {priorityLabel(item.priority)}
                           </span>
                         </motion.div>
                       ))}
@@ -529,10 +536,10 @@ function GapsDashboard() {
                   className="mt-6 glass-card p-6"
                 >
                   <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-foreground">
-                    <Target className="text-primary" />
-                    Remediation Plan
+                    <Target className="text-primary" aria-hidden="true" />
+                    Your catch-up plan
                     <span className="text-sm font-normal text-muted-foreground ml-2">
-                      (Est. {remediation.plan.estimatedTotalTime} minutes)
+                      (about {remediation.plan.estimatedTotalTime} min)
                     </span>
                   </h2>
 
@@ -542,7 +549,7 @@ function GapsDashboard() {
                     className="mb-4 p-4 bg-primary/5 border border-primary/10 rounded-xl"
                   >
                     <p className="text-foreground">
-                      <strong>Priority Focus:</strong> {remediation.plan.priorityFocus}
+                      <strong>Start with:</strong> {remediation.plan.priorityFocus}
                     </p>
                   </motion.div>
 
@@ -559,11 +566,11 @@ function GapsDashboard() {
                           {step.order}
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium text-foreground">{step.conceptId}</p>
+                          <p className="font-medium text-foreground">{conceptLabel(step.conceptId, step.conceptName)}</p>
                           <p className="text-sm text-muted-foreground">{step.action}</p>
-                          <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                            <span>Type: {step.gapType}</span>
-                            <span>Est: {step.estimatedTime} min</span>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+                            <span>{stepTypeLabel(step.gapType)}</span>
+                            <span>About {step.estimatedTime} min</span>
                             <span className={cn(
                               'px-2 py-0.5 rounded',
                               step.priority === 'critical' && 'bg-red-500/10 text-red-600 dark:text-red-400',
@@ -571,7 +578,7 @@ function GapsDashboard() {
                               step.priority === 'medium' && 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
                               !['critical', 'high', 'medium'].includes(step.priority) && 'bg-muted text-muted-foreground'
                             )}>
-                              {step.priority}
+                              {step.priority === 'critical' ? 'Do first' : step.priority === 'high' ? 'Important' : 'When you can'}
                             </span>
                           </div>
                         </div>
@@ -610,9 +617,9 @@ function GapsDashboard() {
           transition={{ delay: 0.5 }}
           className="mt-8 glass-card p-6"
         >
-          <h2 className="text-xl font-semibold mb-4 text-foreground">Understanding the Forgetting Curve</h2>
+          <h2 className="text-xl font-semibold mb-4 text-foreground">Why reviews help</h2>
           <div className="flex justify-center">
-            <svg viewBox="0 0 500 280" className="w-full max-w-2xl">
+            <svg viewBox="0 0 500 280" className="w-full max-w-2xl" role="img" aria-label="Without reviews, memory fades over a few weeks; with a review at the right time, it stays high.">
               {/* Background grid */}
               <defs>
                 <pattern id="grid" width="50" height="25" patternUnits="userSpaceOnUse">
@@ -672,7 +679,7 @@ function GapsDashboard() {
             </svg>
           </div>
           <p className="text-center text-muted-foreground mt-4 text-sm">
-            Spaced repetition reviews at optimal intervals dramatically improve long-term retention
+            A quick review just before you’d forget keeps a topic fresh for much longer.
           </p>
         </motion.div>
       </main>
