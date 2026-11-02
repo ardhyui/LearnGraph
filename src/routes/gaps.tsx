@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { useState, useCallback, useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Clock, Brain, Target, RefreshCw, TrendingDown, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
+import { AlertTriangle, BookOpen, Clock, Brain, Target, RefreshCw, TrendingDown, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
 import { GAP_KINDS, conceptLabel, countLabel, dueLabel, priorityLabel, stepTypeLabel } from '@/lib/gaps';
@@ -107,7 +107,8 @@ function GapsDashboard() {
         conceptId: g.conceptId,
         conceptName: g.concept?.name,
         type: 'missing' as const,
-        severity: 'high' as const,
+        // Not started yet but ready — an opportunity, not an alarm.
+        severity: 'low' as const,
       }));
       const partial: GapItem[] = detectedGaps.partial.map(g => ({
         conceptId: g.conceptId,
@@ -196,11 +197,11 @@ function GapsDashboard() {
 
   const getGapIcon = (type: string) => {
     switch (type) {
-      case 'missing': return <XCircle className="text-red-500" size={20} />;
-      case 'partial': return <Target className="text-amber-500" size={20} />;
-      case 'forgotten': return <TrendingDown className="text-orange-500" size={20} />;
-      case 'misconception': return <AlertTriangle className="text-purple-500" size={20} />;
-      default: return <Brain size={20} />;
+      case 'missing': return <BookOpen className="text-sky-500 shrink-0" size={20} aria-hidden="true" />;
+      case 'partial': return <Target className="text-amber-500 shrink-0" size={20} aria-hidden="true" />;
+      case 'forgotten': return <TrendingDown className="text-orange-500 shrink-0" size={20} aria-hidden="true" />;
+      case 'misconception': return <AlertTriangle className="text-purple-500 shrink-0" size={20} aria-hidden="true" />;
+      default: return <Brain size={20} aria-hidden="true" />;
     }
   };
 
@@ -208,7 +209,7 @@ function GapsDashboard() {
     switch (severity) {
       case 'high': return 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20';
       case 'medium': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
-      case 'low': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
+      case 'low': return 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20';
       default: return 'bg-muted text-muted-foreground border-border';
     }
   };
@@ -333,8 +334,8 @@ function GapsDashboard() {
                 {GAP_KINDS.map((kind) => ({
                   ...kind,
                   value: gaps[kind.key].length,
-                  icon: { missing: XCircle, partial: Target, forgotten: TrendingDown, misconceptions: AlertTriangle }[kind.key],
-                  color: { missing: 'red', partial: 'amber', forgotten: 'orange', misconceptions: 'purple' }[kind.key],
+                  icon: { missing: BookOpen, partial: Target, forgotten: TrendingDown, misconceptions: AlertTriangle }[kind.key],
+                  color: { missing: 'sky', partial: 'amber', forgotten: 'orange', misconceptions: 'purple' }[kind.key],
                 })).map((card) => (
                   <motion.div
                     key={card.label}
@@ -342,7 +343,7 @@ function GapsDashboard() {
                     whileHover={{ y: -4 }}
                     className={cn(
                       'glass-card p-5 border-l-4',
-                      card.color === 'red' && 'border-l-red-500',
+                      card.color === 'sky' && 'border-l-sky-500',
                       card.color === 'amber' && 'border-l-amber-500',
                       card.color === 'orange' && 'border-l-orange-500',
                       card.color === 'purple' && 'border-l-purple-500'
@@ -353,7 +354,7 @@ function GapsDashboard() {
                         <p className="text-sm font-medium text-foreground">{card.label}</p>
                         <p className={cn(
                           'text-3xl font-bold',
-                          card.color === 'red' && 'text-red-500',
+                          card.color === 'sky' && 'text-sky-500',
                           card.color === 'amber' && 'text-amber-500',
                           card.color === 'orange' && 'text-orange-500',
                           card.color === 'purple' && 'text-purple-500'
@@ -364,7 +365,7 @@ function GapsDashboard() {
                       </div>
                       <card.icon aria-hidden="true" className={cn(
                         'w-8 h-8',
-                        card.color === 'red' && 'text-red-500',
+                        card.color === 'sky' && 'text-sky-500',
                         card.color === 'amber' && 'text-amber-500',
                         card.color === 'orange' && 'text-orange-500',
                         card.color === 'purple' && 'text-purple-500'
@@ -549,7 +550,7 @@ function GapsDashboard() {
                     className="mb-4 p-4 bg-primary/5 border border-primary/10 rounded-xl"
                   >
                     <p className="text-foreground">
-                      <strong>Start with:</strong> {remediation.plan.priorityFocus}
+                      <strong>Focus:</strong> {remediation.plan.priorityFocus}
                     </p>
                   </motion.div>
 
