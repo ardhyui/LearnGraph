@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useId, useMemo, useRef } from 'react';
+import { pageHead } from '@/lib/page-titles';
 import { createFileRoute } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -21,6 +22,7 @@ import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 
 export const Route = createFileRoute('/recommendations')({
+  head: () => pageHead('/recommendations'),
   component: RecommendationsPage,
 });
 

@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
@@ -10,6 +11,7 @@ import { ALL_DOMAIN_IDS, DOMAIN_METADATA } from '@/lib/graph/psychometrics';
 import { deriveLearningStyle, estimateCognitiveProfile } from '@/lib/graph/psychometrics';
 
 export const Route = createFileRoute('/admin/psychometrics')({
+  head: () => pageHead('/admin/psychometrics'),
   component: PsychometricsPage,
 });
 

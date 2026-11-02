@@ -2,6 +2,23 @@ import { Link, useRouter, type ErrorComponentProps } from '@tanstack/react-route
 import { useEffect, useState, type ReactNode } from 'react';
 import { AlertTriangle, Compass, Home, RotateCcw } from 'lucide-react';
 import { logError, userFacingMessage } from '@/lib/errors';
+import { ERROR_TITLE, NOT_FOUND_TITLE, titleForPath } from '@/lib/page-titles';
+
+/**
+ * These screens have no route `head` of their own, so the tab would keep the
+ * previous page's (or the bare app) title. Set it while shown; when leaving,
+ * put the current page's title back so a successful "Try again" or the link
+ * home doesn't keep the error title.
+ */
+function useDocumentTitle(title: string) {
+  useEffect(() => {
+    document.title = title;
+    return () => {
+      // By now the URL is the next page's (or the same one after "Try again").
+      if (document.title === title) document.title = titleForPath(window.location.pathname);
+    };
+  }, [title]);
+}
 
 /**
  * Friendly full-page 404 / error screens. Deliberately self-contained (no
@@ -26,6 +43,7 @@ const btn =
   'inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2';
 
 export function NotFoundPage() {
+  useDocumentTitle(NOT_FOUND_TITLE);
   return (
     <Shell icon={<Compass className="h-7 w-7" aria-hidden="true" />}>
       <h1 className="text-2xl font-bold text-foreground">Page not found</h1>
@@ -46,6 +64,7 @@ const loggedRefs = new WeakMap<object, string | null>();
 
 export function ErrorPage({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
+  useDocumentTitle(ERROR_TITLE);
   // Generated after mount so SSR and hydration markup match.
   const [ref, setRef] = useState<string | null>(null);
   useEffect(() => {

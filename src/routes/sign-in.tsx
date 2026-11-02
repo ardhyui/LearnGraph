@@ -5,6 +5,7 @@ import { Loader2, Network } from 'lucide-react';
 import { authClient } from '@/lib/auth/client';
 import { rateLimitMessage } from '@/lib/auth/rate-limit';
 import { cn } from '@/lib/utils';
+import { pageHead } from '@/lib/page-titles';
 
 const searchSchema = z.object({ redirect: z.string().optional() });
 
@@ -19,7 +20,7 @@ export const Route = createFileRoute('/sign-in')({
   beforeLoad: ({ context, search }) => {
     if (context.user) throw redirect({ href: safeRedirect(search.redirect) });
   },
-  head: () => ({ meta: [{ title: 'Sign in - LearnGraph' }] }),
+  head: () => pageHead('/sign-in'),
   component: SignInPage,
 });
 

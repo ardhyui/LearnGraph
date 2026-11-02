@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -38,6 +39,7 @@ import {
 import { useLearners, useDB } from '@/lib/DBContext';
 
 export const Route = createFileRoute('/domains')({
+  head: () => pageHead('/domains'),
   component: DomainsPage,
 });
 

@@ -1,4 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState, useEffect, useCallback, useId, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -62,6 +63,7 @@ import {
 } from '@/lib/profile';
 
 export const Route = createFileRoute('/profile')({
+  head: () => pageHead('/profile'),
   component: ProfilePage,
 });
 

@@ -11,6 +11,8 @@ import { ThemeProvider, NO_FLASH_SCRIPT } from '@/lib/theme';
 import { DBProvider } from '@/lib/DBContext';
 import { ErrorPage, NotFoundPage } from '@/components/ErrorPages';
 import { getCurrentUser } from '@/server/session.functions';
+import { RouteAnnouncer } from '@/components/RouteAnnouncer';
+import { APP_NAME } from '@/lib/page-titles';
 import appCss from '../styles.css?url';
 
 export type SessionUser = { id: string; email: string | null; name: string | null };
@@ -33,10 +35,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'LearnGraph - Adaptive Education' },
+      { title: APP_NAME },
       {
         name: 'description',
-        content: 'Graph-Based Adaptive Education System with Psychometric Profiling',
+        content: 'Your study plan: what to learn next, reviews that are due, and your progress.',
       },
       { name: 'theme-color', content: '#8b5cf6' },
       { name: 'apple-mobile-web-app-capable', content: 'yes' },
@@ -65,6 +67,7 @@ function RootDocument({ children }: { children: ReactNode }) {
       </head>
       <body className="min-h-screen bg-background antialiased">
         <ThemeProvider>{children}</ThemeProvider>
+        <RouteAnnouncer />
         <Scripts />
       </body>
     </html>

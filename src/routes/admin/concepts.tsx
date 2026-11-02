@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
@@ -9,6 +10,7 @@ import { useConcepts, useDB } from '@/lib/DBContext';
 import type { ConceptNode } from '@/lib/graph/types';
 
 export const Route = createFileRoute('/admin/concepts')({
+  head: () => pageHead('/admin/concepts'),
   component: ConceptsPage,
 });
 
