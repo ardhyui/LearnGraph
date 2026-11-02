@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback, useId, useRef } from 'react';
+import { useState, useEffect, useCallback, useId, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User,
@@ -44,6 +44,13 @@ import {
 import { useDB, useLearners } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 import { LearningOverview } from '@/components/LearningOverview';
+import {
+  answerButtonName,
+  completedQuizTopics,
+  quizLengthLine,
+  savedQuizzesLine,
+  scoreSourceLabel,
+} from '@/lib/quiz';
 import {
   PROFILE_MODES,
   PROFILE_MODE_COPY,
@@ -188,6 +195,8 @@ const PSYCHOMETRIC_CATEGORIES: CategoryDefinition[] = [
 
 // Get all domain IDs for iteration
 const ALL_DOMAIN_IDS = PSYCHOMETRIC_CATEGORIES.flatMap((cat) => cat.domains.map((d) => d.id));
+// Topics that have a quiz (shown as "x / N topics done").
+const QUIZ_TOPIC_COUNT = Math.max(1, ALL_DOMAIN_IDS.filter((id) => ALL_ASSESSMENTS[id]).length);
 
 // =============================================================================
 // TYPES
@@ -339,7 +348,12 @@ function ProfilePage() {
   // Assessment state
   const [activeAssessment, setActiveAssessment] = useState<Assessment | null>(null);
   const [assessmentAnswers, setAssessmentAnswers] = useState<Record<string, number>>({});
-  const [completedAssessments, setCompletedAssessments] = useState<Set<string>>(new Set());
+  const quizTitleId = useId();
+  const quizDialogRef = useRef<HTMLDivElement>(null);
+  // Where focus was before a quiz opened, so closing it puts the learner back.
+  const quizOpenerRef = useRef<HTMLElement | null>(null);
+  // Topics with a saved quiz result (derived, so it follows the selected learner).
+  const completedAssessments = useMemo(() => completedQuizTopics(editedScores), [editedScores]);
   const [assessmentType, setAssessmentType] = useState<AssessmentType>('quick');
   const [assessmentViewMode, setAssessmentViewMode] = useState<AssessmentViewMode>('cards');
   // Batch answers for "all questions" view: domainId -> questionId -> answer
@@ -378,6 +392,9 @@ function ProfilePage() {
           }
 
           setEditedScores(scoresWithInterpretations);
+          // Answers in progress belong to the previous learner.
+          setBatchAnswers({});
+          setActiveAssessment(null);
           // Set default profile mode
           setActiveMode('view');
           setModeConfirmed(false);
@@ -487,8 +504,14 @@ function ProfilePage() {
     setTimeout(() => setSuccess(null), 4000);
   };
 
-  const saveProfile = async () => {
-    if (!profile) return;
+  /**
+   * Store the scores for the current learner and work out the learning
+   * style, pace and support level from them so Recommendations ("Ways to
+   * learn it") actually use them. Returns whether saving worked.
+   */
+  const persistScores = async (scores: Record<string, PsychometricScore>, savedMessage: string): Promise<boolean> => {
+    if (!profile) return false;
+    const userId = profile.userId;
 
     setSaving(true);
     setError(null);
@@ -496,24 +519,27 @@ function ProfilePage() {
 
     try {
       const updatedData = {
-        psychometricScores: editedScores,
+        psychometricScores: scores,
         profileMode: activeMode !== 'view' ? activeMode : profile.profileMode,
       };
 
-      await updateLearner(profile.userId, updatedData as any);
-      // Work out the learning style, pace and support level from the saved
-      // values so Recommendations ("Ways to learn it") actually use them.
-      const saved = db ? await db.computeAndStoreDerivedProfiles(profile.userId) : null;
+      await updateLearner(userId, updatedData as any);
+      const saved = db ? await db.computeAndStoreDerivedProfiles(userId) : null;
       // Switching learners while saving must not show this learner's result.
-      if (saved && saved.userId === selectedLearnerRef.current) setProfile(saved);
-      setSuccess('Saved. Your suggestions on Recommendations now use this profile.');
-      setTimeout(() => setSuccess(null), 3000);
+      if (userId !== selectedLearnerRef.current) return true;
+      if (saved && saved.userId === userId) setProfile(saved);
+      setSuccess(savedMessage);
+      setTimeout(() => setSuccess(null), 5000);
+      return true;
     } catch {
-      setError('Failed to save profile');
+      if (userId === selectedLearnerRef.current) setError('Couldn’t save. Check your connection and try again.');
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  const saveProfile = () => persistScores(editedScores, 'Saved. Your suggestions on Recommendations now use this profile.');
 
   // Assessment functions
   const startAssessment = (domainId: string) => {
@@ -521,12 +547,26 @@ function ProfilePage() {
     if (!assessmentData) return;
 
     const assessment = assessmentType === 'quick' ? assessmentData.quick : assessmentData.full;
+    quizOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setActiveAssessment(assessment);
     setAssessmentAnswers({});
   };
 
-  const submitAssessment = () => {
-    if (!activeAssessment) return;
+  // Keyboard: move into the quiz when it opens, and back to the card that
+  // opened it when it closes.
+  const quizOpen = activeAssessment !== null;
+  useEffect(() => {
+    if (quizOpen) {
+      quizDialogRef.current?.focus();
+      return;
+    }
+    const opener = quizOpenerRef.current;
+    quizOpenerRef.current = null;
+    if (opener?.isConnected) opener.focus();
+  }, [quizOpen]);
+
+  const submitAssessment = async () => {
+    if (!activeAssessment || saving) return;
 
     const score = activeAssessment.calculateScore(assessmentAnswers);
     const now = new Date().toISOString();
@@ -535,8 +575,8 @@ function ProfilePage() {
     // Pass answers to interpretation for subscale calculations
     const interpretation = activeAssessment.interpretation(score, assessmentAnswers);
 
-    setEditedScores((prev) => ({
-      ...prev,
+    const next: Record<string, PsychometricScore> = {
+      ...editedScores,
       [activeAssessment.domainId]: {
         score,
         confidence: isFullAssessment ? 0.9 : 0.7, // Full assessments have higher confidence
@@ -545,13 +585,13 @@ function ProfilePage() {
         interpretation, // Store the full interpretation with subscales
         answers: { ...assessmentAnswers }, // Store answers for later re-calculation
       },
-    }));
+    };
 
-    setCompletedAssessments((prev) => new Set(prev).add(activeAssessment.domainId));
+    setEditedScores(next);
     setActiveAssessment(null);
-
-    setSuccess(`${activeAssessment.shortName} complete! ${interpretation}`);
-    setTimeout(() => setSuccess(null), 5000);
+    // Quiz results are saved straight away (they used to stay in the browser
+    // until a "Save" button that this mode never showed, so they were lost).
+    await persistScores(next, `Saved — ${activeAssessment.shortName}: ${interpretation}`);
   };
 
   // Batch mode functions
@@ -579,10 +619,10 @@ function ProfilePage() {
     return { answered, total };
   };
 
-  const submitBatchAssessments = () => {
+  const submitBatchAssessments = async () => {
+    if (saving) return;
     const now = new Date().toISOString();
     const newScores: Record<string, PsychometricScore> = { ...editedScores };
-    const newCompleted = new Set(completedAssessments);
     let submittedCount = 0;
 
     for (const domainId of ALL_DOMAIN_IDS) {
@@ -609,15 +649,19 @@ function ProfilePage() {
         interpretation, // Store the full interpretation with subscales
         answers: { ...domainAnswers }, // Store answers for later re-calculation
       };
-      newCompleted.add(domainId);
       submittedCount++;
     }
 
+    if (submittedCount === 0) {
+      setError(null);
+      setSuccess(savedQuizzesLine(0));
+      setTimeout(() => setSuccess(null), 5000);
+      return;
+    }
     setEditedScores(newScores);
-    setCompletedAssessments(newCompleted);
-    setBatchAnswers({});
-    setSuccess(`Submitted ${submittedCount} assessments! Your profile has been updated.`);
-    setTimeout(() => setSuccess(null), 5000);
+    const ok = await persistScores(newScores, `${savedQuizzesLine(submittedCount)} Your suggestions on Recommendations now use them.`);
+    // Keep the answers on screen if saving failed, so nothing is lost.
+    if (ok) setBatchAnswers({});
   };
 
   const getScoreColor = (score: number | undefined) => {
@@ -835,6 +879,7 @@ function ProfilePage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
+              role="alert"
               className="mb-4 p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center gap-3"
             >
               <AlertCircle className="w-5 h-5 text-destructive" />
@@ -846,6 +891,8 @@ function ProfilePage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
+              role="status"
+              data-testid="profile-success"
               className="mb-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3"
             >
               <CheckCircle2 className="w-5 h-5 text-emerald-500" />
@@ -865,23 +912,35 @@ function ProfilePage() {
               onClick={() => setActiveAssessment(null)}
             >
               <motion.div
+                ref={quizDialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={quizTitleId}
+                data-testid="quiz-dialog"
+                tabIndex={-1}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    setActiveAssessment(null);
+                  }
+                }}
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-background rounded-2xl p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto"
+                className="bg-background rounded-2xl p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto focus:outline-none"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="mb-6">
-                  <h3 className="text-xl font-semibold mb-2">{activeAssessment.name}</h3>
+                  <h3 id={quizTitleId} className="text-xl font-semibold mb-2">{activeAssessment.shortName}</h3>
                   <p className="text-sm text-muted-foreground">{activeAssessment.description}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Source: {activeAssessment.source}
+                    {quizLengthLine(activeAssessment.questions.length)} · there are no right or wrong answers
                   </p>
                 </div>
 
                 {/* Scale Legend */}
                 <div className="mb-6 p-3 rounded-xl bg-secondary/30 border border-border">
-                  <div className="text-xs text-muted-foreground mb-2">Response Scale:</div>
+                  <div className="text-xs text-muted-foreground mb-2">How much do you agree? Pick a number:</div>
                   <div className="flex flex-wrap gap-2">
                     {activeAssessment.scale.labels.map((label, idx) => (
                       <div key={idx} className="flex items-center gap-1 text-xs">
@@ -907,17 +966,18 @@ function ProfilePage() {
                           <span className="text-xs text-muted-foreground w-6 pt-0.5">
                             {qIndex + 1}.
                           </span>
-                          <p className="text-sm text-foreground flex-1">
+                          <p id={`${quizTitleId}-q${qIndex}`} className="text-sm text-foreground flex-1">
                             {q.text}
-                            {q.reverseScored && (
-                              <span className="ml-1 text-xs text-amber-500">(R)</span>
-                            )}
                           </p>
                         </div>
-                        <div className="flex gap-2 ml-6">
+                        <div role="group" aria-labelledby={`${quizTitleId}-q${qIndex}`} className="flex flex-wrap gap-2 ml-6">
                           {scaleRange.map((val) => (
                             <button
                               key={val}
+                              type="button"
+                              aria-pressed={assessmentAnswers[q.id] === val}
+                              aria-label={answerButtonName(activeAssessment.scale, val)}
+                              title={answerButtonName(activeAssessment.scale, val)}
                               onClick={() => setAssessmentAnswers((prev) => ({ ...prev, [q.id]: val }))}
                               className={cn(
                                 'w-10 h-10 rounded-lg border transition-all text-sm font-medium',
@@ -961,11 +1021,11 @@ function ProfilePage() {
                   </button>
                   <button
                     onClick={submitAssessment}
-                    disabled={Object.keys(assessmentAnswers).length < activeAssessment.questions.length}
+                    disabled={saving || Object.keys(assessmentAnswers).length < activeAssessment.questions.length}
                     className="flex-1 px-4 py-2 rounded-lg bg-primary text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    <CheckCircle className="w-4 h-4" />
-                    Submit Assessment
+                    <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                    {saving ? 'Saving…' : 'Save my answers'}
                   </button>
                 </div>
               </motion.div>
@@ -1005,7 +1065,7 @@ function ProfilePage() {
                       )}
                     >
                       <Zap className="w-4 h-4" />
-                      Quick (1 Q)
+                      Quick
                     </button>
                     <button
                       onClick={() => setAssessmentType('full')}
@@ -1017,7 +1077,7 @@ function ProfilePage() {
                       )}
                     >
                       <FileText className="w-4 h-4" />
-                      Full Test
+                      Full
                     </button>
                   </div>
 
@@ -1045,7 +1105,7 @@ function ProfilePage() {
                       )}
                     >
                       <List className="w-4 h-4" />
-                      All Questions
+                      All questions
                     </button>
                   </div>
                 </div>
@@ -1068,11 +1128,11 @@ function ProfilePage() {
               {/* Progress Summary */}
               <div className="mt-4 flex items-center gap-4 text-sm">
                 <span className="text-muted-foreground">Progress:</span>
-                <span className="font-medium text-foreground">{completedAssessments.size} / 39 completed</span>
+                <span className="font-medium text-foreground">{completedAssessments.size} / {QUIZ_TOPIC_COUNT} topics done</span>
                 <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${(completedAssessments.size / 39) * 100}%` }}
+                    animate={{ width: `${(Math.min(completedAssessments.size, QUIZ_TOPIC_COUNT) / QUIZ_TOPIC_COUNT) * 100}%` }}
                     className="h-full bg-gradient-to-r from-amber-500 to-orange-500"
                   />
                 </div>
@@ -1114,6 +1174,9 @@ function ProfilePage() {
                       return (
                         <button
                           key={domainId}
+                          type="button"
+                          data-testid={`quiz-card-${domainId}`}
+                          data-done={isCompleted ? 'true' : 'false'}
                           onClick={() => startAssessment(domainId)}
                           className={cn(
                             'p-4 rounded-xl border text-left transition-all hover:scale-[1.02]',
@@ -1144,16 +1207,13 @@ function ProfilePage() {
                                     </span>
                                   )}
                                   <div className="text-muted-foreground/70">
-                                    Click to retake assessment
+                                    Saved · take it again
                                   </div>
                                 </div>
                               ) : (
                                 <>
                                   <div className="text-xs text-muted-foreground mt-1">
-                                    {assessment.questions.length} question{assessment.questions.length > 1 ? 's' : ''}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground/70 mt-0.5 truncate">
-                                    {assessment.source.split('(')[0].trim()}
+                                    {quizLengthLine(assessment.questions.length)}
                                   </div>
                                 </>
                               )}
@@ -1180,10 +1240,10 @@ function ProfilePage() {
                     <div>
                       <h4 className="font-semibold text-foreground flex items-center gap-2">
                         <List className="w-5 h-5 text-amber-500" />
-                        Answer All Questions
+                        All questions on one page
                       </h4>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Scroll through and answer as many questions as you like, then submit all at once
+                        Answer as many as you like, then save. Topics where every question is answered get a result
                       </p>
                     </div>
                     <div className="flex items-center gap-4">
@@ -1195,11 +1255,11 @@ function ProfilePage() {
                       </div>
                       <button
                         onClick={submitBatchAssessments}
-                        disabled={getBatchProgress().answered === 0}
+                        disabled={saving || getBatchProgress().answered === 0}
                         className="px-5 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium shadow-lg shadow-amber-500/25 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl transition-all"
                       >
-                        <Send className="w-5 h-5" />
-                        Submit All
+                        <Send className="w-5 h-5" aria-hidden="true" />
+                        {saving ? 'Saving…' : 'Save answers'}
                       </button>
                     </div>
                   </div>
@@ -1259,7 +1319,7 @@ function ProfilePage() {
                                     )}
                                     <div>
                                       <h5 className="font-medium text-foreground">{assessment.shortName}</h5>
-                                      <p className="text-xs text-muted-foreground">{assessment.source.split('(')[0].trim()}</p>
+                                      <p className="text-xs text-muted-foreground">{quizLengthLine(assessment.questions.length)}</p>
                                     </div>
                                   </div>
                                   {isCompleted && editedScores[domainId] && (
@@ -1288,17 +1348,18 @@ function ProfilePage() {
 
                                     return (
                                       <div key={q.id} className="pl-7">
-                                        <p className="text-sm text-foreground mb-2">
+                                        <p id={`${quizTitleId}-${domainId}-q${qIndex}`} className="text-sm text-foreground mb-2">
                                           <span className="text-muted-foreground mr-2">{qIndex + 1}.</span>
                                           {q.text}
-                                          {q.reverseScored && (
-                                            <span className="ml-1 text-xs text-amber-500">(R)</span>
-                                          )}
                                         </p>
-                                        <div className="flex flex-wrap gap-2">
+                                        <div role="group" aria-labelledby={`${quizTitleId}-${domainId}-q${qIndex}`} className="flex flex-wrap gap-2">
                                           {scaleRange.map((val) => (
                                             <button
                                               key={val}
+                                              type="button"
+                                              aria-pressed={currentAnswer === val}
+                                              aria-label={answerButtonName(assessment.scale, val)}
+                                              title={answerButtonName(assessment.scale, val)}
                                               onClick={() => handleBatchAnswer(domainId, q.id, val)}
                                               className={cn(
                                                 'w-10 h-10 rounded-lg border transition-all text-sm font-medium',
@@ -1346,15 +1407,16 @@ function ProfilePage() {
                             if (!assessment) return false;
                             const answers = batchAnswers[d] || {};
                             return assessment.questions.every((q) => answers[q.id] !== undefined);
-                          }).length} domains complete)
+                          }).length} topics complete)
                         </span>
                       </div>
                       <button
                         onClick={submitBatchAssessments}
+                        disabled={saving}
                         className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium shadow-lg shadow-amber-500/25 flex items-center gap-2 hover:shadow-xl transition-all"
                       >
-                        <Send className="w-5 h-5" />
-                        Submit All Answers
+                        <Send className="w-5 h-5" aria-hidden="true" />
+                        {saving ? 'Saving…' : 'Save answers'}
                       </button>
                     </div>
                   </motion.div>
@@ -1438,10 +1500,10 @@ function ProfilePage() {
               <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20">
                 <div className="font-medium text-blue-600 dark:text-blue-400 mb-2 flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-blue-500" />
-                  TRAIT SCORE (0-100)
+                  Your score (0–100)
                 </div>
                 <p className="text-muted-foreground text-xs leading-relaxed">
-                  Where you fall on each psychological trait. <strong>50 is average</strong>.
+                  Where you are on each topic. <strong>50 is average</strong>.
                   Drag the <span className="text-blue-500 font-medium">blue slider</span> to set your score.
                 </p>
                 <div className="flex items-center gap-2 mt-2 text-xs">
@@ -1455,10 +1517,10 @@ function ProfilePage() {
               <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
                 <div className="font-medium text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-amber-500" />
-                  DATA QUALITY / CONFIDENCE (0-100)
+                  How sure you are (0–100)
                 </div>
                 <p className="text-muted-foreground text-xs leading-relaxed">
-                  How confident you are in your score. Drag the <span className="text-amber-500 font-medium">amber slider</span> to set confidence level. The more data points reinforcing a score, the higher the confidence.
+                  How sure you are about that score. Drag the <span className="text-amber-500 font-medium">amber slider</span>; quizzes set it for you.
                 </p>
                 <div className="flex items-center gap-2 mt-2 text-xs">
                   <span className="px-2 py-0.5 rounded bg-secondary text-muted-foreground">0-39: Low</span>
@@ -1471,13 +1533,13 @@ function ProfilePage() {
               <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
                 <div className="font-medium text-purple-600 dark:text-purple-400 mb-2 flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-purple-500" />
-                  SUBSCALES
+                  Parts
                 </div>
                 <p className="text-muted-foreground text-xs leading-relaxed">
-                  Some traits have multiple dimensions. Use the <span className="text-purple-500 font-medium">purple sliders</span> to set each subscale independently.
+                  Some topics have several parts. Use the <span className="text-purple-500 font-medium">purple sliders</span> to set each part.
                 </p>
                 <div className="mt-2 text-xs text-muted-foreground">
-                  <span className="font-medium">Domains with subscales:</span> Learning Styles (VARK), Emotional Intelligence, Attachment Style, Love Languages, Communication Style (DISC), Risk Tolerance, Interests (RIASEC), Social Support, Stress Coping
+                  <span className="font-medium">Topics with parts:</span> Learning Styles, Emotional Intelligence, Attachment Style, Love Languages, Communication Style, Risk Tolerance, Interests, Social Support, Stress Coping
                 </div>
               </div>
             </div>
@@ -1548,7 +1610,7 @@ function ProfilePage() {
                                           className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-1 hover:bg-amber-500/30 transition-colors"
                                         >
                                           <Play className="w-3 h-3" />
-                                          {assessmentType === 'quick' ? 'Quick Test' : 'Full Test'}
+                                          {assessmentType === 'quick' ? 'Quick quiz' : 'Full quiz'}
                                         </button>
                                       )}
                                     </div>
@@ -1596,10 +1658,10 @@ function ProfilePage() {
                                     <div className="flex items-center gap-2 mb-2">
                                       <div className="w-2 h-2 rounded-full bg-blue-500" />
                                       <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                                        TRAIT SCORE
+                                        Your score
                                       </span>
                                       <span className="text-xs text-muted-foreground ml-auto">
-                                        Where you fall on this trait (0-100)
+                                        Where you are on this (0–100)
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-3">
@@ -1661,16 +1723,16 @@ function ProfilePage() {
                                   </div>
                                   )}
 
-                                  {/* ===== DATA QUALITY / CONFIDENCE SECTION (SEPARATE from score) ===== */}
+                                  {/* ===== "How sure you are" (confidence) — separate from the score ===== */}
                                   {isEditable && (
                                     <div className="rounded-lg p-3 bg-amber-500/5 border border-amber-500/20">
                                       <div className="flex items-center gap-2 mb-2">
                                         <div className="w-2 h-2 rounded-full bg-amber-500" />
                                         <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                                          DATA QUALITY / CONFIDENCE
+                                          How sure you are
                                         </span>
                                         <span className="text-xs text-muted-foreground ml-auto">
-                                          How confident are you in this score? (0-100)
+                                          How sure are you about this score? (0–100)
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-3">
@@ -1726,7 +1788,7 @@ function ProfilePage() {
                                       <div className="flex items-center gap-2 mb-3">
                                         <div className="w-2 h-2 rounded-full bg-purple-500" />
                                         <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
-                                          SUBSCALES
+                                          Parts
                                         </span>
                                         <span className="text-xs text-muted-foreground ml-auto">
                                           Breakdown by dimension
@@ -1828,7 +1890,7 @@ function ProfilePage() {
                                   {/* Interpretation (from assessment) */}
                                   {score?.interpretation && (
                                     <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
-                                      <div className="text-xs font-medium text-primary mb-1">Assessment Result:</div>
+                                      <div className="text-xs font-medium text-primary mb-1">What this means:</div>
                                       <p className="text-sm text-foreground/90 leading-relaxed">
                                         {score.interpretation}
                                       </p>
@@ -1838,8 +1900,8 @@ function ProfilePage() {
                                   {/* Source & Last Updated */}
                                   {score && (
                                     <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
-                                      {score.source && (
-                                        <span>Source: {score.source.replace(/_/g, ' ')}</span>
+                                      {scoreSourceLabel(score.source) && (
+                                        <span>{scoreSourceLabel(score.source)}</span>
                                       )}
                                       <span>
                                         Updated: {new Date(score.lastUpdated).toLocaleDateString()}

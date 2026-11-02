@@ -591,6 +591,53 @@ try {
     check(newErrors.length === 0, 'learning-style profile has no page errors', newErrors.join(' | '));
   }
 
+  // "Take quizzes": plain wording (no "(R)" markers or instrument
+  // citations), the quiz is a labelled dialog with named answers, and the
+  // result is saved — it is still there after a reload.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
+    const quizzes = page.getByRole('button', { name: 'Take quizzes' });
+    await quizzes.waitFor({ timeout: 30000 }).catch(() => {});
+    for (let i = 0; i < 20 && (await quizzes.getAttribute('aria-pressed').catch(() => null)) !== 'true'; i++) {
+      await quizzes.click();
+      await page.waitForTimeout(300);
+    }
+    const card = page.getByTestId('quiz-card-growth_mindset');
+    await card.waitFor({ timeout: 15000 }).catch(() => {});
+    const cardText = await card.innerText().catch(() => '');
+    const listText = await page.locator('main').innerText().catch(() => '');
+    check(/question · /.test(cardText) && !/Dweck|TIPI|NEO-PI-R|\/ 39 completed/.test(listText), 'quizzes: cards show length and time, no instrument names', `"${cardText.replace(/\s+/g, ' ')}"`);
+    await card.click();
+    const dialog = page.getByRole('dialog');
+    await dialog.waitFor({ timeout: 10000 }).catch(() => {});
+    const dialogText = await dialog.innerText().catch(() => '');
+    const focusedInDialog = await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')).catch(() => false);
+    check(!/\(R\)|Source:|Response Scale/.test(dialogText) && focusedInDialog, 'quizzes: dialog in plain words, keyboard focus moves into it', `focus=${focusedInDialog}`);
+    const groups = dialog.getByRole('group');
+    const n = await groups.count();
+    for (let i = 0; i < n; i++) await groups.nth(i).getByRole('button').last().click();
+    const lastName = n > 0 ? await groups.first().getByRole('button').last().getAttribute('aria-label').catch(() => '') : '';
+    const pressed = n > 0 ? await groups.first().getByRole('button').last().getAttribute('aria-pressed').catch(() => '') : '';
+    check(n > 0 && / — /.test(lastName ?? '') && pressed === 'true', 'quizzes: answers are named buttons that show which is picked', `n=${n}, "${lastName}", pressed=${pressed}`);
+    await dialog.getByRole('button', { name: 'Save my answers' }).click();
+    const saved = await page.getByTestId('profile-success').filter({ hasText: /^Saved — / }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const backOnCard = await page.evaluate(() => document.activeElement?.getAttribute('data-testid')).catch(() => null);
+    check(saved && backOnCard === 'quiz-card-growth_mindset', 'quizzes: saving confirms and returns focus to the quiz card', `saved=${saved}, focus=${backOnCard}`);
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await quizzes.waitFor({ timeout: 30000 }).catch(() => {});
+    for (let i = 0; i < 20 && (await quizzes.getAttribute('aria-pressed').catch(() => null)) !== 'true'; i++) {
+      await quizzes.click();
+      await page.waitForTimeout(300);
+    }
+    await card.waitFor({ timeout: 15000 }).catch(() => {});
+    const done = await card.getAttribute('data-done').catch(() => null);
+    check(done === 'true', 'quizzes: a saved quiz result is still there after reloading', `data-done=${done}`);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'quizzes have no page errors', newErrors.join(' | '));
+  }
+
   // Phone layout (390×844): the sidebar becomes a drawer behind a menu
   // button, so content gets the full width and nothing scrolls sideways.
   {
