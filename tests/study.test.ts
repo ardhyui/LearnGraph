@@ -13,6 +13,7 @@ import { knowledgeStateInput } from '../src/lib/graph/rpc-schemas.ts';
 import {
   applyReviewOutcome,
   applyStudyOutcome,
+  focusAfterAnswer,
   pickActiveLearner,
   summarizeProgress,
   MASTERED_AT,
@@ -150,5 +151,25 @@ describe('study loop through the engine', () => {
     assert.deepEqual(after.recommendations.map((r) => r.concept.conceptId), ['mul']);
     const states = await db.getLearnerKnowledgeStates('kid');
     assert.equal(summarizeProgress(await db.listConcepts(), states).mastered, 1);
+  });
+});
+
+describe('focusAfterAnswer (keyboard focus after answering in Today)', () => {
+  it('stays on the item when it is still listed (e.g. "Still learning")', () => {
+    assert.deepEqual(focusAfterAnswer(['a', 'b'], 'a', ['a', 'b']), { kind: 'item', conceptId: 'a' });
+  });
+  it('moves to the item that took its place, else the previous one', () => {
+    assert.deepEqual(focusAfterAnswer(['a', 'b', 'c'], 'b', ['a', 'c']), { kind: 'item', conceptId: 'c' });
+    assert.deepEqual(focusAfterAnswer(['a', 'b', 'c'], 'c', ['a', 'b']), { kind: 'item', conceptId: 'b' });
+    // The next one also left (reload changed the list): skip to one still there.
+    assert.deepEqual(focusAfterAnswer(['a', 'b', 'c', 'd'], 'b', ['a', 'd']), { kind: 'item', conceptId: 'd' });
+  });
+  it('keeps the position when only new items are listed', () => {
+    assert.deepEqual(focusAfterAnswer(['a', 'b'], 'b', ['x', 'y', 'z']), { kind: 'item', conceptId: 'y' });
+    assert.deepEqual(focusAfterAnswer(['a', 'b', 'c'], 'c', ['x']), { kind: 'item', conceptId: 'x' });
+    assert.deepEqual(focusAfterAnswer([], 'q', ['x']), { kind: 'item', conceptId: 'x' });
+  });
+  it('falls back to the list heading when the list is now empty', () => {
+    assert.deepEqual(focusAfterAnswer(['a'], 'a', []), { kind: 'heading' });
   });
 });

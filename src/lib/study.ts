@@ -139,3 +139,30 @@ function clamp(n: number, min: number, max: number): number {
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/** Where keyboard focus goes after answering an item in a Today list. */
+export type FocusAfterAnswer = { kind: 'item'; conceptId: string } | { kind: 'heading' };
+
+/**
+ * After an item is answered (remembered / forgot / postponed / studied) the
+ * list reloads and the item usually disappears, which would drop keyboard
+ * focus onto `<body>`. Keep the learner's place instead: the same item if it
+ * is still listed, else the item that took its place (the next one, or the
+ * previous one when it was last), else the list heading when it is empty.
+ */
+export function focusAfterAnswer(before: string[], answered: string, after: string[]): FocusAfterAnswer {
+  if (after.includes(answered)) return { kind: 'item', conceptId: answered };
+  if (after.length === 0) return { kind: 'heading' };
+  const at = before.indexOf(answered);
+  if (at >= 0) {
+    for (let i = at + 1; i < before.length; i++) {
+      if (after.includes(before[i])) return { kind: 'item', conceptId: before[i] };
+    }
+    for (let i = at - 1; i >= 0; i--) {
+      if (after.includes(before[i])) return { kind: 'item', conceptId: before[i] };
+    }
+  }
+  // Only new items (e.g. a reload brought in different ones): keep the position.
+  const index = at >= 0 ? Math.min(at, after.length - 1) : 0;
+  return { kind: 'item', conceptId: after[index] };
+}

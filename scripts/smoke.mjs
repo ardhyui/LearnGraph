@@ -268,6 +268,23 @@ try {
       const listed = today.getByRole('list', { name: 'Reviews due' }).getByText(name, { exact: true });
       await listed.waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
       const stillListed = await listed.count();
+      // Keyboard focus stays in the review list (next item, or the heading when
+      // it is now empty) instead of falling to <body> when the item disappears.
+      await page
+        .waitForFunction(() => document.activeElement && document.activeElement !== document.body, null, { timeout: 5000 })
+        .catch(() => {});
+      const focused = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return 'body';
+        if (el.closest('[aria-label="Reviews due"]')) return `review item button "${el.textContent?.trim()}"`;
+        if (el.tagName === 'H3' && /Review now/.test(el.textContent ?? '')) return 'Review now heading';
+        return `${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 30)}"`;
+      });
+      check(
+        focused.startsWith('review item button') || focused === 'Review now heading',
+        'dashboard: keyboard focus stays in the review list after answering',
+        focused,
+      );
       const inLearnNext = await today.getByRole('list', { name: 'Recommended next concepts' }).getByText(name, { exact: true }).count();
       const masteredAfter = await today.getByTestId('mastered-count').innerText().catch(() => '');
       check(
