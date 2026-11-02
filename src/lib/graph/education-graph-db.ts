@@ -20,6 +20,7 @@
 
 import { uuidv4 } from '../uuid.ts';
 import type { GraphStore } from './store.ts';
+import { traitScore } from './trait-scores.ts';
 import { KEY_PREFIXES } from './types.ts';
 import {
   daysSince,
@@ -1049,7 +1050,7 @@ export class EducationGraphDB {
     let presentationStyle: 'visual' | 'verbal' | 'hands_on' | 'mixed' = 'mixed';
 
     // Analyze openness to experience (intellectual curiosity)
-    const openness = scores['openness_to_experience']?.score;
+    const openness = traitScore(scores, 'openness');
     if (openness !== undefined) {
       if (openness > 70) {
         difficultyModifier += 0.2; // Can handle harder material
@@ -1059,7 +1060,7 @@ export class EducationGraphDB {
     }
 
     // Analyze conscientiousness (self-discipline)
-    const conscientiousness = scores['conscientiousness']?.score;
+    const conscientiousness = traitScore(scores, 'conscientiousness');
     if (conscientiousness !== undefined) {
       if (conscientiousness > 70) {
         paceRecommendation = 'faster'; // More self-disciplined can go faster
@@ -1070,7 +1071,7 @@ export class EducationGraphDB {
     }
 
     // Analyze neuroticism (emotional stability)
-    const neuroticism = scores['neuroticism']?.score;
+    const neuroticism = traitScore(scores, 'neuroticism');
     if (neuroticism !== undefined) {
       if (neuroticism > 70) {
         difficultyModifier -= 0.2; // Reduce stress with easier material
@@ -1079,7 +1080,7 @@ export class EducationGraphDB {
     }
 
     // Analyze extraversion
-    const extraversion = scores['extraversion']?.score;
+    const extraversion = traitScore(scores, 'extraversion');
     if (extraversion !== undefined) {
       if (extraversion > 70) {
         attentionConsiderations.push('Benefits from collaborative learning');
@@ -1141,7 +1142,7 @@ export class EducationGraphDB {
     }
 
     // High neuroticism - need more support
-    const neuroticism = scores['neuroticism']?.score;
+    const neuroticism = traitScore(scores, 'neuroticism');
     if (neuroticism !== undefined && neuroticism > 60) {
       strategies.push({
         type: 'guided_practice',
@@ -1165,7 +1166,7 @@ export class EducationGraphDB {
     }
 
     // High extraversion - social learning
-    const extraversion = scores['extraversion']?.score;
+    const extraversion = traitScore(scores, 'extraversion');
     if (extraversion !== undefined && extraversion > 70) {
       strategies.push({
         type: 'peer_discussion',
@@ -1175,7 +1176,7 @@ export class EducationGraphDB {
     }
 
     // Low openness - needs analogies to familiar concepts
-    const openness = scores['openness_to_experience']?.score;
+    const openness = traitScore(scores, 'openness');
     if (openness !== undefined && openness < 40) {
       strategies.push({
         type: 'analogy',
@@ -1277,7 +1278,7 @@ export class EducationGraphDB {
     let match = 0.5; // Base match
 
     // Abstract concepts match high openness
-    const openness = profile.psychometricScores['openness_to_experience']?.score;
+    const openness = traitScore(profile.psychometricScores, 'openness');
     if (openness !== undefined) {
       if (concept.difficulty.abstractness > 0.7 && openness > 60) {
         match += 0.2;

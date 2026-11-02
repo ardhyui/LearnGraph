@@ -90,3 +90,98 @@ export function profileNextStep(
   }
   return { label: 'Start learning', hint: 'Your plan suggests where to begin.' };
 }
+
+export interface ProfileCategoryCopy {
+  /** Everyday name shown on the category card. */
+  name: string;
+  /** One line under the name. */
+  hint: string;
+  /**
+   * Whether the study plan reads these values (learning style, pace, how
+   * much support and challenge to suggest). Categories that are not used are
+   * folded away under "More about you" so the page leads with what matters.
+   */
+  usedByPlan: boolean;
+}
+
+/**
+ * Learner-facing names for the learning-style categories, in display order:
+ * the ones the study plan uses first. Unknown categories fall to the end.
+ */
+export const PROFILE_CATEGORY_COPY: Readonly<Record<string, ProfileCategoryCopy>> = {
+  cognitive_learning: {
+    name: 'How you think and learn',
+    hint: 'Learning style, focus and memory — shapes how new topics are presented.',
+    usedByPlan: true,
+  },
+  decision_motivation: {
+    name: 'Motivation and mindset',
+    hint: 'Confidence and drive — shapes how much support you get.',
+    usedByPlan: true,
+  },
+  core_personality: {
+    name: 'Personality',
+    hint: 'Curiosity, organisation, calm — shapes pace and challenge level.',
+    usedByPlan: true,
+  },
+  emotional_social: {
+    name: 'Feelings and relationships',
+    hint: 'Empathy and how you relate to others.',
+    usedByPlan: false,
+  },
+  values_wellbeing: {
+    name: 'Values and wellbeing',
+    hint: 'What matters to you and how you are doing.',
+    usedByPlan: false,
+  },
+  social_cultural: {
+    name: 'Society and culture',
+    hint: 'How you see others, culture and work.',
+    usedByPlan: false,
+  },
+  sensory_aesthetic: {
+    name: 'Senses and taste',
+    hint: 'Sensitivity to surroundings and sense of beauty.',
+    usedByPlan: false,
+  },
+  dark_personality: {
+    name: 'Difficult traits',
+    hint: 'Research traits such as self-centredness. Entirely optional.',
+    usedByPlan: false,
+  },
+};
+
+const CATEGORY_ORDER = Object.keys(PROFILE_CATEGORY_COPY);
+
+/** Copy for a category; unknown ids get a readable fallback and count as "more". */
+export function profileCategoryCopy(id: string, fallbackName = id): ProfileCategoryCopy {
+  if (Object.hasOwn(PROFILE_CATEGORY_COPY, id)) return PROFILE_CATEGORY_COPY[id];
+  // Strip "A. "-style prefixes from legacy names.
+  return { name: fallbackName.replace(/^[A-Z]\.\s+/, ''), hint: '', usedByPlan: false };
+}
+
+/**
+ * Split categories into the ones shown up front (used by the study plan) and
+ * the rest ("More about you"), each in display order. Input order is kept for
+ * unknown ids, after the known ones.
+ */
+export function splitProfileCategories<T extends { id: string }>(categories: readonly T[]): { main: T[]; more: T[] } {
+  const rank = (id: string) => {
+    const i = CATEGORY_ORDER.indexOf(id);
+    return i === -1 ? CATEGORY_ORDER.length : i;
+  };
+  const sorted = categories
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => rank(a.c.id) - rank(b.c.id) || a.i - b.i)
+    .map(({ c }) => c);
+  return {
+    main: sorted.filter((c) => profileCategoryCopy(c.id).usedByPlan),
+    more: sorted.filter((c) => !profileCategoryCopy(c.id).usedByPlan),
+  };
+}
+
+/** "2 of 6 filled in" for a category card. */
+export function filledInLine(filled: number, total: number): string {
+  const f = Math.max(0, Math.floor(filled));
+  return total <= 0 ? 'Nothing to fill in' : `${Math.min(f, total)} of ${total} filled in`;
+}
