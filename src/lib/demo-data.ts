@@ -273,6 +273,30 @@ export const demoKnowledgeStates = [
 ];
 
 // =============================================================================
+// Demo dates relative to "now"
+// =============================================================================
+/**
+ * The demo dates above are written as of this moment (the day after the most
+ * recent demo activity). When seeding, every demo date is moved forward by the
+ * same amount so the demo reads as "as of now": the latest review was a day
+ * or so ago and the gaps between reviews are kept. Without this, a new account
+ * in 2026 saw every demo review "Overdue by 690 days".
+ */
+export const DEMO_DATA_AS_OF = '2024-12-11T00:00:00.000Z';
+
+/**
+ * Move a demo date so it keeps its distance to DEMO_DATA_AS_OF, but measured
+ * from `now`. Never returns a future date; an unparsable date becomes `now`.
+ */
+export function shiftDemoDate(iso: string | undefined, now: Date = new Date()): string {
+  const nowMs = now.getTime();
+  const at = Date.parse(iso ?? '');
+  if (!Number.isFinite(at) || !Number.isFinite(nowMs)) return new Date(Number.isFinite(nowMs) ? nowMs : Date.now()).toISOString();
+  const shifted = at + (nowMs - Date.parse(DEMO_DATA_AS_OF));
+  return new Date(Math.min(shifted, nowMs)).toISOString();
+}
+
+// =============================================================================
 // Demo Mode Detection
 // =============================================================================
 export function isServerlessEnvironment(): boolean {
