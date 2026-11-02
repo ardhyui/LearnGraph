@@ -93,6 +93,7 @@ try {
     () => check(false, 'demo data seeded into the new workspace'),
   );
 
+  const h1Counts = [];
   for (const [path] of PAGES) {
     const before = errors.length;
     const res = await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
@@ -106,7 +107,11 @@ try {
       `page ${path} renders`,
       `HTTP ${status}${newErrors.length ? `, ${newErrors.join(' | ')}` : ''}`,
     );
+    const h1 = await page.locator('h1').count();
+    if (h1 !== 1) h1Counts.push(`${path}: ${h1}`);
   }
+  // Screen readers: one page title per page (the sidebar brand is not a heading).
+  check(h1Counts.length === 0, 'every page has exactly one <h1>', h1Counts.join('; '));
 
   // Navigation: learner pages are listed first; admin editors and developer
   // tools sit in collapsible groups that start closed, open on their own
@@ -230,6 +235,25 @@ try {
     check(newErrors.length === 0, 'dashboard study loop has no page errors', newErrors.join(' | '));
   }
 
+  // Returning learner: a short greeting, then Today; background and admin
+  // links are tucked into a collapsed "About" section.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const heading = (await page.locator('main h1').innerText()).trim();
+    check(heading === 'Hi, Smoke', 'dashboard: greets the learner by first name', `"${heading}"`);
+    const about = page.getByTestId('dashboard-about');
+    const editLink = about.getByRole('link', { name: 'Concepts', exact: true });
+    const hiddenAtStart = !(await editLink.isVisible());
+    await about.locator('summary').click();
+    const shown = await editLink.waitFor({ timeout: 5000 }).then(() => true, () => false);
+    check(hiddenAtStart && shown, 'dashboard: admin links are tucked in a collapsed "About" section');
+    const shortcuts = await page.getByRole('list', { name: 'Keep exploring' }).getByRole('link').count();
+    check(shortcuts === 4, 'dashboard: learner shortcuts are listed', `${shortcuts} links`);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'returning-learner dashboard has no page errors', newErrors.join(' | '));
+  }
+
   // Onboarding, for real: create my own plan (name, one subject, "I know the
   // basics"). The plan switches to the new learner, follows the chosen subject,
   // starts with the basics already known, and is remembered after a reload.
@@ -302,6 +326,13 @@ try {
       if (r.main < 350 || r.overflow > 1) narrow.push(`${path}: main ${r.main}px, overflow ${r.overflow}px`);
     }
     check(narrow.length === 0, 'mobile: pages use the full width without sideways scrolling', narrow.join('; '));
+
+    // The study loop starts on the first screen (no big hero pushing it down).
+    await m.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const today = m.getByTestId('study-today');
+    await today.waitFor({ timeout: 30000 }).catch(() => {});
+    const todayTop = await today.evaluate((el) => el.getBoundingClientRect().top + window.scrollY).catch(() => Infinity);
+    check(todayTop < 300, 'mobile: the Today panel starts near the top of the first screen', `top ${Math.round(todayTop)}px`);
 
     await m.goto(`${BASE}/`, { waitUntil: 'networkidle' });
     const drawer = m.locator('#app-sidebar');
