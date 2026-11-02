@@ -143,6 +143,47 @@ export function isReviewDue(state: DueInput, difficulty: number | null | undefin
   return due !== null && due <= now.getTime();
 }
 
+/**
+ * "Snoozed": the review would be due by now, but the learner postponed it
+ * ("Remind me tomorrow") and the snooze hasn't ended yet. Such a review is
+ * not due (see `isReviewDue`) — this tells the pages to show it as postponed
+ * instead of letting it silently disappear. Returns when it comes back (ms
+ * since epoch), or `null` when the concept isn't snoozed.
+ */
+export function snoozedReviewUntil(state: DueInput, difficulty: number | null | undefined, now: Date): number | null {
+  if (finite(state.mastery, 0) < REVIEWABLE_MASTERY) return null;
+  const until = snoozedUntil(state);
+  if (until === null || until <= now.getTime()) return null;
+  // Only when the snooze is what keeps it off the list: without it, it'd be due now.
+  const regular = reviewDueAt({ ...state, nextReview: null }, difficulty);
+  if (regular === null || regular > now.getTime()) return null;
+  return until;
+}
+
+export interface SnoozedReview {
+  conceptId: string;
+  /** When the review comes back (ms since epoch). */
+  until: number;
+}
+
+/**
+ * All snoozed reviews among a learner's states, soonest back first. Concepts
+ * without a known difficulty use the default (no adjustment).
+ */
+export function snoozedReviews(
+  states: readonly (DueInput & { conceptId: string })[],
+  difficultyOf: (conceptId: string) => number | null | undefined,
+  now: Date,
+): SnoozedReview[] {
+  const out: SnoozedReview[] = [];
+  for (const st of states) {
+    if (!st || typeof st.conceptId !== 'string') continue;
+    const until = snoozedReviewUntil(st, difficultyOf(st.conceptId), now);
+    if (until !== null) out.push({ conceptId: st.conceptId, until });
+  }
+  return out.sort((a, b) => a.until - b.until || a.conceptId.localeCompare(b.conceptId));
+}
+
 export type ReviewPriority = 'urgent' | 'normal' | 'low';
 
 /** A due review becomes "Review first" once it is this many days late (at least). */

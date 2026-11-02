@@ -124,3 +124,28 @@ export const GAP_KINDS = [
 export function countLabel(n: number, singular: string, plural = `${singular}s`): string {
   return `${n} ${n === 1 ? singular : plural}`;
 }
+
+/**
+ * When a snoozed review comes back, in plain words: "Snoozed until later
+ * today", "Snoozed until tomorrow", "Snoozed until Mon, Nov 9".
+ */
+export function snoozeLabel(until: number | string | Date, now: Date): string {
+  const d = until instanceof Date ? until : new Date(until);
+  const days = daysUntil(d, now);
+  if (days === null) return 'Snoozed for now';
+  if (days <= 0) return 'Snoozed until later today';
+  if (days === 1) return 'Snoozed until tomorrow';
+  return `Snoozed until ${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`;
+}
+
+/**
+ * One line for the Today panel: "1 review snoozed until tomorrow",
+ * "3 reviews snoozed — the first until tomorrow". Empty when none.
+ * `untils` should be sorted soonest first.
+ */
+export function snoozedSummary(untils: readonly number[], now: Date): string {
+  if (untils.length === 0) return '';
+  const labels = untils.map((u) => snoozeLabel(u, now).replace(/^Snoozed /, ''));
+  const n = countLabel(untils.length, 'review');
+  return labels.every((l) => l === labels[0]) ? `${n} snoozed ${labels[0]}` : `${n} snoozed — the first ${labels[0]}`;
+}

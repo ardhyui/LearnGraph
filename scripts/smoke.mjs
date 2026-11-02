@@ -297,6 +297,25 @@ try {
       await page.waitForTimeout(500);
       const afterReload = await today.getByRole('list', { name: 'Reviews due' }).getByText(name, { exact: true }).count();
       check(afterReload === 0, 'dashboard: a postponed review stays postponed after a reload', `listed ${afterReload}`);
+      // It doesn't silently disappear: Today says it's snoozed, and Gap
+      // Analysis lists it as "Snoozed until tomorrow" (not as due).
+      const summary = await today.getByTestId('snoozed-summary').innerText().catch(() => '');
+      check(/\d+ reviews? snoozed/.test(summary) && /tomorrow/.test(summary), 'dashboard: Today mentions the snoozed review', summary);
+      await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
+      const snoozedList = page.getByRole('list', { name: 'Snoozed reviews' });
+      await snoozedList.waitFor({ timeout: 30000 }).catch(() => {});
+      const snoozedItem = snoozedList.getByRole('listitem').filter({ hasText: name });
+      const snoozedText = await snoozedItem.first().innerText().catch(() => '');
+      const gapsMain = await page.locator('main').innerText().catch(() => '');
+      const fading = Number((gapsMain.match(/Fading\s+(\d+)/) ?? [])[1]);
+      const due = Number((gapsMain.match(/Reviews\s*\((\d+) concepts?\)/) ?? [])[1]);
+      check(
+        /Snoozed until tomorrow/.test(snoozedText) && fading === due,
+        'gaps: a snoozed review shows as "Snoozed until tomorrow", not as due',
+        `"${snoozedText.replace(/\s+/g, ' ')}", fading ${fading}, due ${due}`,
+      );
+      await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+      await today.waitFor({ timeout: 30000 });
     } else {
       check(false, 'dashboard: "Remind me tomorrow" moves a due review off today’s list', 'no reviews due for Bob');
     }
