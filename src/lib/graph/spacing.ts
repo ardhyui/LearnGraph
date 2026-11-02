@@ -121,3 +121,65 @@ export function isReviewDue(state: DueInput, difficulty: number | null | undefin
   const due = reviewDueAt(state, difficulty);
   return due !== null && due <= now.getTime();
 }
+
+export type ReviewPriority = 'urgent' | 'normal' | 'low';
+
+/** A due review becomes "Review first" once it is this many days late (at least). */
+export const URGENT_MIN_LATE_DAYS = 2;
+
+export interface PriorityInput extends DueInput {
+  misconceptions?: readonly { resolved?: unknown }[] | null;
+}
+
+/** Has at least one misconception that is not marked resolved. */
+export function hasOpenMisconception(state: PriorityInput): boolean {
+  return Array.isArray(state.misconceptions) && state.misconceptions.some((m) => !m?.resolved);
+}
+
+/**
+ * Days past the due date (negative = not due yet); `null` without a usable
+ * date. Fractional.
+ */
+export function daysLate(state: DueInput, difficulty: number | null | undefined, now: Date): number | null {
+  const due = reviewDueAt(state, difficulty);
+  if (due === null) return null;
+  return (now.getTime() - due) / DAY_MS;
+}
+
+/**
+ * How urgent a review is, from how late it is rather than from mastery.
+ *
+ * Before, priority came from predicted retention (< 40 → urgent, < 60 →
+ * normal), which mostly tracks mastery: a concept learned at 45% was "Review
+ * first" the moment it was due, while a well-known concept due today was
+ * "Can wait" — on a list of reviews that are all due.
+ *
+ * - `low` ("Can wait"): not due yet.
+ * - `urgent` ("Review first"): an unresolved mix-up, or late by at least a
+ *   whole review interval (and at least `URGENT_MIN_LATE_DAYS`) — memory is
+ *   then well below the level the schedule aims for.
+ * - `normal` ("Review soon"): due, not that late.
+ */
+export function reviewPriority(
+  state: PriorityInput,
+  difficulty: number | null | undefined,
+  now: Date,
+): ReviewPriority {
+  if (hasOpenMisconception(state)) return 'urgent';
+  const late = daysLate(state, difficulty, now);
+  if (late === null || !isReviewDue(state, difficulty, now)) return 'low';
+  const interval = reviewIntervalDays(state, difficulty);
+  return late >= Math.max(URGENT_MIN_LATE_DAYS, interval) ? 'urgent' : 'normal';
+}
+
+/**
+ * How overdue relative to its own interval (0 = due now, 1 = late by a whole
+ * interval). Used to order the review queue: a 1-day item 3 days late comes
+ * before a 90-day item 3 days late. Not-due/undated items return a negative
+ * number or -Infinity.
+ */
+export function lateness(state: DueInput, difficulty: number | null | undefined, now: Date): number {
+  const late = daysLate(state, difficulty, now);
+  if (late === null) return -Infinity;
+  return late / reviewIntervalDays(state, difficulty);
+}

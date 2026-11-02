@@ -29,7 +29,9 @@ import {
   stabilityForInterval,
   type ReviewPerformance,
   isReviewDue,
+  lateness,
   reviewDueAt,
+  reviewPriority,
 } from './spacing.ts';
 import type {
   LearnerProfile,
@@ -1573,7 +1575,11 @@ export class EducationGraphDB {
 
     // Calculate summary
     const total = missing.length + partial.length + forgotten.length + misconceptions.length;
-    const critical = forgotten.filter(f => f.predictedRetention < 40).length +
+    // "Critical" = reviews late enough to be "Review first" (same rule as the queue).
+    const critical = forgotten.filter(f => {
+      const state = stateMap.get(f.conceptId);
+      return state !== undefined && reviewPriority(state, f.concept.difficulty?.absolute, now) === 'urgent';
+    }).length +
                     misconceptions.filter(m => m.misconceptions.some(mc => mc.severity === 'major')).length;
 
     return {
@@ -1639,7 +1645,6 @@ export class EducationGraphDB {
     optimalWindowEnd: string;
     priority: 'urgent' | 'normal' | 'low';
   } {
-    const decay = this.predictDecay(state, concept);
     const intervalDays = reviewIntervalDays(state, concept.difficulty?.absolute, performance);
 
     // Calculate dates
@@ -1651,15 +1656,8 @@ export class EducationGraphDB {
     const windowStart = new Date(nextReview.getTime() - windowBuffer * 24 * 60 * 60 * 1000);
     const windowEnd = new Date(nextReview.getTime() + windowBuffer * 24 * 60 * 60 * 1000);
 
-    // Determine priority
-    let priority: 'urgent' | 'normal' | 'low';
-    if (decay.predictedRetention < 40 || (state.misconceptions?.length ?? 0) > 0) {
-      priority = 'urgent';
-    } else if (decay.predictedRetention < 60) {
-      priority = 'normal';
-    } else {
-      priority = 'low';
-    }
+    // Priority comes from how late the review is (see `reviewPriority`), not from mastery.
+    const priority = reviewPriority(state, concept.difficulty?.absolute, now);
 
     return {
       nextReviewDate: nextReview.toISOString(),
@@ -1708,8 +1706,10 @@ export class EducationGraphDB {
       daysSinceReview: number;
       nextReviewDate: string;
       reason: string;
-      sortScore: number;
+      rank: number;
+      lateness: number;
     }[] = [];
+    const RANK = { urgent: 0, normal: 1, low: 2 } as const;
 
     for (const state of states) {
       // Skip concepts with very low mastery (not really "learned" yet)
@@ -1720,6 +1720,7 @@ export class EducationGraphDB {
 
       const decay = this.predictDecay(state, concept);
       const schedule = this.scheduleNextReview(state, concept);
+      const priority = reviewPriority(state, concept.difficulty?.absolute, now);
       // scheduleNextReview() counts the interval from *now* (correct right after
       // a review). For the queue, the item is due `intervalDays` after the
       // last review, otherwise nothing would ever be overdue.
@@ -1742,28 +1743,26 @@ export class EducationGraphDB {
         reason = `Scheduled review to maintain mastery`;
       }
 
-      // Calculate sort score (lower = higher priority)
-      // Priority order: overdue urgent > overdue normal > urgent > normal > low
-      let sortScore = decay.predictedRetention;
-      if (isOverdue) sortScore -= 100;
-      if (schedule.priority === 'urgent') sortScore -= 50;
-      else if (schedule.priority === 'normal') sortScore -= 25;
-      if (state.misconceptions && state.misconceptions.length > 0) sortScore -= 20;
-
       queue.push({
         conceptId: state.conceptId,
         concept,
-        priority: schedule.priority,
+        priority,
         predictedRetention: Math.round(decay.predictedRetention),
         daysSinceReview: decay.daysSinceReview,
         nextReviewDate: nextReviewDate.toISOString(),
         reason,
-        sortScore,
+        rank: RANK[priority],
+        lateness: lateness(state, concept.difficulty?.absolute, now),
       });
     }
 
-    // Sort by priority score
-    queue.sort((a, b) => a.sortScore - b.sortScore);
+    // "Review first" before "Review soon" before "Can wait"; within a group the
+    // most overdue (relative to its own interval) first, then lowest retention.
+    queue.sort((a, b) =>
+      a.rank - b.rank ||
+      (b.lateness === a.lateness ? 0 : b.lateness > a.lateness ? 1 : -1) ||
+      a.predictedRetention - b.predictedRetention ||
+      a.conceptId.localeCompare(b.conceptId));
 
     // Calculate stats
     const now_time = now.getTime();
@@ -1775,9 +1774,9 @@ export class EducationGraphDB {
       overdue: queue.filter(q => new Date(q.nextReviewDate).getTime() <= now_time).length,
     };
 
-    // Return limited results (without sortScore)
+    // Return limited results (without the internal sort fields)
     return {
-      queue: queue.slice(0, limit).map(({ sortScore, ...item }) => item),
+      queue: queue.slice(0, limit).map(({ rank, lateness: _lateness, ...item }) => item),
       stats,
     };
   }

@@ -21,6 +21,7 @@ import {
 } from '@/lib/study';
 import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
+import { priorityLabel, reviewSummary } from '@/lib/gaps';
 import { cn } from '@/lib/utils';
 
 /** Set (per account) when the user chose to explore the example learners instead of onboarding. */
@@ -30,7 +31,8 @@ interface ReviewItem {
   conceptId: string;
   concept: ConceptNode;
   predictedRetention: number;
-  daysSinceReview: number;
+  nextReviewDate: string;
+  priority: 'urgent' | 'normal' | 'low';
 }
 
 interface TodayData {
@@ -393,9 +395,16 @@ export function StudyToday() {
             <ul className="space-y-2" aria-label="Reviews due">
               {current.reviews.map((item) => (
                 <li key={item.conceptId} className="rounded-xl border border-border/50 bg-background/40 p-3">
-                  <p className="font-medium text-foreground">{item.concept.name}</p>
+                  <p className="flex flex-wrap items-center gap-2 font-medium text-foreground">
+                    {item.concept.name}
+                    {item.priority === 'urgent' && (
+                      <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-400">
+                        {priorityLabel(item.priority)}
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    Estimated memory {item.predictedRetention}% · last reviewed {formatDays(item.daysSinceReview)}
+                    {reviewSummary(item.nextReviewDate, item.predictedRetention, new Date())}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={`How did reviewing ${item.concept.name} go?`}>
                     <ActionButton
@@ -503,12 +512,6 @@ const NOTICES: Record<StudyOutcome | ReviewOutcome, (name: string) => string> = 
   remembered: (n) => `Great — “${n}” will come back after a longer break.`,
   forgot: (n) => `No problem — “${n}” will come back tomorrow so it sticks.`,
 };
-
-function formatDays(days: number): string {
-  if (days < 1) return 'today';
-  const d = Math.round(days);
-  return d === 1 ? '1 day ago' : `${d} days ago`;
-}
 
 function Placeholder({ loading }: { loading: boolean }) {
   return (
