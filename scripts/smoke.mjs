@@ -435,6 +435,47 @@ try {
     check(newErrors.length === 0, 'readable gaps/recommendations have no page errors', newErrors.join(' | '));
   }
 
+  // My Profile leads with the learner's subjects and progress (not the
+  // psychometric jargon), and subjects can be changed there too — the change
+  // shows up on the dashboard's Today panel.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
+    const card = page.getByTestId('my-learning');
+    await card.waitFor({ timeout: 30000 }).catch(() => {});
+    await page.getByTestId('profile-mastered').waitFor({ timeout: 30000 }).catch(() => {});
+    const h1 = await page.getByRole('heading', { level: 1 }).innerText().catch(() => '');
+    const focusText = await card.getByTestId('profile-focus').innerText().catch(() => '');
+    const mastered = await card.getByTestId('profile-mastered').innerText().catch(() => '');
+    check(h1 === 'My Profile' && focusText === 'Focus: Computer science', 'profile: opens with My Profile and the learner’s subjects', `"${h1}", "${focusText}"`);
+    check(/^\d+ of \d+ concepts? mastered$/.test(mastered), 'profile: shows progress in the chosen subjects', `"${mastered}"`);
+    const nextLink = card.getByRole('link', { name: /Do your \d+ reviews?|Keep learning|Start learning|Go to today’s plan/ });
+    check(await nextLink.isVisible().catch(() => false), 'profile: offers one clear next step to the dashboard');
+    const mainText = await page.locator('main').innerText().catch(() => '');
+    check(!/Psychometric Profile|Profile Configuration Mode|Select ONE/.test(mainText) && /How you like to learn/.test(mainText), 'profile: learning style is an optional section in plain words');
+
+    const changeBtn = card.getByRole('button', { name: 'Change subjects' });
+    const editor = card.getByTestId('focus-editor');
+    for (let i = 0; i < 20 && !(await editor.isVisible().catch(() => false)); i++) {
+      await changeBtn.click();
+      await page.waitForTimeout(300);
+    }
+    await editor.getByRole('checkbox', { name: /Mathematics/ }).check();
+    await editor.getByRole('button', { name: 'Save subjects' }).click();
+    const saved = await card.getByText('Saved. Your plan now focuses on').waitFor({ timeout: 15000 }).then(() => true, () => false);
+    await page.waitForFunction(() => /Mathematics/.test(document.querySelector('[data-testid="profile-focus"]')?.textContent ?? ''), null, { timeout: 15000 }).catch(() => {});
+    const newFocus = await card.getByTestId('profile-focus').innerText().catch(() => '');
+    check(saved && /Mathematics/.test(newFocus) && /Computer science/.test(newFocus), 'profile: subjects can be changed from My Profile', `"${newFocus}"`);
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const today = page.getByTestId('study-today');
+    await today.waitFor({ timeout: 30000 }).catch(() => {});
+    await page.waitForFunction(() => /Mathematics/.test(document.querySelector('[data-testid="focus-subjects"]')?.textContent ?? ''), null, { timeout: 15000 }).catch(() => {});
+    const onToday = await today.getByTestId('focus-subjects').innerText().catch(() => '');
+    check(onToday === newFocus, 'profile: the subject change shows on the dashboard', `"${onToday}"`);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'my profile has no page errors', newErrors.join(' | '));
+  }
+
   // Phone layout (390×844): the sidebar becomes a drawer behind a menu
   // button, so content gets the full width and nothing scrolls sideways.
   {

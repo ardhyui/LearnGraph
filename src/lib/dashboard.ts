@@ -16,7 +16,7 @@ export const LEARNER_SHORTCUTS: readonly DashboardLink[] = [
   { href: '/recommendations', label: 'Recommendations', description: 'More concepts you are ready to learn next' },
   { href: '/gaps', label: 'Gap Analysis', description: 'Find shaky foundations and what to review' },
   { href: '/graph', label: 'Knowledge Graph', description: 'See how concepts connect and where you are' },
-  { href: '/profile', label: 'My Profile', description: 'See how you learn best and update your profile' },
+  { href: '/profile', label: 'My Profile', description: 'Your subjects, progress and how you like to learn' },
 ];
 
 /** Admin/editor pages, tucked inside the collapsed "About" section. */

@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { useState, useEffect, useCallback, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -43,7 +43,8 @@ import {
 } from '@/lib/assessments';
 import { useDB, useLearners } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
-import { demoLearners } from '@/lib/demo-data';
+import { LearningOverview } from '@/components/LearningOverview';
+import { PROFILE_MODES, PROFILE_MODE_COPY, profileModeLabel, type ProfileMode } from '@/lib/profile';
 
 export const Route = createFileRoute('/profile')({
   component: ProfilePage,
@@ -269,8 +270,6 @@ interface LearnerProfile {
   };
 }
 
-type ProfileMode = 'view' | 'auto' | 'manual' | 'adaptive' | 'assessment';
-
 // Assessment type selection (quick vs full)
 type AssessmentType = 'quick' | 'full';
 
@@ -301,7 +300,7 @@ const itemVariants = {
 function ProfilePage() {
   // Database hooks
   const { isLoading: dbLoading, error: dbError } = useDB();
-  const { learners: learnersData, loading: learnersLoading, getLearner, updateLearner, createLearner } = useLearners();
+  const { learners: learnersData, loading: learnersLoading, getLearner, updateLearner, refresh: refreshLearners } = useLearners();
 
   // Basic state — the learner is shared with the dashboard and other learner pages.
   const [activeLearner, setSelectedLearnerId] = useActiveLearner(
@@ -310,6 +309,7 @@ function ProfilePage() {
   );
   const selectedLearnerId = activeLearner ?? '';
   const learnerSelectId = useId();
+  const activeLearnerProfile = learnersData.find((l) => l.userId === activeLearner);
   const [profile, setProfile] = useState<LearnerProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -319,7 +319,9 @@ function ProfilePage() {
   // Derived learners list - cast to any to allow partial profile data
   const learners = learnersData as LearnerProfile[];
 
-  const loading = dbLoading || learnersLoading || profileLoading;
+  // Only the first learner-list load blanks the page; a refresh (after saving
+  // subjects or scores) keeps the profile on screen instead of flashing.
+  const loading = dbLoading || (learnersLoading && learners.length === 0) || profileLoading;
 
   // Mode selection
   const [activeMode, setActiveMode] = useState<ProfileMode>('view');
@@ -478,7 +480,7 @@ function ProfilePage() {
     if (activeMode === 'view') return;
 
     setModeConfirmed(true);
-    setSuccess(`Profile mode set to "${activeMode}". This will determine how your psychometric profile is built.`);
+    setSuccess(`Chosen: ${PROFILE_MODE_COPY[activeMode].label}.`);
     setTimeout(() => setSuccess(null), 4000);
   };
 
@@ -618,47 +620,16 @@ function ProfilePage() {
     return 'bg-red-500';
   };
 
-  const getModeConfig = (mode: ProfileMode) => {
-    switch (mode) {
-      case 'auto':
-        return {
-          icon: Wand2,
-          title: 'Option A: Auto-Discovery',
-          description: 'System automatically infers your psychometric profile from your interactions. Values are updated continuously based on your behavior and responses.',
-          color: 'from-purple-500 to-indigo-500',
-        };
-      case 'manual':
-        return {
-          icon: Edit3,
-          title: 'Option B: Manual Entry',
-          description: 'You set all values manually. These remain PERMANENT unless you change them. The system will NOT adjust these values.',
-          color: 'from-blue-500 to-cyan-500',
-        };
-      case 'adaptive':
-        return {
-          icon: RefreshCw,
-          title: 'Option C: Adaptive Entry',
-          description: 'You set initial values, then the system adjusts them over time based on your interactions. Best of both worlds.',
-          color: 'from-emerald-500 to-teal-500',
-        };
-      case 'assessment':
-        return {
-          icon: ClipboardCheck,
-          title: 'Option D: Take Assessments',
-          description: 'Complete validated psychological assessments to generate accurate values. Most scientifically rigorous option.',
-          color: 'from-amber-500 to-orange-500',
-        };
-      default:
-        return {
-          icon: Eye,
-          title: 'View Profile',
-          description: 'View your current psychometric profile. Select a mode above to configure how your profile is built.',
-          color: 'from-slate-500 to-slate-600',
-        };
-    }
+  const MODE_STYLE: Record<ProfileMode, { icon: React.ElementType; color: string }> = {
+    view: { icon: Eye, color: 'from-slate-500 to-slate-600' },
+    auto: { icon: Wand2, color: 'from-purple-500 to-indigo-500' },
+    manual: { icon: Edit3, color: 'from-blue-500 to-cyan-500' },
+    adaptive: { icon: RefreshCw, color: 'from-emerald-500 to-teal-500' },
+    assessment: { icon: ClipboardCheck, color: 'from-amber-500 to-orange-500' },
   };
+  const getModeConfig = (mode: ProfileMode) => ({ ...MODE_STYLE[mode], ...PROFILE_MODE_COPY[mode] });
 
-  const modeOptions: ProfileMode[] = ['view', 'auto', 'manual', 'adaptive', 'assessment'];
+  const modeOptions = PROFILE_MODES;
 
   // Check if we have sample users
   const hasNoUsers = !loading && learners.length === 0;
@@ -701,60 +672,34 @@ function ProfilePage() {
         >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/25">
-              <Brain className="w-6 h-6 text-white" />
+              <User className="w-6 h-6 text-white" aria-hidden="true" />
             </div>
             <h1 className="text-3xl font-bold text-foreground">
-              Psychometric Profile
+              My Profile
             </h1>
           </div>
-          <p className="text-muted-foreground ml-14">
-            Your psychological profile across 39 domains in 8 categories
+          <p className="text-muted-foreground sm:ml-14">
+            Your subjects and progress, plus an optional profile of how you like to learn.
           </p>
         </motion.div>
 
-        {/* No Users Warning */}
+        {/* No learner yet: the dashboard's setup step creates one. */}
         {hasNoUsers && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-6 glass-card bg-amber-500/10 border-amber-500/30"
-          >
-            <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-500" />
-              No Users Found
-            </h3>
+          <div className="mb-6 p-6 glass-card bg-amber-500/10 border-amber-500/30">
+            <h2 className="font-semibold text-foreground mb-2 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-amber-500" aria-hidden="true" />
+              No learner yet
+            </h2>
             <p className="text-muted-foreground text-sm mb-4">
-              No learner profiles exist yet. Create sample users with full psychometric profiles to test the system.
+              Set up your learning plan first — it takes less than a minute.
             </p>
-            <button
-              onClick={async () => {
-                setProfileLoading(true);
-                try {
-                  // Seed demo learners directly using the hook
-                  for (const learner of demoLearners) {
-                    await createLearner(learner.userId, {
-                      name: learner.name,
-                      email: learner.email,
-                      // The demo file's learningStyle/cognitiveProfile use an older
-                      // shape (plain string / 0–1 numbers) that the server rejects;
-                      // they are left out and can be derived from the scores later.
-                      psychometricScores: learner.psychometricScores as any,
-                      tags: learner.tags,
-                      notes: learner.notes,
-                    });
-                  }
-                  setSuccess('Sample users created successfully!');
-                  setTimeout(() => setSuccess(null), 3000);
-                } catch {
-                  setError('Failed to create sample users');
-                }
-                setProfileLoading(false);
-              }}
-              className="px-4 py-2 rounded-lg bg-amber-500 text-white font-medium hover:bg-amber-600 transition-colors"
+            <Link
+              to="/"
+              className="inline-flex min-h-10 items-center rounded-lg bg-amber-500 px-4 py-2 font-medium text-white hover:bg-amber-600 transition-colors"
             >
-              Create Sample Users
-            </button>
-          </motion.div>
+              Set up my learning plan
+            </Link>
+          </div>
         )}
 
         {/* Learner Selector */}
@@ -781,10 +726,10 @@ function ProfilePage() {
               </select>
               {profile && (
                 <span className="text-sm text-muted-foreground">
-                  {Object.keys(profile.psychometricScores || {}).length} / 39 domains configured
-                  {profile.profileMode && (
+                  {Object.keys(profile.psychometricScores || {}).length} of 39 learning-style topics filled in
+                  {profileModeLabel(profile.profileMode) && (
                     <span className="ml-2 px-2 py-0.5 rounded bg-primary/20 text-primary text-xs">
-                      Mode: {profile.profileMode}
+                      {profileModeLabel(profile.profileMode)}
                     </span>
                   )}
                 </span>
@@ -793,7 +738,22 @@ function ProfilePage() {
           </motion.div>
         )}
 
-        {/* Mode Selection - THIS IS THE KEY SELECTOR */}
+        {/* Subjects, progress and the next step (the learner-facing part). */}
+        {!hasNoUsers && activeLearnerProfile && (
+          <LearningOverview learner={activeLearnerProfile} onSubjectsSaved={refreshLearners} />
+        )}
+
+        {/* Optional learning-style profile */}
+        {!hasNoUsers && profile && (
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-foreground">How you like to learn <span className="text-sm font-normal text-muted-foreground">(optional)</span></h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Your study plan works without this. Filling it in lets LearnGraph suggest ways of learning that suit you.
+            </p>
+          </div>
+        )}
+
+        {/* How the learning-style profile is filled in */}
         {!hasNoUsers && profile && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -802,21 +762,18 @@ function ProfilePage() {
             className="mb-6"
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
-                <Settings2 className="w-5 h-5 text-muted-foreground" />
-                Profile Configuration Mode
-                <span className="text-xs font-normal text-muted-foreground ml-2">
-                  (Select ONE - this determines how your profile is built)
-                </span>
-              </h2>
+              <h3 className="text-base font-semibold flex items-center gap-2 text-foreground">
+                <Settings2 className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                How do you want to fill it in?
+              </h3>
               {modeConfirmed && activeMode !== 'view' && (
-                <span className="flex items-center gap-1 text-sm text-emerald-500">
-                  <Lock className="w-4 h-4" />
-                  Mode Locked: {activeMode}
+                <span className="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400">
+                  <Lock className="w-4 h-4" aria-hidden="true" />
+                  Chosen: {getModeConfig(activeMode).label}
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
               {modeOptions.map((mode) => {
                 const config = getModeConfig(mode);
                 const Icon = config.icon;
@@ -829,7 +786,8 @@ function ProfilePage() {
                     whileHover={!isLocked ? { scale: 1.02 } : {}}
                     whileTap={!isLocked ? { scale: 0.98 } : {}}
                     onClick={() => !isLocked && setActiveMode(mode)}
-                    disabled={isLocked}
+                    disabled={!!isLocked}
+                    aria-pressed={isActive}
                     className={cn(
                       'p-4 rounded-xl border transition-all duration-200 text-left relative',
                       isActive
@@ -844,9 +802,9 @@ function ProfilePage() {
                         <Lock className="w-3 h-3 text-muted-foreground" />
                       </div>
                     )}
-                    <Icon className={cn('w-6 h-6 mb-2', isActive ? 'text-white' : 'text-muted-foreground')} />
+                    <Icon className={cn('w-6 h-6 mb-2', isActive ? 'text-white' : 'text-muted-foreground')} aria-hidden="true" />
                     <div className={cn('text-sm font-medium', isActive ? 'text-white' : 'text-foreground')}>
-                      {mode === 'view' ? 'View' : mode === 'auto' ? 'A: Auto' : mode === 'manual' ? 'B: Manual' : mode === 'adaptive' ? 'C: Adaptive' : 'D: Assess'}
+                      {config.label}
                     </div>
                   </motion.button>
                 );
@@ -874,8 +832,8 @@ function ProfilePage() {
                     onClick={handleConfirmMode}
                     className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
                   >
-                    <Lock className="w-4 h-4" />
-                    Lock This Mode
+                    <Lock className="w-4 h-4" aria-hidden="true" />
+                    Use this option
                   </button>
                 )}
               </div>
@@ -1428,10 +1386,10 @@ function ProfilePage() {
           >
             <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
               <Wand2 className="w-5 h-5 text-purple-500" />
-              Auto-Discovery Mode Active
+              Automatic: on
             </h3>
             <p className="text-muted-foreground text-sm">
-              The system will analyze your interactions, writing patterns, and behavior to automatically infer and update your psychometric profile. Your current values are shown below.
+              LearnGraph may adjust these values over time from how you study. Your current values are shown below.
             </p>
           </motion.div>
         )}
@@ -1486,7 +1444,7 @@ function ProfilePage() {
           >
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
               <Info className="w-5 h-5 text-blue-500" />
-              How to Read Your Profile
+              How to read this
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               {/* Score Explanation - Blue themed */}
@@ -1941,20 +1899,20 @@ function ProfilePage() {
           >
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
               <Brain className="w-5 h-5 text-purple-500" />
-              Profile Summary
+              Learning-style summary
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-4 rounded-xl bg-secondary/50">
                 <div className="text-3xl font-bold text-foreground">
                   {Object.keys(editedScores).length}
                 </div>
-                <div className="text-sm text-muted-foreground">Domains Configured</div>
+                <div className="text-sm text-muted-foreground">Topics filled in</div>
               </div>
               <div className="p-4 rounded-xl bg-secondary/50">
                 <div className="text-3xl font-bold text-foreground">
                   {39 - Object.keys(editedScores).length}
                 </div>
-                <div className="text-sm text-muted-foreground">Remaining</div>
+                <div className="text-sm text-muted-foreground">Still empty</div>
               </div>
               <div className="p-4 rounded-xl bg-secondary/50">
                 <div className="text-3xl font-bold text-foreground">
