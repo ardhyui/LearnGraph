@@ -7,12 +7,12 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useRouteContext } from '@tanstack/react-router';
 import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
+import { SubjectChoices } from '@/components/SubjectChoices';
 import { useDB } from '@/lib/DBContext';
 import type { ConceptNode, PrerequisiteEdge } from '@/lib/graph/types';
 import {
   basicConcepts,
   cleanName,
-  domainLabel,
   focusTags,
   listDomains,
   makeLearnerId,
@@ -142,31 +142,7 @@ export function Onboarding({ existingIds, onCreated, onSkip }: OnboardingProps) 
               No subjects yet — your plan will fill in once concepts are added.
             </p>
           ) : (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {domains.map(({ domain, count }) => {
-                const on = chosen.includes(domain);
-                return (
-                  <label
-                    key={domain}
-                    className={
-                      'inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors focus-within:ring-2 focus-within:ring-primary ' +
-                      (on ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-background text-foreground hover:bg-primary/5')
-                    }
-                  >
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={(e) => toggle(domain, e.target.checked)}
-                      className="h-4 w-4 accent-primary"
-                    />
-                    {domainLabel(domain)}
-                    <span className="text-xs text-muted-foreground">
-                      {count} {count === 1 ? 'concept' : 'concepts'}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
+            <SubjectChoices domains={domains} chosen={chosen} onToggle={toggle} />
           )}
         </fieldset>
 
