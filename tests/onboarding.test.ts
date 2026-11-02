@@ -21,6 +21,8 @@ import {
   listDomains,
   makeLearnerId,
   needsOnboarding,
+  sameSubjects,
+  withFocus,
 } from '../src/lib/onboarding.ts';
 import { applyStudyOutcome } from '../src/lib/study.ts';
 import { openTestGraphDB } from './support/graph-db.ts';
@@ -98,6 +100,28 @@ describe('domains & focus', () => {
   });
 });
 
+describe('changing subjects later (withFocus / sameSubjects)', () => {
+  it('replaces only the subject tags and keeps other tags in order', () => {
+    const tags = ['class-7a', 'focus:math', 'visual', 'focus:cs'];
+    assert.deepEqual(withFocus(tags, ['physics']), ['class-7a', 'visual', 'focus:physics']);
+    assert.deepEqual(withFocus(tags, []), ['class-7a', 'visual']);
+    assert.deepEqual(withFocus(undefined, ['math', 'math']), ['focus:math']);
+  });
+
+  it('never drops other tags to make room (server limit 50)', () => {
+    const others = Array.from({ length: 49 }, (_, i) => `t${i}`);
+    assert.deepEqual(withFocus(others, ['math', 'cs']), [...others, 'focus:math']);
+    const full = Array.from({ length: 50 }, (_, i) => `t${i}`);
+    assert.deepEqual(withFocus(full, ['math']), full);
+  });
+
+  it('compares subject choices as sets', () => {
+    assert.equal(sameSubjects(['math', 'cs'], ['cs', 'math', 'cs']), true);
+    assert.equal(sameSubjects([], []), true);
+    assert.equal(sameSubjects(['math'], ['math', 'cs']), false);
+  });
+});
+
 const DIR = path.join(os.tmpdir(), `learngraph-onboarding-${process.pid}`);
 const clean = () => fs.rmSync(DIR, { recursive: true, force: true });
 
@@ -135,5 +159,23 @@ describe('onboarding through the server schema and the engine', () => {
     const zpd = await db.computeZPD(id, { limit: 10 });
     const next = inFocus(zpd.recommendations, ['math'], (r) => r.concept.domain).map((r) => r.concept.conceptId);
     assert.deepEqual(next, ['add']);
+  });
+
+  it('changing subjects keeps other tags and the plan follows the new subject', async () => {
+    const id = 'me-sari';
+    await db.setLearnerProfile(id, { name: 'Sari', tags: ['class-7a', ...focusTags(['math'])] });
+    const fresh = await db.getLearnerProfile(id);
+    const patch = { tags: withFocus(fresh?.tags, ['cs']) };
+    // exactly what the "Change subjects" editor sends — must pass server validation
+    assert.doesNotThrow(() => parseGraphArgs('setLearnerProfile', [id, patch]));
+    await db.setLearnerProfile(id, patch);
+
+    const after = await db.getLearnerProfile(id);
+    assert.equal(after?.name, 'Sari');
+    assert.deepEqual(after?.tags, ['class-7a', 'focus:cs']);
+    assert.deepEqual(focusDomains(after), ['cs']);
+    const zpd = await db.computeZPD(id, { limit: 10 });
+    const next = inFocus(zpd.recommendations, focusDomains(after), (r) => r.concept.domain).map((r) => r.concept.conceptId);
+    assert.deepEqual(next, ['vars']);
   });
 });

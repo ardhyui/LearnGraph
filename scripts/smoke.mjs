@@ -299,6 +299,57 @@ try {
     check(newErrors.length === 0, 'onboarding flow has no page errors', newErrors.join(' | '));
   }
 
+  // Changing subjects after onboarding: "Change subjects" on the Today panel
+  // opens an editor (keyboard focus moves into it, current subject ticked);
+  // saving switches the plan to the new subject, survives a reload, and
+  // Escape cancels without saving.
+  {
+    const before = errors.length;
+    const today = page.getByTestId('study-today');
+    const changeBtn = today.getByRole('button', { name: 'Change subjects' });
+    await changeBtn.click();
+    const editor = today.getByTestId('focus-editor');
+    const opened = await editor.waitFor({ timeout: 10000 }).then(() => true, () => false);
+    const math = editor.getByRole('checkbox', { name: /Mathematics/ });
+    await math.waitFor({ timeout: 15000 }).catch(() => {});
+    const focusInside = await page.evaluate(() => !!document.activeElement?.closest('[data-testid="focus-editor"]'));
+    const mathTicked = await math.isChecked().catch(() => false);
+    check(
+      opened && focusInside && mathTicked && (await changeBtn.getAttribute('aria-expanded')) === 'true',
+      'subjects: "Change subjects" opens an editor with the current subject ticked and focus inside',
+      `opened ${opened}, focus inside ${focusInside}, math ticked ${mathTicked}`,
+    );
+    await math.uncheck();
+    await editor.getByRole('checkbox', { name: /Computer science/ }).check();
+    await editor.getByRole('button', { name: 'Save subjects' }).click();
+    const saved = await today
+      .getByText('Your plan now focuses on Computer science', { exact: false })
+      .waitFor({ timeout: 15000 })
+      .then(() => true, () => false);
+    await page.waitForFunction(() => /Computer science/.test(document.querySelector('[data-testid="focus-subjects"]')?.textContent ?? ''), null, { timeout: 15000 }).catch(() => {});
+    const focusText = await today.getByTestId('focus-subjects').innerText().catch(() => '');
+    const focusBack = await page.evaluate(() => document.activeElement?.textContent?.trim());
+    check(
+      saved && focusText === 'Focus: Computer science' && (await editor.count()) === 0 && focusBack === 'Change subjects',
+      'subjects: saving switches the plan to the new subject and returns focus',
+      `saved ${saved}, "${focusText}", focus on "${focusBack}"`,
+    );
+    await page.reload({ waitUntil: 'networkidle' });
+    await today.waitFor({ timeout: 30000 });
+    await page.waitForFunction(() => /Computer science/.test(document.querySelector('[data-testid="focus-subjects"]')?.textContent ?? ''), null, { timeout: 15000 }).catch(() => {});
+    const afterReload = await today.getByTestId('focus-subjects').innerText().catch(() => '');
+    check(afterReload === 'Focus: Computer science', 'subjects: the new subject is saved on the server', `"${afterReload}"`);
+    await changeBtn.click();
+    await editor.getByRole('checkbox', { name: /Mathematics/ }).waitFor({ timeout: 15000 });
+    await editor.getByRole('checkbox', { name: /Mathematics/ }).check();
+    await page.keyboard.press('Escape');
+    const cancelled = await editor.waitFor({ state: 'detached', timeout: 5000 }).then(() => true, () => false);
+    const unchanged = await today.getByTestId('focus-subjects').innerText().catch(() => '');
+    check(cancelled && unchanged === 'Focus: Computer science', 'subjects: Escape cancels without saving', `"${unchanged}"`);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'changing subjects has no page errors', newErrors.join(' | '));
+  }
+
   // Phone layout (390×844): the sidebar becomes a drawer behind a menu
   // button, so content gets the full width and nothing scrolls sideways.
   {

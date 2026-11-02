@@ -6,7 +6,8 @@
  */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useRouteContext } from '@tanstack/react-router';
-import { CheckCircle2, Clock, Loader2, RefreshCw, RotateCcw, Sparkles, Target, UserPlus } from 'lucide-react';
+import { CheckCircle2, Clock, Loader2, Pencil, RefreshCw, RotateCcw, Sparkles, Target, UserPlus } from 'lucide-react';
+import { FocusEditor } from '@/components/FocusEditor';
 import { Onboarding } from '@/components/Onboarding';
 import { useDB, useLearners } from '@/lib/DBContext';
 import type { ConceptNode, KnowledgeState, ZPDRecommendation } from '@/lib/graph/types';
@@ -77,7 +78,11 @@ export function StudyToday() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [editingFocus, setEditingFocus] = useState(false);
   const selectId = useId();
+  const changeSubjectsRef = useRef<HTMLButtonElement>(null);
+  const activeLearnerIdRef = useRef<string | null>(null);
+  activeLearnerIdRef.current = learnerId;
   // Only the latest request may update the panel (switching learners while a
   // load is in flight must not show — or save against — the previous learner).
   const requestSeq = useRef(0);
@@ -143,14 +148,40 @@ export function StudyToday() {
 
   useEffect(() => {
     setData(null);
-    setNotice(null);
     load();
   }, [load]);
+
+  // A message about one learner must not linger on another learner's plan.
+  // (Not cleared on subject changes: that reload is announced by its own notice.)
+  useEffect(() => {
+    setNotice(null);
+  }, [learnerId]);
 
   const chooseLearner = (id: string) => {
     remember(id);
     setWelcome(null);
+    setEditingFocus(false);
     setLearnerId(id);
+  };
+
+  const closeFocusEditor = () => {
+    setEditingFocus(false);
+    // Give keyboard focus back to the button that opened the editor.
+    requestAnimationFrame(() => changeSubjectsRef.current?.focus());
+  };
+
+  const focusSaved = async (savedFor: string, domains: string[]) => {
+    // Reloading the learner list updates the focus tags, which reloads the plan.
+    await refreshLearners();
+    // Switched to another learner while saving: don't announce it on their plan.
+    if (activeLearnerIdRef.current !== savedFor) return;
+    setWelcome(null);
+    setNotice(
+      domains.length > 0
+        ? `Saved. Your plan now focuses on ${domains.map(domainLabel).join(', ')}.`
+        : 'Saved. Your plan now covers all subjects.',
+    );
+    closeFocusEditor();
   };
 
   const onboarded = async (id: string, name: string) => {
@@ -190,7 +221,9 @@ export function StudyToday() {
     }
   };
 
-  if (!isReady || learnersLoading || onboardingSkipped === null) {
+  // Only the first load shows the placeholder; a later refresh (after saving
+  // subjects or creating a learner) keeps the panel on screen instead of flashing.
+  if (!isReady || (learnersLoading && learners.length === 0) || onboardingSkipped === null) {
     return (
       <section aria-labelledby="today-heading" className="glass-card mb-10 p-6">
         <h2 id="today-heading" className="text-lg font-semibold text-foreground">
@@ -235,12 +268,24 @@ export function StudyToday() {
           </h2>
           <p className="text-sm text-muted-foreground">
             Review what is fading, then learn something new.
-            {focus.length > 0 && (
-              <span className="block text-xs" data-testid="focus-subjects">
-                Focus: {focus.map(domainLabel).join(', ')}
-              </span>
-            )}
           </p>
+          {activeLearner && (
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              <span data-testid="focus-subjects">
+                {focus.length > 0 ? `Focus: ${focus.map(domainLabel).join(', ')}` : 'All subjects'}
+              </span>
+              <button
+                ref={changeSubjectsRef}
+                type="button"
+                onClick={() => (editingFocus ? closeFocusEditor() : setEditingFocus(true))}
+                aria-expanded={editingFocus}
+                className="inline-flex min-h-6 items-center gap-1 font-medium text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <Pencil className="h-3 w-3" aria-hidden="true" />
+                {focus.length > 0 ? 'Change subjects' : 'Choose subjects'}
+              </button>
+            </p>
+          )}
           {noOwnLearner && (
             <button
               type="button"
@@ -278,6 +323,17 @@ export function StudyToday() {
           </button>
         </div>
       </div>
+
+      {editingFocus && activeLearner && (
+        <FocusEditor
+          key={activeLearner.userId}
+          learnerId={activeLearner.userId}
+          learnerName={activeLearner.name || activeLearner.userId}
+          focus={focus}
+          onSaved={focusSaved}
+          onCancel={closeFocusEditor}
+        />
+      )}
 
       {error && (
         <div role="alert" className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">

@@ -120,3 +120,26 @@ export function basicConcepts(
     .filter((c) => !hasPrereq.has(c.conceptId))
     .map((c) => c.conceptId);
 }
+
+/** Server limit for the number of tags on one learner (rpc-schemas `tags`). */
+const MAX_TAGS = 50;
+
+/**
+ * Replace the learner's subject choice inside their existing tags. Tags that
+ * are not subject choices (e.g. tags set by a teacher in the admin editor) are
+ * kept untouched and in order; they win over new focus tags if the server
+ * limit would be exceeded, so changing subjects never deletes other data.
+ * An empty `domains` list means "everything" (no focus tag at all).
+ */
+export function withFocus(tags: string[] | undefined, domains: string[]): string[] {
+  const others = (tags ?? []).filter((t) => !t.startsWith(FOCUS_TAG_PREFIX));
+  const room = Math.max(0, MAX_TAGS - others.length);
+  return [...others, ...focusTags(domains).slice(0, room)];
+}
+
+/** Same set of subjects, ignoring order and duplicates. */
+export function sameSubjects(a: string[], b: string[]): boolean {
+  const sa = new Set(a);
+  const sb = new Set(b);
+  return sa.size === sb.size && [...sa].every((d) => sb.has(d));
+}
