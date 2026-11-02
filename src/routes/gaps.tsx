@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
 import { GAP_KINDS, conceptLabel, countLabel, priorityLabel, reviewSummary, snoozeLabel, stepTypeLabel } from '@/lib/gaps';
 import { snoozedReviews } from '@/lib/graph/spacing';
+import { applyUnsnooze, focusAfterAnswer } from '@/lib/study';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 
@@ -40,6 +41,9 @@ interface SnoozedItem {
   conceptId: string;
   conceptName?: string;
   until: number;
+  /** Kept to end the snooze early ("Review it now") without touching anything else. */
+  lastReviewed?: string;
+  firstSeen?: string;
 }
 
 interface RemediationStep {
@@ -79,6 +83,8 @@ function GapsDashboard() {
   );
   const selectedLearnerId = activeLearner ?? '';
   const learnerSelectId = useId();
+  const selectedLearnerRef = useRef(selectedLearnerId);
+  selectedLearnerRef.current = selectedLearnerId;
   const [loading, setLoading] = useState(false);
   const [gaps, setGaps] = useState<{
     missing: GapItem[];
@@ -100,14 +106,28 @@ function GapsDashboard() {
   // Only the latest request may update the page (switching learners while a
   // load is in flight must not show the previous learner's gaps).
   const requestSeq = useRef(0);
+  // "Review it now" on a snoozed review: which one is saving, the message
+  // afterwards, and where keyboard focus goes once the list has reloaded.
+  const [unsnoozing, setUnsnoozing] = useState<string | null>(null);
+  const [snoozeNotice, setSnoozeNotice] = useState<string | null>(null);
+  const pendingSnoozeFocus = useRef<{ learnerId: string; conceptId: string; before: string[] } | null>(null);
+  const snoozedListRef = useRef<HTMLUListElement>(null);
+  const reviewsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const reviewsCardRef = useRef<HTMLDivElement>(null);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
-  const fetchGapData = useCallback(async (userId: string) => {
+  // `quiet` reloads in place (no spinner), so the page — and keyboard focus —
+  // stays put after a small change such as ending a snooze.
+  const fetchGapData = useCallback(async (userId: string, { quiet = false }: { quiet?: boolean } = {}) => {
     if (!db || !isReady) return;
     const seq = ++requestSeq.current;
     const stale = () => seq !== requestSeq.current;
 
-    setLoading(true);
-    setSnoozed([]);
+    if (!quiet) {
+      setLoading(true);
+      setSnoozed([]);
+      setLoadedFor(null);
+    }
     try {
       // Detect gaps using the database
       const [detectedGaps, states, concepts] = await Promise.all([
@@ -124,7 +144,10 @@ function GapsDashboard() {
       setSnoozed(
         snoozedReviews(states, (id) => byId.get(id)?.difficulty?.absolute, new Date())
           .filter((s) => byId.has(s.conceptId))
-          .map((s) => ({ ...s, conceptName: byId.get(s.conceptId)?.name })),
+          .map((s) => {
+            const st = states.find((x) => x.conceptId === s.conceptId);
+            return { ...s, conceptName: byId.get(s.conceptId)?.name, lastReviewed: st?.lastReviewed, firstSeen: st?.firstSeen };
+          }),
       );
       // Map the database format to our local GapItem format
       const missing: GapItem[] = detectedGaps.missing.map(g => ({
@@ -203,13 +226,69 @@ function GapsDashboard() {
       if (stale()) return;
       console.error('Error fetching gap data:', error);
     }
-    if (!stale()) setLoading(false);
+    if (!stale()) {
+      setLoadedFor(userId);
+      setLoading(false);
+    }
   }, [db, isReady]);
 
   // Load the analysis for the active learner (on arrival and when switching).
   useEffect(() => {
     if (selectedLearnerId) fetchGapData(selectedLearnerId);
   }, [selectedLearnerId, fetchGapData]);
+
+  // A message (or pending focus move) about one learner must not carry over to another.
+  useEffect(() => {
+    setSnoozeNotice(null);
+    pendingSnoozeFocus.current = null;
+  }, [selectedLearnerId]);
+
+  /** "Review it now": end the snooze so the review is due again right away. */
+  const reviewNow = async (item: SnoozedItem) => {
+    const learnerId = selectedLearnerId;
+    if (!db || !learnerId || unsnoozing) return;
+    pendingSnoozeFocus.current = { learnerId, conceptId: item.conceptId, before: snoozed.map((s) => s.conceptId) };
+    setUnsnoozing(item.conceptId);
+    setSnoozeNotice(null);
+    const name = conceptLabel(item.conceptId, item.conceptName);
+    try {
+      await db.setKnowledgeState(learnerId, item.conceptId, applyUnsnooze(item));
+      if (selectedLearnerRef.current !== learnerId) return;
+      setSnoozeNotice(`“${name}” is due again — you can review it now on the dashboard.`);
+      await fetchGapData(learnerId, { quiet: true });
+    } catch (err) {
+      // (Focus goes back to the same button, which is still listed.)
+      if (selectedLearnerRef.current === learnerId) {
+        setSnoozeNotice(`Could not save: ${err instanceof Error ? err.message : 'please try again.'}`);
+      }
+    } finally {
+      setUnsnoozing(null);
+    }
+  };
+
+  // After "Review it now" the item leaves the Snoozed list (its button was
+  // disabled while saving): keep keyboard focus nearby — on the next snoozed
+  // item's button, or on the Reviews heading when none are left.
+  useEffect(() => {
+    const pending = pendingSnoozeFocus.current;
+    if (!pending || unsnoozing || loadedFor !== pending.learnerId) return;
+    pendingSnoozeFocus.current = null;
+    const target = focusAfterAnswer(pending.before, pending.conceptId, snoozed.map((s) => s.conceptId));
+    requestAnimationFrame(() => {
+      // Don't steal focus if the learner already moved on.
+      const active = document.activeElement;
+      const card = reviewsCardRef.current;
+      if (!card || (active && active !== document.body && !card.contains(active))) return;
+      const button =
+        target.kind === 'item'
+          ? Array.from(snoozedListRef.current?.children ?? [])
+              .find((li) => li instanceof HTMLElement && li.dataset.conceptId === target.conceptId)
+              ?.querySelector<HTMLButtonElement>('button:not([disabled])')
+          : null;
+      if (button) button.focus();
+      else reviewsHeadingRef.current?.focus();
+    });
+  }, [snoozed, unsnoozing, loadedFor]);
 
   // Reference time for "Due today / Overdue by 3 days" (the analysis is only
   // rendered client-side after loading, so this never differs from SSR).
@@ -492,8 +571,12 @@ function GapsDashboard() {
                 </motion.div>
 
                 {/* Review Queue */}
-                <motion.div variants={itemVariants} className="glass-card p-6">
-                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-foreground">
+                <motion.div ref={reviewsCardRef} variants={itemVariants} className="glass-card p-6">
+                  <h2
+                    ref={reviewsHeadingRef}
+                    tabIndex={-1}
+                    className="text-xl font-semibold mb-4 flex items-center gap-2 text-foreground rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
                     <Clock className="text-primary" aria-hidden="true" />
                     Reviews
                     {reviewQueue && (
@@ -502,6 +585,15 @@ function GapsDashboard() {
                       </span>
                     )}
                   </h2>
+
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    data-testid="snooze-notice"
+                    className={cn('text-sm text-emerald-700 dark:text-emerald-400', snoozeNotice && 'mb-4')}
+                  >
+                    {snoozeNotice}
+                  </p>
 
                   {reviewQueue && reviewQueue.stats.overdue > 0 && (
                     <motion.div
@@ -562,18 +654,29 @@ function GapsDashboard() {
                         <span className="text-xs font-normal text-muted-foreground">({countLabel(snoozed.length, 'review')})</span>
                       </h3>
                       <p className="text-xs text-muted-foreground mt-1">
-                        You chose “Remind me tomorrow” for these. They’re not counted as due, and your progress on them is kept.
+                        You chose “Remind me tomorrow” for these. They’re not counted as due, and your progress on them is kept. Changed your mind? Choose “Review it now”.
                       </p>
-                      <ul className="mt-3 space-y-2" aria-label="Snoozed reviews">
+                      <ul ref={snoozedListRef} className="mt-3 space-y-2" aria-label="Snoozed reviews">
                         {snoozed.map((item) => (
                           <li
                             key={item.conceptId}
+                            data-concept-id={item.conceptId}
                             className="p-3 rounded-xl border border-dashed border-border bg-background/40 flex flex-wrap items-center justify-between gap-2"
                           >
                             <span className="font-medium text-foreground">{conceptLabel(item.conceptId, item.conceptName)}</span>
                             <span className="text-sm text-muted-foreground">
                               <time dateTime={new Date(item.until).toISOString()}>{snoozeLabel(item.until, now)}</time>
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => reviewNow(item)}
+                              disabled={!!unsnoozing}
+                              aria-label={`Review it now: ${conceptLabel(item.conceptId, item.conceptName)}`}
+                              className="basis-full sm:basis-auto inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-border px-3 py-1 text-xs font-medium text-primary hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+                            >
+                              {unsnoozing === item.conceptId && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
+                              Review it now
+                            </button>
                           </li>
                         ))}
                       </ul>

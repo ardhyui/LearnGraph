@@ -15,6 +15,7 @@ import {
   applyReviewOutcome,
   applySnooze,
   applyStudyOutcome,
+  applyUnsnooze,
   focusAfterAnswer,
   summarizeProgress,
   type ProgressSummary,
@@ -25,8 +26,11 @@ import {
 import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
 import { priorityLabel, reviewSummary, snoozedSummary } from '@/lib/gaps';
-import { snoozedReviews, snoozedUntil } from '@/lib/graph/spacing';
+import { snoozedReviews, snoozedUntil, type SnoozedReview } from '@/lib/graph/spacing';
 import { cn } from '@/lib/utils';
+
+/** `busy` while ending snoozes from the Today summary (can't clash with a concept id). */
+const UNSNOOZE_BUSY = '\u0000snoozed';
 
 /** Set (per account) when the user chose to explore the example learners instead of onboarding. */
 const ONBOARDING_SKIPPED_KEY = 'learngraph.onboardingSkipped';
@@ -55,8 +59,8 @@ interface TodayData {
   states: KnowledgeState[];
   reviews: ReviewItem[];
   reviewsDue: number;
-  /** When each snoozed review comes back (ms, soonest first) — not counted as due. */
-  snoozed: number[];
+  /** Snoozed reviews and when each comes back (soonest first) — not counted as due. */
+  snoozed: SnoozedReview[];
   next: ZPDRecommendation[];
 }
 
@@ -150,7 +154,7 @@ export function StudyToday() {
         states.filter((st) => difficulty.has(st.conceptId)),
         (id) => difficulty.get(id),
         new Date(nowMs),
-      ).map((s) => s.until);
+      );
       setData({
         learnerId,
         snoozed,
@@ -279,6 +283,38 @@ export function StudyToday() {
       await load();
     } catch (err) {
       setNotice(`Could not save: ${err instanceof Error ? err.message : 'please try again.'}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** "Review now anyway": end every snooze, so those reviews are due again right away. */
+  const unsnoozeAll = async () => {
+    if (!db || !learnerId || busy || data?.learnerId !== learnerId || data.snoozed.length === 0) return;
+    const ids = data.snoozed.map((s) => s.conceptId);
+    pendingFocus.current = {
+      learnerId,
+      list: 'reviews',
+      conceptId: ids[0],
+      before: data.reviews.map((r) => r.conceptId),
+    };
+    setBusy(UNSNOOZE_BUSY);
+    setNotice(null);
+    setWelcome(null);
+    try {
+      for (const id of ids) {
+        const prior = data.states.find((s) => s.conceptId === id);
+        await db.setKnowledgeState(learnerId, id, applyUnsnooze(prior));
+      }
+      setNotice(
+        ids.length === 1
+          ? 'Okay — that review is back in your list. Your progress on it is unchanged.'
+          : `Okay — those ${ids.length} reviews are back in your list. Your progress on them is unchanged.`,
+      );
+      await load();
+    } catch (err) {
+      setNotice(`Could not save: ${err instanceof Error ? err.message : 'please try again.'}`);
+      await load();
     } finally {
       setBusy(null);
     }
@@ -520,7 +556,21 @@ export function StudyToday() {
           )}
           {current && current.snoozed.length > 0 && (
             <p className="mt-2 text-xs text-muted-foreground" data-testid="snoozed-summary">
-              {snoozedSummary(current.snoozed, new Date())} ·{' '}
+              {snoozedSummary(
+                current.snoozed.map((s) => s.until),
+                new Date(),
+              )}{' '}
+              ·{' '}
+              <button
+                type="button"
+                onClick={unsnoozeAll}
+                disabled={!!busy}
+                className="inline-flex min-h-6 items-center gap-1 font-medium text-primary underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+              >
+                {busy === UNSNOOZE_BUSY && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
+                {current.snoozed.length === 1 ? 'Review it now' : 'Review them now'}
+              </button>{' '}
+              ·{' '}
               <Link to="/gaps" className="font-medium text-primary underline underline-offset-2">
                 See snoozed reviews
               </Link>

@@ -314,8 +314,72 @@ try {
         'gaps: a snoozed review shows as "Snoozed until tomorrow", not as due',
         `"${snoozedText.replace(/\s+/g, ' ')}", fading ${fading}, due ${due}`,
       );
+      // Changed their mind: "Review it now" ends the snooze — the review is due
+      // again (counted in Fading/Reviews), and keyboard focus stays in the card.
+      await snoozedItem.first().getByRole('button', { name: `Review it now: ${name}` }).click();
+      const notice = await page
+        .getByTestId('snooze-notice')
+        .getByText('is due again', { exact: false })
+        .waitFor({ timeout: 15000 })
+        .then(() => true, () => false);
+      await snoozedItem.first().waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
+      const stillSnoozed = await page.getByRole('list', { name: 'Snoozed reviews' }).getByRole('listitem').filter({ hasText: name }).count();
+      await page
+        .waitForFunction(() => document.activeElement && document.activeElement !== document.body, null, { timeout: 5000 })
+        .catch(() => {});
+      const gapsFocus = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return 'body';
+        if (el.closest('[aria-label="Snoozed reviews"]')) return `snoozed item button "${el.textContent?.trim()}"`;
+        if (el.tagName === 'H2' && /Reviews/.test(el.textContent ?? '')) return 'Reviews heading';
+        return `${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 30)}"`;
+      });
+      const gapsAfter = await page.locator('main').innerText().catch(() => '');
+      const fadingAfter = Number((gapsAfter.match(/Fading\s+(\d+)/) ?? [])[1]);
+      const dueAfter = Number((gapsAfter.match(/Reviews\s*\((\d+) concepts?\)/) ?? [])[1]);
+      check(
+        notice && stillSnoozed === 0 && dueAfter === due + 1 && fadingAfter === dueAfter,
+        'gaps: "Review it now" makes a snoozed review due again',
+        `notice ${notice}, still snoozed ${stillSnoozed}, due ${due} → ${dueAfter}, fading ${fadingAfter}`,
+      );
+      check(
+        gapsFocus.startsWith('snoozed item button') || gapsFocus === 'Reviews heading',
+        'gaps: keyboard focus stays in the Reviews card after "Review it now"',
+        gapsFocus,
+      );
       await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
       await today.waitFor({ timeout: 30000 });
+      const backListed = today.getByRole('list', { name: 'Reviews due' }).getByText(name, { exact: true });
+      const back = await backListed.waitFor({ timeout: 15000 }).then(() => true, () => false);
+      check(back, 'dashboard: a review brought back from Snoozed is due again on Today', `"${name}"`);
+      // The same from the Today summary: snooze it again, then "Review it now" there.
+      if (back) {
+        const item = today.getByRole('list', { name: 'Reviews due' }).getByRole('listitem').filter({ hasText: name });
+        await item.getByRole('button', { name: 'Remind me tomorrow' }).click();
+        await backListed.waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
+        const summaryButton = today.getByTestId('snoozed-summary').getByRole('button', { name: /Review (it|them) now/ });
+        await summaryButton.click({ timeout: 15000 }).catch(() => {});
+        const restored = await backListed.waitFor({ timeout: 15000 }).then(() => true, () => false);
+        const summaryGone = await today
+          .getByTestId('snoozed-summary')
+          .waitFor({ state: 'detached', timeout: 15000 })
+          .then(() => true, () => false);
+        await page
+          .waitForFunction(() => document.activeElement && document.activeElement !== document.body, null, { timeout: 5000 })
+          .catch(() => {});
+        const todayFocus = await page.evaluate(() => {
+          const el = document.activeElement;
+          if (!el || el === document.body) return 'body';
+          if (el.closest('[aria-label="Reviews due"]')) return `review item button "${el.textContent?.trim()}"`;
+          if (el.tagName === 'H3' && /Review now/.test(el.textContent ?? '')) return 'Review now heading';
+          return `${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 30)}"`;
+        });
+        check(
+          restored && summaryGone && (todayFocus.startsWith('review item button') || todayFocus === 'Review now heading'),
+          'dashboard: "Review it now" in the snoozed summary brings the review back',
+          `restored ${restored}, summary gone ${summaryGone}, focus ${todayFocus}`,
+        );
+      }
     } else {
       check(false, 'dashboard: "Remind me tomorrow" moves a due review off today’s list', 'no reviews due for Bob');
     }

@@ -125,6 +125,24 @@ export function applySnooze(now: Date = new Date()): Pick<KnowledgeState, 'nextR
   return { nextReview: new Date(now.getTime() + SNOOZE_DAYS * 24 * 60 * 60 * 1000).toISOString() };
 }
 
+/**
+ * "Review it now": ends a "Remind me tomorrow" early, so the review is due
+ * again right away. Only `nextReview` changes — it goes back to the last review
+ * (or first study), which means "no snooze" (see `snoozedUntil`), so the review
+ * is exactly as due/overdue as it was before snoozing. Without a usable date it
+ * falls back to `now` (also not a snooze once that moment has passed).
+ */
+export function applyUnsnooze(
+  prior: Pick<KnowledgeState, 'lastReviewed' | 'firstSeen'> | null | undefined,
+  now: Date = new Date(),
+): Pick<KnowledgeState, 'nextReview'> {
+  for (const iso of [prior?.lastReviewed, prior?.firstSeen]) {
+    const t = Date.parse(iso ?? '');
+    if (Number.isFinite(t) && t <= now.getTime()) return { nextReview: new Date(t).toISOString() };
+  }
+  return { nextReview: now.toISOString() };
+}
+
 /** Pick the learner to show: the remembered one if it still exists, else the first. */
 export function pickActiveLearner(learnerIds: string[], remembered: string | null | undefined): string | null {
   if (remembered && learnerIds.includes(remembered)) return remembered;
