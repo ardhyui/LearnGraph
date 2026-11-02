@@ -421,6 +421,13 @@ try {
     const overdueDays = [...gapsText.matchAll(/Overdue by (\d+) days?/g)].map((m) => Number(m[1]));
     check(overdueDays.every((d) => d < 60), 'gaps: example progress is recent (no review overdue by months)', `max ${Math.max(0, ...overdueDays)} days`);
     check(/Review first|Review soon|Can wait/.test(gapsText) && !/\b(urgent|normal)\b/.test(gapsText), 'gaps: review priority uses everyday labels');
+    const fadingCount = Number((gapsText.match(/Fading\s+(\d+)/) ?? [])[1]);
+    const dueCount = Number((gapsText.match(/Reviews\s*\((\d+) concepts?\)/) ?? [])[1]);
+    check(
+      Number.isInteger(fadingCount) && fadingCount > 0 && fadingCount === dueCount,
+      'gaps: "Fading" counts exactly the reviews that are due',
+      `fading ${fadingCount}, due ${dueCount}`,
+    );
     const toDashboard = page.getByRole('link', { name: 'Do your reviews on the dashboard' });
     check(await toDashboard.isVisible().catch(() => false), 'gaps: overdue reviews link to the dashboard');
 

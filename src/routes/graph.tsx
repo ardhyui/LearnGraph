@@ -22,6 +22,7 @@ import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { cn } from '@/lib/utils';
 import { useLearners, useConcepts, useEdges, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
+import { isReviewDue } from '@/lib/graph/spacing';
 import {
   RefreshCw,
   User,
@@ -170,7 +171,7 @@ function ConceptNode({ data }: { data: Record<string, unknown> }) {
         <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold mt-1">🎯 ZPD</div>
       )}
       {isForgotten && (
-        <div className="text-xs text-orange-600 dark:text-orange-400 font-semibold mt-1">⏰ Needs Review</div>
+        <div className="text-xs text-orange-600 dark:text-orange-400 font-semibold mt-1">⏰ Due for review</div>
       )}
       <Handle
         type="source"
@@ -244,16 +245,15 @@ function GraphPage() {
         const learnerStates = await db.getLearnerKnowledgeStates(selectedLearner);
         const masteryLevels: Record<string, number> = {};
         const forgottenConcepts: string[] = [];
+        const now = new Date();
+        const difficultyById = new Map(concepts.map(c => [c.conceptId, c.difficulty?.absolute]));
 
         for (const state of learnerStates) {
           masteryLevels[state.conceptId] = state.mastery;
-          // Check for forgotten concepts (low predicted retention)
-          if (state.lastAccessed) {
-            const daysSinceReview = (Date.now() - new Date(state.lastAccessed).getTime()) / (1000 * 60 * 60 * 24);
-            const retention = Math.exp(-daysSinceReview / ((state.retentionStrength * 20) || 10));
-            if (retention < 0.5 && state.mastery > 40) {
-              forgottenConcepts.push(state.conceptId);
-            }
+          // Same rule as the Today review queue and "Fading" on Gap Analysis.
+          const difficulty = difficultyById.get(state.conceptId);
+          if (isReviewDue(state, difficulty, now)) {
+            forgottenConcepts.push(state.conceptId);
           }
         }
 
@@ -567,7 +567,7 @@ function GraphPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 bg-orange-500 rounded-md shadow-sm"></div>
-                    <span className="text-muted-foreground">Needs Review</span>
+                    <span className="text-muted-foreground">Due for review</span>
                   </div>
                 </div>
                 {overlay.zpdConcepts.length > 0 && (
@@ -782,7 +782,7 @@ function GraphPage() {
                           )}
                           {selectedConcept.isForgotten && (
                             <div className="inline-block bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs px-3 py-1.5 rounded-lg ml-2">
-                              ⏰ Needs Review (retention decay)
+                              ⏰ Due for a review
                             </div>
                           )}
                         </div>
