@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback, useId } from 'react';
+import { useState, useEffect, useCallback, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User,
@@ -307,6 +307,10 @@ function ProfilePage() {
     learnersLoading,
   );
   const selectedLearnerId = activeLearner ?? '';
+  const selectedLearnerRef = useRef(selectedLearnerId);
+  useEffect(() => {
+    selectedLearnerRef.current = selectedLearnerId;
+  }, [selectedLearnerId]);
   const learnerSelectId = useId();
   const activeLearnerProfile = learnersData.find((l) => l.userId === activeLearner);
   const [profile, setProfile] = useState<LearnerProfile | null>(null);
@@ -500,7 +504,8 @@ function ProfilePage() {
       // Work out the learning style, pace and support level from the saved
       // values so Recommendations ("Ways to learn it") actually use them.
       const saved = db ? await db.computeAndStoreDerivedProfiles(profile.userId) : null;
-      if (saved) setProfile(saved);
+      // Switching learners while saving must not show this learner's result.
+      if (saved && saved.userId === selectedLearnerRef.current) setProfile(saved);
       setSuccess('Saved. Your suggestions on Recommendations now use this profile.');
       setTimeout(() => setSuccess(null), 3000);
     } catch {
