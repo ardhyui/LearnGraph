@@ -12,8 +12,11 @@ import type { EducationGraphDB } from '../src/lib/graph/education-graph-db.ts';
 import {
   MAX_INTERVAL_DAYS,
   RETENTION_AT_DUE,
+  REVIEWABLE_MASTERY,
   daysSince,
+  isReviewDue,
   predictRetention,
+  reviewDueAt,
   reviewIntervalDays,
   stabilityForInterval,
 } from '../src/lib/graph/spacing.ts';
@@ -72,6 +75,27 @@ describe('forgetting curve', () => {
     assert.equal(predictRetention(NaN, 5, 5), 0);
     assert.equal(daysSince('not a date', new Date()), 0);
     assert.equal(daysSince(new Date(Date.now() + DAY).toISOString(), new Date()), 0);
+  });
+});
+
+describe('isReviewDue / reviewDueAt', () => {
+  const now = new Date('2026-11-02T14:00:00Z');
+  const ago = (days: number) => new Date(now.getTime() - days * DAY).toISOString();
+
+  it('is due exactly when the interval since the last review has passed', () => {
+    const s = { mastery: 70, reviewCount: 3 };
+    const interval = reviewIntervalDays(s, 5);
+    assert.equal(isReviewDue({ ...s, lastReviewed: ago(interval - 0.5) }, 5, now), false);
+    assert.equal(isReviewDue({ ...s, lastReviewed: ago(interval) }, 5, now), true);
+    assert.equal(reviewDueAt({ ...s, lastReviewed: ago(0) }, 5), now.getTime() + interval * DAY);
+  });
+
+  it('falls back to firstSeen, and is never due without a usable date or below the learned threshold', () => {
+    assert.equal(isReviewDue({ mastery: 80, reviewCount: 0, firstSeen: ago(5) }, null, now), true);
+    assert.equal(isReviewDue({ mastery: 80, reviewCount: 0, lastReviewed: 'garbage' }, null, now), false);
+    assert.equal(isReviewDue({ mastery: 80, reviewCount: 0 }, null, now), false);
+    assert.equal(isReviewDue({ mastery: REVIEWABLE_MASTERY - 1, lastReviewed: ago(400) }, null, now), false);
+    assert.equal(isReviewDue({ mastery: NaN, lastReviewed: ago(400) }, null, now), false);
   });
 });
 
@@ -141,5 +165,45 @@ describe('engine: schedule and decay agree', () => {
       intervals.push(db.scheduleNextReview(state, concept).intervalDays);
     }
     assert.equal(new Set(intervals).size, 1, `intervals ${intervals.join(',')}`);
+  });
+
+  it('"Fading" on Gap Analysis is exactly the set of reviews that are due', async () => {
+    await db.setLearnerProfile('u1', {});
+    const cases: [string, number, number, number][] = [
+      // id, mastery, reviewCount, days since last review (as fraction of interval)
+      ['early-weak', 70, 3, 0.8], // was "Fading" before (retention < 60) though not due
+      ['due-weak', 70, 3, 1.05],
+      ['due-strong', 95, 2, 1.5],
+      ['fresh', 90, 1, 0.1],
+      ['not-learned', 30, 1, 5],
+    ];
+    for (const [id, mastery, reviewCount, frac] of cases) {
+      await db.addConcept({ conceptId: id, name: id, domain: 'math', description: 'x' });
+      const concept = (await db.getConcept(id))!;
+      const interval = reviewIntervalDays({ mastery, reviewCount }, concept.difficulty?.absolute);
+      await db.setKnowledgeState('u1', id, {
+        mastery,
+        reviewCount,
+        lastReviewed: new Date(Date.now() - frac * interval * DAY).toISOString(),
+      });
+    }
+    const gaps = await db.detectGaps('u1', { type: 'forgotten' });
+    const fading = gaps.forgotten.map((g) => g.conceptId).sort();
+    assert.deepEqual(fading, ['due-strong', 'due-weak']);
+    const { queue, stats } = await db.getReviewQueue('u1');
+    assert.deepEqual(queue.map((q) => q.conceptId).sort(), fading);
+    assert.equal(stats.overdue, fading.length);
+  });
+
+  it('a never-reviewed concept counts days from when it was first studied', async () => {
+    await db.setLearnerProfile('u1', {});
+    await db.addConcept({ conceptId: 'new', name: 'New', domain: 'math', description: 'x' });
+    const firstSeen = new Date(Date.now() - 5 * DAY).toISOString();
+    await db.setKnowledgeState('u1', 'new', { mastery: 80, reviewCount: 0, firstSeen });
+    const gaps = await db.detectGaps('u1', { type: 'forgotten' });
+    const item = gaps.forgotten.find((g) => g.conceptId === 'new');
+    assert.ok(item, 'due one day after first study, so it is fading');
+    assert.ok(Math.abs(item.daysSinceReview - 5) < 0.1, `days ${item.daysSinceReview}`);
+    assert.ok(item.predictedRetention < 80 * RETENTION_AT_DUE);
   });
 });

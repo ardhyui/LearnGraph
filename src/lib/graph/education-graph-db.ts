@@ -27,6 +27,8 @@ import {
   reviewIntervalDays,
   stabilityForInterval,
   type ReviewPerformance,
+  isReviewDue,
+  reviewDueAt,
 } from './spacing.ts';
 import type {
   LearnerProfile,
@@ -1464,11 +1466,6 @@ export class EducationGraphDB {
   } as const;
 
   /**
-   * Retention threshold below which we consider knowledge "forgotten"
-   */
-  private readonly FORGOTTEN_THRESHOLD = 60;
-
-  /**
    * Detect all knowledge gaps for a learner
    */
   async detectGaps(
@@ -1494,6 +1491,7 @@ export class EducationGraphDB {
     const concepts = await this.listConcepts();
     const states = await this.getLearnerKnowledgeStates(userId);
     const stateMap = new Map(states.map(s => [s.conceptId, s]));
+    const now = new Date();
 
     const missing: { conceptId: string; concept: ConceptNode; reason: string }[] = [];
     const partial: { conceptId: string; concept: ConceptNode; mastery: number; reason: string }[] = [];
@@ -1540,20 +1538,18 @@ export class EducationGraphDB {
         });
       }
 
-      // Check for forgotten knowledge (decay)
+      // Check for forgotten knowledge (decay): "fading" means the review is
+      // due — the same rule as the review queue, so the two never disagree.
       if (type === 'all' || type === 'forgotten') {
-        if (state.mastery >= this.PARTIAL_MASTERY_THRESHOLD && state.lastReviewed) {
+        if (isReviewDue(state, concept.difficulty?.absolute, now)) {
           const decay = this.predictDecay(state, concept);
-
-          if (decay.predictedRetention < this.FORGOTTEN_THRESHOLD) {
-            forgotten.push({
-              conceptId: concept.conceptId,
-              concept,
-              predictedRetention: decay.predictedRetention,
-              daysSinceReview: decay.daysSinceReview,
-              reason: `Last reviewed ${decay.daysSinceReview} days ago - predicted retention is ${Math.round(decay.predictedRetention)}%`,
-            });
-          }
+          forgotten.push({
+            conceptId: concept.conceptId,
+            concept,
+            predictedRetention: decay.predictedRetention,
+            daysSinceReview: decay.daysSinceReview,
+            reason: `Last reviewed ${decay.daysSinceReview} days ago - predicted retention is ${Math.round(decay.predictedRetention)}%`,
+          });
         }
       }
 
@@ -1612,7 +1608,8 @@ export class EducationGraphDB {
     stabilityFactor: number;
     decayRate: number;
   } {
-    const elapsed = daysSince(state.lastReviewed ?? state.updatedAt, new Date());
+    // Same starting point as the due date (`reviewDueAt`): last review, else first study.
+    const elapsed = daysSince(state.lastReviewed ?? state.firstSeen ?? state.updatedAt, new Date());
     const interval = reviewIntervalDays(state, concept.difficulty?.absolute);
     const stability = stabilityForInterval(interval);
     const predictedRetention = predictRetention(state.mastery, elapsed, stability);
@@ -1725,11 +1722,9 @@ export class EducationGraphDB {
       // scheduleNextReview() counts the interval from *now* (correct right after
       // a review). For the queue, the item is due `intervalDays` after the
       // last review, otherwise nothing would ever be overdue.
-      const reviewedAt = Date.parse(state.lastReviewed ?? state.firstSeen ?? '');
-      const nextReviewDate = Number.isFinite(reviewedAt)
-        ? new Date(reviewedAt + schedule.intervalDays * 24 * 60 * 60 * 1000)
-        : new Date(schedule.nextReviewDate);
-      const isOverdue = nextReviewDate <= now;
+      const dueAt = reviewDueAt(state, concept.difficulty?.absolute);
+      const nextReviewDate = dueAt !== null ? new Date(dueAt) : new Date(schedule.nextReviewDate);
+      const isOverdue = isReviewDue(state, concept.difficulty?.absolute, now);
 
       // Skip if not due and we're not including non-due items
       if (!isOverdue && !includeNotDue) continue;

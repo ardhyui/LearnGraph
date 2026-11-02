@@ -91,3 +91,33 @@ export function daysSince(iso: string | null | undefined, now: Date): number {
   if (!Number.isFinite(t)) return 0;
   return Math.max(0, (now.getTime() - t) / DAY_MS);
 }
+
+export interface DueInput extends SpacingInput {
+  lastReviewed?: string | null;
+  firstSeen?: string | null;
+}
+
+/**
+ * When the next review falls due (ms since epoch): `reviewIntervalDays` after
+ * the last review (or first study if never reviewed). `null` when there is no
+ * usable date.
+ */
+export function reviewDueAt(state: DueInput, difficulty?: number | null): number | null {
+  const from = Date.parse(state.lastReviewed ?? state.firstSeen ?? '');
+  if (!Number.isFinite(from)) return null;
+  return from + reviewIntervalDays(state, difficulty) * DAY_MS;
+}
+
+/** Minimum mastery for a concept to count as "learned" (and so reviewable). */
+export const REVIEWABLE_MASTERY = 40;
+
+/**
+ * Is this concept due (or overdue) for a review? The single rule behind the
+ * Today review queue, "Fading" on Gap Analysis and "Needs review" on the
+ * Knowledge Graph, so the three never disagree.
+ */
+export function isReviewDue(state: DueInput, difficulty: number | null | undefined, now: Date): boolean {
+  if (finite(state.mastery, 0) < REVIEWABLE_MASTERY) return false;
+  const due = reviewDueAt(state, difficulty);
+  return due !== null && due <= now.getTime();
+}

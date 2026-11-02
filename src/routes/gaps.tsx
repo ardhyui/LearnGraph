@@ -440,7 +440,7 @@ function GapsDashboard() {
                             <div className="flex-1">
                               <p className="font-medium text-foreground">{conceptLabel(gap.conceptId, gap.conceptName)}</p>
                               <p className="text-sm opacity-75">
-                                About {gap.predictedRetention?.toFixed(0)}% remembered · last reviewed {countLabel(gap.daysSinceReview ?? 0, 'day')} ago
+                                Due for a review · about {gap.predictedRetention?.toFixed(0)}% remembered · last reviewed {countLabel(Math.round(gap.daysSinceReview ?? 0), 'day')} ago
                               </p>
                             </div>
                           </div>

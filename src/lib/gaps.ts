@@ -110,7 +110,7 @@ export function stepTypeLabel(type: string): string {
 export const GAP_KINDS = [
   { key: 'missing', label: 'Not started', hint: 'Ready for you, not learned yet' },
   { key: 'partial', label: 'Still learning', hint: 'Started but not mastered yet' },
-  { key: 'forgotten', label: 'Fading', hint: 'Mastered once, slipping from memory' },
+  { key: 'forgotten', label: 'Fading', hint: 'Learned before, now due for a review' },
   { key: 'misconceptions', label: 'Mix-ups', hint: 'Something was understood the wrong way' },
 ] as const;
 
