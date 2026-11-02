@@ -225,9 +225,10 @@ export function Sidebar() {
               />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-sidebar-foreground tracking-tight">
+              {/* Not a heading: each page has its own single <h1>. */}
+              <p className="text-lg font-bold text-sidebar-foreground tracking-tight">
                 LearnGraph
-              </h1>
+              </p>
               <p className="text-xs text-muted-foreground">Adaptive Education</p>
             </div>
           </motion.div>

@@ -1,123 +1,42 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { motion } from 'framer-motion';
 import {
-  BookOpen,
-  Users,
-  GitBranch,
-  BarChart3,
-  UserCircle,
-  Network,
-  Database,
-  Lightbulb,
-  ArrowRight,
   AlertTriangle,
-  Sparkles,
+  ArrowRight,
+  ChevronDown,
   Info,
+  Lightbulb,
+  Network,
+  Sparkles,
+  UserCircle,
+  type LucideIcon,
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { StudyToday } from '@/components/StudyToday';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
+import { LEARNER_SHORTCUTS, MANAGE_LINKS, dashboardHeading } from '@/lib/dashboard';
 import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/')({
   component: HomePage,
 });
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
+const SHORTCUT_ICONS: Record<string, { icon: LucideIcon; tint: string }> = {
+  '/recommendations': { icon: Lightbulb, tint: 'bg-pink-500/10 text-pink-600 dark:text-pink-400' },
+  '/gaps': { icon: AlertTriangle, tint: 'bg-red-500/10 text-red-600 dark:text-red-400' },
+  '/graph': { icon: Network, tint: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' },
+  '/profile': { icon: UserCircle, tint: 'bg-slate-500/10 text-slate-600 dark:text-slate-300' },
 };
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.5, ease: 'easeOut' as const },
-  },
-};
-
-const featureCards = [
-  {
-    href: '/admin/learners',
-    label: 'Learners',
-    description: 'Manage learner profiles and psychometric data',
-    icon: Users,
-    gradient: 'from-blue-500 to-cyan-500',
-    bg: 'bg-blue-500/10',
-  },
-  {
-    href: '/admin/concepts',
-    label: 'Concepts',
-    description: 'Build your knowledge graph with concept nodes',
-    icon: BookOpen,
-    gradient: 'from-emerald-500 to-green-500',
-    bg: 'bg-emerald-500/10',
-  },
-  {
-    href: '/admin/prerequisites',
-    label: 'Prerequisites',
-    description: 'Define concept dependencies and relationships',
-    icon: GitBranch,
-    gradient: 'from-purple-500 to-violet-500',
-    bg: 'bg-purple-500/10',
-  },
-  {
-    href: '/admin/states',
-    label: 'Knowledge States',
-    description: 'Track learner progress and mastery levels',
-    icon: BarChart3,
-    gradient: 'from-amber-500 to-orange-500',
-    bg: 'bg-amber-500/10',
-  },
-  {
-    href: '/recommendations',
-    label: 'Recommendations',
-    description: 'ZPD-powered personalized learning paths',
-    icon: Lightbulb,
-    gradient: 'from-pink-500 to-rose-500',
-    bg: 'bg-pink-500/10',
-    badge: 'ZPD',
-  },
-  {
-    href: '/gaps',
-    label: 'Gap Analysis',
-    description: 'Detect and remediate knowledge gaps',
-    icon: AlertTriangle,
-    gradient: 'from-red-500 to-orange-500',
-    bg: 'bg-red-500/10',
-  },
-  {
-    href: '/graph',
-    label: 'Graph View',
-    description: 'Interactive knowledge graph visualization',
-    icon: Network,
-    gradient: 'from-indigo-500 to-blue-500',
-    bg: 'bg-indigo-500/10',
-  },
-  {
-    href: '/profile',
-    label: 'My Profile',
-    description: 'See how you learn best and update your profile',
-    icon: UserCircle,
-    gradient: 'from-slate-500 to-gray-500',
-    bg: 'bg-slate-500/10',
-  },
-];
 
 function HomePage() {
+  const { user } = Route.useRouteContext();
+
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-background">
       <Sidebar />
 
       <main className="flex-1 min-w-0 relative overflow-hidden">
         {/* Background Effects */}
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
           <EtherealShadow
             color="rgba(139, 92, 246, 0.15)"
             animation={{ scale: 30, speed: 40 }}
@@ -125,238 +44,131 @@ function HomePage() {
           />
         </div>
 
-        <div className="relative z-10 px-4 py-8 sm:px-8 sm:py-10 max-w-7xl mx-auto">
-          {/* Hero Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: 'easeOut' as const }}
-            className="mb-8"
-          >
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-foreground mb-4">
-              Welcome to{' '}
-              <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-                LearnGraph
-              </span>
+        <div className="relative z-10 px-4 py-6 sm:px-8 sm:py-8 max-w-7xl mx-auto">
+          {/* Short greeting: the study loop below is the main content. */}
+          <header className="mb-5 sm:mb-6" data-testid="dashboard-header">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              {dashboardHeading(user)}
             </h1>
-
-            <p className="text-lg text-muted-foreground max-w-2xl mb-6">
-              Graph-Based Adaptive Education System. Personalized tutoring that
-              makes any LLM smarter about each specific learner.
+            <p className="mt-1 text-sm sm:text-base text-muted-foreground">
+              Review what’s due, then learn something new.
             </p>
-
-            <Link
-              to="/about"
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors border border-primary/20"
-            >
-              <Info className="w-4 h-4" />
-              Learn what makes LearnGraph different
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </motion.div>
+          </header>
 
           {/* Core study loop: progress, reviews due, what to learn next */}
           <StudyToday />
 
-          {/* Info Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-            className="glass-card mb-10 p-6"
-          >
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h2 className="text-lg font-semibold text-foreground mb-2">
-                  Works With Any Knowledge Domain
-                </h2>
-                <p className="text-muted-foreground text-sm mb-4">
-                  LearnGraph is a metadata and recommendation layer — not a
-                  content management system. Model any subject: math,
-                  programming, music theory, languages, or corporate training.
-                </p>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="rounded-xl bg-primary/5 p-4 border border-primary/10">
-                    <h3 className="font-medium text-foreground text-sm mb-2">
-                      What LearnGraph Stores
-                    </h3>
-                    <ul className="text-muted-foreground text-xs space-y-1.5">
-                      <li className="flex items-center gap-2">
-                        <span className="w-1 h-1 rounded-full bg-primary" />
-                        Concept names and prerequisites
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="w-1 h-1 rounded-full bg-primary" />
-                        Difficulty ratings and Bloom levels
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="w-1 h-1 rounded-full bg-primary" />
-                        Learner profiles and psychometrics
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="w-1 h-1 rounded-full bg-primary" />
-                        Mastery levels and learning history
-                      </li>
-                    </ul>
-                  </div>
-                  <div className="rounded-xl bg-emerald-500/5 p-4 border border-emerald-500/10">
-                    <h3 className="font-medium text-foreground text-sm mb-2">
-                      What LearnGraph Computes
-                    </h3>
-                    <ul className="text-muted-foreground text-xs space-y-1.5">
-                      <li className="flex items-center gap-2">
-                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                        "What should this learner study next?"
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                        "How should we teach this concept?"
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                        Personalized scaffolding strategies
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                        Learning path recommendations
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Feature Cards Grid */}
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="grid md:grid-cols-2 lg:grid-cols-4 gap-4"
-          >
-            {featureCards.map((card) => {
-              const Icon = card.icon;
-              return (
-                <motion.div key={card.href} variants={itemVariants}>
-                  <Link
-                    to={card.href as any}
-                    className={cn(
-                      'group block p-5 rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm',
-                      'transition-all duration-300 hover:shadow-lg hover:shadow-primary/5',
-                      'hover:-translate-y-1 hover:border-border'
-                    )}
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div
-                        className={cn(
-                          'p-2.5 rounded-xl',
-                          card.bg,
-                          'group-hover:scale-110 transition-transform duration-300'
-                        )}
-                      >
-                        <Icon
-                          className={cn(
-                            'w-5 h-5 bg-gradient-to-br bg-clip-text',
-                            card.gradient
-                          )}
-                          style={{
-                            color: 'transparent',
-                            backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))`,
-                          }}
-                        />
-                        <Icon
-                          className={cn('w-5 h-5 absolute opacity-100')}
-                          style={{
-                            marginTop: '-20px',
-                            color: card.gradient.includes('blue')
-                              ? '#3b82f6'
-                              : card.gradient.includes('emerald')
-                              ? '#10b981'
-                              : card.gradient.includes('purple')
-                              ? '#a855f7'
-                              : card.gradient.includes('amber')
-                              ? '#f59e0b'
-                              : card.gradient.includes('pink')
-                              ? '#ec4899'
-                              : card.gradient.includes('red')
-                              ? '#ef4444'
-                              : card.gradient.includes('indigo')
-                              ? '#6366f1'
-                              : '#64748b',
-                          }}
-                        />
-                      </div>
-                      {card.badge && (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                          {card.badge}
-                        </span>
+          {/* Learner shortcuts */}
+          <section aria-labelledby="explore-heading" className="mb-8">
+            <h2 id="explore-heading" className="text-base font-semibold text-foreground mb-3">
+              Keep exploring
+            </h2>
+            <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" aria-labelledby="explore-heading">
+              {LEARNER_SHORTCUTS.map((card) => {
+                const { icon: Icon, tint } = SHORTCUT_ICONS[card.href] ?? {
+                  icon: Sparkles,
+                  tint: 'bg-primary/10 text-primary',
+                };
+                return (
+                  <li key={card.href}>
+                    <Link
+                      to={card.href as any}
+                      className={cn(
+                        'group flex items-start gap-3 h-full p-4 rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm',
+                        'transition-colors hover:border-border hover:bg-card/80',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                       )}
-                    </div>
+                    >
+                      <span className={cn('p-2 rounded-xl shrink-0', tint)}>
+                        <Icon className="w-5 h-5" aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1 font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
+                          {card.label}
+                          <ArrowRight
+                            className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform"
+                            aria-hidden="true"
+                          />
+                        </span>
+                        <span className="block text-xs text-muted-foreground leading-relaxed mt-0.5">
+                          {card.description}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
 
-                    <h3 className="font-semibold text-foreground mb-1.5 group-hover:text-primary transition-colors">
-                      {card.label}
-                    </h3>
-                    <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-                      {card.description}
-                    </p>
-
-                    <div className="flex items-center text-xs text-muted-foreground group-hover:text-primary transition-colors">
-                      <span>Explore</span>
-                      <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-
-          {/* Quick Access */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="mt-10 p-5 rounded-2xl border border-border/50 bg-card/30 backdrop-blur-sm"
+          {/* Background + data management: collapsed so it never pushes the study loop down. */}
+          <details
+            className="group/about rounded-2xl border border-border/50 bg-card/30 backdrop-blur-sm"
+            data-testid="dashboard-about"
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Database className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <h3 className="font-medium text-foreground text-sm">
-                    Data Entry Guide
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Learn how to structure your educational content
-                  </p>
-                </div>
+            <summary
+              className={cn(
+                'flex items-center gap-3 cursor-pointer list-none p-4 min-h-11 rounded-2xl',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                '[&::-webkit-details-marker]:hidden',
+              )}
+            >
+              <Info className="w-5 h-5 text-muted-foreground shrink-0" aria-hidden="true" />
+              <span className="flex-1 min-w-0">
+                <span className="block font-medium text-sm text-foreground">About LearnGraph &amp; your data</span>
+                <span className="block text-xs text-muted-foreground">
+                  How it works, and where to edit learners and concepts
+                </span>
+              </span>
+              <ChevronDown
+                className="w-4 h-4 text-muted-foreground transition-transform group-open/about:rotate-180"
+                aria-hidden="true"
+              />
+            </summary>
+
+            <div className="px-4 pb-5 space-y-5">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground mb-1">Works with any subject</h2>
+                <p className="text-sm text-muted-foreground max-w-3xl">
+                  LearnGraph keeps track of concepts, how they depend on each other, and how well each
+                  learner knows them — then suggests what to review and what to learn next. Model any
+                  subject: math, programming, music theory, languages, or workplace training.
+                </p>
+                <Link
+                  to="/about"
+                  className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-primary hover:underline"
+                >
+                  Learn what makes LearnGraph different
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </Link>
               </div>
-              <Link
-                to="/data-entry"
-                className="px-4 py-2 text-sm font-medium rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-2"
-              >
-                Get Started
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </motion.div>
 
-          {/* Footer */}
-          <motion.footer
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1 }}
-            className="mt-12 text-center space-y-2"
-          >
-            <p className="text-xs text-muted-foreground">
-              Phase 5: Knowledge Gap Analysis & Spaced Repetition
-            </p>
+              <div>
+                <h2 id="manage-heading" className="text-sm font-semibold text-foreground mb-2">
+                  Manage data
+                </h2>
+                <ul className="flex flex-wrap gap-2" aria-labelledby="manage-heading">
+                  {MANAGE_LINKS.map((l) => (
+                    <li key={l.href}>
+                      <Link
+                        to={l.href as any}
+                        title={l.description}
+                        className="inline-flex items-center min-h-10 px-3 py-2 text-sm rounded-xl border border-border/60 bg-background/60 text-foreground hover:border-primary/40 hover:text-primary transition-colors"
+                      >
+                        {l.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </details>
+
+          <footer className="mt-10 text-center">
             <p className="text-xs text-muted-foreground/70">
               Created by <span className="font-medium text-foreground/60">Dr. Lee</span>
             </p>
-          </motion.footer>
+          </footer>
         </div>
       </main>
     </div>
