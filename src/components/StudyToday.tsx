@@ -15,6 +15,7 @@ import {
   applyReviewOutcome,
   applySnooze,
   applyStudyOutcome,
+  focusAfterAnswer,
   summarizeProgress,
   type ProgressSummary,
   type ReviewOutcome,
@@ -36,6 +37,16 @@ interface ReviewItem {
   predictedRetention: number;
   nextReviewDate: string;
   priority: 'urgent' | 'normal' | 'low';
+}
+
+type TodayList = 'reviews' | 'next';
+
+/** An answer whose list is reloading: where keyboard focus should land afterwards. */
+interface PendingFocus {
+  learnerId: string;
+  list: TodayList;
+  conceptId: string;
+  before: string[];
 }
 
 interface TodayData {
@@ -91,6 +102,10 @@ export function StudyToday() {
   // Only the latest request may update the panel (switching learners while a
   // load is in flight must not show — or save against — the previous learner).
   const requestSeq = useRef(0);
+  const sectionRef = useRef<HTMLElement>(null);
+  const listRefs = useRef<Record<TodayList, HTMLUListElement | null>>({ reviews: null, next: null });
+  const headingRefs = useRef<Record<TodayList, HTMLHeadingElement | null>>({ reviews: null, next: null });
+  const pendingFocus = useRef<PendingFocus | null>(null);
 
   useEffect(() => {
     setOnboardingSkipped(readStored(skippedKey) === '1');
@@ -159,6 +174,7 @@ export function StudyToday() {
   // (Not cleared on subject changes: that reload is announced by its own notice.)
   useEffect(() => {
     setNotice(null);
+    pendingFocus.current = null;
   }, [learnerId]);
 
   const chooseLearner = (id: string) => {
@@ -202,8 +218,42 @@ export function StudyToday() {
     setOnboardingOpen(false);
   };
 
+  // After an answer reloads the lists, put keyboard focus back where the
+  // learner was (the answered item usually disappears, and its buttons were
+  // disabled while saving, so focus would otherwise fall to <body>).
+  useEffect(() => {
+    const pending = pendingFocus.current;
+    if (!pending || busy || !data || data.learnerId !== pending.learnerId) return;
+    pendingFocus.current = null;
+    const after = pending.list === 'reviews' ? data.reviews.map((r) => r.conceptId) : data.next.map((r) => r.concept.conceptId);
+    const target = focusAfterAnswer(pending.before, pending.conceptId, after);
+    requestAnimationFrame(() => {
+      // Don't steal focus if the learner already moved on (clicked or tabbed elsewhere).
+      const active = document.activeElement;
+      const section = sectionRef.current;
+      if (!section || (active && active !== document.body && !section.contains(active))) return;
+      if (target.kind === 'heading') {
+        headingRefs.current[pending.list]?.focus();
+        return;
+      }
+      const item = Array.from(listRefs.current[pending.list]?.children ?? []).find(
+        (li) => li instanceof HTMLElement && li.dataset.conceptId === target.conceptId,
+      );
+      const button = item?.querySelector<HTMLButtonElement>('button:not([disabled])');
+      if (button) button.focus();
+      else headingRefs.current[pending.list]?.focus();
+    });
+  }, [data, busy]);
+
   const save = async (concept: ConceptNode, outcome: StudyOutcome | ReviewOutcome | SnoozeOutcome) => {
     if (!db || !learnerId || busy || data?.learnerId !== learnerId) return;
+    const list: TodayList = outcome === 'got-it' || outcome === 'started' ? 'next' : 'reviews';
+    pendingFocus.current = {
+      learnerId,
+      list,
+      conceptId: concept.conceptId,
+      before: list === 'reviews' ? data.reviews.map((r) => r.conceptId) : data.next.map((r) => r.concept.conceptId),
+    };
     setBusy(concept.conceptId);
     setNotice(null);
     setWelcome(null);
@@ -264,7 +314,7 @@ export function StudyToday() {
   const progress = current?.progress;
 
   return (
-    <section aria-labelledby="today-heading" className="glass-card mb-10 p-4 sm:p-6" data-testid="study-today">
+    <section ref={sectionRef} aria-labelledby="today-heading" className="glass-card mb-10 p-4 sm:p-6" data-testid="study-today">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 id="today-heading" className="text-lg font-semibold text-foreground">
@@ -388,7 +438,13 @@ export function StudyToday() {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         {/* Reviews due */}
         <div>
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <h3
+            ref={(el) => {
+              headingRefs.current.reviews = el;
+            }}
+            tabIndex={-1}
+            className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
             <RotateCcw className="h-4 w-4 text-amber-500" aria-hidden="true" /> Review now
             {current && current.reviewsDue > 0 && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-400">
@@ -403,9 +459,15 @@ export function StudyToday() {
               Nothing to review right now. Concepts come back here when they start to fade.
             </p>
           ) : (
-            <ul className="space-y-2" aria-label="Reviews due">
+            <ul
+              ref={(el) => {
+                listRefs.current.reviews = el;
+              }}
+              className="space-y-2"
+              aria-label="Reviews due"
+            >
               {current.reviews.map((item) => (
-                <li key={item.conceptId} className="rounded-xl border border-border/50 bg-background/40 p-3">
+                <li key={item.conceptId} data-concept-id={item.conceptId} className="rounded-xl border border-border/50 bg-background/40 p-3">
                   <p className="flex flex-wrap items-center gap-2 font-medium text-foreground">
                     {item.concept.name}
                     {item.priority === 'urgent' && (
@@ -451,7 +513,13 @@ export function StudyToday() {
 
         {/* Learn next */}
         <div>
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <h3
+            ref={(el) => {
+              headingRefs.current.next = el;
+            }}
+            tabIndex={-1}
+            className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
             <Target className="h-4 w-4 text-indigo-500" aria-hidden="true" /> Learn next
           </h3>
           {!current ? (
@@ -481,9 +549,15 @@ export function StudyToday() {
               )}
             </p>
           ) : (
-            <ul className="space-y-2" aria-label="Recommended next concepts">
+            <ul
+              ref={(el) => {
+                listRefs.current.next = el;
+              }}
+              className="space-y-2"
+              aria-label="Recommended next concepts"
+            >
               {current.next.map((rec) => (
-                <li key={rec.concept.conceptId} className="rounded-xl border border-border/50 bg-background/40 p-3">
+                <li key={rec.concept.conceptId} data-concept-id={rec.concept.conceptId} className="rounded-xl border border-border/50 bg-background/40 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-medium text-foreground">{rec.concept.name}</p>
                     <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
