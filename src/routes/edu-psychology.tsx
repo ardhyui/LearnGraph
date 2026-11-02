@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 
 export const Route = createFileRoute('/edu-psychology')({
+  head: () => pageHead('/edu-psychology'),
   component: EduPsychologyPage,
 });
 

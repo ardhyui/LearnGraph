@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState, useEffect, useCallback, useId, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -39,6 +40,7 @@ import {
 } from 'lucide-react';
 
 export const Route = createFileRoute('/graph')({
+  head: () => pageHead('/graph'),
   component: GraphPage,
 });
 

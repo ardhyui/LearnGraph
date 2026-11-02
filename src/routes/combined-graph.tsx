@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -36,6 +37,7 @@ import {
 import { useLearners, useConcepts, useDB } from '@/lib/DBContext';
 
 export const Route = createFileRoute('/combined-graph')({
+  head: () => pageHead('/combined-graph'),
   component: CombinedGraphPage,
 });
 

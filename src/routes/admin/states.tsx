@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
@@ -9,6 +10,7 @@ import { useLearners, useConcepts, useDB } from '@/lib/DBContext';
 import type { KnowledgeState } from '@/lib/graph/types';
 
 export const Route = createFileRoute('/admin/states')({
+  head: () => pageHead('/admin/states'),
   component: StatesPage,
 });
 

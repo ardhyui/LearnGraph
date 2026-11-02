@@ -1,4 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState, useCallback, useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, BellOff, BookOpen, Clock, Brain, Target, RefreshCw, TrendingDown, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
@@ -11,6 +12,7 @@ import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 
 export const Route = createFileRoute('/gaps')({
+  head: () => pageHead('/gaps'),
   component: GapsDashboard,
 });
 

@@ -94,6 +94,7 @@ try {
   );
 
   const h1Counts = [];
+  const titles = [];
   for (const [path] of PAGES) {
     const before = errors.length;
     const res = await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
@@ -109,6 +110,18 @@ try {
     );
     const h1 = await page.locator('h1').count();
     if (h1 !== 1) h1Counts.push(`${path}: ${h1}`);
+    titles.push([path, await page.title()]);
+  }
+  // Each page names itself in the browser tab (WCAG 2.4.2), not one shared title.
+  {
+    const bad = titles.filter(([, t]) => !/^\S.* · LearnGraph$/.test(t));
+    const distinct = new Set(titles.map(([, t]) => t)).size === titles.length;
+    const dash = titles.find(([p]) => p === '/')?.[1];
+    check(
+      bad.length === 0 && distinct && dash === 'Dashboard · LearnGraph',
+      'every page has its own "<page> · LearnGraph" title',
+      [...bad.map(([p, t]) => `${p}: "${t}"`), distinct ? '' : 'duplicate titles'].filter(Boolean).join('; '),
+    );
   }
   // Screen readers: one page title per page (the sidebar brand is not a heading).
   check(h1Counts.length === 0, 'every page has exactly one <h1>', h1Counts.join('; '));
@@ -160,6 +173,21 @@ try {
       await page.waitForTimeout(300);
     }
     check(!(await link('Concepts').isVisible()), 'navigation: a group can be collapsed again');
+    // In-app navigation updates the tab title and is announced to screen readers.
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const announcer = page.locator('#route-announcer');
+    const quietOnLoad = (await announcer.innerText().catch(() => 'missing')).trim() === '';
+    await link('Gap Analysis').click();
+    await page.waitForURL((u) => u.pathname === '/gaps', { timeout: 15000 });
+    const said = await page
+      .waitForFunction(() => document.getElementById('route-announcer')?.textContent === 'Gap Analysis · LearnGraph', null, { timeout: 10000 })
+      .then(() => true, () => false);
+    const title = await page.title();
+    check(
+      quietOnLoad && said && title === 'Gap Analysis · LearnGraph' && (await announcer.getAttribute('aria-live')) === 'polite',
+      'navigation: moving to another page updates the title and announces it',
+      `title "${title}", announced ${said}, quiet on load ${quietOnLoad}`,
+    );
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'navigation has no page errors', newErrors.join(' | '));
   }
@@ -812,11 +840,24 @@ try {
       'unknown URL shows the friendly 404 page',
       `HTTP ${res?.status()}${newErrors.length ? `, ${newErrors.join(' | ')}` : ''}`,
     );
+    const notFoundTitle = await page
+      .waitForFunction(() => document.title === 'Page not found · LearnGraph', null, { timeout: 10000 })
+      .then(() => true, () => false);
+    check(notFoundTitle, '404 page is titled "Page not found"', await page.title());
     await page.getByRole('link', { name: 'Back to dashboard' }).click();
     await page.waitForURL((u) => u.pathname === '/', { timeout: 15000 }).then(
       () => check(true, '404 page links back to the dashboard'),
       () => check(false, '404 page links back to the dashboard', page.url()),
     );
+    await page.waitForFunction(() => document.title === 'Dashboard · LearnGraph', null, { timeout: 10000 }).catch(() => {});
+    check(
+      (await page.title()) === 'Dashboard · LearnGraph',
+      'leaving the 404 page restores the page title',
+      await page.title(),
+    );
+    const robots = await fetch(`${BASE}/robots.txt`);
+    const robotsText = robots.ok ? await robots.text() : '';
+    check(robots.ok && /Disallow: \//.test(robotsText) && /Allow: \/sign-in/.test(robotsText), 'robots.txt is served', `HTTP ${robots.status}`);
   }
 
   // Graph pages rebuild their React Flow graph from a useEffect keyed on the

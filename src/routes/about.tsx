@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { motion } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
 import {
@@ -39,6 +40,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/about')({
+  head: () => pageHead('/about'),
   component: AboutPage,
 });
 

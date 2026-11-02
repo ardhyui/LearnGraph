@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { pageHead } from '@/lib/page-titles';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -28,6 +29,7 @@ import { useDB, useLearners, useConcepts, useEdges, useKnowledgeStates } from '@
 import { uuidv4 } from '@/lib/uuid';
 
 export const Route = createFileRoute('/data-entry')({
+  head: () => pageHead('/data-entry'),
   component: DataEntryPage,
 });
 

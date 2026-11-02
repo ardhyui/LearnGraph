@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
@@ -20,6 +21,7 @@ import { useDB } from '@/lib/DBContext';
 import { uuidv4 } from '@/lib/uuid';
 
 export const Route = createFileRoute('/tests')({
+  head: () => pageHead('/tests'),
   component: TestsPage,
 });
 

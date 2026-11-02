@@ -1,3 +1,4 @@
+import { pageHead } from '@/lib/page-titles';
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { z } from 'zod';
@@ -19,7 +20,7 @@ export const Route = createFileRoute('/sign-in')({
   beforeLoad: ({ context, search }) => {
     if (context.user) throw redirect({ href: safeRedirect(search.redirect) });
   },
-  head: () => ({ meta: [{ title: 'Sign in - LearnGraph' }] }),
+  head: () => pageHead('/sign-in'),
   component: SignInPage,
 });
 

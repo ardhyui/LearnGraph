@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
@@ -8,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useEdges, useConcepts, useDB } from '@/lib/DBContext';
 
 export const Route = createFileRoute('/admin/prerequisites')({
+  head: () => pageHead('/admin/prerequisites'),
   component: PrerequisitesPage,
 });
 

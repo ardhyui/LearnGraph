@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { pageHead } from '@/lib/page-titles';
 import {
   AlertTriangle,
   ArrowRight,
@@ -17,6 +18,7 @@ import { LEARNER_SHORTCUTS, MANAGE_LINKS, dashboardHeading } from '@/lib/dashboa
 import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/')({
+  head: () => pageHead('/'),
   component: HomePage,
 });
 
