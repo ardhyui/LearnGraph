@@ -14,16 +14,15 @@ import type { ConceptNode, KnowledgeState, ZPDRecommendation } from '@/lib/graph
 import {
   applyReviewOutcome,
   applyStudyOutcome,
-  pickActiveLearner,
   summarizeProgress,
   type ProgressSummary,
   type ReviewOutcome,
   type StudyOutcome,
 } from '@/lib/study';
+import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
 import { cn } from '@/lib/utils';
 
-const ACTIVE_LEARNER_KEY = 'learngraph.activeLearner';
 /** Set (per account) when the user chose to explore the example learners instead of onboarding. */
 const ONBOARDING_SKIPPED_KEY = 'learngraph.onboardingSkipped';
 
@@ -59,9 +58,6 @@ function store(key: string, value: string) {
   }
 }
 
-const readRemembered = () => readStored(ACTIVE_LEARNER_KEY);
-const remember = (id: string) => store(ACTIVE_LEARNER_KEY, id);
-
 export function StudyToday() {
   const { db, isReady } = useDB();
   const { learners, loading: learnersLoading, refresh: refreshLearners } = useLearners();
@@ -72,7 +68,11 @@ export function StudyToday() {
   const [onboardingSkipped, setOnboardingSkipped] = useState<boolean | null>(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [welcome, setWelcome] = useState<string | null>(null);
-  const [learnerId, setLearnerId] = useState<string | null>(null);
+  // Shared with the other learner pages (Recommendations, Gaps, Graph, Profile).
+  const [learnerId, setLearnerId] = useActiveLearner(
+    learners.map((l) => l.userId),
+    learnersLoading,
+  );
   const [data, setData] = useState<TodayData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,13 +95,6 @@ export function StudyToday() {
   const activeLearner = learners.find((l) => l.userId === learnerId);
   const focus = focusDomains(activeLearner);
   const focusKey = focus.join('\n');
-
-  // Choose the learner once the list is known (remembered choice, else first).
-  useEffect(() => {
-    if (learnersLoading) return;
-    const ids = learners.map((l) => l.userId);
-    setLearnerId((current) => pickActiveLearner(ids, current ?? readRemembered()));
-  }, [learners, learnersLoading]);
 
   const load = useCallback(async () => {
     if (!db || !isReady || !learnerId) return;
@@ -158,7 +151,6 @@ export function StudyToday() {
   }, [learnerId]);
 
   const chooseLearner = (id: string) => {
-    remember(id);
     setWelcome(null);
     setEditingFocus(false);
     setLearnerId(id);
@@ -185,7 +177,6 @@ export function StudyToday() {
   };
 
   const onboarded = async (id: string, name: string) => {
-    remember(id);
     // Reload the list first, so the welcome step doesn't flash back while the
     // new learner is not in it yet.
     await refreshLearners();

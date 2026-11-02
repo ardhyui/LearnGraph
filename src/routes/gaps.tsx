@@ -1,10 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState, useCallback } from 'react';
+import { Link, createFileRoute } from '@tanstack/react-router';
+import { useState, useCallback, useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Clock, Brain, Target, RefreshCw, TrendingDown, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
 import { useLearners, useDB } from '@/lib/DBContext';
+import { useActiveLearner } from '@/lib/active-learner';
 
 export const Route = createFileRoute('/gaps')({
   component: GapsDashboard,
@@ -61,8 +62,14 @@ const itemVariants = {
 
 function GapsDashboard() {
   const { db, isLoading: dbLoading, error: dbError, isReady } = useDB();
-  const { learners } = useLearners();
-  const [selectedLearnerId, setSelectedLearnerId] = useState<string>('');
+  const { learners, loading: learnersLoading } = useLearners();
+  // Same learner as on the dashboard (and the other learner pages).
+  const [activeLearner, setSelectedLearnerId] = useActiveLearner(
+    learners.map((l) => l.userId),
+    learnersLoading,
+  );
+  const selectedLearnerId = activeLearner ?? '';
+  const learnerSelectId = useId();
   const [loading, setLoading] = useState(false);
   const [gaps, setGaps] = useState<{
     missing: GapItem[];
@@ -80,13 +87,20 @@ function GapsDashboard() {
     gaps: { total: number };
   } | null>(null);
 
+  // Only the latest request may update the page (switching learners while a
+  // load is in flight must not show the previous learner's gaps).
+  const requestSeq = useRef(0);
+
   const fetchGapData = useCallback(async (userId: string) => {
     if (!db || !isReady) return;
+    const seq = ++requestSeq.current;
+    const stale = () => seq !== requestSeq.current;
 
     setLoading(true);
     try {
       // Detect gaps using the database
       const detectedGaps = await db.detectGaps(userId);
+      if (stale()) return;
       // Map the database format to our local GapItem format
       const missing: GapItem[] = detectedGaps.missing.map(g => ({
         conceptId: g.conceptId,
@@ -126,6 +140,7 @@ function GapsDashboard() {
 
       // Get review queue - already returns {queue, stats}
       const reviewResult = await db.getReviewQueue(userId);
+      if (stale()) return;
       setReviewQueue({
         queue: reviewResult.queue.map(item => ({
           conceptId: item.conceptId,
@@ -141,6 +156,7 @@ function GapsDashboard() {
 
       // Generate remediation plan
       const remediationResult = await db.generateRemediationPlan(userId);
+      if (stale()) return;
       setRemediation({
         plan: {
           steps: remediationResult.plan.steps.map(step => ({
@@ -158,20 +174,19 @@ function GapsDashboard() {
         gaps: { total: remediationResult.gaps.summary.total },
       });
     } catch (error) {
+      if (stale()) return;
       console.error('Error fetching gap data:', error);
     }
-    setLoading(false);
+    if (!stale()) setLoading(false);
   }, [db, isReady]);
 
+  // Load the analysis for the active learner (on arrival and when switching).
+  useEffect(() => {
+    if (selectedLearnerId) fetchGapData(selectedLearnerId);
+  }, [selectedLearnerId, fetchGapData]);
+
   const handleLearnerChange = (userId: string) => {
-    setSelectedLearnerId(userId);
-    if (userId) {
-      fetchGapData(userId);
-    } else {
-      setGaps(null);
-      setReviewQueue(null);
-      setRemediation(null);
-    }
+    if (userId) setSelectedLearnerId(userId);
   };
 
   const getGapIcon = (type: string) => {
@@ -253,14 +268,14 @@ function GapsDashboard() {
           transition={{ delay: 0.1, duration: 0.5 }}
           className="glass-card p-5 mb-6"
         >
-          <label className="block text-sm font-medium text-foreground mb-2">Select Learner</label>
+          <label htmlFor={learnerSelectId} className="block text-sm font-medium text-foreground mb-2">Learner</label>
           <div className="flex gap-4">
             <select
+              id={learnerSelectId}
               value={selectedLearnerId}
               onChange={(e) => handleLearnerChange(e.target.value)}
               className="form-input flex-1"
             >
-              <option value="">Choose a learner...</option>
               {learners.map((learner) => (
                 <option key={learner.userId} value={learner.userId}>
                   {learner.name || learner.userId}
@@ -568,7 +583,7 @@ function GapsDashboard() {
             </motion.div>
           )}
 
-          {!selectedLearnerId && (
+          {!selectedLearnerId && !learnersLoading && (
             <motion.div
               key="empty"
               initial={{ opacity: 0 }}
@@ -577,10 +592,13 @@ function GapsDashboard() {
               className="glass-card text-center py-16"
             >
               <Brain size={64} className="mx-auto text-muted-foreground/30 mb-4" />
-              <h3 className="text-xl font-medium text-foreground">Select a learner to analyze</h3>
+              <h3 className="text-xl font-medium text-foreground">No learner yet</h3>
               <p className="text-muted-foreground mt-2">
-                Choose a learner from the dropdown to view their knowledge gaps and review schedule
+                Create your learning plan on the dashboard, then come back to see what needs attention.
               </p>
+              <Link to="/" className="btn btn-primary mt-4 inline-flex">
+                Go to the dashboard
+              </Link>
             </motion.div>
           )}
         </AnimatePresence>

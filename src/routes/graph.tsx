@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useId, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ReactFlow,
@@ -21,6 +21,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { cn } from '@/lib/utils';
 import { useLearners, useConcepts, useEdges, useDB } from '@/lib/DBContext';
+import { useActiveLearner } from '@/lib/active-learner';
 import {
   RefreshCw,
   User,
@@ -186,13 +187,25 @@ const nodeTypes: NodeTypes = {
 
 function GraphPage() {
   const { db, isLoading: dbLoading, error: dbError, isReady } = useDB();
-  const { learners } = useLearners();
+  const { learners, loading: learnersLoading } = useLearners();
   const { concepts } = useConcepts();
   const { edges: dbEdges } = useEdges();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [selectedLearner, setSelectedLearner] = useState('');
+  // Shows the active learner's progress (shared with the dashboard and other
+  // learner pages); "No overlay" hides it on this page without forgetting it.
+  const [activeLearner, setActiveLearner] = useActiveLearner(
+    learners.map((l) => l.userId),
+    learnersLoading,
+  );
+  const [overlayOff, setOverlayOff] = useState(false);
+  const selectedLearner = overlayOff ? '' : (activeLearner ?? '');
+  const learnerSelectId = useId();
+  const setSelectedLearner = (id: string) => {
+    setOverlayOff(!id);
+    if (id) setActiveLearner(id);
+  };
   const [loading, setLoading] = useState(false);
   const [knowledgeStatesCount, setKnowledgeStatesCount] = useState(0);
   const [overlay, setOverlay] = useState<GraphOverlay | undefined>();
@@ -206,10 +219,14 @@ function GraphPage() {
     knowledgeStates: knowledgeStatesCount,
   }), [learners.length, concepts.length, dbEdges.length, knowledgeStatesCount]);
 
+  // Only the latest build may update the graph.
+  const buildSeq = useRef(0);
+
   // Build graph when data changes
   const buildGraph = useCallback(async () => {
     if (!isReady || !db) return;
 
+    const seq = ++buildSeq.current;
     setLoading(true);
     try {
       // Count all knowledge states
@@ -252,6 +269,8 @@ function GraphPage() {
           forgottenConcepts,
         };
       }
+      // A newer build (e.g. another learner was picked meanwhile) wins.
+      if (seq !== buildSeq.current) return;
       setOverlay(graphOverlay);
 
       // Convert concepts to nodes
@@ -288,7 +307,7 @@ function GraphPage() {
     } catch (err) {
       console.error('Failed to build graph:', err);
     } finally {
-      setLoading(false);
+      if (seq === buildSeq.current) setLoading(false);
     }
   }, [db, isReady, concepts, dbEdges, learners, selectedLearner, setNodes, setEdges]);
 
@@ -499,8 +518,9 @@ function GraphPage() {
 
               <div className="flex items-center gap-3 flex-1">
                 <User size={18} className="text-muted-foreground" />
-                <label className="text-sm text-muted-foreground">View as Learner:</label>
+                <label htmlFor={learnerSelectId} className="text-sm text-muted-foreground">Show progress of</label>
                 <select
+                  id={learnerSelectId}
                   value={selectedLearner}
                   onChange={(e) => setSelectedLearner(e.target.value)}
                   className="flex-1 max-w-xs px-4 py-2.5 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all text-foreground"

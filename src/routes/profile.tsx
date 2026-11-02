@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User,
@@ -42,6 +42,7 @@ import {
   Assessment,
 } from '@/lib/assessments';
 import { useDB, useLearners } from '@/lib/DBContext';
+import { useActiveLearner } from '@/lib/active-learner';
 import { demoLearners } from '@/lib/demo-data';
 
 export const Route = createFileRoute('/profile')({
@@ -302,8 +303,13 @@ function ProfilePage() {
   const { isLoading: dbLoading, error: dbError } = useDB();
   const { learners: learnersData, loading: learnersLoading, getLearner, updateLearner, createLearner } = useLearners();
 
-  // Basic state
-  const [selectedLearnerId, setSelectedLearnerId] = useState<string>('');
+  // Basic state — the learner is shared with the dashboard and other learner pages.
+  const [activeLearner, setSelectedLearnerId] = useActiveLearner(
+    learnersData.map((l) => l.userId),
+    learnersLoading,
+  );
+  const selectedLearnerId = activeLearner ?? '';
+  const learnerSelectId = useId();
   const [profile, setProfile] = useState<LearnerProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -334,21 +340,17 @@ function ProfilePage() {
   // Batch answers for "all questions" view: domainId -> questionId -> answer
   const [batchAnswers, setBatchAnswers] = useState<Record<string, Record<string, number>>>({});
 
-  // Select first learner when data loads
-  useEffect(() => {
-    if (learners.length > 0 && !selectedLearnerId) {
-      setSelectedLearnerId(learners[0].userId);
-    }
-  }, [learners, selectedLearnerId]);
-
   // Load selected learner's profile
   useEffect(() => {
     if (!selectedLearnerId) return;
+    // Switching learners while a load is in flight must not show the previous one.
+    let cancelled = false;
 
     const loadProfile = async () => {
       setProfileLoading(true);
       try {
         const data = await getLearner(selectedLearnerId);
+        if (cancelled) return;
         if (data) {
           setProfile(data);
 
@@ -376,14 +378,18 @@ function ProfilePage() {
           setModeConfirmed(false);
         }
       } catch (err) {
+        if (cancelled) return;
         console.error('Failed to load profile:', err);
         setError('Failed to load profile');
       } finally {
-        setProfileLoading(false);
+        if (!cancelled) setProfileLoading(false);
       }
     };
 
     loadProfile();
+    return () => {
+      cancelled = true;
+    };
   }, [selectedLearnerId, getLearner]);
 
   const toggleCategory = (categoryId: string) => {
@@ -760,8 +766,9 @@ function ProfilePage() {
             className="glass-card p-5 mb-6"
           >
             <div className="flex items-center gap-4 flex-wrap">
-              <label className="font-medium text-foreground">Select Learner:</label>
+              <label htmlFor={learnerSelectId} className="font-medium text-foreground">Learner</label>
               <select
+                id={learnerSelectId}
                 value={selectedLearnerId}
                 onChange={(e) => setSelectedLearnerId(e.target.value)}
                 className="form-input flex-1 max-w-xs"
