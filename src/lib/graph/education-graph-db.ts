@@ -21,6 +21,13 @@
 import { uuidv4 } from '../uuid.ts';
 import type { GraphStore } from './store.ts';
 import { KEY_PREFIXES } from './types.ts';
+import {
+  daysSince,
+  predictRetention,
+  reviewIntervalDays,
+  stabilityForInterval,
+  type ReviewPerformance,
+} from './spacing.ts';
 import type {
   LearnerProfile,
   ConceptNode,
@@ -1462,12 +1469,6 @@ export class EducationGraphDB {
   private readonly FORGOTTEN_THRESHOLD = 60;
 
   /**
-   * Stability factor for forgetting curve (higher = slower decay)
-   * Base value, adjusted by difficulty and review count
-   */
-  private readonly BASE_STABILITY = 7; // days
-
-  /**
    * Detect all knowledge gaps for a learner
    */
   async detectGaps(
@@ -1597,11 +1598,10 @@ export class EducationGraphDB {
   }
 
   /**
-   * Predict memory decay using Ebbinghaus forgetting curve
-   * R = e^(-t/S) where:
-   *   R = retention (0-100)
-   *   t = time since last review (days)
-   *   S = stability factor (higher = slower decay)
+   * Predict memory decay with an Ebbinghaus forgetting curve, R = M·e^(-t/S).
+   * The stability S comes from the same review interval `scheduleNextReview`
+   * uses (see `./spacing.ts`), so at the due date retention is always
+   * RETENTION_AT_DUE of the mastery — the two numbers never contradict.
    */
   predictDecay(
     state: KnowledgeState,
@@ -1612,42 +1612,28 @@ export class EducationGraphDB {
     stabilityFactor: number;
     decayRate: number;
   } {
-    const now = new Date();
-    const lastReview = state.lastReviewed ? new Date(state.lastReviewed) : new Date(state.updatedAt);
-    const daysSinceReview = Math.max(0, (now.getTime() - lastReview.getTime()) / (1000 * 60 * 60 * 24));
-
-    // Calculate stability factor based on:
-    // - Review count (more reviews = more stable)
-    // - Current mastery (higher mastery = more stable)
-    // - Concept difficulty (harder concepts decay faster)
-    const reviewBonus = Math.log2(Math.max(1, state.reviewCount || 1)) * 2;
-    const masteryBonus = (state.mastery / 100) * 3;
-    const difficultyPenalty = (concept.difficulty.absolute / 10) * 2;
-
-    const stabilityFactor = this.BASE_STABILITY + reviewBonus + masteryBonus - difficultyPenalty;
-    const clampedStability = Math.max(1, stabilityFactor);
-
-    // Ebbinghaus forgetting curve: R = e^(-t/S) * initial_mastery
-    const decayRate = 1 / clampedStability;
-    const retentionFactor = Math.exp(-daysSinceReview * decayRate);
-    const predictedRetention = state.mastery * retentionFactor;
+    const elapsed = daysSince(state.lastReviewed ?? state.updatedAt, new Date());
+    const interval = reviewIntervalDays(state, concept.difficulty?.absolute);
+    const stability = stabilityForInterval(interval);
+    const predictedRetention = predictRetention(state.mastery, elapsed, stability);
 
     return {
-      predictedRetention: Math.max(0, Math.min(100, predictedRetention)),
-      daysSinceReview: Math.round(daysSinceReview * 10) / 10,
-      stabilityFactor: Math.round(clampedStability * 10) / 10,
-      decayRate: Math.round(decayRate * 1000) / 1000,
+      predictedRetention,
+      daysSinceReview: Math.round(elapsed * 10) / 10,
+      stabilityFactor: Math.round(stability * 10) / 10,
+      decayRate: Math.round((1 / stability) * 1000) / 1000,
     };
   }
 
   /**
-   * Schedule next review using SM-2 inspired spaced repetition
-   * Intervals grow exponentially with successful reviews
+   * Schedule the next review (SM-2 inspired, capped at MAX_INTERVAL_DAYS).
+   * The interval depends only on the state at the last review (see
+   * `reviewIntervalDays`); `nextReviewDate` counts it from now.
    */
   scheduleNextReview(
     state: KnowledgeState,
     concept: ConceptNode,
-    performance?: 'failed' | 'difficult' | 'good' | 'easy'
+    performance?: ReviewPerformance
   ): {
     nextReviewDate: string;
     intervalDays: number;
@@ -1656,50 +1642,7 @@ export class EducationGraphDB {
     priority: 'urgent' | 'normal' | 'low';
   } {
     const decay = this.predictDecay(state, concept);
-    const reviewCount = state.reviewCount || 0;
-
-    // Base interval calculation (SM-2 inspired)
-    // I(n) = I(n-1) * EF where EF is easiness factor
-    let baseInterval: number;
-
-    if (reviewCount === 0) {
-      baseInterval = 1; // First review in 1 day
-    } else if (reviewCount === 1) {
-      baseInterval = 3; // Second review in 3 days
-    } else if (reviewCount === 2) {
-      baseInterval = 7; // Third review in 1 week
-    } else {
-      // Exponential growth based on stability
-      const easinessFactor = 1.5 + (state.mastery / 100) * 1;
-      const previousInterval = Math.pow(2, reviewCount - 1);
-      baseInterval = previousInterval * easinessFactor;
-    }
-
-    // Adjust based on performance if provided
-    let intervalMultiplier = 1;
-    if (performance) {
-      switch (performance) {
-        case 'failed':
-          intervalMultiplier = 0.25;
-          break;
-        case 'difficult':
-          intervalMultiplier = 0.5;
-          break;
-        case 'good':
-          intervalMultiplier = 1;
-          break;
-        case 'easy':
-          intervalMultiplier = 1.5;
-          break;
-      }
-    }
-
-    // Adjust based on current retention
-    if (decay.predictedRetention < 50) {
-      intervalMultiplier *= 0.5; // Review sooner if retention is low
-    }
-
-    const intervalDays = Math.max(1, Math.round(baseInterval * intervalMultiplier));
+    const intervalDays = reviewIntervalDays(state, concept.difficulty?.absolute, performance);
 
     // Calculate dates
     const now = new Date();
