@@ -306,6 +306,8 @@ export function StudyToday() {
         const prior = data.states.find((s) => s.conceptId === id);
         await db.setKnowledgeState(learnerId, id, applyUnsnooze(prior));
       }
+      // Switched to another learner while saving: don't announce it on their plan.
+      if (activeLearnerIdRef.current !== learnerId) return;
       setNotice(
         ids.length === 1
           ? 'Okay — that review is back in your list. Your progress on it is unchanged.'
@@ -313,7 +315,9 @@ export function StudyToday() {
       );
       await load();
     } catch (err) {
+      if (activeLearnerIdRef.current !== learnerId) return;
       setNotice(`Could not save: ${err instanceof Error ? err.message : 'please try again.'}`);
+      // Some may already be saved: show the lists as they are now.
       await load();
     } finally {
       setBusy(null);
