@@ -1608,7 +1608,8 @@ export class EducationGraphDB {
     stabilityFactor: number;
     decayRate: number;
   } {
-    const elapsed = daysSince(state.lastReviewed ?? state.updatedAt, new Date());
+    // Same starting point as the due date (`reviewDueAt`): last review, else first study.
+    const elapsed = daysSince(state.lastReviewed ?? state.firstSeen ?? state.updatedAt, new Date());
     const interval = reviewIntervalDays(state, concept.difficulty?.absolute);
     const stability = stabilityForInterval(interval);
     const predictedRetention = predictRetention(state.mastery, elapsed, stability);

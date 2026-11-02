@@ -194,4 +194,16 @@ describe('engine: schedule and decay agree', () => {
     assert.deepEqual(queue.map((q) => q.conceptId).sort(), fading);
     assert.equal(stats.overdue, fading.length);
   });
+
+  it('a never-reviewed concept counts days from when it was first studied', async () => {
+    await db.setLearnerProfile('u1', {});
+    await db.addConcept({ conceptId: 'new', name: 'New', domain: 'math', description: 'x' });
+    const firstSeen = new Date(Date.now() - 5 * DAY).toISOString();
+    await db.setKnowledgeState('u1', 'new', { mastery: 80, reviewCount: 0, firstSeen });
+    const gaps = await db.detectGaps('u1', { type: 'forgotten' });
+    const item = gaps.forgotten.find((g) => g.conceptId === 'new');
+    assert.ok(item, 'due one day after first study, so it is fading');
+    assert.ok(Math.abs(item.daysSinceReview - 5) < 0.1, `days ${item.daysSinceReview}`);
+    assert.ok(item.predictedRetention < 80 * RETENTION_AT_DUE);
+  });
 });
