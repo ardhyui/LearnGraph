@@ -16,7 +16,7 @@ interface FocusEditorProps {
   /** Subjects the plan follows now (empty = everything). */
   focus: string[];
   /** Called after a successful save with the new subjects. */
-  onSaved: (domains: string[]) => void | Promise<void>;
+  onSaved: (learnerId: string, domains: string[]) => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -78,7 +78,7 @@ export function FocusEditor({ learnerId, learnerName, focus, onSaved, onCancel }
       const profile = await db.getLearnerProfile(learnerId);
       if (!profile) throw new Error('this learner no longer exists.');
       await db.setLearnerProfile(learnerId, { tags: withFocus(profile.tags, chosen) });
-      await onSaved(chosen);
+      await onSaved(learnerId, chosen);
     } catch (err) {
       setError(`Could not save your subjects: ${err instanceof Error ? err.message : 'please try again.'}`);
       setSaving(false);

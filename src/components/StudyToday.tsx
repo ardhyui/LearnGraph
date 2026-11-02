@@ -81,6 +81,8 @@ export function StudyToday() {
   const [editingFocus, setEditingFocus] = useState(false);
   const selectId = useId();
   const changeSubjectsRef = useRef<HTMLButtonElement>(null);
+  const activeLearnerIdRef = useRef<string | null>(null);
+  activeLearnerIdRef.current = learnerId;
   // Only the latest request may update the panel (switching learners while a
   // load is in flight must not show — or save against — the previous learner).
   const requestSeq = useRef(0);
@@ -168,9 +170,11 @@ export function StudyToday() {
     requestAnimationFrame(() => changeSubjectsRef.current?.focus());
   };
 
-  const focusSaved = async (domains: string[]) => {
+  const focusSaved = async (savedFor: string, domains: string[]) => {
     // Reloading the learner list updates the focus tags, which reloads the plan.
     await refreshLearners();
+    // Switched to another learner while saving: don't announce it on their plan.
+    if (activeLearnerIdRef.current !== savedFor) return;
     setWelcome(null);
     setNotice(
       domains.length > 0
