@@ -253,7 +253,7 @@ export const demoKnowledgeStates = [
   { id: 'state:alice-dec', learnerId: 'demo-alice', conceptId: 'concept:decimals', mastery: 92, confidence: 0.88, lastReviewed: new Date('2024-11-20').toISOString(), reviewCount: 7, createdAt: new Date('2024-03-15').toISOString() },
   { id: 'state:alice-prealg', learnerId: 'demo-alice', conceptId: 'concept:pre-algebra', mastery: 78, confidence: 0.75, lastReviewed: new Date('2024-12-01').toISOString(), reviewCount: 5, createdAt: new Date('2024-05-01').toISOString() },
   { id: 'state:alice-linear', learnerId: 'demo-alice', conceptId: 'concept:linear-equations', mastery: 45, confidence: 0.55, lastReviewed: new Date('2024-12-10').toISOString(), reviewCount: 2, createdAt: new Date('2024-10-01').toISOString() },
-  { id: 'state:alice-prog', learnerId: 'demo-alice', conceptId: 'concept:programming-basics', mastery: 70, confidence: 0.72, lastReviewed: new Date('2024-11-25').toISOString(), reviewCount: 4, createdAt: new Date('2024-06-01').toISOString() },
+  { id: 'state:alice-prog', learnerId: 'demo-alice', conceptId: 'concept:programming-basics', mastery: 70, confidence: 0.72, lastReviewed: new Date('2024-11-18').toISOString(), reviewCount: 4, createdAt: new Date('2024-06-01').toISOString() },
 
   // Bob's progress (intermediate)
   { id: 'state:bob-arith', learnerId: 'demo-bob', conceptId: 'concept:arithmetic', mastery: 85, confidence: 0.8, lastReviewed: new Date('2024-09-15').toISOString(), reviewCount: 10, createdAt: new Date('2024-03-01').toISOString() },
