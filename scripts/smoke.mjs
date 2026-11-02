@@ -376,7 +376,7 @@ try {
     check(seen.every((s) => s.endsWith('"Sari Smoke"')), 'learner pages open on the learner picked on the dashboard', seen.join('; '));
     // Gaps loads the analysis straight away (no "choose a learner" step).
     await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
-    const gapsLoaded = await page.getByRole('heading', { name: /Review Queue/ }).first().waitFor({ timeout: 30000 }).then(() => true, () => false);
+    const gapsLoaded = await page.getByRole('heading', { name: /^Reviews/ }).first().waitFor({ timeout: 30000 }).then(() => true, () => false);
     check(gapsLoaded, 'gaps: the analysis loads without choosing a learner first');
 
     await page.goto(`${BASE}/recommendations`, { waitUntil: 'networkidle' });
@@ -397,6 +397,42 @@ try {
     await today.getByLabel('Learner', { exact: true }).selectOption({ label: 'Sari Smoke' });
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'shared learner choice has no page errors', newErrors.join(' | '));
+  }
+
+  // Gap Analysis and Recommendations speak the learner's language: concept
+  // names (never internal ids like "concept:fractions"), plain "due" phrases,
+  // and a way back to the dashboard to actually do overdue reviews.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
+    const gapsSelect = page.getByLabel('Learner', { exact: true });
+    await gapsSelect.waitFor({ timeout: 30000 });
+    await gapsSelect.selectOption({ label: 'Alice Chen' });
+    const reviews = page.getByRole('heading', { name: /^Reviews/ }).first();
+    await reviews.waitFor({ timeout: 30000 }).catch(() => {});
+    await page.getByText(/Overdue by \d+ days?|Due (today|tomorrow|in \d+ days)/).first().waitFor({ timeout: 15000 }).catch(() => {});
+    const gapsText = await page.locator('main').innerText().catch(() => '');
+    check(await page.getByRole('heading', { name: 'Shaky spots' }).isVisible().catch(() => false), 'gaps: example learner analysis renders');
+    check(!/concept:/.test(gapsText), 'gaps: shows concept names, not internal ids', (gapsText.match(/concept:[\w-]+/) ?? [''])[0]);
+    check(/(Overdue by \d+ days?|Due (today|tomorrow|in \d+ days))/.test(gapsText), 'gaps: reviews say when they are due in plain words');
+    check(/Review first|Review soon|Can wait/.test(gapsText) && !/\b(urgent|normal)\b/.test(gapsText), 'gaps: review priority uses everyday labels');
+    const toDashboard = page.getByRole('link', { name: 'Do your reviews on the dashboard' });
+    check(await toDashboard.isVisible().catch(() => false), 'gaps: overdue reviews link to the dashboard');
+
+    await page.goto(`${BASE}/recommendations`, { waitUntil: 'networkidle' });
+    const zonesTab = page.getByRole('button', { name: 'Ready / not yet' });
+    await zonesTab.waitFor({ timeout: 30000 }).catch(() => {});
+    await zonesTab.click().catch(() => {});
+    await page.getByRole('heading', { name: /^Not yet/ }).waitFor({ timeout: 15000 }).catch(() => {});
+    const recText = await page.locator('main').innerText().catch(() => '');
+    check(/Not yet \(\d+\)/.test(recText) && !/concept:/.test(recText), 'recommendations: not-ready concepts list names, not ids', (recText.match(/concept:[\w-]+/) ?? [''])[0]);
+    check(!/Computed in \d+ms/.test(recText), 'recommendations: no debug timing shown');
+
+    // Back to my own plan for the rest of the run.
+    const recSelect = page.getByLabel('Learner', { exact: true });
+    await recSelect.selectOption({ label: 'Sari Smoke' });
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'readable gaps/recommendations have no page errors', newErrors.join(' | '));
   }
 
   // Phone layout (390×844): the sidebar becomes a drawer behind a menu

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useId, useRef } from 'react';
+import { useState, useEffect, useCallback, useId, useMemo, useRef } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
+import { conceptLabel, conceptNameMap, learnFirstLabel } from '@/lib/gaps';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 
@@ -215,6 +216,13 @@ function RecommendationsPage() {
     }
   }, [isReady, selectedLearner, computeZPD]);
 
+  // Every concept is classified into one of the three zones, so this maps any
+  // prerequisite id the engine returns to its name.
+  const conceptNames = useMemo(
+    () => conceptNameMap(zpd ? [...zpd.tooEasy, ...zpd.zpd, ...zpd.tooHard].map((zc) => zc.concept) : []),
+    [zpd],
+  );
+
   const getDifficultyColor = (difficulty: number) => {
     if (difficulty <= 3) return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
     if (difficulty <= 6) return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
@@ -275,8 +283,8 @@ function RecommendationsPage() {
               What Should I Learn Next?
             </h1>
           </div>
-          <p className="text-muted-foreground ml-14">
-            Personalized recommendations based on your profile and progress
+          <p className="text-muted-foreground sm:ml-14">
+            Concepts you’re ready for now, picked from what you already know.
           </p>
         </motion.div>
 
@@ -301,11 +309,6 @@ function RecommendationsPage() {
                 </option>
               ))}
             </select>
-            {zpd && (
-              <span className="text-sm text-muted-foreground">
-                Computed in {zpd.computationTimeMs}ms
-              </span>
-            )}
           </div>
         </motion.div>
 
@@ -323,7 +326,7 @@ function RecommendationsPage() {
                 transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                 className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full mx-auto mb-4"
               />
-              <p className="text-muted-foreground">Computing personalized recommendations...</p>
+              <p className="text-muted-foreground" role="status">Finding what you’re ready to learn…</p>
             </motion.div>
           )}
 
@@ -371,7 +374,7 @@ function RecommendationsPage() {
                     </span>
                   </div>
                   <div className="p-3 rounded-xl bg-background/50">
-                    <span className="text-muted-foreground">Difficulty Modifier:</span>{' '}
+                    <span className="text-muted-foreground">Challenge level:</span>{' '}
                     <span className="font-medium text-foreground">
                       {zpd.psychometricAdjustments.difficultyModifier > 0 ? '+' : ''}
                       {(zpd.psychometricAdjustments.difficultyModifier * 100).toFixed(0)}%
@@ -380,7 +383,7 @@ function RecommendationsPage() {
                 </div>
                 {zpd.psychometricAdjustments.attentionConsiderations.length > 0 && (
                   <div className="mt-4 text-sm">
-                    <span className="text-muted-foreground">Considerations:</span>
+                    <span className="text-muted-foreground">Keep in mind:</span>
                     <ul className="mt-2 space-y-1.5">
                       {zpd.psychometricAdjustments.attentionConsiderations.map((c, i) => (
                         <li key={i} className="flex items-start gap-2 text-foreground">
@@ -402,7 +405,7 @@ function RecommendationsPage() {
               >
                 {[
                   { id: 'recommendations', icon: Target, label: `Recommendations (${zpd.recommendations.length})` },
-                  { id: 'zones', icon: TrendingUp, label: 'Zone Analysis' },
+                  { id: 'zones', icon: TrendingUp, label: 'Ready / not yet' },
                   { id: 'path', icon: RouteIcon, label: 'Learning Path' },
                 ].map((tab) => (
                   <motion.button
@@ -504,7 +507,7 @@ function RecommendationsPage() {
                               {rec.prerequisiteChain.length > 0 && (
                                 <div className="mb-4">
                                   <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                                    Prerequisite Chain
+                                    Builds on
                                   </span>
                                   <div className="mt-2 flex flex-wrap gap-1.5 items-center">
                                     {rec.prerequisiteChain.map((prereq, i) => (
@@ -526,7 +529,7 @@ function RecommendationsPage() {
                               {/* Scaffolding Strategies */}
                               <div>
                                 <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                                  Recommended Teaching Strategies
+                                  Ways to learn it
                                 </span>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                   {rec.scaffoldingStrategies.map((strategy, i) => (
@@ -604,7 +607,7 @@ function RecommendationsPage() {
                           </motion.div>
                         ))}
                         {zpd.zpd.length === 0 && (
-                          <p className="text-sm text-purple-600 dark:text-purple-400">No concepts in ZPD</p>
+                          <p className="text-sm text-purple-600 dark:text-purple-400">Nothing ready right now</p>
                         )}
                       </div>
                     </motion.div>
@@ -613,7 +616,7 @@ function RecommendationsPage() {
                     <motion.div variants={itemVariants} className="glass-card p-5 bg-red-500/5 border-red-500/20">
                       <h3 className="font-semibold mb-4 flex items-center gap-2 text-red-600 dark:text-red-400">
                         <AlertTriangle className="w-5 h-5" />
-                        Not Ready ({zpd.tooHard.length})
+                        Not yet ({zpd.tooHard.length})
                       </h3>
                       <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide">
                         {zpd.tooHard.map((zc) => (
@@ -623,12 +626,12 @@ function RecommendationsPage() {
                             className="p-3 bg-background/80 rounded-xl shadow-sm"
                           >
                             <div className="font-medium text-sm text-foreground">{zc.concept.name}</div>
-                            <div className="text-xs text-muted-foreground mt-1">{zc.reason}</div>
-                            {zc.missingPrerequisites.length > 0 && (
+                            {zc.missingPrerequisites.length > 0 ? (
                               <div className="text-xs text-red-600 dark:text-red-400 mt-1">
-                                Missing: {zc.missingPrerequisites.slice(0, 3).join(', ')}
-                                {zc.missingPrerequisites.length > 3 && '...'}
+                                {learnFirstLabel(zc.missingPrerequisites, conceptNames)}
                               </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground mt-1">{zc.reason}</div>
                             )}
                           </motion.div>
                         ))}
@@ -677,7 +680,7 @@ function RecommendationsPage() {
                                 </div>
                                 <div className="flex-1 p-4 bg-secondary/50 rounded-xl">
                                   <div className="font-medium text-foreground">
-                                    {zc?.concept.name || conceptId}
+                                    {zc?.concept.name || conceptNames.get(conceptId) || conceptLabel(conceptId)}
                                   </div>
                                   {rec && (
                                     <div className="text-sm text-muted-foreground mt-1">
