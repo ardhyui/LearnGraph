@@ -1,10 +1,11 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { useState, useCallback, useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, BookOpen, Clock, Brain, Target, RefreshCw, TrendingDown, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { AlertTriangle, BellOff, BookOpen, Clock, Brain, Target, RefreshCw, TrendingDown, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
-import { GAP_KINDS, conceptLabel, countLabel, priorityLabel, reviewSummary, stepTypeLabel } from '@/lib/gaps';
+import { GAP_KINDS, conceptLabel, countLabel, priorityLabel, reviewSummary, snoozeLabel, stepTypeLabel } from '@/lib/gaps';
+import { snoozedReviews } from '@/lib/graph/spacing';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 
@@ -32,6 +33,13 @@ interface ReviewQueueItem {
   daysSinceReview: number;
   nextReviewDate: string;
   intervalDays: number;
+}
+
+/** A review the learner postponed ("Remind me tomorrow"): not due, but not forgotten either. */
+interface SnoozedItem {
+  conceptId: string;
+  conceptName?: string;
+  until: number;
 }
 
 interface RemediationStep {
@@ -83,6 +91,7 @@ function GapsDashboard() {
     queue: ReviewQueueItem[];
     stats: { totalItems: number; urgent: number; normal: number; low: number; overdue: number };
   } | null>(null);
+  const [snoozed, setSnoozed] = useState<SnoozedItem[]>([]);
   const [remediation, setRemediation] = useState<{
     plan: { steps: RemediationStep[]; estimatedTotalTime: number; priorityFocus: string };
     gaps: { total: number };
@@ -98,10 +107,25 @@ function GapsDashboard() {
     const stale = () => seq !== requestSeq.current;
 
     setLoading(true);
+    setSnoozed([]);
     try {
       // Detect gaps using the database
-      const detectedGaps = await db.detectGaps(userId);
+      const [detectedGaps, states, concepts] = await Promise.all([
+        db.detectGaps(userId),
+        // Only for the "Snoozed" list: if it can't load, the analysis still shows.
+        db.getLearnerKnowledgeStates(userId).catch(() => []),
+        db.listConcepts().catch(() => []),
+      ]);
       if (stale()) return;
+      // Reviews postponed with "Remind me tomorrow" aren't due (so they're not
+      // in "Fading" or the review list) — show them separately instead of
+      // letting them silently disappear.
+      const byId = new Map(concepts.map((c) => [c.conceptId, c]));
+      setSnoozed(
+        snoozedReviews(states, (id) => byId.get(id)?.difficulty?.absolute, new Date())
+          .filter((s) => byId.has(s.conceptId))
+          .map((s) => ({ ...s, conceptName: byId.get(s.conceptId)?.name })),
+      );
       // Map the database format to our local GapItem format
       const missing: GapItem[] = detectedGaps.missing.map(g => ({
         conceptId: g.conceptId,
@@ -496,9 +520,11 @@ function GapsDashboard() {
                   )}
 
                   {!reviewQueue || reviewQueue.queue.length === 0 ? (
-                    <div className="text-center py-12">
-                      <CheckCircle size={48} className="mx-auto text-emerald-500 mb-2" />
-                      <p className="text-foreground font-medium">Nothing to review yet</p>
+                    <div className={cn('text-center', snoozed.length > 0 ? 'py-6' : 'py-12')}>
+                      <CheckCircle size={48} className="mx-auto text-emerald-500 mb-2" aria-hidden="true" />
+                      <p className="text-foreground font-medium">
+                        {snoozed.length > 0 ? 'Nothing due right now' : 'Nothing to review yet'}
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-hide">
@@ -525,6 +551,32 @@ function GapsDashboard() {
                           </span>
                         </motion.div>
                       ))}
+                    </div>
+                  )}
+
+                  {snoozed.length > 0 && (
+                    <div className="mt-5 border-t border-border/50 pt-4" data-testid="snoozed-reviews">
+                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        <BellOff size={16} className="text-muted-foreground" aria-hidden="true" />
+                        Snoozed
+                        <span className="text-xs font-normal text-muted-foreground">({countLabel(snoozed.length, 'review')})</span>
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        You chose “Remind me tomorrow” for these. They’re not counted as due, and your progress on them is kept.
+                      </p>
+                      <ul className="mt-3 space-y-2" aria-label="Snoozed reviews">
+                        {snoozed.map((item) => (
+                          <li
+                            key={item.conceptId}
+                            className="p-3 rounded-xl border border-dashed border-border bg-background/40 flex flex-wrap items-center justify-between gap-2"
+                          >
+                            <span className="font-medium text-foreground">{conceptLabel(item.conceptId, item.conceptName)}</span>
+                            <span className="text-sm text-muted-foreground">
+                              <time dateTime={new Date(item.until).toISOString()}>{snoozeLabel(item.until, now)}</time>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                 </motion.div>

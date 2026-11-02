@@ -24,8 +24,8 @@ import {
 } from '@/lib/study';
 import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
-import { priorityLabel, reviewSummary } from '@/lib/gaps';
-import { snoozedUntil } from '@/lib/graph/spacing';
+import { priorityLabel, reviewSummary, snoozedSummary } from '@/lib/gaps';
+import { snoozedReviews, snoozedUntil } from '@/lib/graph/spacing';
 import { cn } from '@/lib/utils';
 
 /** Set (per account) when the user chose to explore the example learners instead of onboarding. */
@@ -55,6 +55,8 @@ interface TodayData {
   states: KnowledgeState[];
   reviews: ReviewItem[];
   reviewsDue: number;
+  /** When each snoozed review comes back (ms, soonest first) — not counted as due. */
+  snoozed: number[];
   next: ZPDRecommendation[];
 }
 
@@ -143,8 +145,15 @@ export function StudyToday() {
       const postponed = new Set(
         states.filter((st) => (snoozedUntil(st) ?? 0) > nowMs).map((st) => st.conceptId),
       );
+      const difficulty = new Map(allConcepts.map((c) => [c.conceptId, c.difficulty?.absolute]));
+      const snoozed = snoozedReviews(
+        states.filter((st) => difficulty.has(st.conceptId)),
+        (id) => difficulty.get(id),
+        new Date(nowMs),
+      ).map((s) => s.until);
       setData({
         learnerId,
+        snoozed,
         progress: summarizeProgress(concepts, states),
         states,
         reviews: queue.queue,
@@ -508,6 +517,14 @@ export function StudyToday() {
                 </li>
               ))}
             </ul>
+          )}
+          {current && current.snoozed.length > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground" data-testid="snoozed-summary">
+              {snoozedSummary(current.snoozed, new Date())} ·{' '}
+              <Link to="/gaps" className="font-medium text-primary underline underline-offset-2">
+                See snoozed reviews
+              </Link>
+            </p>
           )}
         </div>
 
