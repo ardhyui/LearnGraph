@@ -350,6 +350,55 @@ try {
     check(newErrors.length === 0, 'changing subjects has no page errors', newErrors.join(' | '));
   }
 
+  // The learner picked on the dashboard follows the user to the other learner
+  // pages (Recommendations, Gaps, Graph, Profile), and picking another one
+  // there carries back to the dashboard.
+  {
+    const before = errors.length;
+    const selectedIn = async (path, label) => {
+      await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+      const select = page.getByLabel(label, { exact: true });
+      await select.waitFor({ timeout: 30000 }).catch(() => {});
+      await page
+        .waitForFunction((id) => document.getElementById(id)?.selectedOptions[0]?.textContent === 'Sari Smoke', await select.getAttribute('id').catch(() => ''), { timeout: 15000 })
+        .catch(() => {});
+      return select.evaluate((el) => el.selectedOptions[0]?.textContent ?? '').catch(() => '');
+    };
+    const seen = [];
+    for (const [path, label] of [
+      ['/recommendations', 'Learner'],
+      ['/gaps', 'Learner'],
+      ['/graph', 'Show progress of'],
+      ['/profile', 'Learner'],
+    ]) {
+      seen.push(`${path}: "${await selectedIn(path, label)}"`);
+    }
+    check(seen.every((s) => s.endsWith('"Sari Smoke"')), 'learner pages open on the learner picked on the dashboard', seen.join('; '));
+    // Gaps loads the analysis straight away (no "choose a learner" step).
+    await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
+    const gapsLoaded = await page.getByRole('heading', { name: /Review Queue/ }).first().waitFor({ timeout: 30000 }).then(() => true, () => false);
+    check(gapsLoaded, 'gaps: the analysis loads without choosing a learner first');
+
+    await page.goto(`${BASE}/recommendations`, { waitUntil: 'networkidle' });
+    const recSelect = page.getByLabel('Learner', { exact: true });
+    await recSelect.waitFor({ timeout: 30000 });
+    const other = await recSelect.evaluate((el) => [...el.options].find((o) => o.textContent !== 'Sari Smoke')?.value ?? '');
+    const otherName = await recSelect.evaluate((el, v) => [...el.options].find((o) => o.value === v)?.textContent ?? '', other);
+    await recSelect.selectOption(other);
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const today = page.getByTestId('study-today');
+    await today.waitFor({ timeout: 30000 });
+    await page
+      .waitForFunction((n) => document.querySelector('[data-testid="study-today"] select')?.selectedOptions[0]?.textContent === n, otherName, { timeout: 15000 })
+      .catch(() => {});
+    const onToday = await today.getByLabel('Learner', { exact: true }).evaluate((el) => el.selectedOptions[0]?.textContent).catch(() => '');
+    check(!!other && onToday === otherName, 'a learner picked on Recommendations carries back to the dashboard', `"${otherName}" → "${onToday}"`);
+    // Back to my own plan for the rest of the run.
+    await today.getByLabel('Learner', { exact: true }).selectOption({ label: 'Sari Smoke' });
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'shared learner choice has no page errors', newErrors.join(' | '));
+  }
+
   // Phone layout (390×844): the sidebar becomes a drawer behind a menu
   // button, so content gets the full width and nothing scrolls sideways.
   {

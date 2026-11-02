@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId, useRef } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -17,6 +17,7 @@ import {
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
 import { useLearners, useDB } from '@/lib/DBContext';
+import { useActiveLearner } from '@/lib/active-learner';
 
 export const Route = createFileRoute('/recommendations')({
   component: RecommendationsPage,
@@ -114,22 +115,26 @@ const tabVariants = {
 
 function RecommendationsPage() {
   const { db, isLoading: dbLoading, error: dbError, isReady } = useDB();
-  const { learners } = useLearners();
-  const [selectedLearner, setSelectedLearner] = useState<string>('');
+  const { learners, loading: learnersLoading } = useLearners();
+  // Same learner as on the dashboard (and the other learner pages).
+  const [activeLearner, setSelectedLearner] = useActiveLearner(
+    learners.map((l) => l.userId),
+    learnersLoading,
+  );
+  const selectedLearner = activeLearner ?? '';
+  const learnerSelectId = useId();
   const [zpd, setZpd] = useState<ZPDResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'recommendations' | 'zones' | 'path'>('recommendations');
 
-  // Auto-select first learner when available
-  useEffect(() => {
-    if (learners.length > 0 && !selectedLearner) {
-      setSelectedLearner(learners[0].userId);
-    }
-  }, [learners, selectedLearner]);
+  // Only the latest request may update the page (switching learners while a
+  // load is in flight must not show the previous learner's recommendations).
+  const requestSeq = useRef(0);
 
   const computeZPD = useCallback(async () => {
     if (!db || !isReady || !selectedLearner) return;
+    const seq = ++requestSeq.current;
 
     setLoading(true);
     setError(null);
@@ -142,6 +147,7 @@ function RecommendationsPage() {
 
       // Generate learning path
       const path = await db.generateLearningPath(selectedLearner);
+      if (seq !== requestSeq.current) return;
 
       // Map database result to local interface format
       const mappedRecommendations: ZPDRecommendation[] = zpdResult.recommendations.map(rec => ({
@@ -196,9 +202,10 @@ function RecommendationsPage() {
         suggestedPath: path.map(item => item.conceptId),
       });
     } catch (err) {
+      if (seq !== requestSeq.current) return;
       setError(err instanceof Error ? err.message : 'Failed to compute recommendations');
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   }, [db, isReady, selectedLearner]);
 
@@ -281,8 +288,9 @@ function RecommendationsPage() {
           className="glass-card p-5 mb-6"
         >
           <div className="flex items-center gap-4">
-            <label className="font-medium text-foreground">Select Learner:</label>
+            <label htmlFor={learnerSelectId} className="font-medium text-foreground">Learner</label>
             <select
+              id={learnerSelectId}
               value={selectedLearner}
               onChange={(e) => setSelectedLearner(e.target.value)}
               className="form-input flex-1 max-w-xs"
