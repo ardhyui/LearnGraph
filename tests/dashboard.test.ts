@@ -27,6 +27,8 @@ describe('dashboard greeting', () => {
     const long = greetingName({ name: 'x'.repeat(200) })!;
     assert.equal(long.length, 41);
     assert.ok(long.endsWith('…'));
+    const emoji = greetingName({ name: 'a'.repeat(39) + '😀😀' })!;
+    assert.equal(emoji, 'a'.repeat(39) + '😀…');
   });
 });
 

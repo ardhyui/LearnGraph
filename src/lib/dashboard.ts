@@ -46,7 +46,9 @@ export function greetingName(user: { name?: string | null; email?: string | null
   const fromEmail = clean((user?.email ?? '').split('@')[0] ?? '');
   const name = fromName || fromEmail;
   if (!name) return null;
-  return name.length > MAX_NAME ? `${name.slice(0, MAX_NAME)}…` : name;
+  // Count by code point so an emoji or other astral character is never cut in half.
+  const chars = Array.from(name);
+  return chars.length > MAX_NAME ? `${chars.slice(0, MAX_NAME).join('')}…` : name;
 }
 
 export function dashboardHeading(user: Parameters<typeof greetingName>[0]): string {
