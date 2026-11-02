@@ -268,11 +268,12 @@ try {
       const listed = today.getByRole('list', { name: 'Reviews due' }).getByText(name, { exact: true });
       await listed.waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
       const stillListed = await listed.count();
+      const inLearnNext = await today.getByRole('list', { name: 'Recommended next concepts' }).getByText(name, { exact: true }).count();
       const masteredAfter = await today.getByTestId('mastered-count').innerText().catch(() => '');
       check(
-        moved && stillListed === 0 && masteredAfter === masteredBefore,
+        moved && stillListed === 0 && inLearnNext === 0 && masteredAfter === masteredBefore,
         'dashboard: "Remind me tomorrow" moves a due review off today’s list',
-        `"${name}", listed ${stillListed}, mastered ${masteredBefore} → ${masteredAfter}`,
+        `"${name}", listed ${stillListed}, in learn next ${inLearnNext}, mastered ${masteredBefore} → ${masteredAfter}`,
       );
       await page.reload({ waitUntil: 'networkidle' });
       await today.getByTestId('mastered-count').waitFor({ timeout: 30000 });

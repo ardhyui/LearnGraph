@@ -24,6 +24,7 @@ import {
 import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
 import { priorityLabel, reviewSummary } from '@/lib/gaps';
+import { snoozedUntil } from '@/lib/graph/spacing';
 import { cn } from '@/lib/utils';
 
 /** Set (per account) when the user chose to explore the example learners instead of onboarding. */
@@ -123,15 +124,21 @@ export function StudyToday() {
       const recommended = focusApplies
         ? zpd.recommendations.filter((r) => focusList.includes(r.concept.domain))
         : zpd.recommendations;
+      const nowMs = Date.now();
+      const postponed = new Set(
+        states.filter((st) => (snoozedUntil(st) ?? 0) > nowMs).map((st) => st.conceptId),
+      );
       setData({
         learnerId,
         progress: summarizeProgress(concepts, states),
         states,
         reviews: queue.queue,
         reviewsDue: queue.stats.totalItems,
-        // A concept already listed for review isn't offered again as "learn next".
+        // A concept already listed for review isn't offered again as "learn next",
+        // nor one whose review the learner just postponed ("Remind me tomorrow").
         next: recommended
           .filter((r) => !queue.queue.some((q) => q.conceptId === r.concept.conceptId))
+          .filter((r) => !postponed.has(r.concept.conceptId))
           .slice(0, 3),
       });
     } catch (err) {
