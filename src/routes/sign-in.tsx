@@ -1,4 +1,3 @@
-import { pageHead } from '@/lib/page-titles';
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { z } from 'zod';
@@ -6,6 +5,7 @@ import { Loader2, Network } from 'lucide-react';
 import { authClient } from '@/lib/auth/client';
 import { rateLimitMessage } from '@/lib/auth/rate-limit';
 import { cn } from '@/lib/utils';
+import { pageHead } from '@/lib/page-titles';
 
 const searchSchema = z.object({ redirect: z.string().optional() });
 
