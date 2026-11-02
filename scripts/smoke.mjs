@@ -210,7 +210,8 @@ try {
     }
 
     // Reviewed concepts unlock new ones: keep reviewing until something is
-    // offered under "Learn next" (the demo learner starts with all reviews due).
+    // offered under "Learn next" (demo progress is dated relative to the seed, so
+    // only some of the demo learner's reviews are due).
     const next = today.getByRole('list', { name: 'Recommended next concepts' }).getByRole('listitem');
     for (let i = 0; i < 8 && !(await next.count()) && (await reviews.count()) > 0; i++) {
       await reviews.first().getByRole('button', { name: 'I remembered it' }).click();
@@ -407,7 +408,9 @@ try {
     await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
     const gapsSelect = page.getByLabel('Learner', { exact: true });
     await gapsSelect.waitFor({ timeout: 30000 });
-    await gapsSelect.selectOption({ label: 'Alice Chen' });
+    // Carol: an example learner the dashboard checks above haven't reviewed
+    // (they clear Alice's few due reviews), so she still has some due.
+    await gapsSelect.selectOption({ label: 'Carol Kim' });
     const reviews = page.getByRole('heading', { name: /^Reviews/ }).first();
     await reviews.waitFor({ timeout: 30000 }).catch(() => {});
     await page.getByText(/Overdue by \d+ days?|Due (today|tomorrow|in \d+ days)/).first().waitFor({ timeout: 15000 }).catch(() => {});
@@ -415,6 +418,8 @@ try {
     check(await page.getByRole('heading', { name: 'Shaky spots' }).isVisible().catch(() => false), 'gaps: example learner analysis renders');
     check(!/concept:/.test(gapsText), 'gaps: shows concept names, not internal ids', (gapsText.match(/concept:[\w-]+/) ?? [''])[0]);
     check(/(Overdue by \d+ days?|Due (today|tomorrow|in \d+ days))/.test(gapsText), 'gaps: reviews say when they are due in plain words');
+    const overdueDays = [...gapsText.matchAll(/Overdue by (\d+) days?/g)].map((m) => Number(m[1]));
+    check(overdueDays.every((d) => d < 60), 'gaps: example progress is recent (no review overdue by months)', `max ${Math.max(0, ...overdueDays)} days`);
     check(/Review first|Review soon|Can wait/.test(gapsText) && !/\b(urgent|normal)\b/.test(gapsText), 'gaps: review priority uses everyday labels');
     const toDashboard = page.getByRole('link', { name: 'Do your reviews on the dashboard' });
     check(await toDashboard.isVisible().catch(() => false), 'gaps: overdue reviews link to the dashboard');

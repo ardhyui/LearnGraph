@@ -3,10 +3,15 @@
  * Runs once per account, when its workspace is empty (same rule as before).
  */
 import type { EducationGraphDB } from './education-graph-db.ts';
-import { demoLearners, demoConcepts, demoEdges, demoKnowledgeStates } from '../demo-data.ts';
+import { demoLearners, demoConcepts, demoEdges, demoKnowledgeStates, shiftDemoDate } from '../demo-data.ts';
 
-/** Seed the demo dataset if the workspace has no learners and no concepts. Returns true if seeded. */
-export async function seedDemoDataIfEmpty(db: EducationGraphDB): Promise<boolean> {
+/**
+ * Seed the demo dataset if the workspace has no learners and no concepts.
+ * Demo progress dates are moved to be relative to `now` (see shiftDemoDate),
+ * so the example learners have a realistic mix of due and upcoming reviews.
+ * Returns true if seeded.
+ */
+export async function seedDemoDataIfEmpty(db: EducationGraphDB, now: Date = new Date()): Promise<boolean> {
   const stats = await db.getStats();
   if (!(stats.learnerCount === 0 && stats.conceptCount === 0)) return false;
 
@@ -68,7 +73,10 @@ export async function seedDemoDataIfEmpty(db: EducationGraphDB): Promise<boolean
     const learnerId = (state as any).learnerId || '';
     const conceptId = (state.conceptId || '').replace('concept:', '');
     const confidence = (state as any).confidence ?? 0.8;
-    const lastReviewed = (state as any).lastReviewed || new Date().toISOString();
+    const lastReviewed = shiftDemoDate((state as any).lastReviewed, now);
+    // First seen can't be after the last review.
+    const createdAt = shiftDemoDate((state as any).createdAt, now);
+    const firstSeen = createdAt <= lastReviewed ? createdAt : lastReviewed;
     const reviewCount = (state as any).reviewCount ?? 0;
 
     if (learnerId && conceptId) {
@@ -78,7 +86,8 @@ export async function seedDemoDataIfEmpty(db: EducationGraphDB): Promise<boolean
         {
           mastery: state.mastery,
           retentionStrength: confidence,
-          lastReviewed: lastReviewed,
+          lastReviewed,
+          firstSeen,
           reviewCount: reviewCount,
         }
       );
