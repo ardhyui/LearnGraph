@@ -82,6 +82,12 @@ export function dueLabel(date: string | Date, now: Date): string {
   return `Overdue by ${late} day${late === 1 ? '' : 's'}`;
 }
 
+/** "Overdue by 3 days · about 64% remembered" — one line per due review (Today & Gap Analysis). */
+export function reviewSummary(nextReviewDate: string | Date, predictedRetention: number, now: Date): string {
+  const pct = Number.isFinite(predictedRetention) ? Math.round(Math.min(100, Math.max(0, predictedRetention))) : 0;
+  return `${dueLabel(nextReviewDate, now)} · about ${pct}% remembered`;
+}
+
 export type ReviewPriority = 'urgent' | 'normal' | 'low';
 
 const PRIORITY_LABELS: Record<ReviewPriority, string> = {

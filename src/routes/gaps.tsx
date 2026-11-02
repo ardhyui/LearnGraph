@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, BookOpen, Clock, Brain, Target, RefreshCw, TrendingDown, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
-import { GAP_KINDS, conceptLabel, countLabel, dueLabel, priorityLabel, stepTypeLabel } from '@/lib/gaps';
+import { GAP_KINDS, conceptLabel, countLabel, priorityLabel, reviewSummary, stepTypeLabel } from '@/lib/gaps';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 
@@ -512,7 +512,7 @@ function GapsDashboard() {
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-foreground">{conceptLabel(item.conceptId, item.conceptName)}</p>
                             <p className="text-sm text-muted-foreground">
-                              {dueLabel(item.nextReviewDate, now)} · about {item.predictedRetention.toFixed(0)}% remembered
+                              {reviewSummary(item.nextReviewDate, item.predictedRetention, now)}
                             </p>
                           </div>
                           <span className={cn(

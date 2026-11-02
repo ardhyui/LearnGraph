@@ -199,6 +199,12 @@ try {
     const reviews = today.getByRole('list', { name: 'Reviews due' }).getByRole('listitem');
     const reviewsBefore = await reviews.count();
     if (reviewsBefore > 0) {
+      const firstReview = await reviews.first().innerText().catch(() => '');
+      check(
+        /(Overdue by \d+ days?|Due today) · about \d+% remembered/.test(firstReview),
+        'dashboard: a due review says how late it is in plain words',
+        firstReview.replace(/\s+/g, ' ').slice(0, 80),
+      );
       await reviews.first().getByRole('button', { name: 'I remembered it' }).click();
       const saved = await today
         .getByText('will come back after a longer break', { exact: false })
@@ -421,6 +427,8 @@ try {
     const overdueDays = [...gapsText.matchAll(/Overdue by (\d+) days?/g)].map((m) => Number(m[1]));
     check(overdueDays.every((d) => d < 60), 'gaps: example progress is recent (no review overdue by months)', `max ${Math.max(0, ...overdueDays)} days`);
     check(/Review first|Review soon|Can wait/.test(gapsText) && !/\b(urgent|normal)\b/.test(gapsText), 'gaps: review priority uses everyday labels');
+    // Every listed review is due, so none of them may say "Can wait" (it used to, for well-known concepts).
+    check(!/Can wait/.test(gapsText), 'gaps: due reviews are never labelled "Can wait"');
     const fadingCount = Number((gapsText.match(/Fading\s+(\d+)/) ?? [])[1]);
     const dueCount = Number((gapsText.match(/Reviews\s*\((\d+) concepts?\)/) ?? [])[1]);
     check(
