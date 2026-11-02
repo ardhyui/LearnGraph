@@ -13,15 +13,18 @@ import { useDB, useLearners } from '@/lib/DBContext';
 import type { ConceptNode, KnowledgeState, ZPDRecommendation } from '@/lib/graph/types';
 import {
   applyReviewOutcome,
+  applySnooze,
   applyStudyOutcome,
   summarizeProgress,
   type ProgressSummary,
   type ReviewOutcome,
+  type SnoozeOutcome,
   type StudyOutcome,
 } from '@/lib/study';
 import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
 import { priorityLabel, reviewSummary } from '@/lib/gaps';
+import { snoozedUntil } from '@/lib/graph/spacing';
 import { cn } from '@/lib/utils';
 
 /** Set (per account) when the user chose to explore the example learners instead of onboarding. */
@@ -121,15 +124,21 @@ export function StudyToday() {
       const recommended = focusApplies
         ? zpd.recommendations.filter((r) => focusList.includes(r.concept.domain))
         : zpd.recommendations;
+      const nowMs = Date.now();
+      const postponed = new Set(
+        states.filter((st) => (snoozedUntil(st) ?? 0) > nowMs).map((st) => st.conceptId),
+      );
       setData({
         learnerId,
         progress: summarizeProgress(concepts, states),
         states,
         reviews: queue.queue,
         reviewsDue: queue.stats.totalItems,
-        // A concept already listed for review isn't offered again as "learn next".
+        // A concept already listed for review isn't offered again as "learn next",
+        // nor one whose review the learner just postponed ("Remind me tomorrow").
         next: recommended
           .filter((r) => !queue.queue.some((q) => q.conceptId === r.concept.conceptId))
+          .filter((r) => !postponed.has(r.concept.conceptId))
           .slice(0, 3),
       });
     } catch (err) {
@@ -193,7 +202,7 @@ export function StudyToday() {
     setOnboardingOpen(false);
   };
 
-  const save = async (concept: ConceptNode, outcome: StudyOutcome | ReviewOutcome) => {
+  const save = async (concept: ConceptNode, outcome: StudyOutcome | ReviewOutcome | SnoozeOutcome) => {
     if (!db || !learnerId || busy || data?.learnerId !== learnerId) return;
     setBusy(concept.conceptId);
     setNotice(null);
@@ -201,9 +210,11 @@ export function StudyToday() {
     try {
       const prior = data.states.find((s) => s.conceptId === concept.conceptId);
       const patch =
-        outcome === 'remembered' || outcome === 'forgot'
-          ? applyReviewOutcome(prior, outcome)
-          : applyStudyOutcome(prior, outcome);
+        outcome === 'snooze'
+          ? applySnooze()
+          : outcome === 'remembered' || outcome === 'forgot'
+            ? applyReviewOutcome(prior, outcome)
+            : applyStudyOutcome(prior, outcome);
       await db.setKnowledgeState(learnerId, concept.conceptId, patch);
       setNotice(NOTICES[outcome](concept.name));
       await load();
@@ -423,6 +434,14 @@ export function StudyToday() {
                     >
                       I forgot
                     </ActionButton>
+                    <ActionButton
+                      busy={false}
+                      disabled={!!busy}
+                      onClick={() => save(item.concept, 'snooze')}
+                      tone="quiet"
+                    >
+                      Remind me tomorrow
+                    </ActionButton>
                   </div>
                 </li>
               ))}
@@ -506,11 +525,12 @@ export function StudyToday() {
   );
 }
 
-const NOTICES: Record<StudyOutcome | ReviewOutcome, (name: string) => string> = {
+const NOTICES: Record<StudyOutcome | ReviewOutcome | SnoozeOutcome, (name: string) => string> = {
   'got-it': (n) => `Nice! “${n}” is marked as mastered. It will come back for a quick review tomorrow.`,
   started: (n) => `Saved your progress on “${n}”. Keep going!`,
   remembered: (n) => `Great — “${n}” will come back after a longer break.`,
   forgot: (n) => `No problem — “${n}” will come back tomorrow so it sticks.`,
+  snooze: (n) => `Okay — “${n}” is moved to tomorrow. Your progress on it is unchanged.`,
 };
 
 function Placeholder({ loading }: { loading: boolean }) {
@@ -532,7 +552,7 @@ function ActionButton({
   onClick: () => void;
   busy: boolean;
   disabled: boolean;
-  tone: 'good' | 'neutral';
+  tone: 'good' | 'neutral' | 'quiet';
 }) {
   return (
     <button
@@ -544,7 +564,9 @@ function ActionButton({
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60',
         tone === 'good'
           ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-          : 'border border-border bg-background text-foreground hover:bg-primary/10',
+          : tone === 'neutral'
+            ? 'border border-border bg-background text-foreground hover:bg-primary/10'
+            : 'text-muted-foreground underline-offset-2 hover:bg-primary/10 hover:text-foreground hover:underline',
       )}
     >
       {busy ? (

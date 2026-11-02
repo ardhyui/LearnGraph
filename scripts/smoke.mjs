@@ -242,6 +242,52 @@ try {
     check(newErrors.length === 0, 'dashboard study loop has no page errors', newErrors.join(' | '));
   }
 
+  // "Remind me tomorrow": a due review can be postponed without answering it.
+  // It leaves the list (also after a reload) and progress is unchanged.
+  // Bob: an example learner with a due review the checks above don't touch.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const today = page.getByTestId('study-today');
+    await today.waitFor({ timeout: 30000 });
+    const picker = today.getByLabel('Learner', { exact: true });
+    const previous = await picker.evaluate((el) => el.selectedOptions[0]?.textContent ?? '');
+    await picker.selectOption({ label: 'Bob Martinez' });
+    const reviews = today.getByRole('list', { name: 'Reviews due' }).getByRole('listitem');
+    await reviews.first().waitFor({ timeout: 15000 }).catch(() => {});
+    const countBefore = await reviews.count();
+    const masteredBefore = await today.getByTestId('mastered-count').innerText().catch(() => '');
+    if (countBefore > 0) {
+      const name = (await reviews.first().locator('p').first().innerText()).replace(/Review first/, '').trim();
+      await reviews.first().getByRole('button', { name: 'Remind me tomorrow' }).click();
+      const moved = await today
+        .getByText('is moved to tomorrow', { exact: false })
+        .waitFor({ timeout: 15000 })
+        .then(() => true, () => false);
+      // The notice shows as soon as it is saved; the list refreshes right after.
+      const listed = today.getByRole('list', { name: 'Reviews due' }).getByText(name, { exact: true });
+      await listed.waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
+      const stillListed = await listed.count();
+      const inLearnNext = await today.getByRole('list', { name: 'Recommended next concepts' }).getByText(name, { exact: true }).count();
+      const masteredAfter = await today.getByTestId('mastered-count').innerText().catch(() => '');
+      check(
+        moved && stillListed === 0 && inLearnNext === 0 && masteredAfter === masteredBefore,
+        'dashboard: "Remind me tomorrow" moves a due review off today’s list',
+        `"${name}", listed ${stillListed}, in learn next ${inLearnNext}, mastered ${masteredBefore} → ${masteredAfter}`,
+      );
+      await page.reload({ waitUntil: 'networkidle' });
+      await today.getByTestId('mastered-count').waitFor({ timeout: 30000 });
+      await page.waitForTimeout(500);
+      const afterReload = await today.getByRole('list', { name: 'Reviews due' }).getByText(name, { exact: true }).count();
+      check(afterReload === 0, 'dashboard: a postponed review stays postponed after a reload', `listed ${afterReload}`);
+    } else {
+      check(false, 'dashboard: "Remind me tomorrow" moves a due review off today’s list', 'no reviews due for Bob');
+    }
+    if (previous) await picker.selectOption({ label: previous });
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'postponing a review has no page errors', newErrors.join(' | '));
+  }
+
   // Returning learner: a short greeting, then Today; background and admin
   // links are tucked into a collapsed "About" section.
   {

@@ -5,6 +5,7 @@
  * the dashboard sends the returned patch through `setKnowledgeState`.
  */
 import type { ConceptNode, KnowledgeState } from './graph/types.ts';
+import { SNOOZE_DAYS } from './graph/spacing.ts';
 
 /** Same thresholds as the engine (EducationGraphDB.MASTERY_THRESHOLD etc.). */
 export const MASTERED_AT = 80;
@@ -51,6 +52,8 @@ export function summarizeProgress(
 export type StudyOutcome = 'started' | 'got-it';
 /** Self-report after a spaced-repetition review. */
 export type ReviewOutcome = 'remembered' | 'forgot';
+/** Postpone a due review without answering it ("Remind me tomorrow"). */
+export type SnoozeOutcome = 'snooze';
 
 /**
  * Fields the dashboard writes back; all accepted by the server schema.
@@ -59,7 +62,7 @@ export type ReviewOutcome = 'remembered' | 'forgot';
  */
 export type StatePatch = Pick<
   KnowledgeState,
-  'mastery' | 'lastReviewed' | 'lastAssessed' | 'reviewCount' | 'retentionStrength'
+  'mastery' | 'lastReviewed' | 'lastAssessed' | 'reviewCount' | 'retentionStrength' | 'nextReview'
 >;
 
 type PriorState = Pick<KnowledgeState, 'mastery' | 'reviewCount' | 'retentionStrength'> | null | undefined;
@@ -85,6 +88,8 @@ export function applyStudyOutcome(prior: PriorState, outcome: StudyOutcome, now:
     // Already-mastered concepts keep their schedule; newly mastered ones start it.
     reviewCount: outcome === 'got-it' && current < MASTERED_AT ? 0 : (prior?.reviewCount ?? 0),
     retentionStrength: outcome === 'got-it' ? 0.8 : clamp(prior?.retentionStrength ?? 0.5, 0, 1),
+    // Equal to lastReviewed = no snooze (ends any earlier "Remind me tomorrow").
+    nextReview: iso,
   };
 }
 
@@ -107,7 +112,17 @@ export function applyReviewOutcome(prior: PriorState, outcome: ReviewOutcome, no
     lastAssessed: iso,
     reviewCount: outcome === 'remembered' ? (prior?.reviewCount ?? 0) + 1 : 0,
     retentionStrength: round2(outcome === 'remembered' ? Math.min(1, strength + 0.1) : Math.max(0.1, strength - 0.2)),
+    nextReview: iso,
   };
+}
+
+/**
+ * "Remind me tomorrow": postpones a due review by `SNOOZE_DAYS` without
+ * counting as a review — mastery, schedule and history stay as they are, so
+ * answering it later grows the interval exactly as it would have today.
+ */
+export function applySnooze(now: Date = new Date()): Pick<KnowledgeState, 'nextReview'> {
+  return { nextReview: new Date(now.getTime() + SNOOZE_DAYS * 24 * 60 * 60 * 1000).toISOString() };
 }
 
 /** Pick the learner to show: the remembered one if it still exists, else the first. */

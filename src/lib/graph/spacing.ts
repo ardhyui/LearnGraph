@@ -95,17 +95,38 @@ export function daysSince(iso: string | null | undefined, now: Date): number {
 export interface DueInput extends SpacingInput {
   lastReviewed?: string | null;
   firstSeen?: string | null;
+  /**
+   * "Not today": the learner postponed this review until this time. Only
+   * counts while it is later than the last review (a review or study after
+   * snoozing ends the snooze — the Today panel also writes `nextReview` equal
+   * to `lastReviewed` then, which clears it explicitly).
+   */
+  nextReview?: string | null;
+}
+
+/** A learner can postpone a due review by this many days ("Remind me tomorrow"). */
+export const SNOOZE_DAYS = 1;
+
+/** When an active snooze ends (ms since epoch), or `null` if there is none. */
+export function snoozedUntil(state: DueInput): number | null {
+  const until = Date.parse(state.nextReview ?? '');
+  if (!Number.isFinite(until)) return null;
+  const from = Date.parse(state.lastReviewed ?? state.firstSeen ?? '');
+  if (Number.isFinite(from) && until <= from) return null;
+  return until;
 }
 
 /**
  * When the next review falls due (ms since epoch): `reviewIntervalDays` after
- * the last review (or first study if never reviewed). `null` when there is no
- * usable date.
+ * the last review (or first study if never reviewed), or later if the learner
+ * snoozed it (see `snoozedUntil`). `null` when there is no usable date.
  */
 export function reviewDueAt(state: DueInput, difficulty?: number | null): number | null {
   const from = Date.parse(state.lastReviewed ?? state.firstSeen ?? '');
   if (!Number.isFinite(from)) return null;
-  return from + reviewIntervalDays(state, difficulty) * DAY_MS;
+  const due = from + reviewIntervalDays(state, difficulty) * DAY_MS;
+  const snooze = snoozedUntil(state);
+  return snooze !== null && snooze > due ? snooze : due;
 }
 
 /** Minimum mastery for a concept to count as "learned" (and so reviewable). */
