@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback, useId } from 'react';
+import { useState, useEffect, useCallback, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User,
@@ -44,7 +44,15 @@ import {
 import { useDB, useLearners } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 import { LearningOverview } from '@/components/LearningOverview';
-import { PROFILE_MODES, PROFILE_MODE_COPY, profileModeLabel, type ProfileMode } from '@/lib/profile';
+import {
+  PROFILE_MODES,
+  PROFILE_MODE_COPY,
+  filledInLine,
+  profileCategoryCopy,
+  profileModeLabel,
+  splitProfileCategories,
+  type ProfileMode,
+} from '@/lib/profile';
 
 export const Route = createFileRoute('/profile')({
   component: ProfilePage,
@@ -280,26 +288,17 @@ type AssessmentViewMode = 'cards' | 'all';
 // COMPONENT
 // =============================================================================
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.4, ease: 'easeOut' as const },
-  },
-};
+// Learning-style categories: the ones the study plan uses first, the rest
+// folded under "More about you". Same order for the questionnaires.
+const profileCategories = splitProfileCategories(PSYCHOMETRIC_CATEGORIES);
+const orderedAssessmentCategories = (() => {
+  const { main, more } = splitProfileCategories(ASSESSMENT_CATEGORIES);
+  return [...main, ...more];
+})();
 
 function ProfilePage() {
   // Database hooks
-  const { isLoading: dbLoading, error: dbError } = useDB();
+  const { db, isLoading: dbLoading, error: dbError } = useDB();
   const { learners: learnersData, loading: learnersLoading, getLearner, updateLearner, refresh: refreshLearners } = useLearners();
 
   // Basic state — the learner is shared with the dashboard and other learner pages.
@@ -308,6 +307,10 @@ function ProfilePage() {
     learnersLoading,
   );
   const selectedLearnerId = activeLearner ?? '';
+  const selectedLearnerRef = useRef(selectedLearnerId);
+  useEffect(() => {
+    selectedLearnerRef.current = selectedLearnerId;
+  }, [selectedLearnerId]);
   const learnerSelectId = useId();
   const activeLearnerProfile = learnersData.find((l) => l.userId === activeLearner);
   const [profile, setProfile] = useState<LearnerProfile | null>(null);
@@ -331,7 +334,7 @@ function ProfilePage() {
   const [editedScores, setEditedScores] = useState<Record<string, PsychometricScore>>({});
 
   // Expanded categories
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['core_personality']));
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['cognitive_learning']));
 
   // Assessment state
   const [activeAssessment, setActiveAssessment] = useState<Assessment | null>(null);
@@ -497,9 +500,13 @@ function ProfilePage() {
         profileMode: activeMode !== 'view' ? activeMode : profile.profileMode,
       };
 
-      const saved = await updateLearner(profile.userId, updatedData as any);
-      setProfile(saved);
-      setSuccess('Profile saved successfully!');
+      await updateLearner(profile.userId, updatedData as any);
+      // Work out the learning style, pace and support level from the saved
+      // values so Recommendations ("Ways to learn it") actually use them.
+      const saved = db ? await db.computeAndStoreDerivedProfiles(profile.userId) : null;
+      // Switching learners while saving must not show this learner's result.
+      if (saved && saved.userId === selectedLearnerRef.current) setProfile(saved);
+      setSuccess('Saved. Your suggestions on Recommendations now use this profile.');
       setTimeout(() => setSuccess(null), 3000);
     } catch {
       setError('Failed to save profile');
@@ -664,12 +671,7 @@ function ProfilePage() {
 
       <main className="flex-1 min-w-0 w-full px-4 py-6 sm:px-8 sm:py-10 max-w-6xl mx-auto">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8"
-        >
+        <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/25">
               <User className="w-6 h-6 text-white" aria-hidden="true" />
@@ -681,7 +683,7 @@ function ProfilePage() {
           <p className="text-muted-foreground sm:ml-14">
             Your subjects and progress, plus an optional profile of how you like to learn.
           </p>
-        </motion.div>
+        </div>
 
         {/* No learner yet: the dashboard's setup step creates one. */}
         {hasNoUsers && (
@@ -704,12 +706,7 @@ function ProfilePage() {
 
         {/* Learner Selector */}
         {!hasNoUsers && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1, duration: 0.5 }}
-            className="glass-card p-5 mb-6"
-          >
+          <div className="glass-card p-5 mb-6">
             <div className="flex items-center gap-4 flex-wrap">
               <label htmlFor={learnerSelectId} className="font-medium text-foreground">Learner</label>
               <select
@@ -735,7 +732,7 @@ function ProfilePage() {
                 </span>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Subjects, progress and the next step (the learner-facing part). */}
@@ -755,12 +752,7 @@ function ProfilePage() {
 
         {/* How the learning-style profile is filled in */}
         {!hasNoUsers && profile && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-            className="mb-6"
-          >
+          <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold flex items-center gap-2 text-foreground">
                 <Settings2 className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
@@ -812,12 +804,7 @@ function ProfilePage() {
             </div>
 
             {/* Mode Description */}
-            <motion.div
-              key={activeMode}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-4 p-4 rounded-xl bg-secondary/50 border border-border"
-            >
+            <div className="mt-4 p-4 rounded-xl bg-secondary/50 border border-border">
               <div className="flex items-start gap-3">
                 {(() => {
                   const Icon = getModeConfig(activeMode).icon;
@@ -837,8 +824,8 @@ function ProfilePage() {
                   </button>
                 )}
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
 
         {/* Status Messages */}
@@ -999,10 +986,10 @@ function ProfilePage() {
                 <div>
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <ClipboardCheck className="w-5 h-5 text-amber-500" />
-                    Psychological Assessments
+                    Short questionnaires
                   </h3>
                   <p className="text-muted-foreground text-sm mt-1">
-                    Complete validated assessments for all 39 psychometric domains
+                    Topics at the top shape your study suggestions; the rest are optional.
                   </p>
                 </div>
                 <div className="flex items-center gap-4 flex-wrap">
@@ -1068,11 +1055,11 @@ function ProfilePage() {
                 <p className="text-xs text-muted-foreground">
                   {assessmentType === 'quick' ? (
                     <>
-                      <strong className="text-foreground">Quick Mode:</strong> Single screening question per domain. Fast but lower confidence (~70%).
+                      <strong className="text-foreground">Quick:</strong> one question per topic. Fast, but a rough estimate.
                     </>
                   ) : (
                     <>
-                      <strong className="text-foreground">Full Test Mode:</strong> Complete validated instruments (TIPI, NEO-PI-R, GSE, SWLS, etc.). Takes longer but provides high confidence (~90%) results.
+                      <strong className="text-foreground">Full test:</strong> several questions per topic. Takes longer, gives a more reliable result.
                     </>
                   )}
                 </p>
@@ -1093,7 +1080,7 @@ function ProfilePage() {
             </div>
 
             {/* Cards View - Individual assessment cards */}
-            {assessmentViewMode === 'cards' && ASSESSMENT_CATEGORIES.map((category) => {
+            {assessmentViewMode === 'cards' && orderedAssessmentCategories.map((category) => {
               const categoryAssessments = category.domains
                 .map((domainId) => ALL_ASSESSMENTS[domainId])
                 .filter(Boolean);
@@ -1110,7 +1097,7 @@ function ProfilePage() {
                   className="glass-card p-5"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-medium text-foreground">{category.name}</h4>
+                    <h4 className="font-medium text-foreground">{profileCategoryCopy(category.id, category.name).name}</h4>
                     <span className="text-xs text-muted-foreground">
                       {completedInCategory} / {category.domains.length} completed
                     </span>
@@ -1227,14 +1214,14 @@ function ProfilePage() {
 
                 {/* All Questions by Category */}
                 <div className="space-y-8">
-                  {ASSESSMENT_CATEGORIES.map((category) => {
+                  {orderedAssessmentCategories.map((category) => {
                     const categoryDomains = category.domains.filter((d) => ALL_ASSESSMENTS[d]);
                     if (categoryDomains.length === 0) return null;
 
                     return (
                       <div key={category.id}>
                         <h4 className="font-semibold text-foreground mb-4 pb-2 border-b border-border">
-                          {category.name}
+                          {profileCategoryCopy(category.id, category.name).name}
                         </h4>
                         <div className="space-y-6">
                           {categoryDomains.map((domainId, domainIndex) => {
@@ -1498,50 +1485,37 @@ function ProfilePage() {
         )}
 
         {/* Domain Categories */}
-        {!loading && profile && (
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="space-y-4"
-          >
-            {PSYCHOMETRIC_CATEGORIES.map((category) => {
+        {!loading && profile && (() => {
+          const renderCategory = (category: CategoryDefinition) => {
               const isExpanded = expandedCategories.has(category.id);
               const Icon = category.icon;
               const categoryScores = category.domains.map((d) => editedScores[d.id]?.score).filter((s) => s !== undefined);
-              const avgScore = categoryScores.length > 0
-                ? Math.round(categoryScores.reduce((a, b) => a + b, 0) / categoryScores.length)
-                : null;
+              const copy = profileCategoryCopy(category.id, category.name);
 
               return (
-                <motion.div
-                  key={category.id}
-                  variants={itemVariants}
-                  className="glass-card overflow-hidden"
-                >
+                <div key={category.id} className="glass-card overflow-hidden" data-testid={`profile-category-${category.id}`}>
                   {/* Category Header */}
-                  <motion.button
-                    whileHover={{ backgroundColor: 'rgba(0,0,0,0.02)' }}
+                  <button
+                    type="button"
                     onClick={() => toggleCategory(category.id)}
-                    className="w-full p-5 flex items-center gap-4 text-left"
+                    aria-expanded={isExpanded}
+                    className="w-full p-5 flex items-center gap-4 text-left hover:bg-secondary/30 transition-colors"
                   >
                     <div className={cn('p-2 rounded-xl bg-gradient-to-br', category.color)}>
-                      <Icon className="w-5 h-5 text-white" />
+                      <Icon className="w-5 h-5 text-white" aria-hidden="true" />
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-foreground">{category.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {categoryScores.length} / {category.domains.length} domains configured
-                        {avgScore !== null && ` • Avg: ${avgScore}`}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-foreground">{copy.name}</h3>
+                      {copy.hint && <p className="text-sm text-muted-foreground">{copy.hint}</p>}
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {filledInLine(categoryScores.length, category.domains.length)}
                       </p>
                     </div>
-                    <motion.div
-                      animate={{ rotate: isExpanded ? 90 : 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </motion.div>
-                  </motion.button>
+                    <ChevronRight
+                      className={cn('w-5 h-5 shrink-0 text-muted-foreground transition-transform', isExpanded && 'rotate-90')}
+                      aria-hidden="true"
+                    />
+                  </button>
 
                   {/* Category Content */}
                   <AnimatePresence>
@@ -1579,9 +1553,6 @@ function ProfilePage() {
                                       )}
                                     </div>
                                     <p className="text-sm text-muted-foreground">{domain.description}</p>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      Assessment: {domain.assessmentInstrument}
-                                    </p>
                                   </div>
                                   {score && (
                                     <div className="text-right flex items-center gap-4">
@@ -1883,20 +1854,32 @@ function ProfilePage() {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
+                </div>
               );
-            })}
-          </motion.div>
-        )}
+          };
+          return (
+            <div className="space-y-4" data-testid="profile-categories">
+              {profileCategories.main.map(renderCategory)}
+              {profileCategories.more.length > 0 && (
+                <details className="glass-card overflow-hidden" data-testid="profile-more">
+                  <summary className="cursor-pointer p-5 font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                    More about you{' '}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      ({profileCategories.more.length} topics, not used by your study plan)
+                    </span>
+                  </summary>
+                  <div className="space-y-4 px-3 pb-3 sm:px-5 sm:pb-5">
+                    {profileCategories.more.map(renderCategory)}
+                  </div>
+                </details>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Summary Stats */}
         {!loading && profile && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="mt-8 glass-card p-6"
-          >
+          <div className="mt-8 glass-card p-6">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
               <Brain className="w-5 h-5 text-purple-500" />
               Learning-style summary
@@ -1931,7 +1914,7 @@ function ProfilePage() {
             {/* Learning Style Derived */}
             {profile.learningStyle && (
               <div className="mt-6 p-4 rounded-xl bg-purple-500/10">
-                <h4 className="font-medium text-foreground mb-2">Derived Learning Style</h4>
+                <h4 className="font-medium text-foreground mb-2">Your learning style (worked out from your answers)</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <div>
                     <span className="text-muted-foreground">Primary:</span>{' '}
@@ -1954,7 +1937,7 @@ function ProfilePage() {
                 </div>
               </div>
             )}
-          </motion.div>
+          </div>
         )}
       </main>
     </div>

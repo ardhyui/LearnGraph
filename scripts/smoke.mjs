@@ -488,6 +488,38 @@ try {
     check(newErrors.length === 0, 'my profile has no page errors', newErrors.join(' | '));
   }
 
+  // The optional learning-style profile leads with what the study plan reads
+  // (no instrument names or "Dark Personality" up front), and saving it works
+  // out a learning style that the recommendations use.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
+    const cats = page.getByTestId('profile-categories');
+    await cats.waitFor({ timeout: 30000 }).catch(() => {});
+    const firstCat = await cats.locator('[data-testid^="profile-category-"] h3').first().innerText().catch(() => '');
+    const more = page.getByTestId('profile-more');
+    const moreOpen = await more.evaluate((el) => el.open).catch(() => null);
+    const hiddenTrait = await page.getByText('Difficult traits').isVisible().catch(() => true);
+    const mainText = await page.locator('main').innerText().catch(() => '');
+    check(firstCat === 'How you think and learn' && moreOpen === false && !hiddenTrait, 'profile: learning-relevant topics first, the rest folded under "More about you"', `"${firstCat}", open=${moreOpen}`);
+    check(!/Dark Personality|NEO-PI-R|MACH-IV|domains configured|^[A-H]\. /m.test(mainText), 'profile: no instrument names or lettered jargon categories', '');
+    await more.locator('summary').click();
+    check(await page.getByText('Difficult traits').isVisible().catch(() => false), 'profile: "More about you" opens on request');
+
+    const setMyself = page.getByRole('button', { name: 'Set it myself' });
+    for (let i = 0; i < 20 && (await setMyself.getAttribute('aria-pressed').catch(() => null)) !== 'true'; i++) {
+      await setMyself.click();
+      await page.waitForTimeout(300);
+    }
+    await page.getByRole('button', { name: 'Use this option' }).click();
+    await page.getByRole('button', { name: 'Save Profile' }).click();
+    const savedMsg = await page.getByText('Saved. Your suggestions on Recommendations now use this profile.').waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const styleShown = await page.getByText('Your learning style (worked out from your answers)').waitFor({ timeout: 15000 }).then(() => true, () => false);
+    check(savedMsg && styleShown, 'profile: saving works out a learning style', `saved=${savedMsg}, style=${styleShown}`);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'learning-style profile has no page errors', newErrors.join(' | '));
+  }
+
   // Phone layout (390×844): the sidebar becomes a drawer behind a menu
   // button, so content gets the full width and nothing scrolls sideways.
   {
