@@ -583,7 +583,7 @@ function GapsDashboard() {
             </motion.div>
           )}
 
-          {!selectedLearnerId && !learnersLoading && (
+          {!learnersLoading && learners.length === 0 && (
             <motion.div
               key="empty"
               initial={{ opacity: 0 }}
