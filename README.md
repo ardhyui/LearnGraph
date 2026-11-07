@@ -782,3 +782,7 @@ MIT License - See LICENSE file for details.
 ## Acknowledgments
 
 This project is built on decades of educational psychology research and modern software engineering practices. Special thanks to the researchers whose work forms the theoretical foundation of this system.
+
+## Japanese study workflow
+
+`/japanese` provides an owner-scoped N5–N1 learning map, formative quizzes and practice logging. Optional workstation integration imports Michi kanji signals and exports consistent local backups. See [setup, limitations and QA](docs/JAPANESE-LOCAL.md); local sign-in is off by default and must only be enabled on a loopback-bound service.
