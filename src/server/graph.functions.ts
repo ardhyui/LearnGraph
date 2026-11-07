@@ -24,6 +24,15 @@ export const graphCall = createServerFn({ method: 'POST' })
   })
   .handler(async ({ data, context }) => {
     const { graphForOwner } = await import('@/lib/graph/server');
+    if (
+      data.method === 'setKnowledgeState' &&
+      typeof data.args[1] === 'string' &&
+      data.args[1].startsWith('jp-')
+    ) {
+      throw new Error(
+        'Gunakan halaman Bahasa Jepang untuk merekam bukti latihan; mastery topik ini tidak diubah lewat penilaian diri.',
+      );
+    }
     const graph = await graphForOwner(context.userId);
     const fn = graph[data.method] as (...args: unknown[]) => unknown;
     const result = await fn.apply(graph, data.args);

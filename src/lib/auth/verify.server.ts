@@ -1,5 +1,6 @@
 import { getRequest } from '@tanstack/react-start/server';
 import { auth } from './server';
+import { permitsLocalUser } from './local-access';
 
 /**
  * Server-side session resolution (server-only). Never trust a client-supplied
@@ -21,6 +22,15 @@ export type VerifiedUser = { id: string; email: string | null; name: string | nu
 export async function getSessionUser(): Promise<VerifiedUser | null> {
   const request = getRequest();
   if (!request) return null;
+  if (permitsLocalUser(request, process.env.JAPANESE_LOCAL_ORIGIN)) {
+    const { getDb, ensureDbReady } = await import('../db');
+    const { sql } = await import('kysely');
+    await ensureDbReady();
+    await sql`insert into "user" (id,name,email,"emailVerified") values ('local-japanese-owner','Ardhyui','local-japanese@localhost.invalid',false) on conflict (id) do nothing`.execute(
+      getDb(),
+    );
+    return { id: 'local-japanese-owner', name: 'Ardhyui', email: null };
+  }
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return null;
   return {

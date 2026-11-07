@@ -20,7 +20,8 @@
     "format": "prettier --write .",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "smoke": "node scripts/smoke.mjs",
-    "ci": "node scripts/ci.mjs"
+    "ci": "node scripts/ci.mjs",
+    "build:local": "node scripts/with-app-env.mjs vite build"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

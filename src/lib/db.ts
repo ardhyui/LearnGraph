@@ -109,3 +109,11 @@ export async function ensureDbReady(): Promise<void> {
 if (typeof window === 'undefined' && dbSource === 'pglite') {
   void ensureDbReady().catch((err) => console.error('[db] PGlite bootstrap failed:', err));
 }
+
+/** Consistent local snapshot through PGlite's dump API; never copy a live data directory. */
+export async function dumpLocalJapaneseDatabase(): Promise<Uint8Array> {
+  if (dbSource !== 'pglite' || !process.env.JAPANESE_LOCAL_ORIGIN)
+    throw new Error('Local backup is disabled.');
+  const blob = await (await getPglite()).dumpDataDir('gzip');
+  return new Uint8Array(await blob.arrayBuffer());
+}

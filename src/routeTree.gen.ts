@@ -17,6 +17,7 @@ import { Route as DomainsRouteImport } from './routes/domains'
 import { Route as EduPsychologyRouteImport } from './routes/edu-psychology'
 import { Route as GapsRouteImport } from './routes/gaps'
 import { Route as GraphRouteImport } from './routes/graph'
+import { Route as JapaneseRouteImport } from './routes/japanese'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RecommendationsRouteImport } from './routes/recommendations'
 import { Route as SignInRouteImport } from './routes/sign-in'
@@ -27,6 +28,7 @@ import { Route as AdminLearnersRouteImport } from './routes/admin/learners'
 import { Route as AdminPrerequisitesRouteImport } from './routes/admin/prerequisites'
 import { Route as AdminPsychometricsRouteImport } from './routes/admin/psychometrics'
 import { Route as AdminStatesRouteImport } from './routes/admin/states'
+import { Route as ApiJapaneseBackupRouteImport } from './routes/api/japanese-backup'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -67,6 +69,11 @@ const GapsRoute = GapsRouteImport.update({
 const GraphRoute = GraphRouteImport.update({
   id: '/graph',
   path: '/graph',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JapaneseRoute = JapaneseRouteImport.update({
+  id: '/japanese',
+  path: '/japanese',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -119,6 +126,11 @@ const AdminStatesRoute = AdminStatesRouteImport.update({
   path: '/admin/states',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiJapaneseBackupRoute = ApiJapaneseBackupRouteImport.update({
+  id: '/api/japanese-backup',
+  path: '/api/japanese-backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -134,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/edu-psychology': typeof EduPsychologyRoute
   '/gaps': typeof GapsRoute
   '/graph': typeof GraphRoute
+  '/japanese': typeof JapaneseRoute
   '/profile': typeof ProfileRoute
   '/recommendations': typeof RecommendationsRoute
   '/sign-in': typeof SignInRoute
@@ -144,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
   '/admin/states': typeof AdminStatesRoute
+  '/api/japanese-backup': typeof ApiJapaneseBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -155,6 +169,7 @@ export interface FileRoutesByTo {
   '/edu-psychology': typeof EduPsychologyRoute
   '/gaps': typeof GapsRoute
   '/graph': typeof GraphRoute
+  '/japanese': typeof JapaneseRoute
   '/profile': typeof ProfileRoute
   '/recommendations': typeof RecommendationsRoute
   '/sign-in': typeof SignInRoute
@@ -165,6 +180,7 @@ export interface FileRoutesByTo {
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
   '/admin/states': typeof AdminStatesRoute
+  '/api/japanese-backup': typeof ApiJapaneseBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -177,6 +193,7 @@ export interface FileRoutesById {
   '/edu-psychology': typeof EduPsychologyRoute
   '/gaps': typeof GapsRoute
   '/graph': typeof GraphRoute
+  '/japanese': typeof JapaneseRoute
   '/profile': typeof ProfileRoute
   '/recommendations': typeof RecommendationsRoute
   '/sign-in': typeof SignInRoute
@@ -187,6 +204,7 @@ export interface FileRoutesById {
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
   '/admin/states': typeof AdminStatesRoute
+  '/api/japanese-backup': typeof ApiJapaneseBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -200,6 +218,7 @@ export interface FileRouteTypes {
     | '/edu-psychology'
     | '/gaps'
     | '/graph'
+    | '/japanese'
     | '/profile'
     | '/recommendations'
     | '/sign-in'
@@ -210,6 +229,7 @@ export interface FileRouteTypes {
     | '/admin/prerequisites'
     | '/admin/psychometrics'
     | '/admin/states'
+    | '/api/japanese-backup'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -221,6 +241,7 @@ export interface FileRouteTypes {
     | '/edu-psychology'
     | '/gaps'
     | '/graph'
+    | '/japanese'
     | '/profile'
     | '/recommendations'
     | '/sign-in'
@@ -231,6 +252,7 @@ export interface FileRouteTypes {
     | '/admin/prerequisites'
     | '/admin/psychometrics'
     | '/admin/states'
+    | '/api/japanese-backup'
     | '/api/auth/$'
   id:
     | '__root__'
@@ -242,6 +264,7 @@ export interface FileRouteTypes {
     | '/edu-psychology'
     | '/gaps'
     | '/graph'
+    | '/japanese'
     | '/profile'
     | '/recommendations'
     | '/sign-in'
@@ -252,6 +275,7 @@ export interface FileRouteTypes {
     | '/admin/prerequisites'
     | '/admin/psychometrics'
     | '/admin/states'
+    | '/api/japanese-backup'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -264,6 +288,7 @@ export interface RootRouteChildren {
   EduPsychologyRoute: typeof EduPsychologyRoute
   GapsRoute: typeof GapsRoute
   GraphRoute: typeof GraphRoute
+  JapaneseRoute: typeof JapaneseRoute
   ProfileRoute: typeof ProfileRoute
   RecommendationsRoute: typeof RecommendationsRoute
   SignInRoute: typeof SignInRoute
@@ -274,6 +299,7 @@ export interface RootRouteChildren {
   AdminPrerequisitesRoute: typeof AdminPrerequisitesRoute
   AdminPsychometricsRoute: typeof AdminPsychometricsRoute
   AdminStatesRoute: typeof AdminStatesRoute
+  ApiJapaneseBackupRoute: typeof ApiJapaneseBackupRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -333,6 +359,13 @@ declare module '@tanstack/react-router' {
       path: '/graph'
       fullPath: '/graph'
       preLoaderRoute: typeof GraphRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/japanese': {
+      id: '/japanese'
+      path: '/japanese'
+      fullPath: '/japanese'
+      preLoaderRoute: typeof JapaneseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -405,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminStatesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/japanese-backup': {
+      id: '/api/japanese-backup'
+      path: '/api/japanese-backup'
+      fullPath: '/api/japanese-backup'
+      preLoaderRoute: typeof ApiJapaneseBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -424,6 +464,7 @@ const rootRouteChildren: RootRouteChildren = {
   EduPsychologyRoute: EduPsychologyRoute,
   GapsRoute: GapsRoute,
   GraphRoute: GraphRoute,
+  JapaneseRoute: JapaneseRoute,
   ProfileRoute: ProfileRoute,
   RecommendationsRoute: RecommendationsRoute,
   SignInRoute: SignInRoute,
@@ -434,6 +475,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminPrerequisitesRoute: AdminPrerequisitesRoute,
   AdminPsychometricsRoute: AdminPsychometricsRoute,
   AdminStatesRoute: AdminStatesRoute,
+  ApiJapaneseBackupRoute: ApiJapaneseBackupRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
