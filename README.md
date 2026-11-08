@@ -164,6 +164,11 @@ DATABASE_URL=postgres://… npm run db:migrate   # apply pending migrations
 applies new migrations. Applied files are recorded in `_migrations` and never
 run twice. With PGlite (no `DATABASE_URL`) migrations apply on startup.
 
+To test a backup, restore it into a new database and compare the two with
+`node scripts/compare-databases.mjs`. That script only reads from both
+databases. The whole procedure is in
+[docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md).
+
 ### Deploy (Vercel)
 
 `vite.config.ts` builds with Nitro's `vercel` preset. Set `DATABASE_URL`,
