@@ -131,7 +131,7 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 - [x] Opsi mulai tanpa data contoh. "Start with an empty workspace" di onboarding; contoh tidak di-seed lagi.
 - [x] Profil hanya menanyakan domain yang dipakai; domain sensitif tidak aktif secara bawaan dan ada persetujuan singkat (keputusan D4). Dikerjakan sesuai rekomendasi D4: My Profile hanya menanyakan topik yang dipakai rencana belajar; topik lain (termasuk yang pribadi) baru tampil setelah pelajar setuju, dan jawaban lama bisa dihapus. Bisa diubah bila pemilik memutuskan lain.
 - [x] Sembunyikan mode "Automatic" dan "Set, then adjust" sampai inferensinya benar-benar ada. Profil yang dulu memilihnya tetap melihat pilihannya.
-- [ ] Tetapkan bahasa antarmuka (keputusan D2).
+- [x] Tetapkan bahasa antarmuka (keputusan D2). Diputuskan 9 November: semua halaman umum berbahasa Inggris, dan `/japanese` tetap berbahasa Indonesia sebagai alat pribadi pemilik. Kodenya sudah sesuai: satu-satunya teks Indonesia di luar `/japanese` adalah menu ke halaman itu. Sebelum dibuka untuk publik (D1), perlu dipertimbangkan satu hal: menu dan halaman `/japanese` tampil untuk setiap akun.
 - [~] 🔒 Reset password dan verifikasi email (butuh layanan pengirim email). Kode siap: "Forgot your password?" → tautan 1 jam → password baru (sesi lama berakhir), dan email konfirmasi saat daftar. Di produksi aktif setelah `RESEND_API_KEY` dan `EMAIL_FROM` diisi (D7); tanpa itu fiturnya disembunyikan. Di dev, email dicetak ke log server.
 - [~] Kebijakan privasi singkat, dan uji pemulihan backup database produksi. Halaman publik `/privacy` ("How your data is handled") berisi hanya klaim yang berlaku di kode; setiap klaimnya dicocokkan dengan kode pada 8 November (lihat log `docs/ROADMAP.md`). Uji pemulihan backup produksi belum: butuh akses ke database produksi (D7). Prosedurnya sudah siap di `docs/BACKUP-RESTORE.md`, termasuk `scripts/compare-databases.mjs` yang membandingkan tabel, migrasi, dan jumlah baris antara produksi dan salinannya (koneksi baca-saja).
 
@@ -193,7 +193,7 @@ Bagian 🔒 (keputusan D3):
 
 ### M6: Guru dan kelas
 
-Dikerjakan hanya bila keputusan D1 memilih sekolah.
+Dikerjakan hanya bila keputusan D1 memilih sekolah. D1 diputuskan 9 November: pemilik dulu, lalu publik skala kecil, jadi M6 ditunda.
 
 - [ ] Peran guru dan pelajar; halaman admin dan developer disembunyikan dari pelajar.
 - [ ] Kurikulum bersama lintas akun. Ini perubahan arsitektur terbesar karena semua data kini terikat `owner_id`.
@@ -205,7 +205,7 @@ Dikerjakan hanya bila keputusan D1 memilih sekolah.
 
 ### M7: Riset dan model (Fase 8)
 
-Dimulai setelah data event cukup. Perkiraan awal: 3 bulan data dari 50 pelajar aktif.
+Dimulai setelah data event cukup. Perkiraan awal: 3 bulan data dari 50 pelajar aktif. Pada 9 November pemilik memutuskan bahwa ekstraksi fitur dan ekspor data latih juga menunggu data.
 
 - [ ] Uji domain psikometrik mana yang benar-benar memprediksi hasil belajar, lalu hapus sisanya dari rencana belajar.
 - [ ] Kalibrasi interval review dari data, dan bandingkan dengan FSRS.
@@ -247,8 +247,8 @@ Sejak 8 November angka-angka ini tampil di halaman Status, pada kartu **Learning
 
 | # | Keputusan | Rekomendasi | Memengaruhi |
 |---|-----------|-------------|-------------|
-| D1 | Siapa pengguna utama 6 bulan ke depan: pemilik, publik, atau sekolah? | Pemilik dulu (sudah memakai `/japanese`), lalu publik skala kecil. Sekolah belakangan. | M3, M6 |
-| D2 | Bahasa antarmuka? Kini campur: `/japanese` berbahasa Indonesia, sisanya Inggris. | Satu bahasa utama sesuai D1. Sistem i18n hanya bila benar-benar butuh dua bahasa. | M2, M3 |
+| D1 | Siapa pengguna utama 6 bulan ke depan: pemilik, publik, atau sekolah? | Pemilik dulu (sudah memakai `/japanese`), lalu publik skala kecil. Sekolah belakangan. **Diputuskan 9 November: sesuai rekomendasi.** | M3, M6 |
+| D2 | Bahasa antarmuka? Kini campur: `/japanese` berbahasa Indonesia, sisanya Inggris. | Satu bahasa utama sesuai D1. Sistem i18n hanya bila benar-benar butuh dua bahasa. **Diputuskan 9 November: Inggris untuk halaman umum, `/japanese` tetap Indonesia.** | M2, M3 |
 | D3 | Bagaimana membiayai LLM? 🔒 | Mulai dari "salin konteks" tanpa biaya, lalu kunci API milik pengguna atau model lokal. API berbayar proyek paling akhir. | M4, M5 |
 | D4 | Apa yang dilakukan pada domain sensitif dan yang tak terpakai? | Berhenti menanyakan yang tak dipakai rencana belajar. Data yang sudah tersimpan tidak dihapus otomatis. | M3 |
 | D5 | Bolehkah laporan diri menghasilkan "mastered"? | Boleh untuk konsep tanpa soal, dengan label yang jelas. Konsep bersoal wajib lewat kuis. | M1 |
