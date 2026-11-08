@@ -50,7 +50,7 @@ LearnGraph is a **Graph RAG (Retrieval-Augmented Generation) knowledge base** th
 | **Knowledge Gap Detection** | Find missing, forgotten, or misconceived knowledge | **Working** |
 | **Spaced Repetition** | Schedule reviews based on Ebbinghaus forgetting curve (SM-2) | **Working** |
 | **Remediation Plans** | Auto-generated learning plans to address gaps | **Working** |
-| **RAG Context Generation** | Augment LLM prompts with learner context | Planned (Phase 7) |
+| **RAG Context Generation** | A ≤ 2000-token learner brief for any AI tutor, shown before it is copied ("Ask an AI tutor" on a lesson page); no LLM is called | **Working** (built-in tutor chat planned, Roadmap M4) |
 
 ---
 
@@ -303,9 +303,9 @@ The page leads with the learner's subjects and progress. Below that, an optional
 | Mode | Description |
 |------|-------------|
 | **Just look** | View what is filled in so far |
-| **Automatic** | Selectable, but automatic adjustment is not built yet: values do not change from study activity |
+| **Automatic** | Not offered until automatic adjustment is built (shown only to profiles that chose it earlier) |
 | **Set it myself** | The learner sets values directly and LearnGraph never changes them |
-| **Set, then adjust** | Selectable, but behaves like "Set it myself" until automatic adjustment is built |
+| **Set, then adjust** | Not offered until automatic adjustment is built; earlier choices behave like "Set it myself" |
 | **Take quizzes** | Short questionnaires work out the values and save them immediately |
 
 **Domain Categories:**
@@ -609,7 +609,7 @@ LearnGraph/
 | **Phase 4** | ZPD Engine | **Complete** |
 | **Phase 5** | Knowledge Gap Analysis & Spaced Repetition | **Complete** |
 | Phase 6 | Adaptive Content Delivery | Planned (Roadmap M1, M2, M5) |
-| Phase 7 | RAG Integration with LLMs | Planned (Roadmap M4) |
+| Phase 7 | RAG Integration with LLMs | Context without LLM done; tutor chat planned (Roadmap M4) |
 | Phase 8 | GNN Preparation (ML Export) | Future (Roadmap M7) |
 
 **MVP = Phases 1-5** — Delivers personalized "what to learn next" recommendations with gap analysis and spaced repetition.

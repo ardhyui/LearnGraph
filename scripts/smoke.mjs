@@ -636,8 +636,28 @@ try {
       'lesson: passing its quiz masters the concept and offers the next step',
       `${progress}; ${minutes.toFixed(1)} min`,
     );
+    // Roadmap M4 (no LLM): the brief for an AI tutor is shown before copying,
+    // knows the topic and where mastery came from, and has no sensitive domains.
+    const tutor = lesson.getByTestId('tutor-context');
+    await tutor.getByLabel(/Your question/).fill("I'm stuck on the order of operations");
+    await tutor.getByRole('button', { name: 'Prepare the context' }).click();
+    const brief = tutor.getByLabel(/What the tutor will read/);
+    await brief.waitFor({ timeout: 15000 }).catch(() => {});
+    const briefText = await brief.inputValue().catch(() => '');
+    check(
+      /^You are tutoring one learner/.test(briefText) &&
+        /Topic: /.test(briefText) &&
+        /from quizzes/.test(briefText) &&
+        /hint before the full solution/.test(briefText) &&
+        !/dark|politic|neurotic|narciss|ideolog/i.test(briefText),
+      'lesson: the AI tutor brief is shown first, knows the topic and progress, and leaves out sensitive traits',
+      briefText.split('\n').slice(0, 3).join(' / ').slice(0, 120),
+    );
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'lessons have no page errors', newErrors.join(' | '));
+    // The next checks start from the dashboard.
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.getByTestId('study-today').waitFor({ timeout: 30000 }).catch(() => {});
   }
 
   // Changing subjects after onboarding: "Change subjects" on the Today panel
@@ -849,6 +869,10 @@ try {
     check(await page.getByText('Difficult traits').isVisible().catch(() => false), 'profile: "More about you" opens on request');
 
     const setMyself = page.getByRole('button', { name: 'Set it myself' });
+    await setMyself.waitFor({ timeout: 30000 }).catch(() => {});
+    // Roadmap M3: modes whose inference is not built are not offered.
+    const unbuilt = await page.getByRole('button', { name: /^(Automatic|Set, then adjust)$/ }).count();
+    check(unbuilt === 0, 'profile: modes that are not built yet are not offered', `${unbuilt} shown`);
     for (let i = 0; i < 20 && (await setMyself.getAttribute('aria-pressed').catch(() => null)) !== 'true'; i++) {
       await setMyself.click();
       await page.waitForTimeout(300);
@@ -1082,6 +1106,56 @@ try {
       .waitFor({ timeout: 15000 })
       .then(() => true, () => false);
     check(refused, 'invalid input is rejected server-side with a readable message');
+  }
+
+  // Roadmap M3, data control: a second account starts with an empty workspace
+  // (the examples are removed and do not come back after a reload), then
+  // deletes itself from My Profile, which signs it out for good.
+  {
+    const ctx3 = await browser.newContext();
+    const p3 = await ctx3.newPage();
+    const errors3 = [];
+    p3.on('pageerror', (e) => errors3.push(`pageerror: ${e.message}`));
+    p3.on('dialog', (d) => d.accept());
+    const email3 = `smoke-empty-${Date.now()}@example.test`;
+    const password3 = `smoke-${Math.random().toString(36).slice(2)}-pw`;
+    await p3.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
+    for (let i = 0; i < 20 && !(await p3.locator('#name').isVisible()); i++) {
+      await p3.getByRole('button', { name: 'Create one' }).click();
+      await p3.waitForTimeout(500);
+    }
+    await p3.fill('#name', 'Empty Tester');
+    await p3.fill('#email', email3);
+    await p3.fill('#password', password3);
+    await p3.getByRole('button', { name: 'Create account' }).click();
+    await p3.waitForURL((u) => u.pathname === '/', { timeout: 30000 }).catch(() => {});
+    const onboarding3 = p3.getByTestId('onboarding');
+    await onboarding3.getByRole('button', { name: 'Start with an empty workspace' }).click({ timeout: 30000 });
+    const noSubjects = await onboarding3
+      .getByText('No subjects yet', { exact: false })
+      .waitFor({ timeout: 15000 })
+      .then(() => true, () => false);
+    await p3.reload({ waitUntil: 'networkidle' });
+    await p3.getByTestId('onboarding').waitFor({ timeout: 30000 }).catch(() => {});
+    const stillEmpty = await p3.getByTestId('onboarding').getByText('No subjects yet', { exact: false }).isVisible().catch(() => false);
+    const skipOffered = await p3.getByRole('button', { name: 'Explore the example learners first' }).count();
+    check(noSubjects && stillEmpty && skipOffered === 0, 'onboarding: "Start with an empty workspace" removes the examples for good');
+
+    await p3.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
+    const del = p3.getByTestId('delete-account');
+    await del.getByRole('button', { name: 'Delete my account…' }).click({ timeout: 30000 });
+    await del.getByLabel('Your password').fill(password3);
+    await del.getByLabel('Type DELETE to confirm').fill('DELETE');
+    await del.getByRole('button', { name: 'Delete my account and all data' }).click();
+    await p3.waitForURL(/\/sign-in/, { timeout: 30000 }).catch(() => {});
+    await p3.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
+    await p3.waitForURL(/\/sign-in/, { timeout: 15000 }).catch(() => {});
+    check(
+      p3.url().includes('/sign-in') && errors3.length === 0,
+      'profile: "Delete my account" removes the account and signs it out',
+      `${new URL(p3.url()).pathname}${errors3.length ? `, ${errors3.join(' | ')}` : ''}`,
+    );
+    await ctx3.close();
   }
 
   // Sign out, then sign in again

@@ -10,6 +10,7 @@ import { pageHead } from '@/lib/page-titles';
 import { Sidebar } from '@/components/Sidebar';
 import { RichText } from '@/components/RichText';
 import { ConceptQuiz, type ConceptQuizResult } from '@/components/ConceptQuiz';
+import { TutorContext } from '@/components/TutorContext';
 import { useDB, useLearners } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel } from '@/lib/onboarding';
@@ -420,6 +421,8 @@ function LessonPage() {
                   </>
                 )}
               </section>
+
+              {learnerId && <TutorContext learnerId={learnerId} conceptId={conceptId} />}
 
               <nav aria-label="Next step" className="mt-6 flex flex-wrap items-center justify-between gap-3">
                 <Link to="/" className="text-sm font-medium text-primary hover:underline">

@@ -534,7 +534,7 @@ The schema lives in `migrations/*.sql`. `npm run test:perf` guards store latency
 
 ## RAG Context Generation
 
-**Status: planned (Roadmap M4).** `getRAGContext` does not exist yet.
+**Status: first version built (Roadmap M4), without an LLM.** `getRAGContext(graph, { learnerId, conceptId?, query? })` in `src/lib/tutor/service.ts` returns a plain-text brief of at most 2000 tokens: the topic and what it builds on, mastery and where it came from, open misconceptions, due reviews, what is next, and teaching preferences in neutral words, plus answer instructions for the detected question type. It never reads raw psychometric scores, so sensitive domains cannot appear. On a lesson page, **Ask an AI tutor** shows the brief and copies it. The structured design below is the original plan and is not implemented as such.
 
 When an LLM needs context about a learner, LearnGraph generates optimized RAG context:
 
@@ -666,9 +666,11 @@ const zpd = await db.computeZPD('user-123');
 // zpd.recommendations[0].scaffoldingStrategies, .reasons, .estimatedMasteryTime
 ```
 
-### 5. Get RAG Context for AI Tutor (planned, Roadmap M4)
+### 5. Get RAG Context for AI Tutor (first version, Roadmap M4)
 ```typescript
-const context = await db.getRAGContext('user-123', 'explain algebra');
+// Server-side (src/lib/tutor/service.ts); in the app: "Ask an AI tutor" on a lesson page.
+const context = await getRAGContext(graph, { learnerId: 'user-123', conceptId: 'algebra', query: 'explain algebra' });
+// context.text, context.tokens (≤ 2000), context.queryType ('explain')
 
 // Pass to LLM:
 // "User is a visual learner with high anxiety. They've mastered
@@ -1035,9 +1037,9 @@ Called through `graphCall`:
 | Mode on My Profile | Behavior today |
 |--------------------|----------------|
 | **Just look** | View what is filled in |
-| **Automatic** | Selectable, but values do not change yet because inference is not built |
+| **Automatic** | Not offered until inference is built (shown only to profiles that chose it earlier) |
 | **Set it myself** | The learner sets values, and the system never changes them |
-| **Set, then adjust** | Behaves like "Set it myself" until inference is built |
+| **Set, then adjust** | Not offered until inference is built; earlier choices behave like "Set it myself" |
 | **Take quizzes** | Scores come from questionnaires |
 
 ---
@@ -1457,7 +1459,10 @@ Current state:
 - **User control** — Scores can be edited on My Profile, and learners can be deleted in Manage data
 - **Transparency** — Recommendations show their reasons
 
-Not built yet (Roadmap M3): consent for sensitive domains, account deletion in the UI, data export and import, and a privacy policy.
+- **Account deletion** — "Delete my account" on My Profile removes the account and all of its data (password required)
+- **No examples if you prefer** — "Start with an empty workspace" during onboarding removes the example data for good
+
+Not built yet (Roadmap M3): consent for sensitive domains, data export and import, and a privacy policy.
 
 ---
 

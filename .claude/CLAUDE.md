@@ -365,9 +365,9 @@ interface PsychometricScore {
 
 | Mode | UI label | Behavior today |
 |------|----------|----------------|
-| **Auto-Discovery** | Automatic | Selectable; values do not change yet because inference is not built |
+| **Auto-Discovery** | Automatic | Not offered (Roadmap M3) until inference is built; shown only to profiles that chose it earlier |
 | **Manual Entry** | Set it myself | User sets all values; the system never changes them |
-| **Adaptive** | Set, then adjust | Behaves like Manual Entry until inference is built |
+| **Adaptive** | Set, then adjust | Not offered (Roadmap M3); behaves like Manual Entry for profiles that chose it earlier |
 | **Assessment** | Take quizzes | Scores come from questionnaires and save immediately |
 
 ### Sample Data

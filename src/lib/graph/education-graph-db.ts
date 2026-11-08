@@ -1742,7 +1742,12 @@ export class EducationGraphDB {
     const limit = options.limit ?? 20;
     const includeNotDue = options.includeNotDue ?? false;
 
-    const states = await this.getLearnerKnowledgeStates(userId);
+    // Concepts loaded once (not one query per learned concept).
+    const [states, concepts] = await Promise.all([
+      this.getLearnerKnowledgeStates(userId),
+      this.listConcepts(),
+    ]);
+    const conceptById = new Map(concepts.map(c => [c.conceptId, c]));
     const now = new Date();
 
     const queue: {
@@ -1762,7 +1767,7 @@ export class EducationGraphDB {
       // Skip concepts with very low mastery (not really "learned" yet)
       if (state.mastery < this.PARTIAL_MASTERY_THRESHOLD) continue;
 
-      const concept = await this.getConcept(state.conceptId);
+      const concept = conceptById.get(state.conceptId);
       if (!concept) continue;
 
       const decay = this.predictDecay(state, concept);

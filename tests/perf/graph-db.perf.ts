@@ -15,6 +15,7 @@ import * as path from 'node:path';
 import type { EducationGraphDB } from '../../src/lib/graph/education-graph-db.ts';
 import { expect } from '../support/expect.ts';
 import { openTestGraphDB } from '../support/graph-db.ts';
+import { getRAGContext } from '../../src/lib/tutor/service.ts';
 
 const SAMPLES = 50;
 const WRITE_BUDGET_MS = 100;
@@ -22,6 +23,8 @@ const READ_BUDGET_MS = 30;
 /** Roadmap M2: "computeZPD < 200 ms di Postgres dengan 200 konsep". */
 const ZPD_CONCEPTS = 200;
 const ZPD_BUDGET_MS = 200;
+/** Roadmap M4: "getRAGContext … < 150 ms". */
+const RAG_BUDGET_MS = 150;
 
 const DB_PATH = path.join(os.tmpdir(), `learngraph-perf-db-${process.pid}`);
 
@@ -124,6 +127,14 @@ describe(`ZPD on a ${ZPD_CONCEPTS}-concept curriculum (on-disk PGlite)`, () => {
     const median = await medianMs(() => db.computeZPD('zpd-learner', { limit: 8 }), 10);
     console.log(`computeZPD median (${ZPD_CONCEPTS} concepts): ${median.toFixed(1)}ms`);
     expect(median).toBeLessThan(ZPD_BUDGET_MS);
+  });
+
+  it(`builds the tutor context within ${RAG_BUDGET_MS}ms (median)`, async () => {
+    const ctx = await getRAGContext(db, { learnerId: 'zpd-learner', conceptId: 'c-50', query: 'explain this' });
+    expect(ctx?.text.includes('Topic: Concept 50')).toBe(true);
+    const median = await medianMs(() => getRAGContext(db, { learnerId: 'zpd-learner', conceptId: 'c-50', query: 'explain this' }), 10);
+    console.log(`getRAGContext median (${ZPD_CONCEPTS} concepts): ${median.toFixed(1)}ms`);
+    expect(median).toBeLessThan(RAG_BUDGET_MS);
   });
 
   it(`detects gaps within ${ZPD_BUDGET_MS}ms (median)`, async () => {

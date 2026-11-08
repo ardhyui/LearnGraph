@@ -45,7 +45,7 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 | 3 | Riwayat belajar nyaris tidak tercatat | Satu-satunya penulis `interactions` adalah `recordJapanesePractice` | Retensi tak terukur, mode "Automatic" tak bisa dibangun, Fase 8 tak punya data. Diperbaiki di M1: tabel `learning_events` |
 | 4 | Sistem bukti hanya untuk bahasa Jepang | Tabel `japanese_quizzes`, cek prefiks `jp-` di `src/server/graph.functions.ts:30` | Pola yang benar belum bisa dipakai subjek lain. Diperbaiki di M1: modul `src/lib/evidence/` dan flag `evidenceRequired` |
 | 5 | Hanya 10 dari 39 domain psikometrik memengaruhi rencana belajar | `trait-scores.ts`, `deriveLearningStyle`, `estimateCognitiveProfile` | 29 domain, termasuk `political_ideology` dan `dark_triad_*`, ditanyakan tanpa manfaat bagi rencana belajar |
-| 6 | Kontrol data belum lengkap | Tidak ada UI hapus akun atau persetujuan | Belum layak untuk pengguna selain pemilik |
+| 6 | Kontrol data belum lengkap | Tidak ada UI hapus akun atau persetujuan | Belum layak untuk pengguna selain pemilik. Hapus akun ada sejak M3; persetujuan domain sensitif menunggu D4 |
 | 7 | Gerbang CI tidak andal | 4 dari 217 test, yaitu benchmark warisan (tulis < 5 ms, baca < 2 ms), gagal di `main` pada mesin ini, padahal lulus di PR #29; `scripts/ci.mjs` berhenti di langkah pertama yang gagal | `npm run ci` bergantung pada kecepatan mesin, dan build serta smoke tidak sempat berjalan. Diperbaiki di M0 |
 | 8 | Dokumen menyimpang dari kode | Penyebutan LevelDB, REST `/api/zpd`, port 3000, `/api/seed-users`, badge "37/37", `LICENSE` dan `docs/api.md` yang tidak ada | Pembaca dan agen AI mendapat arahan yang salah. Diperbaiki di M0 |
 | 9 | Klaim hasil tanpa pengukuran | README menulis "Gap detection accuracy 90%: Achieved", tetapi tidak ada kode atau test yang mengukurnya | Efektivitas produk belum diketahui. Klaim sudah dikoreksi di M0. Sejak M1 retensi saat review terhitung dari event; akurasi deteksi celah belum diukur |
@@ -124,10 +124,10 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 **Tujuan:** orang selain pemilik bisa memakai LearnGraph dengan aman, dan aplikasi tidak menjanjikan hal yang belum ada.
 
 - [ ] Impor JSON sebagai pasangan ekspor dari PR #29.
-- [ ] Hapus akun dan seluruh data dari UI. Foreign key `on delete cascade` sudah tersedia.
-- [ ] Opsi mulai tanpa data contoh.
+- [x] Hapus akun dan seluruh data dari UI. Foreign key `on delete cascade` sudah tersedia. "Delete my account" di My Profile (password + ketik DELETE); test memeriksa setiap tabel ber-`owner_id`, termasuk `japanese_quizzes` yang tak punya FK.
+- [x] Opsi mulai tanpa data contoh. "Start with an empty workspace" di onboarding; contoh tidak di-seed lagi.
 - [ ] Profil hanya menanyakan domain yang dipakai; domain sensitif tidak aktif secara bawaan dan ada persetujuan singkat (keputusan D4).
-- [ ] Sembunyikan mode "Automatic" dan "Set, then adjust" sampai inferensinya benar-benar ada.
+- [x] Sembunyikan mode "Automatic" dan "Set, then adjust" sampai inferensinya benar-benar ada. Profil yang dulu memilihnya tetap melihat pilihannya.
 - [ ] Tetapkan bahasa antarmuka (keputusan D2).
 - [ ] 🔒 Reset password dan verifikasi email (butuh layanan pengirim email).
 - [ ] Kebijakan privasi singkat, dan uji pemulihan backup database produksi.
@@ -144,10 +144,10 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 
 Bagian tanpa biaya LLM:
 
-- [ ] `getRAGContext(learnerId, query)` sebagai fungsi tanpa LLM, ≤ 2000 token dan < 150 ms, berisi miskonsepsi, penguasaan beserta asalnya, ZPD, dan scaffolding.
-- [ ] Deteksi jenis pertanyaan dan template prompt.
-- [ ] Domain sensitif tidak pernah masuk konteks (daftar tolak dengan test).
-- [ ] Tombol "Salin konteks untuk AI tutor", dengan isi yang bisa dilihat sebelum disalin.
+- [x] `getRAGContext(learnerId, query)` sebagai fungsi tanpa LLM, ≤ 2000 token dan < 150 ms, berisi miskonsepsi, penguasaan beserta asalnya, ZPD, dan scaffolding. `src/lib/tutor/`; latensi dijaga `npm run test:perf`.
+- [x] Deteksi jenis pertanyaan dan template prompt. Enam jenis (explain, practice, stuck, review, next, general), Inggris dan Indonesia.
+- [x] Domain sensitif tidak pernah masuk konteks (daftar tolak dengan test). Konteks dibangun dari allow-list (tanpa skor mentah); test memeriksa 12 domain sensitif dan label-labelnya.
+- [x] Tombol "Salin konteks untuk AI tutor", dengan isi yang bisa dilihat sebelum disalin. Panel "Ask an AI tutor" di halaman pelajaran.
 - [ ] Antarmuka baca untuk LLM eksternal: API key per akun atau server MCP. Saat ini belum ada API publik, padahal tesis produknya adalah "makes any LLM smarter".
 
 Bagian 🔒 (keputusan D3):
@@ -159,6 +159,12 @@ Bagian 🔒 (keputusan D3):
 
 - Tes fungsional Fase 7 lulus: "Ask tutor → knows your history/struggles".
 - Sebagian besar penguji menilai jawaban terasa personal (target Fase 7: 80%).
+
+**Catatan implementasi (perlu ditinjau pemilik):**
+
+- Daftar 12 domain sensitif di `src/lib/tutor/context.ts` adalah usulan sementara sampai keputusan D4. Konteks memang tidak pernah membaca skor psikometrik mentah; daftar itu hanya jaring pengaman untuk test.
+- Antarmuka baca untuk LLM eksternal belum dibuat. Fitur ini membuka permukaan keamanan baru (API key per akun atau server MCP), jadi bentuknya sebaiknya diputuskan pemilik dulu.
+- Tes fungsional Fase 7 baru bisa diuji dengan LLM sungguhan (🔒 D3). Yang sudah teruji: brief memuat riwayat dan kesulitan pelajar.
 
 ### M5: Kurikulum dan soal dengan AI (Fase 6B dan 6C, 🔒)
 
