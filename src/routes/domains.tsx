@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { pageHead } from '@/lib/page-titles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ReactFlow,
   Node,
@@ -17,12 +17,12 @@ import {
   Position,
 } from '@xyflow/react';
 import { Sidebar } from '@/components/Sidebar';
+import { GraphDetailPanel } from '@/components/GraphDetailPanel';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { cn } from '@/lib/utils';
 import {
   Brain,
   RefreshCw,
-  X,
   Layers,
   Eye,
   EyeOff,
@@ -430,6 +430,11 @@ function DomainsPage() {
     buildGraph();
   }, [buildGraph]);
 
+  const closeDetails = useCallback(() => {
+    setSelectedDomain(null);
+    setNodes((prevNodes) => prevNodes.map((n) => ({ ...n, data: { ...n.data, isSelected: false } })));
+  }, [setNodes]);
+
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     if (node.type === 'subscale') return;
 
@@ -672,7 +677,7 @@ function DomainsPage() {
               <div
                 className={cn(
                   'glass-card overflow-hidden flex-1 transition-all duration-300',
-                  selectedDomain ? 'w-2/3' : 'w-full'
+                  selectedDomain ? 'w-full md:w-2/3' : 'w-full'
                 )}
                 style={{ height: '600px' }}
               >
@@ -700,36 +705,9 @@ function DomainsPage() {
                 </ReactFlow>
               </div>
 
-              {/* Details Panel */}
-              <AnimatePresence>
+              {/* Details panel (a bottom sheet on phones) */}
+              <GraphDetailPanel open={!!selectedDomain} title={selectedDomain?.name} onClose={closeDetails}>
                 {selectedDomain && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 20, width: 0 }}
-                    animate={{ opacity: 1, x: 0, width: '33.333%' }}
-                    exit={{ opacity: 0, x: 20, width: 0 }}
-                    className="glass-card p-5 overflow-y-auto"
-                    style={{ height: '600px' }}
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-lg font-bold text-foreground">{selectedDomain.name}</h3>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => {
-                          setSelectedDomain(null);
-                          setNodes((prevNodes) =>
-                            prevNodes.map((n) => ({
-                              ...n,
-                              data: { ...n.data, isSelected: false },
-                            }))
-                          );
-                        }}
-                        className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                      >
-                        <X size={18} />
-                      </motion.button>
-                    </div>
-
                     <div className="space-y-4">
                       {/* Category */}
                       <div className="flex items-center gap-2">
@@ -809,9 +787,8 @@ function DomainsPage() {
                         ID: <span className="font-mono">{selectedDomain.id}</span>
                       </div>
                     </div>
-                  </motion.div>
                 )}
-              </AnimatePresence>
+              </GraphDetailPanel>
             </motion.div>
           )}
 

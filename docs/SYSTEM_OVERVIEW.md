@@ -8,6 +8,8 @@ A personalized tutoring database that makes any LLM smarter about each specific 
 ## Complete System Overview
 Everything you need to understand how LearnGraph builds personalized learning paths automatically.
 
+> **Status:** this overview mixes what is built with the product vision. Phases 1 to 5 are implemented; everything else is planned. See [Implementation Status](#implementation-status) and the [Roadmap](../Roadmap.md).
+
 ---
 
 ## What Is LearnGraph?
@@ -32,9 +34,9 @@ WITH LearnGraph:
 | Feature | Description |
 |---------|-------------|
 | **"What should I learn next?"** | Compares your mastery against prerequisites to find optimal concepts |
-| **Personalized explanations** | Gives LLMs your learning style, misconceptions, and preferences |
+| **Personalized explanations** (planned) | Gives LLMs your learning style, misconceptions, and preferences |
 | **Gap detection** | Finds missing, forgotten, or misunderstood knowledge |
-| **Spaced repetition** | Schedules reviews based on your personal forgetting curve |
+| **Spaced repetition** | Schedules reviews from a shared forgetting model |
 | **Smart scaffolding** | Selects teaching strategies based on your psychometric profile |
 | **Learning paths** | Generates custom roadmaps to any learning goal |
 
@@ -46,53 +48,24 @@ WITH LearnGraph:
 - **Gap Detection** — Automatically find missing knowledge, forgotten concepts, and misconceptions
 - **Spaced Repetition** — Science-backed review scheduling using the Ebbinghaus forgetting curve
 - **ZPD Engine** — Vygotsky's Zone of Proximal Development to find concepts that are challenging but achievable
-- **AI Curriculum Ingestion** — Teachers describe a course in plain English, AI generates the knowledge graph
-- **AI Assessment Generation** — Auto-generate quizzes and tests for each concept (toggle on/off)
-- **RAG Context for LLMs** — Give any AI tutor rich context about the learner for personalized responses
+- **AI Curriculum Ingestion** (planned) — Teachers describe a course in plain English, AI generates the knowledge graph
+- **AI Assessment Generation** (planned) — Auto-generate quizzes and tests for each concept (toggle on/off)
+- **RAG Context for LLMs** (planned) — Give any AI tutor rich context about the learner for personalized responses
 
 ---
 
 ## Quick Test: See the Value in 2 Minutes
 
-Want to quickly see what LearnGraph does? Run these commands after starting the app:
+There is no public REST API yet, so try it in the browser:
 
-### 1. Create a Learner
-```bash
-curl -X POST http://localhost:3000/api/learners \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Test User", "email": "test@example.com"}'
-```
-Save the `userId` from the response.
-
-### 2. Add Sample Curriculum
-```bash
-curl -X POST http://localhost:3000/api/seed-concepts
-```
-This creates a sample knowledge graph with concepts and prerequisites.
-
-### 3. Track Some Knowledge
-```bash
-curl -X POST http://localhost:3000/api/knowledge-state \
-  -H "Content-Type: application/json" \
-  -d '{"userId": "YOUR_USER_ID", "conceptId": "arithmetic", "mastery": 85}'
-```
-
-### 4. Ask "What Should I Learn Next?"
-```bash
-curl "http://localhost:3000/api/zpd?userId=YOUR_USER_ID"
-```
-
-**Expected Result:** The system returns concepts in your Zone of Proximal Development — things you're ready to learn based on your current knowledge.
-
-### 5. Check for Knowledge Gaps
-```bash
-curl "http://localhost:3000/api/gaps?userId=YOUR_USER_ID"
-```
-
-**Expected Result:** The system identifies missing prerequisites, forgotten concepts, and misconceptions.
-
-### 6. View in the UI
-Open `http://localhost:3000/graph` in your browser to see the knowledge graph visualized, with your mastery levels overlaid.
+1. Run `npm install` and `npm run dev`, then open http://localhost:8080.
+2. Click **Create one** and sign up. Every new account gets a workspace with example learners and concepts.
+3. Under **Let's set up your learning plan**, enter your name, pick subjects and a starting point, then choose **Start learning**.
+4. The **Today** panel shows **Learn next**, with concepts whose prerequisites you already meet. Reviews appear under **Review now** once they fall due. The example concepts have quiz questions, so you pass a short quiz (graded on the server) instead of marking them as known.
+5. Open **Gap Analysis** (`/gaps`) to see what you have not started, are still learning, or should review, and where each mastery value came from (quiz or self-report).
+6. Open **Knowledge Graph** (`/graph`) to see the concepts with your progress overlaid.
+7. Choose **Open the lesson** on a "Learn next" concept: the mathematics examples have an explanation, a worked example and practice, then the quiz. Pick "Show first" to change the order.
+8. Open **Manage data → Lesson Content** (`/admin/content`) or **Quiz Questions** (`/admin/questions`) to edit a concept's lesson or question bank.
 
 ---
 
@@ -102,7 +75,7 @@ LearnGraph uses a single database with two interconnected graphs:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           LevelDB Instance                               │
+│                  PostgreSQL (one workspace per account)                  │
 │                                                                          │
 │  ┌─────────────────────────────┐    ┌─────────────────────────────────┐ │
 │  │     LEARNER MODEL          │    │      KNOWLEDGE MODEL            │ │
@@ -207,7 +180,6 @@ When you interact with LearnGraph, multiple systems work together automatically:
    | High anxiety | Lower readiness for difficult concepts |
    | High openness | Higher readiness for abstract concepts |
    | High conscientiousness | Ready for longer learning paths |
-   | Low risk tolerance | Prefer well-structured concepts |
 
 5. **Zone Partitioning** → Concepts are sorted into zones:
 
@@ -261,7 +233,7 @@ When you interact with LearnGraph, multiple systems work together automatically:
 
 ## The 39 Psychological Domains
 
-LearnGraph tracks 39 research-backed psychological dimensions organized into 8 categories:
+LearnGraph can store 39 psychological dimensions organized into 8 categories. Only 10 affect the study plan today: openness, conscientiousness, extraversion, neuroticism, `learning_styles`, `information_processing`, `self_efficacy`, `cognitive_abilities`, `executive_functions` and `metacognition`.
 
 ### Category A: Core Personality (Big Five) - NEO-PI-R Based
 
@@ -384,8 +356,8 @@ LearnGraph predicts memory decay using the Ebbinghaus forgetting curve:
 Retention = e^(-t/S) × 100%
 
 Where:
-  t = days since last access
-  S = stability (increases with repetitions and mastery)
+  t = days since the last review
+  S = stability, derived from the review interval
 ```
 
 ```
@@ -402,12 +374,13 @@ Where:
   0% ┼───────┬───────┬───────┬───────┬───────┬───────┬───────┬───────┬───→
      0       1       3       7      14      21      28      45      60   Days
 
-     ↑ Review here maintains 90% retention
+     Illustrative curve. A review falls due when predicted retention reaches
+     80% of the mastery at the last review (src/lib/graph/spacing.ts).
 ```
 
-### Spaced Repetition (SM-2 Algorithm)
+### Spaced Repetition
 
-Reviews are scheduled to catch concepts just before they decay below 90% retention:
+Intervals start at 1, 3 and 7 days, then grow exponentially up to 180 days. Weak mastery and harder concepts come back sooner. The example below assumes 85% mastery, before any adjustment for concept difficulty:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -432,12 +405,12 @@ Reviews are scheduled to catch concepts just before they decay below 90% retenti
 │        │                                                               │
 │        ▼                                                               │
 │   ┌─────────┐                                                          │
-│   │ Day 11  │  Third review (if remembered → next in 14 days)          │
+│   │ Day 11  │  Third review (if remembered → next in ~9 days)          │
 │   └────┬────┘                                                          │
 │        │                                                               │
 │        ▼                                                               │
 │   ┌─────────┐                                                          │
-│   │ Day 25  │  Fourth review (if remembered → next in 30 days)         │
+│   │ Day 20  │  Fourth review (if remembered → next in ~19 days)        │
 │   └─────────┘                                                          │
 │                                                                        │
 │   Interval grows exponentially with successful reviews                 │
@@ -543,55 +516,25 @@ Based on your psychometric profile, LearnGraph selects appropriate scaffolding:
 
 ## Data Architecture
 
-LearnGraph uses LevelDB with a key-prefix schema for fast, typed access:
+LearnGraph stores JSON documents in PostgreSQL through Kysely, with embedded PGlite for local development and tests. The original ordered key schema lives on in each table's `key` column. Every row has an `owner_id`, so each account has an isolated workspace, and deleting the account cascades to its data.
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                          LEVELDB STORAGE                                  │
-│                                                                          │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                    LEARNER MODEL KEYS                               │ │
-│  │                                                                     │ │
-│  │  learner:{userId}:profile              → Core psychometric profile  │ │
-│  │  learner:{userId}:domain:{domainName}  → Individual domain scores   │ │
-│  │  learner:{userId}:knowledge:{conceptId}→ Mastery level per concept  │ │
-│  │  learner:{userId}:history:{timestamp}  → Learning session history   │ │
-│  │  learner:{userId}:misconception:{id}   → Tracked misconceptions     │ │
-│  │  learner:{userId}:zpd:current          → Current ZPD snapshot       │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│                                                                          │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                    KNOWLEDGE MODEL KEYS                             │ │
-│  │                                                                     │ │
-│  │  knowledge:concept:{conceptId}         → Concept node data          │ │
-│  │  knowledge:edge:prerequisite:{from}:{to} → Prerequisite edges       │ │
-│  │  knowledge:edge:related:{from}:{to}    → Related concept edges      │ │
-│  │  knowledge:bloom:{conceptId}:{level}   → Bloom's taxonomy mapping   │ │
-│  │  knowledge:difficulty:{conceptId}      → Difficulty rating          │ │
-│  │  knowledge:scaffold:{conceptId}        → Scaffolding strategies     │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│                                                                          │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                    INDEX KEYS (Fast Lookups)                        │ │
-│  │                                                                     │ │
-│  │  index:concept:by-difficulty:{level}:{id}                           │ │
-│  │  index:concept:by-bloom:{level}:{id}                                │ │
-│  │  index:concept:by-domain:{domain}:{id}                              │ │
-│  │  index:user:by-gap:{conceptId}:{userId}                             │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│                                                                          │
-│  Performance:                                                            │
-│  • Single write: < 5ms                                                   │
-│  • Single read: < 2ms                                                    │
-│  • Batch throughput: > 2,000 ops/sec                                     │
-│  • Data persistence: 100% across restarts                                │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+| Table | Key pattern | Holds |
+|-------|-------------|-------|
+| `learners` | `learner:{userId}` | Learner profile and psychometric scores |
+| `knowledge_states` | `state:{userId}:{conceptId}` | Mastery, review dates and misconceptions |
+| `concepts` | `concept:{conceptId}` | Concept node: difficulty, Bloom objectives, domain |
+| `prerequisite_edges` | `edge:prereq:{from}:{to}` | Prerequisite relationships |
+| `related_edges` | `edge:related:{edgeId}` | Related concepts |
+| `graph_indexes` | `index:*` | Secondary indexes the engine maintains |
+| `japanese_quizzes` | `id` | Graded quiz sessions for `/japanese` |
+
+The schema lives in `migrations/*.sql`. `npm run test:perf` guards store latency on PGlite.
 
 ---
 
 ## RAG Context Generation
+
+**Status: first version built (Roadmap M4), without an LLM.** `getRAGContext(graph, { learnerId, conceptId?, query? })` in `src/lib/tutor/service.ts` returns a plain-text brief of at most 2000 tokens: the topic and what it builds on, mastery and where it came from, open misconceptions, due reviews, what is next, and teaching preferences in neutral words, plus answer instructions for the detected question type. It never reads raw psychometric scores, so sensitive domains cannot appear. On a lesson page, **Ask an AI tutor** shows the brief and copies it. The structured design below is the original plan and is not implemented as such.
 
 When an LLM needs context about a learner, LearnGraph generates optimized RAG context:
 
@@ -642,18 +585,20 @@ interface RAGContext {
 
 | Aspect | Traditional LMS | LearnGraph |
 |--------|-----------------|------------|
-| **Personalization** | Same content for everyone | Adapts to 39 psychological dimensions |
+| **Personalization** | Same content for everyone | Adapts pace, challenge and strategies to a psychometric profile |
 | **Recommendations** | Fixed curriculum order | Dynamic ZPD-based paths |
 | **Gap Detection** | Manual quizzes only | Continuous monitoring + decay prediction |
 | **Scaffolding** | One-size-fits-all | Profile-matched strategies |
 | **Review Scheduling** | Manual or none | Automated spaced repetition |
-| **AI Integration** | Generic responses | Context-rich personalized tutoring |
+| **AI Integration** | Generic responses | Context-rich personalized tutoring (planned) |
 | **Prerequisites** | Course sequences | Concept-level graph relationships |
 | **Progress Tracking** | Completion % only | Bloom level + mastery + decay |
 
 ---
 
 ## Who Benefits?
+
+Some of these depend on planned milestones in the [Roadmap](../Roadmap.md), including AI tutoring, class views and a public API.
 
 ### For Learners
 - Get AI tutoring that actually knows you
@@ -670,7 +615,7 @@ interface RAGContext {
 ### For Developers
 - Plug any LLM into a rich context layer
 - Graph database for educational content
-- RESTful APIs for all operations
+- Typed server functions for all operations, with a public API planned
 - Extensible psychometric framework
 
 ### For Researchers
@@ -685,42 +630,23 @@ interface RAGContext {
 
 ### 1. Store a Learner
 ```typescript
-await db.setLearnerProfile('user-123', {
-  userId: 'user-123',
-  psychometricProfile: {
-    big_five_openness: { score: 75, confidence: 0.8 },
-    learning_styles: { score: 80, confidence: 0.9 },  // Visual
-    // ... 37 more domains
-  },
-  learningStyle: {
-    primary: 'visual',
-    secondary: 'reading',
-    socialPreference: 'solo',
-    pacePreference: 'self-paced',
-    feedbackPreference: 'immediate'
-  }
+await db.setLearnerProfile('user-123', { name: 'Alice' });
+
+await db.updatePsychometricScores('user-123', {
+  big_five_openness: { score: 75, confidence: 0.8 },
+  learning_styles: { score: 80, confidence: 0.9 },
 });
+
+// Derive the learning style and cognitive profile from the scores
+await db.computeAndStoreDerivedProfiles('user-123');
 ```
 
 ### 2. Store Concepts with Prerequisites
 ```typescript
-await db.addConcept({
-  id: 'arithmetic',
-  name: 'Basic Arithmetic',
-  difficulty: 1
-});
+await db.addConcept({ conceptId: 'arithmetic', name: 'Basic Arithmetic', domain: 'mathematics' });
+await db.addConcept({ conceptId: 'algebra', name: 'Algebraic Expressions', domain: 'mathematics' });
 
-await db.addConcept({
-  id: 'algebra',
-  name: 'Algebraic Expressions',
-  difficulty: 3
-});
-
-await db.addEdge({
-  from: 'arithmetic',
-  to: 'algebra',
-  strength: 'required'
-});
+await db.addEdge({ from: 'arithmetic', to: 'algebra', strength: 'required' });
 ```
 
 ### 3. Track Progress
@@ -728,7 +654,7 @@ await db.addEdge({
 await db.setKnowledgeState('user-123', 'arithmetic', {
   mastery: 90,
   bloomLevel: 4,
-  lastAccessed: new Date()
+  lastAccessed: new Date().toISOString(),
 });
 ```
 
@@ -736,17 +662,15 @@ await db.setKnowledgeState('user-123', 'arithmetic', {
 ```typescript
 const zpd = await db.computeZPD('user-123');
 
-// Returns:
-// {
-//   optimalTarget: ['algebra'],  // Ready to learn!
-//   scaffolding: ['VISUAL_REPRESENTATION', 'WORKED_EXAMPLES'],
-//   estimatedTime: '2 hours'
-// }
+// zpd.recommendations[0].concept.conceptId === 'algebra'
+// zpd.recommendations[0].scaffoldingStrategies, .reasons, .estimatedMasteryTime
 ```
 
-### 5. Get RAG Context for AI Tutor
+### 5. Get RAG Context for AI Tutor (first version, Roadmap M4)
 ```typescript
-const context = await db.getRAGContext('user-123', 'explain algebra');
+// Server-side (src/lib/tutor/service.ts); in the app: "Ask an AI tutor" on a lesson page.
+const context = await getRAGContext(graph, { learnerId: 'user-123', conceptId: 'algebra', query: 'explain algebra' });
+// context.text, context.tokens (≤ 2000), context.queryType ('explain')
 
 // Pass to LLM:
 // "User is a visual learner with high anxiety. They've mastered
@@ -758,10 +682,9 @@ const context = await db.getRAGContext('user-123', 'explain algebra');
 
 ## System Requirements
 
-- **Runtime**: Node.js 18+ or Bun
+- **Runtime**: Node.js 22.6+
 - **Database**: PostgreSQL via Kysely (embedded PGlite in local dev), originally LevelDB
 - **Framework**: TanStack Start + Router on Vite 8, React 19, Better Auth
-- **Storage**: ~50MB for database + indexes
 
 ---
 
@@ -769,14 +692,14 @@ const context = await db.getRAGContext('user-123', 'explain algebra');
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| 1 - Core Database | **DONE** | LevelDB setup, CRUD operations |
+| 1 - Core Database | **DONE** | Persistent store and CRUD operations (now PostgreSQL) |
 | 2 - Learner Model | **DONE** | 39 psychometric domains, profile management |
 | 3 - Knowledge Model | **DONE** | Concept graph, prerequisites, Bloom's taxonomy |
 | 4 - ZPD Engine | **DONE** | Zone computation, scaffolding selection |
 | 5 - Gap Analysis | **DONE** | Gap detection, forgetting curve, spaced repetition |
-| 6 - Content Delivery | Planned | Adaptive content matching |
-| 7 - RAG Integration | Planned | LLM context generation |
-| 8 - GNN Preparation | Future | Neural network training export |
+| 6 - Content Delivery | Planned (Roadmap M1, M2, M5) | Adaptive content matching, curriculum and assessment generation |
+| 7 - RAG Integration | Planned (Roadmap M4) | LLM context generation |
+| 8 - GNN Preparation | Future (Roadmap M7) | Neural network training export |
 
 **MVP Complete**: Phases 1-5 deliver personalized "what to learn next" with gap analysis.
 
@@ -791,29 +714,30 @@ const context = await db.getRAGContext('user-123', 'explain algebra');
 5. **Costa & McCrae (1992)** - NEO-PI-R Big Five Personality Inventory
 6. **Dweck, C.S. (2006)** - Growth Mindset
 7. **Mayer, R.E. (2009)** - Multimedia Learning Principles
-8. **SM-2 Algorithm** - SuperMemo Spaced Repetition
+8. **SM-2 Algorithm** - SuperMemo Spaced Repetition (inspiration for the review intervals)
 
 ---
 
 ## API Reference
 
-See the full API documentation at `/docs/api.md`
+The UI calls TanStack Start server functions, each of which requires a signed-in session and only touches that account's data. A small read-only public API for AI assistants (`GET /api/v1/learners`, `GET /api/v1/context?learner=&concept=&q=`) takes an API key created on My Profile (`Authorization: Bearer lg_…`); see the README's Server API section.
 
-Core endpoints:
-- `POST /api/learners` - Create/update learner profiles
-- `GET /api/learners/:id` - Get learner with full profile
-- `POST /api/concepts` - Add concepts to knowledge graph
-- `POST /api/edges` - Connect concepts with prerequisites
-- `GET /api/zpd/:userId` - Compute Zone of Proximal Development
-- `GET /api/gaps/:userId` - Analyze knowledge gaps
-- `GET /api/review-queue/:userId` - Get spaced repetition schedule
-- `GET /api/learning-path/:userId/:targetConceptId` - Generate learning path
+- `graphCall({ method, args })` - Runs one whitelisted `EducationGraphDB` method (`src/lib/graph/methods.ts`), with arguments validated in `src/lib/graph/rpc-schemas.ts`
+- `seedDemoData()` - Seeds example data into an empty workspace, and the example quiz questions once
+- Lesson functions (`src/server/content.functions.ts`) - `getLesson` (content in the learner's preferred order, prerequisites, how the concept is checked, the next step), `logLessonOpened`, and the lesson content editor
+- Evidence functions (`src/server/evidence.functions.ts`) - `startConceptQuiz` / `submitConceptQuiz` (graded on the server), `recordStudyOutcome` (self-reports, snoozes), the question bank editor, and `getLearningStats` (retention at review time from the event log)
+- `getCurrentUser()` - Returns the session user
+- `/api/auth/*` - Better Auth endpoints
+
+See [Complete API Reference](#complete-api-reference).
 
 ---
 
 ## How Psychometric Data is Gathered
 
-LearnGraph uses a **three-signal hybrid approach** to build learner profiles:
+**Status: research design, not implemented.** The text analysis below (see `research/Fine-Tuned-Psychometrics.md`) is not part of this repository. Today, profiles come from questionnaires and manual entry on My Profile.
+
+The design describes a **three-signal hybrid approach** to building learner profiles:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -847,7 +771,7 @@ LearnGraph uses a **three-signal hybrid approach** to build learner profiles:
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**No fine-tuned model required** — LearnGraph works independently with any data source.
+**No fine-tuned model required** — LearnGraph works without one.
 
 ---
 
@@ -901,7 +825,11 @@ A critical question: **How does the system know about each learner's personality
 | **Manual Entry** | ~5 min | Medium (self-report) | Quick setup, user control |
 | **Behavioral Learning** | None | Grows over time | Cold start, implicit inference |
 
+Today the app offers questionnaires and manual entry. LLM integration and behavioral learning are planned.
+
 ### Option 1: LLM Integration (Recommended for Production)
+
+**Status: planned (Roadmap M4).** The `/api/learner-profile/update` endpoint below is a design sketch and does not exist yet.
 
 **The Primary Use Case**: Connect LearnGraph to your AI tutor. The LLM periodically updates the learner model based on how the student interacts with the system.
 
@@ -978,14 +906,15 @@ For formal educational settings or research, use validated psychological instrum
 | **Growth Mindset Scale** | Fixed vs. growth mindset | 3 min | 0.8 |
 | **Test Anxiety Inventory** | Math anxiety, test anxiety | 5 min | 0.85 |
 
+The instruments above are the design reference. The built-in quizzes are shorter.
+
 **Built-in Assessment Flow:**
 ```
-1. User goes to /profile → clicks "Take Assessment"
-2. Selects assessment type (e.g., "Big Five Personality")
-3. Answers 44 questions (5-point Likert scale)
-4. System scores responses using validated formulas
-5. Profile updated with high-confidence scores
-6. User sees results: "High Openness (78), Moderate Conscientiousness (55)..."
+1. Open My Profile, then "How you like to learn", then choose "Take quizzes"
+2. Pick a topic; each quiz shows its length
+3. Answer on a 5-point agreement scale
+4. Choose "Save my answers"; the scores are saved immediately
+5. The learning style is recomputed and shown on the page
 ```
 
 ### Option 3: Manual Entry (Quick Setup)
@@ -1027,6 +956,8 @@ Users or administrators can directly set psychometric scores:
 
 ### Option 4: Behavioral Learning (Start from Defaults)
 
+**Status: planned.** Learning history is not recorded yet (Roadmap M1), so values do not change from behavior today.
+
 Start with default/neutral values and let the system learn from behavior:
 
 ```typescript
@@ -1053,6 +984,8 @@ Day 90: learning_styles = { score: 75, confidence: 0.8 }  (high confidence)
 ```
 
 ### Hybrid Approach (Recommended)
+
+**Status: design target.**
 
 Combine multiple sources for the best results:
 
@@ -1087,25 +1020,27 @@ Combine multiple sources for the best results:
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### API Endpoints for Profile Management
+### Engine Methods for Profile Management
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/learner-profile/:userId` | GET | Retrieve full profile |
-| `/api/learner-profile/:userId` | PUT | Update profile (manual) |
-| `/api/learner-profile/update` | POST | Incremental update (from LLM) |
-| `/api/assessments/start` | POST | Begin a psychological assessment |
-| `/api/assessments/submit` | POST | Submit assessment answers |
-| `/api/learner-profile/:userId/reset` | POST | Reset to defaults |
+Called through `graphCall`:
+
+| Method | Purpose |
+|--------|---------|
+| `getLearnerProfile` | Retrieve the full profile |
+| `setLearnerProfile` | Create or update a profile |
+| `updatePsychometricScore`, `updatePsychometricScores` | Update one or several scores |
+| `computeAndStoreDerivedProfiles` | Recompute learning style and cognitive profile |
+| `deleteLearnerProfile` | Delete a learner and their progress |
 
 ### Configuration Modes
 
-| Mode | Behavior | Best For |
-|------|----------|----------|
-| **Auto-Discovery** | System continuously updates from LLM + behavior | Production with AI tutor |
-| **Manual Only** | User sets values, system never changes them | Privacy-conscious users |
-| **Adaptive** | User sets initial, system refines over time | Balance of control + learning |
-| **Assessment** | Scores from validated tests, highest confidence | Research, formal education |
+| Mode on My Profile | Behavior today |
+|--------------------|----------------|
+| **Just look** | View what is filled in |
+| **Automatic** | Not offered until inference is built (shown only to profiles that chose it earlier) |
+| **Set it myself** | The learner sets values, and the system never changes them |
+| **Set, then adjust** | Not offered until inference is built; earlier choices behave like "Set it myself" |
+| **Take quizzes** | Scores come from questionnaires |
 
 ---
 
@@ -1124,6 +1059,8 @@ Today, teachers would manually define everything through the Admin UI:
 This is tedious for a full course. A machine learning class might have 50-100 concepts with complex prerequisite chains.
 
 ### AI-Assisted Curriculum Ingestion (Phase 6)
+
+**Status: planned (Roadmap M5).**
 
 The system will support AI-powered graph generation from course materials:
 
@@ -1254,6 +1191,8 @@ Final graph saved with teacher's expert refinements.
 ```
 
 ### AI-Generated Assessments (Optional Feature)
+
+**Status: planned (Roadmap M1 for graded quizzes, M5 for AI generation).**
 
 When curriculum is imported, the system can **optionally** generate assessments to measure mastery. This feature includes a **toggle switch** to enable/disable it.
 
@@ -1436,7 +1375,7 @@ interface AssessmentConfig {
 
 ## How to Prove It Works
 
-LearnGraph includes validation tests that prove personalization actually happens:
+This is the acceptance scenario for personalization. `tests/profile-traits.test.ts` covers the part already built, where profile traits change pace, challenge and strategies.
 
 ### The "Different Users, Different Results" Test
 
@@ -1467,16 +1406,15 @@ Create two learners with opposite profiles:
 
 ### Technical Performance
 
-| Metric | Target | Achieved |
-|--------|--------|----------|
-| Database write | < 5ms | **0.10ms** |
-| Database read | < 2ms | **0.02ms** |
-| Profile retrieval | < 10ms | **< 5ms** |
-| Graph traversal (depth 5) | < 100ms | **< 50ms** |
-| ZPD computation | < 200ms | **< 100ms** |
-| API response | < 500ms | **< 100ms** |
+| Metric | Target | Status |
+|--------|--------|--------|
+| Store write | < 100ms median | Checked by `npm run test:perf` on PGlite |
+| Store read | < 30ms median | Checked by `npm run test:perf` on PGlite |
+| ZPD computation | < 200ms | Not measured on production Postgres |
 
 ### Algorithm Accuracy
+
+These are targets. None has been measured yet.
 
 | Metric | Target |
 |--------|--------|
@@ -1514,43 +1452,52 @@ LearnGraph creates specific moments where users realize the system truly knows t
 
 ## Privacy & Trust
 
-LearnGraph is designed with privacy as a core principle:
+Current state:
 
-- **Data minimization** — Only collect what directly improves recommendations
-- **User control** — See, edit, and delete your psychometric profile anytime
-- **Privacy-first mode** — System works with minimal data if preferred
-- **Transparency** — Every recommendation includes a "Why this?" explanation
-- **No judgment** — System adapts to you; it doesn't label you
+- **Isolation** — Each account's data is scoped by `owner_id`
+- **Optional profile** — The study plan works without psychometric data
+- **User control** — Scores can be edited on My Profile, and learners can be deleted in Manage data
+- **Transparency** — Recommendations show their reasons
+
+- **Account deletion** — "Delete my account" on My Profile removes the account and all of its data (password required)
+- **No examples if you prefer** — "Start with an empty workspace" during onboarding removes the example data for good
+
+- **Consent for personal topics** — My Profile only asks about topics the study plan uses; the others appear after the learner agrees, and saved answers can be removed
+- **Password reset** — "Forgot your password?" sends a one-hour link (needs `RESEND_API_KEY` and `EMAIL_FROM` in production; hidden without them)
+- **Plain-language data page** — `/privacy`, public
+
+Not built yet (Roadmap M3): data export and import (export is PR #29), interface language (D2), and a tested restore of production backups.
 
 ---
 
 ## Complete API Reference
 
-### Core Endpoints
+There is no public REST API yet. These are the `EducationGraphDB` methods the browser can call through `graphCall` (`src/lib/graph/methods.ts`).
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/learners` | GET, POST | List/create learners |
-| `/api/learners/:userId` | GET, PUT, DELETE | Individual learner operations |
-| `/api/learners/:userId/psychometrics` | GET, PUT | Psychometric profile |
-| `/api/concepts` | GET, POST | List/create concepts |
-| `/api/concepts/:conceptId` | GET, PUT, DELETE | Individual concept |
-| `/api/edges` | GET, POST, DELETE | Prerequisite relationships |
-| `/api/states` | GET, POST, DELETE | Knowledge states |
-| `/api/graph` | GET | Full graph for visualization |
+### Core Methods
 
-### Intelligence Endpoints
+| Area | Methods |
+|------|---------|
+| Learners | `listLearnerProfiles`, `getLearnerProfile`, `setLearnerProfile`, `deleteLearnerProfile` |
+| Psychometrics | `getPsychometricScores`, `updatePsychometricScore`, `updatePsychometricScores`, `computeAndStoreLearningStyle`, `computeAndStoreCognitiveProfile`, `computeAndStoreDerivedProfiles` |
+| Concepts | `listConcepts`, `getConcept`, `addConcept`, `deleteConcept`, `searchConcepts`, `listConceptsByDomain`, `listConceptsByDifficulty`, `listConceptsByBloomLevel` |
+| Edges | `listEdges`, `getEdge`, `addEdge`, `deleteEdge`, `getPrerequisites`, `getDependents`, `getPrerequisiteChain`, `getDependentChain`, `listRelatedEdges`, `getRelatedEdges`, `addRelatedEdge`, `deleteRelatedEdge` |
+| Knowledge states | `getLearnerKnowledgeStates`, `getKnowledgeState`, `setKnowledgeState`, `deleteKnowledgeState`, `addMisconception` |
+| Workspace | `getStats`, `clear` |
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/zpd` | GET | Zone of Proximal Development |
-| `/api/learning-path` | GET | Personalized learning path |
-| `/api/gaps` | GET | Knowledge gap detection |
-| `/api/decay` | GET | Memory decay prediction |
-| `/api/review-schedule` | GET | Optimal review timing (SM-2) |
-| `/api/review-queue` | GET | Prioritized review queue |
-| `/api/remediation` | GET | Gap remediation plan |
-| `/api/status` | GET | System health check |
+### Intelligence Methods
+
+| Method | Description |
+|--------|-------------|
+| `computeZPD` | Zone of Proximal Development |
+| `generateLearningPath` | Personalized learning path |
+| `adjustForPsychometrics` | Pace and challenge adjustments from the profile |
+| `selectScaffoldingStrategies` | Teaching strategies for a learner and concept |
+| `detectGaps` | Knowledge gap detection |
+| `predictDecay` | Memory decay prediction |
+| `scheduleNextReview` | Next review timing |
+| `getReviewQueue` | Prioritized review queue |
+| `generateRemediationPlan` | Gap remediation plan |
 
 ---
 
@@ -1569,7 +1516,7 @@ LearnGraph is built on decades of validated research:
 | Multimedia Learning | Presentation optimization | Mayer (2009) |
 | Self-Efficacy | Confidence-based adjustments | Bandura (1977) |
 | Multiple Intelligences | Learning style diversity | Gardner (1983) |
-| Spaced Repetition | Review scheduling (SM-2) | Wozniak (1987) |
+| Spaced Repetition | Review scheduling (inspired by SM-2) | Wozniak (1987) |
 
 ---
 

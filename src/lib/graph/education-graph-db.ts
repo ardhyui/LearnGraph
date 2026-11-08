@@ -20,7 +20,7 @@
 
 import { uuidv4 } from '../uuid.ts';
 import type { GraphStore } from './store.ts';
-import { traitScore } from './trait-scores.ts';
+import * as scaffolding from './scaffolding.ts';
 import { KEY_PREFIXES } from './types.ts';
 import {
   daysSince,
@@ -493,6 +493,50 @@ export class EducationGraphDB {
   }
 
   /**
+   * Add several concepts and prerequisite edges in one transaction (Roadmap
+   * M5: an approved curriculum draft is saved completely or not at all).
+   * Existing concepts are updated like `addConcept` (fields merged).
+   */
+  async addConceptsAndEdges(
+    concepts: (Partial<ConceptNode> & { conceptId: string })[],
+    edges: { from: string; to: string; strength?: PrerequisiteEdge['strength']; reason?: string }[],
+  ): Promise<{ concepts: number; edges: number }> {
+    const now = new Date().toISOString();
+    const ops: BatchOperation[] = [];
+    for (const concept of concepts) {
+      const existing = await this.getConcept(concept.conceptId);
+      const full: ConceptNode = {
+        name: concept.conceptId,
+        domain: 'general',
+        description: '',
+        difficulty: { absolute: 5, cognitiveLoad: 0.5, abstractness: 0.5 },
+        ...existing,
+        ...concept,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      } as ConceptNode;
+      ops.push({ type: 'put', key: this.conceptKey(concept.conceptId), value: full });
+      if (existing && existing.domain !== full.domain) {
+        ops.push({ type: 'del', key: this.domainIndexKey(existing.domain, concept.conceptId) });
+      }
+      ops.push({ type: 'put', key: this.domainIndexKey(full.domain, concept.conceptId), value: concept.conceptId });
+    }
+    for (const edge of edges) {
+      const full: PrerequisiteEdge = {
+        edgeId: `${edge.from}:${edge.to}`,
+        from: edge.from,
+        to: edge.to,
+        strength: edge.strength || 'recommended',
+        reason: edge.reason,
+        createdAt: now,
+      };
+      ops.push({ type: 'put', key: this.prereqEdgeKey(edge.from, edge.to), value: full });
+    }
+    await this.batch(ops);
+    return { concepts: concepts.length, edges: edges.length };
+  }
+
+  /**
    * Get a prerequisite edge
    */
   async getEdge(from: string, to: string): Promise<PrerequisiteEdge | null> {
@@ -512,6 +556,50 @@ export class EducationGraphDB {
   private async getEdgesToConcept(conceptId: string): Promise<PrerequisiteEdge[]> {
     const allEdges = await this.listEntries<PrerequisiteEdge>(`${KEY_PREFIXES.EDGE}:prereq:`);
     return allEdges.filter(e => e.value.to === conceptId).map(e => e.value);
+  }
+
+  /**
+   * All prerequisite edges in one scan, grouped by the concept they lead to
+   * (same order as `getPrerequisites`). For algorithms that look at every
+   * concept: one query instead of one full edge scan per concept.
+   */
+  private async prerequisitesByTarget(): Promise<Map<string, PrerequisiteEdge[]>> {
+    const byTarget = new Map<string, PrerequisiteEdge[]>();
+    for (const edge of await this.listEdges()) {
+      const list = byTarget.get(edge.to);
+      if (list) list.push(edge);
+      else byTarget.set(edge.to, [edge]);
+    }
+    return byTarget;
+  }
+
+  /**
+   * `getPrerequisiteChain` over already loaded concepts and edges (no queries):
+   * breadth-first, each concept once, sorted by depth.
+   */
+  private prerequisiteChainFrom(
+    conceptId: string,
+    maxDepth: number,
+    prereqsOf: Map<string, PrerequisiteEdge[]>,
+    conceptById: Map<string, ConceptNode>,
+  ): { concept: ConceptNode; depth: number; edge: PrerequisiteEdge }[] {
+    const result: { concept: ConceptNode; depth: number; edge: PrerequisiteEdge }[] = [];
+    const visited = new Set<string>();
+    const queue: { conceptId: string; depth: number }[] = [{ conceptId, depth: 0 }];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (current.depth >= maxDepth || visited.has(current.conceptId)) continue;
+      visited.add(current.conceptId);
+      for (const edge of prereqsOf.get(current.conceptId) ?? []) {
+        if (visited.has(edge.from)) continue;
+        const concept = conceptById.get(edge.from);
+        if (concept) {
+          result.push({ concept, depth: current.depth + 1, edge });
+          queue.push({ conceptId: edge.from, depth: current.depth + 1 });
+        }
+      }
+    }
+    return result.sort((a, b) => a.depth - b.depth);
   }
 
   /**
@@ -857,25 +945,27 @@ export class EducationGraphDB {
       throw new Error(`Learner not found: ${userId}`);
     }
 
-    // Get all concepts and learner's knowledge states
-    const concepts = await this.listConcepts();
-    const states = await this.getLearnerKnowledgeStates(userId);
+    // Get all concepts, their prerequisite edges (one scan) and the learner's knowledge states
+    const [concepts, states, prereqsOf] = await Promise.all([
+      this.listConcepts(),
+      this.getLearnerKnowledgeStates(userId),
+      this.prerequisitesByTarget(),
+    ]);
     const stateMap = new Map(states.map(s => [s.conceptId, s]));
+    const conceptById = new Map(concepts.map(c => [c.conceptId, c]));
 
     // Compute psychometric adjustments
     const psychometricAdjustments = this.adjustForPsychometrics(profile);
 
     // Partition all concepts into zones
-    const zonedConcepts: ZonedConcept[] = [];
-
-    for (const concept of concepts) {
-      const zonedConcept = await this.classifyConcept(
+    const zonedConcepts: ZonedConcept[] = concepts.map((concept) =>
+      this.classifyConcept(
         concept,
         stateMap,
-        psychometricAdjustments
-      );
-      zonedConcepts.push(zonedConcept);
-    }
+        psychometricAdjustments,
+        prereqsOf.get(concept.conceptId) ?? []
+      )
+    );
 
     // Partition into zones
     const tooEasy: ZonedConcept[] = [];
@@ -902,12 +992,10 @@ export class EducationGraphDB {
     // Generate recommendations for top ZPD concepts
     const recommendations: ZPDRecommendation[] = [];
     for (const zc of zpd.slice(0, limit)) {
-      const recommendation = await this.generateRecommendation(
-        zc,
-        profile,
-        psychometricAdjustments
+      const prereqChain = this.prerequisiteChainFrom(zc.concept.conceptId, 3, prereqsOf, conceptById);
+      recommendations.push(
+        this.generateRecommendation(zc, profile, psychometricAdjustments, prereqChain)
       );
-      recommendations.push(recommendation);
     }
 
     // Generate learning path
@@ -931,16 +1019,16 @@ export class EducationGraphDB {
   /**
    * Classify a single concept into a zone for a learner
    */
-  private async classifyConcept(
+  private classifyConcept(
     concept: ConceptNode,
     stateMap: Map<string, KnowledgeState>,
-    adjustments: PsychometricAdjustments
-  ): Promise<ZonedConcept> {
+    adjustments: PsychometricAdjustments,
+    prereqs: PrerequisiteEdge[]
+  ): ZonedConcept {
     const state = stateMap.get(concept.conceptId);
     const currentMastery = state?.mastery ?? 0;
 
-    // Get prerequisites and check how many are mastered
-    const prereqs = await this.getPrerequisites(concept.conceptId);
+    // Check how many prerequisites are mastered
     const missingPrerequisites: string[] = [];
     let prereqsMasteredCount = 0;
 
@@ -1038,191 +1126,28 @@ export class EducationGraphDB {
     return Math.max(0, Math.min(1, readiness));
   }
 
-  /**
-   * Compute psychometric adjustments for a learner
-   */
+  /** Psychometric adjustments for a learner (see `./scaffolding.ts`). */
   adjustForPsychometrics(profile: LearnerProfile): PsychometricAdjustments {
-    const scores = profile.psychometricScores;
-
-    // Default values
-    let difficultyModifier = 0;
-    let paceRecommendation: 'slower' | 'normal' | 'faster' = 'normal';
-    const attentionConsiderations: string[] = [];
-    const scaffoldingStrategies = this.selectScaffoldingStrategies(profile);
-    let presentationStyle: 'visual' | 'verbal' | 'hands_on' | 'mixed' = 'mixed';
-
-    // Analyze openness to experience (intellectual curiosity)
-    const openness = traitScore(scores, 'openness');
-    if (openness !== undefined) {
-      if (openness > 70) {
-        difficultyModifier += 0.2; // Can handle harder material
-      } else if (openness < 30) {
-        difficultyModifier -= 0.1;
-      }
-    }
-
-    // Analyze conscientiousness (self-discipline)
-    const conscientiousness = traitScore(scores, 'conscientiousness');
-    if (conscientiousness !== undefined) {
-      if (conscientiousness > 70) {
-        paceRecommendation = 'faster'; // More self-disciplined can go faster
-      } else if (conscientiousness < 30) {
-        paceRecommendation = 'slower';
-        attentionConsiderations.push('May need more structure and checkpoints');
-      }
-    }
-
-    // Analyze neuroticism (emotional stability)
-    const neuroticism = traitScore(scores, 'neuroticism');
-    if (neuroticism !== undefined) {
-      if (neuroticism > 70) {
-        difficultyModifier -= 0.2; // Reduce stress with easier material
-        attentionConsiderations.push('Keep encouragement high, minimize failure scenarios');
-      }
-    }
-
-    // Analyze extraversion
-    const extraversion = traitScore(scores, 'extraversion');
-    if (extraversion !== undefined) {
-      if (extraversion > 70) {
-        attentionConsiderations.push('Benefits from collaborative learning');
-      } else if (extraversion < 30) {
-        attentionConsiderations.push('Prefers solo study, may be overwhelmed by group work');
-      }
-    }
-
-    // Determine presentation style from learning style
-    if (profile.learningStyle) {
-      switch (profile.learningStyle.primary) {
-        case 'visual':
-          presentationStyle = 'visual';
-          break;
-        case 'auditory':
-          presentationStyle = 'verbal';
-          break;
-        case 'kinesthetic':
-          presentationStyle = 'hands_on';
-          break;
-        default:
-          presentationStyle = 'mixed';
-      }
-    }
-
-    // Cap difficulty modifier
-    difficultyModifier = Math.max(-0.5, Math.min(0.5, difficultyModifier));
-
-    return {
-      difficultyModifier,
-      paceRecommendation,
-      attentionConsiderations,
-      scaffoldingStrategies,
-      presentationStyle,
-    };
+    return scaffolding.adjustForPsychometrics(profile);
   }
 
-  /**
-   * Select scaffolding strategies based on learner profile
-   */
+  /** Scaffolding strategies for a learner profile (see `./scaffolding.ts`). */
   selectScaffoldingStrategies(profile: LearnerProfile): ScaffoldingStrategy[] {
-    const strategies: ScaffoldingStrategy[] = [];
-    const scores = profile.psychometricScores;
-
-    // Default strategy everyone benefits from
-    strategies.push({
-      type: 'worked_example',
-      reason: 'Universal foundation for learning new concepts',
-      priority: 8,
-    });
-
-    // Visual learners
-    if (profile.learningStyle?.primary === 'visual') {
-      strategies.push({
-        type: 'visual_aids',
-        reason: 'Primary learning modality is visual',
-        priority: 9,
-      });
-    }
-
-    // High neuroticism - need more support
-    const neuroticism = traitScore(scores, 'neuroticism');
-    if (neuroticism !== undefined && neuroticism > 60) {
-      strategies.push({
-        type: 'guided_practice',
-        reason: 'Reduces anxiety through step-by-step guidance',
-        priority: 8,
-      });
-      strategies.push({
-        type: 'hints',
-        reason: 'Provides safety net when struggling',
-        priority: 7,
-      });
-    }
-
-    // Low working memory - need chunking
-    if (profile.cognitiveProfile?.workingMemoryCapacity === 'low') {
-      strategies.push({
-        type: 'chunking',
-        reason: 'Accommodates limited working memory capacity',
-        priority: 9,
-      });
-    }
-
-    // High extraversion - social learning
-    const extraversion = traitScore(scores, 'extraversion');
-    if (extraversion !== undefined && extraversion > 70) {
-      strategies.push({
-        type: 'peer_discussion',
-        reason: 'Leverages social learning preference',
-        priority: 6,
-      });
-    }
-
-    // Low openness - needs analogies to familiar concepts
-    const openness = traitScore(scores, 'openness');
-    if (openness !== undefined && openness < 40) {
-      strategies.push({
-        type: 'analogy',
-        reason: 'Connects new concepts to familiar ones',
-        priority: 7,
-      });
-    }
-
-    // Short attention span - needs repetition
-    if (profile.cognitiveProfile?.attentionSpan === 'short') {
-      strategies.push({
-        type: 'repetition',
-        reason: 'Reinforces learning with shorter attention span',
-        priority: 7,
-      });
-    }
-
-    // Kinesthetic learners
-    if (profile.learningStyle?.primary === 'kinesthetic') {
-      strategies.push({
-        type: 'guided_practice',
-        reason: 'Hands-on practice matches learning style',
-        priority: 9,
-      });
-    }
-
-    // Sort by priority descending
-    strategies.sort((a, b) => b.priority - a.priority);
-
-    return strategies;
+    return scaffolding.selectScaffoldingStrategies(profile);
   }
 
   /**
    * Generate a recommendation for a ZPD concept
    */
-  private async generateRecommendation(
+  private generateRecommendation(
     zonedConcept: ZonedConcept,
     profile: LearnerProfile,
-    adjustments: PsychometricAdjustments
-  ): Promise<ZPDRecommendation> {
+    adjustments: PsychometricAdjustments,
+    prereqChain: { concept: ConceptNode }[]
+  ): ZPDRecommendation {
     const concept = zonedConcept.concept;
 
-    // Get prerequisite chain for context
-    const prereqChain = await this.getPrerequisiteChain(concept.conceptId, 3);
+    // Prerequisite chain for context ("First learn: A → B → C")
     const prerequisiteChain = prereqChain.map(p => p.concept.name);
 
     // Estimate mastery time based on difficulty and learner profile
@@ -1235,7 +1160,7 @@ export class EducationGraphDB {
     }
 
     // Calculate psychometric match score
-    const psychometricMatch = this.calculatePsychometricMatch(concept, profile, adjustments);
+    const psychometricMatch = scaffolding.calculatePsychometricMatch(concept, profile, adjustments);
 
     // Generate reasons
     const reasons: string[] = [];
@@ -1267,42 +1192,6 @@ export class EducationGraphDB {
       reasons,
       prerequisiteChain,
     };
-  }
-
-  /**
-   * Calculate how well a concept matches the learner's psychometric profile
-   */
-  private calculatePsychometricMatch(
-    concept: ConceptNode,
-    profile: LearnerProfile,
-    adjustments: PsychometricAdjustments
-  ): number {
-    let match = 0.5; // Base match
-
-    // Abstract concepts match high openness
-    const openness = traitScore(profile.psychometricScores, 'openness');
-    if (openness !== undefined) {
-      if (concept.difficulty.abstractness > 0.7 && openness > 60) {
-        match += 0.2;
-      } else if (concept.difficulty.abstractness > 0.7 && openness < 40) {
-        match -= 0.2;
-      }
-    }
-
-    // High cognitive load concepts match high working memory
-    if (profile.cognitiveProfile?.workingMemoryCapacity === 'high' && concept.difficulty.cognitiveLoad > 0.7) {
-      match += 0.15;
-    } else if (profile.cognitiveProfile?.workingMemoryCapacity === 'low' && concept.difficulty.cognitiveLoad > 0.7) {
-      match -= 0.15;
-    }
-
-    // Adjust based on difficulty modifier alignment
-    const adjustedDifficulty = concept.difficulty.absolute + (adjustments.difficultyModifier * 10);
-    if (adjustedDifficulty >= 4 && adjustedDifficulty <= 7) {
-      match += 0.1; // Optimal difficulty range
-    }
-
-    return Math.max(0, Math.min(1, match));
   }
 
   /**
@@ -1491,8 +1380,11 @@ export class EducationGraphDB {
       throw new Error(`Learner not found: ${userId}`);
     }
 
-    const concepts = await this.listConcepts();
-    const states = await this.getLearnerKnowledgeStates(userId);
+    const [concepts, states, prereqsOf] = await Promise.all([
+      this.listConcepts(),
+      this.getLearnerKnowledgeStates(userId),
+      this.prerequisitesByTarget(),
+    ]);
     const stateMap = new Map(states.map(s => [s.conceptId, s]));
     const now = new Date();
 
@@ -1507,7 +1399,7 @@ export class EducationGraphDB {
       // Check for missing knowledge (never learned)
       if ((type === 'all' || type === 'missing') && !state) {
         // Only flag as missing if prerequisites are met (otherwise it's just "not ready yet")
-        const prereqs = await this.getPrerequisites(concept.conceptId);
+        const prereqs = prereqsOf.get(concept.conceptId) ?? [];
         let prereqsMet = true;
 
         for (const prereq of prereqs) {
@@ -1695,7 +1587,12 @@ export class EducationGraphDB {
     const limit = options.limit ?? 20;
     const includeNotDue = options.includeNotDue ?? false;
 
-    const states = await this.getLearnerKnowledgeStates(userId);
+    // Concepts loaded once (not one query per learned concept).
+    const [states, concepts] = await Promise.all([
+      this.getLearnerKnowledgeStates(userId),
+      this.listConcepts(),
+    ]);
+    const conceptById = new Map(concepts.map(c => [c.conceptId, c]));
     const now = new Date();
 
     const queue: {
@@ -1715,7 +1612,7 @@ export class EducationGraphDB {
       // Skip concepts with very low mastery (not really "learned" yet)
       if (state.mastery < this.PARTIAL_MASTERY_THRESHOLD) continue;
 
-      const concept = await this.getConcept(state.conceptId);
+      const concept = conceptById.get(state.conceptId);
       if (!concept) continue;
 
       const decay = this.predictDecay(state, concept);

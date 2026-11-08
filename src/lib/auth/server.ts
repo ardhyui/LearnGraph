@@ -17,6 +17,9 @@ import { randomBytes } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import { getDb } from '../db';
 import { authRateLimit } from './rate-limit';
+import { APIError } from 'better-auth/api';
+import { deleteUnlinkedOwnerData, LOCAL_OWNER_ID } from '../account';
+import { emailConfigured, passwordResetAvailable, passwordResetEmail, sendEmail, verificationEmail } from '../email';
 
 const env = (key: string): string | undefined => {
   const value = process.env[key]?.trim();
@@ -78,6 +81,39 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
     autoSignIn: true,
+    // Roadmap M3: "Forgot password?" (only where email can be sent, see src/lib/email.ts).
+    ...(passwordResetAvailable()
+      ? {
+          sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) =>
+            sendEmail(passwordResetEmail(user.email, url)),
+          resetPasswordTokenExpiresIn: 3600,
+          revokeSessionsOnPasswordReset: true,
+        }
+      : {}),
+  },
+  // Confirm the address on sign-up once email is configured (not required to sign in).
+  ...(emailConfigured()
+    ? {
+        emailVerification: {
+          sendOnSignUp: true,
+          sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) =>
+            sendEmail(verificationEmail(user.email, url)),
+        },
+      }
+    : {}),
+  // "Delete my account" on My Profile (Roadmap M3). The client sends the
+  // password, which Better Auth verifies; deleting the user row cascades to
+  // all of the account's data (see src/lib/account.ts).
+  user: {
+    deleteUser: {
+      enabled: true,
+      beforeDelete: async (user) => {
+        if (user.id === LOCAL_OWNER_ID) {
+          throw new APIError('FORBIDDEN', { message: 'The local workstation owner cannot be deleted here.' });
+        }
+        await deleteUnlinkedOwnerData(getDb() as unknown as Kysely<any>, user.id);
+      },
+    },
   },
   rateLimit: authRateLimit,
   session: { cookieCache: { enabled: true, maxAge: 300 } },

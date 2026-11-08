@@ -12,6 +12,8 @@ import { demoLearners, demoConcepts, demoEdges, demoKnowledgeStates, shiftDemoDa
  * Returns true if seeded.
  */
 export async function seedDemoDataIfEmpty(db: EducationGraphDB, now: Date = new Date()): Promise<boolean> {
+  // The user chose "Start with an empty workspace": an empty workspace stays empty.
+  if (await db.getMeta(DEMO_DECLINED_FLAG)) return false;
   const stats = await db.getStats();
   if (!(stats.learnerCount === 0 && stats.conceptCount === 0)) return false;
 
@@ -129,4 +131,38 @@ export async function repairDemoKnowledgeStates(db: EducationGraphDB): Promise<n
   }
   await db.setMeta(DEMO_STATES_REPAIR_FLAG, { at: new Date().toISOString(), copied });
   return copied;
+}
+
+/** Meta flag: this workspace chose to start without the example data (never seed it again). */
+export const DEMO_DECLINED_FLAG = 'seed:demo-declined';
+
+/**
+ * "Start with an empty workspace" (Roadmap M3): remove the example learners
+ * and the example concepts that still look like the examples (same id and
+ * subject), with their prerequisites, progress, quiz questions and lessons,
+ * and remember the choice so the examples are not seeded again. The user's own
+ * learners and concepts are left alone (only their progress on a removed
+ * example concept goes with it).
+ */
+export async function removeDemoData(db: EducationGraphDB): Promise<{ learners: number; concepts: number }> {
+  let learners = 0;
+  let concepts = 0;
+  const demoLearnerIds = new Set(demoLearners.map((l) => l.userId));
+  const profiles = await db.listLearnerProfiles();
+  for (const profile of profiles) {
+    if (!demoLearnerIds.has(profile.userId)) continue;
+    await db.deleteLearnerProfile(profile.userId);
+    learners++;
+  }
+  const remaining = profiles.filter((p) => !demoLearnerIds.has(p.userId)).map((p) => p.userId);
+  for (const demo of demoConcepts) {
+    const conceptId = demo.id.replace('concept:', '');
+    const concept = await db.getConcept(conceptId);
+    if (!concept || concept.domain !== demo.domain) continue;
+    for (const learnerId of remaining) await db.deleteKnowledgeState(learnerId, conceptId);
+    await db.deleteConcept(conceptId);
+    concepts++;
+  }
+  await db.setMeta(DEMO_DECLINED_FLAG, { at: new Date().toISOString(), learners, concepts });
+  return { learners, concepts };
 }

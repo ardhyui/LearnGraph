@@ -3,12 +3,11 @@
  * Stores 'light' | 'dark' | 'system' in localStorage and toggles `.dark` on <html>.
  */
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { THEME_STORAGE_KEY as STORAGE_KEY } from './theme-script';
+
+export { NO_FLASH_SCRIPT } from './theme-script';
 
 export type Theme = 'light' | 'dark' | 'system';
-const STORAGE_KEY = 'theme';
-
-/** Inline <head> script: apply the saved theme before first paint (no flash). */
-export const NO_FLASH_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var c=document.documentElement.classList;d?c.add('dark'):c.remove('dark');document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
 
 interface ThemeContextValue {
   theme: Theme;

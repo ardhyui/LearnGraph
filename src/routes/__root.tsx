@@ -12,6 +12,7 @@ import { DBProvider } from '@/lib/DBContext';
 import { ErrorPage, NotFoundPage } from '@/components/ErrorPages';
 import { getCurrentUser } from '@/server/session.functions';
 import { RouteAnnouncer } from '@/components/RouteAnnouncer';
+import { SkipLink } from '@/components/SkipLink';
 import { APP_NAME } from '@/lib/page-titles';
 import appCss from '../styles.css?url';
 
@@ -21,7 +22,7 @@ export interface RouterContext {
 }
 
 /** Routes reachable without an account. */
-const PUBLIC_PATHS = new Set(['/sign-in']);
+const PUBLIC_PATHS = new Set(['/sign-in', '/privacy', '/forgot-password', '/reset-password']);
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: async ({ location }) => {
@@ -66,6 +67,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body className="min-h-screen bg-background antialiased">
+        <SkipLink />
         <ThemeProvider>{children}</ThemeProvider>
         <RouteAnnouncer />
         <Scripts />
@@ -80,7 +82,7 @@ function RootComponent() {
   if (!user || PUBLIC_PATHS.has(pathname)) return <Outlet />;
   // Keyed by user so switching accounts never shows the previous account's data.
   return (
-    <DBProvider key={user.id} seedDemoData={true}>
+    <DBProvider key={user.id} seedDemoData={user.id !== 'local-japanese-owner'}>
       <Outlet />
     </DBProvider>
   );

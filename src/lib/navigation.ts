@@ -24,7 +24,10 @@ export type NavIcon =
   | 'chart'
   | 'database'
   | 'activity'
-  | 'test';
+  | 'test'
+  | 'quiz'
+  | 'lesson'
+  | 'wand';
 
 export interface NavItem {
   href: string;
@@ -48,10 +51,31 @@ export const NAV_SECTIONS: NavSection[] = [
     collapsible: false,
     items: [
       { href: '/', label: 'Dashboard', description: 'Your plan for today', icon: 'home' },
-      { href: '/recommendations', label: 'Recommendations', description: 'What to learn next', icon: 'sparkles' },
+      {
+        href: '/japanese',
+        label: 'Bahasa Jepang',
+        description: 'Jalur N5 sampai N1 dan latihan',
+        icon: 'book',
+      },
+      {
+        href: '/recommendations',
+        label: 'Recommendations',
+        description: 'What to learn next',
+        icon: 'sparkles',
+      },
       { href: '/gaps', label: 'Gap Analysis', description: 'Find what is missing', icon: 'alert' },
-      { href: '/graph', label: 'Knowledge Graph', description: 'See how concepts connect', icon: 'network' },
-      { href: '/profile', label: 'My Profile', description: 'Subjects, progress, learning style', icon: 'user' },
+      {
+        href: '/graph',
+        label: 'Knowledge Graph',
+        description: 'See how concepts connect',
+        icon: 'network',
+      },
+      {
+        href: '/profile',
+        label: 'My Profile',
+        description: 'Subjects, progress, learning style',
+        icon: 'user',
+      },
     ],
   },
   {
@@ -59,9 +83,24 @@ export const NAV_SECTIONS: NavSection[] = [
     title: 'Explore',
     collapsible: false,
     items: [
-      { href: '/domains', label: 'Domain Graph', description: 'Psychometric domains', icon: 'hexagon' },
-      { href: '/combined-graph', label: 'Combined View', description: 'Both graphs together', icon: 'layers' },
-      { href: '/edu-psychology', label: 'Edu Psychology', description: 'The theory behind it', icon: 'graduation' },
+      {
+        href: '/domains',
+        label: 'Domain Graph',
+        description: 'Psychometric domains',
+        icon: 'hexagon',
+      },
+      {
+        href: '/combined-graph',
+        label: 'Combined View',
+        description: 'Both graphs together',
+        icon: 'layers',
+      },
+      {
+        href: '/edu-psychology',
+        label: 'Edu Psychology',
+        description: 'The theory behind it',
+        icon: 'graduation',
+      },
       { href: '/about', label: 'About LearnGraph', description: 'How it works', icon: 'info' },
     ],
   },
@@ -70,12 +109,55 @@ export const NAV_SECTIONS: NavSection[] = [
     title: 'Manage data',
     collapsible: true,
     items: [
-      { href: '/admin/learners', label: 'Learners', description: 'Learner profiles', icon: 'users' },
-      { href: '/admin/psychometrics', label: 'Psychometrics', description: 'Cognitive traits', icon: 'brain' },
+      {
+        href: '/admin/learners',
+        label: 'Learners',
+        description: 'Learner profiles',
+        icon: 'users',
+      },
+      {
+        href: '/admin/psychometrics',
+        label: 'Psychometrics',
+        description: 'Cognitive traits',
+        icon: 'brain',
+      },
       { href: '/admin/concepts', label: 'Concepts', description: 'Knowledge nodes', icon: 'book' },
-      { href: '/admin/prerequisites', label: 'Prerequisites', description: 'Dependencies', icon: 'branch' },
-      { href: '/admin/states', label: 'Knowledge States', description: 'Progress records', icon: 'chart' },
-      { href: '/data-entry', label: 'Data Entry', description: 'Quick add forms', icon: 'database' },
+      {
+        href: '/admin/prerequisites',
+        label: 'Prerequisites',
+        description: 'Dependencies',
+        icon: 'branch',
+      },
+      {
+        href: '/admin/curriculum',
+        label: 'Curriculum Import',
+        description: 'Draft a course with AI',
+        icon: 'wand',
+      },
+      {
+        href: '/admin/content',
+        label: 'Lesson Content',
+        description: 'Lessons per concept',
+        icon: 'lesson',
+      },
+      {
+        href: '/admin/questions',
+        label: 'Quiz Questions',
+        description: 'Question banks',
+        icon: 'quiz',
+      },
+      {
+        href: '/admin/states',
+        label: 'Knowledge States',
+        description: 'Progress records',
+        icon: 'chart',
+      },
+      {
+        href: '/data-entry',
+        label: 'Data Entry',
+        description: 'Quick add forms',
+        icon: 'database',
+      },
     ],
   },
   {
@@ -83,7 +165,12 @@ export const NAV_SECTIONS: NavSection[] = [
     title: 'Developer tools',
     collapsible: true,
     items: [
-      { href: '/status', label: 'System Status', description: 'Health monitoring', icon: 'activity' },
+      {
+        href: '/status',
+        label: 'System Status',
+        description: 'Health monitoring',
+        icon: 'activity',
+      },
       { href: '/tests', label: 'Functional Tests', description: 'Run engine checks', icon: 'test' },
     ],
   },

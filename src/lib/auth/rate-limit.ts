@@ -10,6 +10,9 @@ export const AUTH_RATE_LIMIT_RULES = {
   '/sign-in/email': { window: 60, max: 10 },
   // Account spam: 5 sign-ups per 10 minutes per IP.
   '/sign-up/email': { window: 600, max: 5 },
+  // Password reset emails: 3 per 10 minutes per IP (no inbox flooding).
+  '/request-password-reset': { window: 600, max: 3 },
+  '/reset-password': { window: 600, max: 10 },
   // Called on every page load: not a brute-force target, and limiting it
   // would cost a DB write per request and could lock out shared networks.
   '/get-session': false,
