@@ -41,11 +41,13 @@ export const seedDemoData = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const { graphForOwner } = await import('@/lib/graph/server');
-    const { seedDemoDataIfEmpty, repairDemoKnowledgeStates } = await import('@/lib/graph/seed');
+    const { seedDemoDataIfEmpty, repairDemoKnowledgeStates, DEMO_DECLINED_FLAG } = await import('@/lib/graph/seed');
     const { getDb } = await import('@/lib/db');
     const { seedDemoQuestions } = await import('@/lib/evidence/service');
     const { seedDemoContent } = await import('@/lib/content/service');
     const graph = await graphForOwner(context.userId);
+    // "Start with an empty workspace" was chosen: never bring the examples back.
+    if (await graph.getMeta(DEMO_DECLINED_FLAG)) return { seeded: false };
     const seeded = await seedDemoDataIfEmpty(graph);
     // Older workspaces: attach demo progress to the demo learners (no-op once done).
     if (!seeded) await repairDemoKnowledgeStates(graph);
@@ -53,4 +55,13 @@ export const seedDemoData = createServerFn({ method: 'POST' })
     await seedDemoQuestions(getDb(), graph, context.userId);
     await seedDemoContent(getDb(), graph, context.userId);
     return { seeded };
+  });
+
+/** "Start with an empty workspace": remove the example data for good (Roadmap M3). */
+export const removeExampleData = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { graphForOwner } = await import('@/lib/graph/server');
+    const { removeDemoData } = await import('@/lib/graph/seed');
+    return removeDemoData(await graphForOwner(context.userId));
   });

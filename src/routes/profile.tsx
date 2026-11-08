@@ -36,6 +36,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
+import { DeleteAccount } from '@/components/DeleteAccount';
 import { cn } from '@/lib/utils';
 import {
   ALL_ASSESSMENTS,
@@ -53,7 +54,7 @@ import {
   scoreSourceLabel,
 } from '@/lib/quiz';
 import {
-  PROFILE_MODES,
+  profileModeOptions,
   PROFILE_MODE_COPY,
   filledInLine,
   profileCategoryCopy,
@@ -682,7 +683,7 @@ function ProfilePage() {
   };
   const getModeConfig = (mode: ProfileMode) => ({ ...MODE_STYLE[mode], ...PROFILE_MODE_COPY[mode] });
 
-  const modeOptions = PROFILE_MODES;
+  const modeOptions = profileModeOptions(profile?.profileMode);
 
   // Check if we have sample users
   const hasNoUsers = !loading && learners.length === 0;
@@ -811,7 +812,7 @@ function ProfilePage() {
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            <div className={cn('grid grid-cols-2 gap-3 sm:grid-cols-3', modeOptions.length > 3 && 'md:grid-cols-5')}>
               {modeOptions.map((mode) => {
                 const config = getModeConfig(mode);
                 const Icon = config.icon;
@@ -2003,6 +2004,7 @@ function ProfilePage() {
             )}
           </div>
         )}
+        <DeleteAccount />
       </main>
     </div>
   );

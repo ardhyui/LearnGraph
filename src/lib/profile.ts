@@ -25,7 +25,7 @@ export const PROFILE_MODE_COPY: Record<ProfileMode, ProfileModeCopy> = {
   auto: {
     label: 'Automatic',
     title: 'Let LearnGraph fill it in',
-    description: 'LearnGraph may adjust these values over time from how you study. You can switch to another option later.',
+    description: 'Learning from how you study is not built yet, so these values do not change on their own. Pick another option.',
   },
   manual: {
     label: 'Set it myself',
@@ -35,7 +35,7 @@ export const PROFILE_MODE_COPY: Record<ProfileMode, ProfileModeCopy> = {
   adaptive: {
     label: 'Set, then adjust',
     title: 'Start with your values, adjust over time',
-    description: 'You set starting values; LearnGraph may fine-tune them as you study.',
+    description: 'You set starting values. Adjusting them from how you study is not built yet, so they stay as you set them.',
   },
   assessment: {
     label: 'Take quizzes',
@@ -44,7 +44,26 @@ export const PROFILE_MODE_COPY: Record<ProfileMode, ProfileModeCopy> = {
   },
 };
 
-export const PROFILE_MODES: readonly ProfileMode[] = ['view', 'auto', 'manual', 'adaptive', 'assessment'];
+/**
+ * Modes that would change values from how the learner studies. That inference
+ * is not built yet, so they are not offered (Roadmap M3: the app should not
+ * promise what it does not do). Their copy stays for profiles that chose one.
+ */
+export const UNBUILT_PROFILE_MODES: readonly ProfileMode[] = ['auto', 'adaptive'];
+
+/** Modes offered to a new profile. */
+export const PROFILE_MODES: readonly ProfileMode[] = ['view', 'manual', 'assessment'];
+
+const MODE_ORDER: readonly ProfileMode[] = ['view', 'auto', 'manual', 'adaptive', 'assessment'];
+
+/**
+ * The mode buttons to show: the built modes, plus an unbuilt one this profile
+ * already chose earlier, so its current choice is still visible (and can be
+ * changed) instead of silently disappearing.
+ */
+export function profileModeOptions(stored: string | null | undefined): ProfileMode[] {
+  return MODE_ORDER.filter((m) => PROFILE_MODES.includes(m) || m === stored);
+}
 
 /** Mode stored on a profile (anything unknown means "not chosen yet"). */
 export function profileModeLabel(mode: string | null | undefined): string | null {

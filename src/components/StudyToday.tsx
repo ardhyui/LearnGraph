@@ -405,6 +405,10 @@ export function StudyToday() {
       <Onboarding
         existingIds={learners.map((l) => l.userId)}
         onCreated={onboarded}
+        onExamplesRemoved={async () => {
+          await refreshLearners();
+          setOnboardingOpen(true);
+        }}
         onSkip={
           learners.length === 0
             ? undefined
