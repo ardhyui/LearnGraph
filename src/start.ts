@@ -1,5 +1,5 @@
 import { createCsrfMiddleware, createMiddleware, createStart } from '@tanstack/react-start';
-import { isHttpsRequest, withSecurityHeaders } from '@/lib/security-headers';
+import { createNonce, isHttpsRequest, withSecurityHeaders } from '@/lib/security-headers';
 
 /**
  * Server functions are same-origin RPC endpoints: reject cross-site calls.
@@ -10,12 +10,18 @@ const csrfMiddleware = createCsrfMiddleware({
   filter: (ctx) => ctx.handlerType === 'serverFn',
 });
 
-/** CSP, anti-framing and friends on every response — see src/lib/security-headers.ts. */
+/**
+ * CSP, anti-framing and friends on every response — see src/lib/security-headers.ts.
+ * Each response gets its own script nonce; the router reads it from this
+ * context (`cspNonce`) and puts it on the scripts it renders.
+ */
 const securityHeadersMiddleware = createMiddleware().server(async ({ request, next }) => {
-  const result = await next();
+  const nonce = createNonce();
+  const result = await next({ context: { cspNonce: nonce } });
   result.response = withSecurityHeaders(result.response, {
     dev: process.env.NODE_ENV === 'development',
     https: isHttpsRequest(request),
+    nonce,
   });
   return result;
 });

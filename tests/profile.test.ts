@@ -10,20 +10,58 @@ import {
   PROFILE_MODE_COPY,
   masteredLine,
   profileModeLabel,
+  profileModeOptions,
   profileNextStep,
+  UNBUILT_PROFILE_MODES,
+  hasMoreTopicsConsent,
+  offeredDomainIds,
+  withMoreTopicsConsent,
 } from '../src/lib/profile.ts';
 import { summarizeProgress } from '../src/lib/study.ts';
 import { focusDomains, inFocus, withFocus } from '../src/lib/onboarding.ts';
 
 describe('profile mode copy', () => {
   it('every mode has short, non-technical copy', () => {
-    for (const mode of PROFILE_MODES) {
+    for (const mode of Object.keys(PROFILE_MODE_COPY) as (keyof typeof PROFILE_MODE_COPY)[]) {
       const c = PROFILE_MODE_COPY[mode];
       assert.ok(c.label.length > 0 && c.label.length <= 16, `${mode} label "${c.label}"`);
       assert.ok(c.description.length <= 140, `${mode} description too long`);
       const text = `${c.label} ${c.title} ${c.description}`;
       assert.doesNotMatch(text, /psychometric|Option [A-D]|PERMANENT|scientifically/i, mode);
     }
+  });
+
+  it('does not offer the modes whose inference is not built, unless the profile already chose one', () => {
+    assert.deepEqual(PROFILE_MODES, ['view', 'manual', 'assessment']);
+    assert.deepEqual(profileModeOptions(undefined), ['view', 'manual', 'assessment']);
+    assert.deepEqual(profileModeOptions('manual'), ['view', 'manual', 'assessment']);
+    assert.deepEqual(profileModeOptions('auto'), ['view', 'auto', 'manual', 'assessment']);
+    assert.deepEqual(profileModeOptions('adaptive'), ['view', 'manual', 'adaptive', 'assessment']);
+    assert.deepEqual(profileModeOptions('constructor'), ['view', 'manual', 'assessment']);
+    for (const mode of UNBUILT_PROFILE_MODES) {
+      assert.match(PROFILE_MODE_COPY[mode].description, /not built yet/, mode);
+    }
+  });
+
+  it('D4: only the topics the plan uses are offered until the learner agrees to see the rest', () => {
+    const categories = [
+      { id: 'dark_personality', domains: ['dark_triad_narcissism'] },
+      { id: 'core_personality', domains: [{ id: 'big_five_openness' }] },
+      { id: 'social_cultural', domains: ['political_ideology'] },
+      { id: 'cognitive_learning', domains: ['learning_styles'] },
+    ];
+    assert.deepEqual(offeredDomainIds(categories, false), ['learning_styles', 'big_five_openness']);
+    assert.deepEqual(offeredDomainIds(categories, true), [
+      'learning_styles',
+      'big_five_openness',
+      'political_ideology',
+      'dark_triad_narcissism',
+    ]);
+    assert.equal(hasMoreTopicsConsent({ tags: ['focus:mathematics'] }), false);
+    const tags = withMoreTopicsConsent(['focus:mathematics'], true);
+    assert.equal(hasMoreTopicsConsent({ tags }), true);
+    assert.deepEqual(withMoreTopicsConsent(tags, false), ['focus:mathematics']);
+    assert.equal(hasMoreTopicsConsent(null), false);
   });
 
   it('labels the stored mode, ignoring unknown or "view"', () => {

@@ -57,11 +57,11 @@ WITH Graph RAG:
 ### Simplest Working Version
 ```typescript
 // 1. Store a learner
-await db.setLearnerProfile('user-123', { userId: 'user-123' });
+await db.setLearnerProfile('user-123', { name: 'Alice' });
 
 // 2. Store concepts with prerequisites
-await db.addConcept({ id: 'arithmetic', difficulty: 1 });
-await db.addConcept({ id: 'algebra', difficulty: 3 });
+await db.addConcept({ conceptId: 'arithmetic', name: 'Arithmetic' });
+await db.addConcept({ conceptId: 'algebra', name: 'Algebra' });
 await db.addEdge({ from: 'arithmetic', to: 'algebra' });
 
 // 3. Track what user knows
@@ -69,7 +69,8 @@ await db.setKnowledgeState('user-123', 'arithmetic', { mastery: 90 });
 
 // 4. Ask "What's next?"
 const zpd = await db.computeZPD('user-123');
-// Returns: "algebra" (arithmetic is mastered, algebra is ready)
+// zpd.recommendations[0].concept.conceptId === 'algebra'
+// (arithmetic is mastered, algebra is ready)
 ```
 
 ---
@@ -79,10 +80,14 @@ const zpd = await db.computeZPD('user-123');
 - **Graph A**: Learner Model (profiles, psychometrics, knowledge states, history)
 - **Graph B**: Knowledge Model (concepts, prerequisites, Bloom levels, difficulty)
 - **ZPD Bridge**: Computed from both graphs to determine optimal learning targets
+- **Server API**: No public REST API. The UI calls TanStack Start server functions; `graphCall` runs one whitelisted engine method (`src/lib/graph/methods.ts`), validated by `src/lib/graph/rpc-schemas.ts`
+- **Learning evidence** (Roadmap M1, `src/lib/evidence/`): a concept with questions in its quiz bank, or flagged `evidenceRequired`, only gets mastery from quizzes graded on the server. `guardGraphCall` refuses self-reported or hand-typed mastery for such concepts. Every quiz, self-report, review and snooze is appended to `learning_events`, and `masterySource` on a knowledge state records where its mastery came from
 
 ---
 
 ## Build Phases Checklist
+
+These checklists record what was built at the time, and the priority tags are the original ones. **`Roadmap.md` now sets the order of work.** Phases 1 to 5 mention a LevelDB store, `/api/*` routes and sub-millisecond timings; PostgreSQL and `graphCall` have since replaced that store and those routes, so the timings no longer apply. `npm run test:perf` now guards latency.
 
 ### Phase 1: Core Database Foundation [DONE]
 - [x] LevelDB setup with JSON encoding
@@ -122,9 +127,9 @@ const zpd = await db.computeZPD('user-123');
 - [x] Learning style derivation
 - [x] Cognitive profile estimation
 - [x] Profile page (`/profile`) with 4 data entry modes:
-  - [x] Auto-discovery mode (system infers values)
+  - [x] Auto-discovery mode (selectable; inference from behavior is not built yet)
   - [x] Manual entry mode (user sets permanent values)
-  - [x] Adaptive mode (user sets initial, system adjusts)
+  - [x] Adaptive mode (selectable; adjustment from behavior is not built yet)
   - [x] Assessment mode (take psychological tests)
 - [x] All 39 domains displayed in 8 organized categories
 - [x] **FUNCTIONAL TEST**: View profile → see all domains + "You're a visual learner"
@@ -186,13 +191,13 @@ const zpd = await db.computeZPD('user-123');
 
 ### Phase 6: Adaptive Content Delivery & AI Curriculum Ingestion [MEDIUM]
 
-#### Part A: Content Delivery
-- [ ] `scoreContentMatch()` algorithm
-- [ ] `buildSessionPlan()` function
-- [ ] `determinePresentationStrategy()` function
-- [ ] Adaptive pacing model
-- [ ] Break recommendations
-- [ ] **FUNCTIONAL TEST**: Start session → content matches your style
+#### Part A: Content Delivery [DONE in Roadmap M2]
+- [x] `scoreContentMatch()` algorithm (`src/lib/content/content.ts`)
+- [x] `buildSessionPlan()` function (`src/lib/session.ts`)
+- [x] `determinePresentationStrategy()` function (a preference the learner sees and can change)
+- [x] Adaptive pacing model (focus blocks from `attentionSpan` and `pacePreference`)
+- [x] Break recommendations
+- [x] **FUNCTIONAL TEST**: Start session → content matches your style (`tests/learn-in-app.test.ts`)
 
 #### Part B: AI Curriculum Ingestion
 - [ ] `parseCurriculumInput()` - Extract topics from syllabus/text/documents
@@ -261,6 +266,10 @@ Delivers: **"What should I learn next?" personalized by who you are + what you k
 
 | File | Purpose |
 |------|---------|
+| `Roadmap.md` | **Direction**: milestones, order of work, open decisions |
+| `docs/ROADMAP.md` | Detailed backlog and per-round work log |
+| `docs/SYSTEM_OVERVIEW.md` | How the system works and the product vision |
+| `docs/JAPANESE-LOCAL.md` | Local Japanese workflow and its QA rules |
 | `research/graph-education.md` | Full PRD with schemas and algorithms |
 | `research/domain-reference.md` | **Source of truth** for 39 psychometric domains |
 | `research/Fine-Tuned-Psychometrics.md` | 39 psychological domains definition |
@@ -354,21 +363,16 @@ interface PsychometricScore {
 
 ### Profile Configuration Modes
 
-| Mode | Description | System Behavior |
-|------|-------------|-----------------|
-| **Auto-Discovery** | System infers values | Continuously updates based on user behavior |
-| **Manual Entry** | User sets all values | Values are PERMANENT, system won't adjust |
-| **Adaptive** | User sets initial values | System adjusts over time based on interactions |
-| **Assessment** | User takes validated tests | Scores from psychological assessments (highest confidence) |
+| Mode | UI label | Behavior today |
+|------|----------|----------------|
+| **Auto-Discovery** | Automatic | Not offered (Roadmap M3) until inference is built; shown only to profiles that chose it earlier |
+| **Manual Entry** | Set it myself | User sets all values; the system never changes them |
+| **Adaptive** | Set, then adjust | Not offered (Roadmap M3); behaves like Manual Entry for profiles that chose it earlier |
+| **Assessment** | Take quizzes | Scores come from questionnaires and save immediately |
 
-### Sample Users API
+### Sample Data
 
-Create 10 sample users with varying psychometric profiles:
-```bash
-curl -X POST http://localhost:3000/api/seed-users
-```
-
-Returns users with archetypes: Creative Explorer, Analytical Achiever, Empathic Leader, Cautious Planner, Social Butterfly, Independent Thinker, Balanced Learner, Ambitious Innovator, Sensitive Artist, Pragmatic Problem-Solver.
+Every new account is seeded through the `seedDemoData()` server function with example learners (Alice, Bob, Carol), 11 concepts in two domains, prerequisites and knowledge states. The data lives in `src/lib/demo-data.ts`.
 
 ---
 
@@ -399,7 +403,7 @@ After:   ### Phase 1: Core Database Foundation [DONE]
 | 3 - Knowledge Model | **DONE** | - |
 | 4 - ZPD Engine | **DONE** | - |
 | 5 - Gap Analysis | **DONE** | - |
-| 6 - Content Delivery | Not Started | - |
+| 6 - Content Delivery | Part A done (M2); B and C built with the user's own API key (M5): text/PDF/Word curriculum drafts and question drafts, human-approved | `learnFromCorrections()`; real-model run not yet done |
 | 7 - RAG Integration | Not Started | - |
 | 8 - GNN Prep | Not Started | All above |
 
@@ -423,8 +427,9 @@ After:   ### Phase 1: Core Database Foundation [DONE]
 
 ## Working on This Project
 
-1. Check the **Progress Summary** above for current phase
+1. Check `Roadmap.md` for the active milestone, and the **Progress Summary** above for phase status
 2. Reference `research/graph-education.md` for schemas
 3. Reference `research/phases.md` for detailed functional tests
 4. **Update this checklist only at the end of each phase** - do not update item-by-item during development
 5. When a phase is complete: mark all items `[x]`, add `[DONE]` to phase header, update Progress Summary
+6. `npm run ci` must pass before every merge. It reinstalls `node_modules` and rebuilds, so run it from a fresh clone if a local service runs from this folder

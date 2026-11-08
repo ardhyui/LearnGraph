@@ -1487,7 +1487,7 @@ function TestsPage() {
                 <div className="text-sm text-muted-foreground">
                   <strong className="text-foreground">Phase Pass Criteria:</strong>
                   <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>Phase 1: Write &lt; 5ms, Read &lt; 2ms, Data survives restart</li>
+                    <li>Phase 1: Data survives restart</li>
                     <li>Phase 1.5: Forms submit &lt; 500ms, Graph renders 100 nodes &lt; 1s</li>
                     <li>Phase 2: 39/39 domains stored, Profile retrieval &lt; 10ms, Learning style derived</li>
                     <li>Phase 3: Search &lt; 50ms, Chain traversal &lt; 100ms, Depth limiting works</li>

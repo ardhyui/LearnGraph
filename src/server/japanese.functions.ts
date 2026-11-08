@@ -5,6 +5,7 @@ import { authMiddleware } from '@/lib/auth/middleware';
 import { MODULES, LEARNER } from '@/lib/japanese/curriculum';
 import { QUESTIONS } from '@/lib/japanese/questions';
 import { evidenceMastery, nextQuizReview, type Attempt } from '@/lib/japanese/evidence';
+import { pickQuestions, shuffled } from '@/lib/evidence/quiz';
 
 type QuizRow = {
   id: string;
@@ -24,7 +25,12 @@ async function services(owner: string) {
       tags: ['japanese', 'N1-goal'],
     });
   for (const m of MODULES) {
-    if (!(await graph.getConcept(m.id)))
+    const existing = await graph.getConcept(m.id);
+    // Mastery of every Japanese topic comes from this page (quiz, practice log,
+    // Michi), never from a self-report elsewhere: see guardGraphCall.
+    if (existing && existing.evidenceRequired !== true)
+      await graph.addConcept({ conceptId: m.id, evidenceRequired: true });
+    if (!existing)
       await graph.addConcept({
         conceptId: m.id,
         name: m.name,
@@ -32,6 +38,7 @@ async function services(owner: string) {
         subdomain: m.level,
         description: m.description,
         tags: [m.level, m.mode],
+        evidenceRequired: true,
         difficulty: {
           absolute: { N5: 2, N4: 4, N3: 6, N2: 8, N1: 10 }[m.level] ?? 2,
           cognitiveLoad: 0.5,
@@ -50,7 +57,8 @@ async function services(owner: string) {
           reason: 'Urutan belajar yang disarankan; boleh disesuaikan melalui tes penempatan.',
         });
   }
-  return { graph, db: getDb() };
+  const { appendEvent } = await import('@/lib/evidence/service');
+  return { graph, db: getDb(), appendEvent };
 }
 async function michiSnapshot(owner: string) {
   const path = process.env.JAPANESE_MICHI_SNAPSHOT;
@@ -109,6 +117,7 @@ export const japaneseDashboard = createServerFn({ method: 'GET' })
         if (!prior || prior.mastery !== mastery || (lastMs && prior.lastReviewed !== stamp))
           await graph.setKnowledgeState(LEARNER, m.id, {
             mastery,
+            masterySource: 'sync',
             lastAssessed: stamp,
             lastReviewed: stamp,
             reviewCount: cards.length ? Math.min(...cards.map((c) => c?.reps ?? 0)) : 0,
@@ -209,30 +218,18 @@ export const startJapaneseQuiz = createServerFn({ method: 'POST' })
     const { randomUUID, randomInt } = await import('node:crypto');
     const pool = QUESTIONS.filter((q) => q.topic === data.concept);
     // Shuffle first, then prefer questions absent from the previous attempt.
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = randomInt(i + 1);
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    pool.sort(
-      (a, b) =>
-        Number(old?.question_ids.includes(a.id) ?? false) -
-        Number(old?.question_ids.includes(b.id) ?? false),
-    );
-    const selected = pool.slice(0, 3);
+    const selected = pickQuestions(pool, old?.question_ids ?? [], 3, (n) => randomInt(n));
     const id = randomUUID();
     await sql`insert into japanese_quizzes(id,owner_id,concept_id,question_ids,total) values(${id},${context.userId},${data.concept},${JSON.stringify(selected.map((q) => q.id))}::jsonb,${selected.length})`.execute(
       db,
     );
     return {
       id,
-      questions: selected.map((q) => {
-        const options = [...q.options];
-        for (let i = options.length - 1; i > 0; i--) {
-          const j = randomInt(i + 1);
-          [options[i], options[j]] = [options[j], options[i]];
-        }
-        return { id: q.id, prompt: q.prompt, options };
-      }),
+      questions: selected.map((q) => ({
+        id: q.id,
+        prompt: q.prompt,
+        options: shuffled(q.options, (n) => randomInt(n)),
+      })),
     };
   });
 export const submitJapaneseQuiz = createServerFn({ method: 'POST' })
@@ -246,7 +243,7 @@ export const submitJapaneseQuiz = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data, context }) => {
-    const { graph, db } = await services(context.userId);
+    const { graph, db, appendEvent } = await services(context.userId);
     const row = (
       await sql<QuizRow>`select * from japanese_quizzes where id=${data.id} and owner_id=${context.userId}`.execute(
         db,
@@ -276,12 +273,36 @@ export const submitJapaneseQuiz = createServerFn({ method: 'POST' })
     }));
     const mastery = evidenceMastery(attempts);
     const stamp = attempts.at(-1)!.at;
+    const prior = await graph.getKnowledgeState(LEARNER, row.concept_id);
+    // Due = the earlier attempts had scheduled this one for now or before.
+    const dueAt = nextQuizReview(attempts.slice(0, -1));
     await graph.setKnowledgeState(LEARNER, row.concept_id, {
       mastery,
+      masterySource: 'quiz',
       lastReviewed: stamp,
       lastAssessed: stamp,
       reviewCount: attempts.length,
       retentionStrength: mastery / 100,
+    });
+    await appendEvent(db, context.userId, {
+      learnerId: LEARNER,
+      conceptId: row.concept_id,
+      kind: 'quiz',
+      outcome: correct / Math.max(1, row.total) >= 0.8 ? 'passed' : 'failed',
+      source: 'japanese',
+      wasDue: dueAt !== null && Date.parse(dueAt) <= Date.parse(stamp),
+      correct,
+      total: row.total,
+      masteryBefore: prior?.mastery ?? 0,
+      masteryAfter: mastery,
+      detail: {
+        sessionId: row.id,
+        answers: questions.map((q) => ({
+          questionId: q.id,
+          picked: data.answers[q.id],
+          correct: data.answers[q.id] === q.answer,
+        })),
+      },
     });
     return {
       correct,
@@ -307,15 +328,28 @@ export const recordJapanesePractice = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     if (!MODULES.some((m) => m.id === data.concept && m.mode === 'external'))
       throw new Error('Topik tidak valid.');
-    const { graph } = await services(context.userId);
+    const { graph, db, appendEvent } = await services(context.userId);
     const prior = await graph.getKnowledgeState(LEARNER, data.concept);
     const timestamp = new Date().toISOString();
+    const mastery = Math.max(prior?.mastery ?? 0, 50);
     await graph.setKnowledgeState(LEARNER, data.concept, {
-      mastery: Math.max(prior?.mastery ?? 0, 50),
+      mastery,
+      // Practice only raises a lower mastery; a higher quiz result keeps its source.
+      ...(mastery > (prior?.mastery ?? 0) ? { masterySource: 'practice' as const } : {}),
       interactions: [
         ...(prior?.interactions ?? []),
         { timestamp, type: 'practice' as const, duration: data.minutes, notes: data.note },
       ].slice(-400),
+    });
+    await appendEvent(db, context.userId, {
+      learnerId: LEARNER,
+      conceptId: data.concept,
+      kind: 'practice',
+      outcome: 'logged',
+      source: 'japanese',
+      masteryBefore: prior?.mastery ?? 0,
+      masteryAfter: mastery,
+      detail: { minutes: data.minutes },
     });
     return { saved: true };
   });

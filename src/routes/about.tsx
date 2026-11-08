@@ -1428,27 +1428,27 @@ const gaps = await db.detectGaps('student-1');`}</CodeBlock>
                   Custom Dual-Graph Database Layer
                 </h3>
                 <p className="text-muted-foreground mb-4">
-                  LearnGraph doesn't use an off-the-shelf graph database. Instead, it implements a <strong>custom dual-graph database layer</strong> originally built on LevelDB and now persisted in PostgreSQL, keeping the same ordered key schema (one table per key type). This gives us complete control over the data model while maintaining sub-millisecond performance.
+                  LearnGraph doesn't use an off-the-shelf graph database. Instead, it implements a <strong>custom dual-graph database layer</strong> originally built on LevelDB and now persisted in PostgreSQL, keeping the same ordered key schema (one table per key type). This gives us complete control over the data model.
                 </p>
                 <div className="grid md:grid-cols-3 gap-4 mb-4">
                   <div className="p-3 rounded-lg bg-card/50 border border-border/50 text-center">
-                    <p className="text-2xl font-bold text-primary">2,046</p>
-                    <p className="text-xs text-muted-foreground">Lines of Code</p>
-                    <p className="text-xs text-muted-foreground/70">EducationGraphDB class</p>
+                    <p className="text-2xl font-bold text-primary">46</p>
+                    <p className="text-xs text-muted-foreground">Server Methods</p>
+                    <p className="text-xs text-muted-foreground/70">Each input validated</p>
                   </div>
                   <div className="p-3 rounded-lg bg-card/50 border border-border/50 text-center">
-                    <p className="text-2xl font-bold text-emerald-500">0.02ms</p>
-                    <p className="text-xs text-muted-foreground">Read Latency</p>
-                    <p className="text-xs text-muted-foreground/70">Average operation</p>
+                    <p className="text-2xl font-bold text-emerald-500">1</p>
+                    <p className="text-xs text-muted-foreground">Workspace per Account</p>
+                    <p className="text-xs text-muted-foreground/70">Every row has an owner</p>
                   </div>
                   <div className="p-3 rounded-lg bg-card/50 border border-border/50 text-center">
-                    <p className="text-2xl font-bold text-amber-500">0.10ms</p>
-                    <p className="text-xs text-muted-foreground">Write Latency</p>
-                    <p className="text-xs text-muted-foreground/70">Average operation</p>
+                    <p className="text-2xl font-bold text-amber-500">2</p>
+                    <p className="text-xs text-muted-foreground">Graphs in One Store</p>
+                    <p className="text-xs text-muted-foreground/70">Learner and knowledge</p>
                   </div>
                 </div>
                 <div className="text-sm text-muted-foreground space-y-2">
-                  <p><strong>Why custom?</strong> Off-the-shelf graph databases are designed for networked, multi-user scenarios. LearnGraph needs something different: a local, embedded, zero-configuration graph store that runs entirely in the browser's Node.js runtime.</p>
+                  <p><strong>Why custom?</strong> The engine needs ordered key scans over JSON documents, not a separate graph service. Keeping that schema on PostgreSQL means one database for accounts and learning data, with embedded PGlite for local development.</p>
                 </div>
               </div>
 
@@ -1520,7 +1520,7 @@ const gaps = await db.detectGaps('student-1');`}</CodeBlock>
 
               <h3 className="text-xl font-semibold mt-8">Data Architecture</h3>
               <CodeBlock title="Graph Key Schema">{`┌──────────────────────────────────────────────────────────────────────────┐
-│                    CUSTOM GRAPH DATABASE ON LEVELDB                       │
+│                   CUSTOM GRAPH DATABASE ON POSTGRESQL                    │
 │                                                                          │
 │  GRAPH A: LEARNER MODEL                                                  │
 │  ───────────────────────                                                 │
@@ -1538,9 +1538,9 @@ const gaps = await db.detectGaps('student-1');`}</CodeBlock>
 │  index:domain:{domain}:{conceptId}     → Fast domain lookup              │
 │  index:learner-states:{userId}:{cId}   → Learner's touched concepts      │
 │                                                                          │
-│  PERFORMANCE                                                             │
-│  ───────────                                                             │
-│  Read: <2ms          Write: <5ms (unit-test targets, embedded Postgres)  │
+│  LATENCY GUARD (npm run test:perf, median on embedded Postgres)          │
+│  ──────────────────────────────────────────────────────────              │
+│  Read: <30ms         Write: <100ms                                       │
 └──────────────────────────────────────────────────────────────────────────┘`}</CodeBlock>
 
               <h3 className="text-xl font-semibold mt-8">Server Entry Points</h3>
@@ -1573,7 +1573,7 @@ const gaps = await db.detectGaps('student-1');`}</CodeBlock>
                   <h4 className="font-medium mb-2">Backend</h4>
                   <ul className="text-sm text-muted-foreground space-y-1">
                     <li>• <strong>Custom Graph DB</strong> on PostgreSQL</li>
-                    <li>• EducationGraphDB (2,046 LOC)</li>
+                    <li>• EducationGraphDB</li>
                     <li>• TypeScript</li>
                     <li>• TanStack Start server functions</li>
                     <li>• Better Auth (email/password)</li>

@@ -7,6 +7,7 @@ import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { Plus, Trash2, X, Save, ArrowRight, GitBranch, AlertCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEdges, useConcepts, useDB } from '@/lib/DBContext';
+import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 
 export const Route = createFileRoute('/admin/prerequisites')({
   head: () => pageHead('/admin/prerequisites'),
@@ -66,11 +67,13 @@ function PrerequisitesPage() {
     }
   }
 
-  async function handleDelete(from: string, to: string) {
+  async function handleDelete(from: string, to: string, button?: HTMLElement) {
     if (!confirm('Are you sure you want to delete this prerequisite?')) return;
+    const focus = rememberRowFocus(button);
 
     try {
       await deleteEdge(from, to);
+      restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
@@ -369,36 +372,37 @@ function PrerequisitesPage() {
               className="glass-card overflow-hidden"
             >
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <table className="stack-table w-full" role="table">
+                  <thead role="rowgroup">
+                    <tr role="row" className="border-b border-border/50">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Prerequisite
                       </th>
-                      <th className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Relationship
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Dependent
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Reason
                       </th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/30">
+                  <tbody role="rowgroup" className="divide-y divide-border/30">
                     {edges.map((edge, index) => (
                       <motion.tr
+                        role="row"
                         key={`${edge.from}-${edge.to}`}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4, delay: index * 0.05 }}
                         className="hover:bg-muted/30 transition-colors"
                       >
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" data-label="Prerequisite" className="px-6 py-4 whitespace-nowrap">
                           <div>
                             <div className="font-medium text-foreground">
                               {getConceptName(edge.from)}
@@ -406,7 +410,7 @@ function PrerequisitesPage() {
                             <code className="text-xs text-muted-foreground">{edge.from}</code>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" data-label="Relationship" className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center justify-center gap-2">
                             <span
                               className={cn(
@@ -419,7 +423,7 @@ function PrerequisitesPage() {
                             <ArrowRight className="w-4 h-4 text-muted-foreground" />
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" data-label="Dependent" className="px-6 py-4 whitespace-nowrap">
                           <div>
                             <div className="font-medium text-foreground">
                               {getConceptName(edge.to)}
@@ -427,12 +431,12 @@ function PrerequisitesPage() {
                             <code className="text-xs text-muted-foreground">{edge.to}</code>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-muted-foreground max-w-xs truncate">
+                        <td role="cell" data-label="Reason" className="px-6 py-4 text-sm text-muted-foreground max-w-xs truncate">
                           {edge.reason || '—'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <td role="cell" className="px-6 py-4 whitespace-nowrap text-right">
                           <button
-                            onClick={() => handleDelete(edge.from, edge.to)}
+                            onClick={(e) => handleDelete(edge.from, edge.to, e.currentTarget)}
                             className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
                             title="Delete"
                           >

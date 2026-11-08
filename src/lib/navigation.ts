@@ -24,7 +24,10 @@ export type NavIcon =
   | 'chart'
   | 'database'
   | 'activity'
-  | 'test';
+  | 'test'
+  | 'quiz'
+  | 'lesson'
+  | 'wand';
 
 export interface NavItem {
   href: string;
@@ -124,6 +127,24 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Prerequisites',
         description: 'Dependencies',
         icon: 'branch',
+      },
+      {
+        href: '/admin/curriculum',
+        label: 'Curriculum Import',
+        description: 'Draft a course with AI',
+        icon: 'wand',
+      },
+      {
+        href: '/admin/content',
+        label: 'Lesson Content',
+        description: 'Lessons per concept',
+        icon: 'lesson',
+      },
+      {
+        href: '/admin/questions',
+        label: 'Quiz Questions',
+        description: 'Question banks',
+        icon: 'quiz',
       },
       {
         href: '/admin/states',

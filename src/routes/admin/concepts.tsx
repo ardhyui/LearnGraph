@@ -8,6 +8,7 @@ import { Plus, Edit, Trash2, X, Save, BookOpen, AlertCircle, Loader2, Filter } f
 import { cn } from '@/lib/utils';
 import { useConcepts, useDB } from '@/lib/DBContext';
 import type { ConceptNode } from '@/lib/graph/types';
+import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 
 export const Route = createFileRoute('/admin/concepts')({
   head: () => pageHead('/admin/concepts'),
@@ -93,11 +94,13 @@ function ConceptsPage() {
     }
   }
 
-  async function handleDelete(conceptId: string) {
+  async function handleDelete(conceptId: string, button?: HTMLElement) {
     if (!confirm('Are you sure you want to delete this concept?')) return;
+    const focus = rememberRowFocus(button);
 
     try {
       await deleteConcept(conceptId);
+      restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
@@ -524,7 +527,7 @@ function ConceptsPage() {
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(concept.conceptId)}
+                        onClick={(e) => handleDelete(concept.conceptId, e.currentTarget)}
                         className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
                         title="Delete"
                       >

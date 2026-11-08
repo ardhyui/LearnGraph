@@ -8,6 +8,9 @@
  *   npm run smoke          # or: BASE_URL=http://127.0.0.1:8081 npm run smoke
  */
 import { chromium } from 'playwright';
+// Answer key for the example quizzes (TypeScript, so run with --experimental-strip-types).
+import { DEMO_QUESTIONS } from '../src/lib/evidence/demo-questions.ts';
+import { makeDocx } from '../tests/support/docx.ts';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8080';
 const PAGES = [
@@ -17,6 +20,10 @@ const PAGES = [
   ['/admin/psychometrics', null],
   ['/admin/concepts', null],
   ['/admin/prerequisites', null],
+  ['/admin/curriculum', null],
+  ['/admin/content', null],
+  ['/admin/questions', null],
+  ['/learn/arithmetic', null],
   ['/admin/states', null],
   ['/recommendations', null],
   ['/gaps', null],
@@ -38,6 +45,37 @@ const check = (ok, label, detail = '') => {
   results.push(`${ok ? 'PASS' : 'FAIL'} ${label}${detail ? ` — ${detail}` : ''}`);
   if (!ok) failed = true;
 };
+
+const ANSWER_KEY = new Map(DEMO_QUESTIONS.map((q) => [q.prompt, q]));
+
+/**
+ * Answer the open concept quiz inside `scope` (all right, or all wrong), check
+ * the answers and wait for the graded result. Returns the result text.
+ */
+async function answerQuiz(scope, { right }) {
+  const quiz = scope.getByTestId('concept-quiz');
+  const groups = quiz.getByRole('group');
+  await groups.first().waitFor({ timeout: 15000 });
+  const n = await groups.count();
+  for (let i = 0; i < n; i++) {
+    const group = groups.nth(i);
+    const prompt = (await group.locator('legend').innerText()).replace(/^\d+\.\s*/, '').trim();
+    const q = ANSWER_KEY.get(prompt);
+    if (!q) throw new Error(`no answer key for quiz question "${prompt}"`);
+    const pick = right ? q.answer : q.options.find((o) => o !== q.answer);
+    await group.getByRole('radio', { name: pick, exact: true }).check();
+  }
+  await quiz.getByRole('button', { name: 'Check my answers' }).click();
+  const result = quiz.getByTestId('quiz-result');
+  await result.waitFor({ timeout: 15000 });
+  return result.innerText();
+}
+
+/** "Done" on a graded quiz: the Today panel announces the result and reloads. */
+async function closeQuiz(scope) {
+  await scope.getByTestId('quiz-result').getByRole('button', { name: 'Done' }).click();
+  await scope.getByTestId('concept-quiz').waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
+}
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
@@ -72,6 +110,22 @@ try {
       headers: { 'sec-fetch-site': 'cross-site', origin: 'https://evil.example' },
     });
     check(xs.status === 403, 'cross-site server function call is rejected', `HTTP ${xs.status}`);
+  }
+
+  // Roadmap M3: "How your data is handled" is public and linked from sign-in.
+  {
+    const ctxP = await browser.newContext();
+    const pp = await ctxP.newPage();
+    await pp.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
+    const linked = await pp.getByRole('link', { name: 'How your data is handled' }).count();
+    const res = await pp.goto(`${BASE}/privacy`, { waitUntil: 'networkidle' });
+    const h1 = (await pp.locator('h1').innerText().catch(() => '')).trim();
+    check(
+      linked > 0 && res?.status() === 200 && new URL(pp.url()).pathname === '/privacy' && h1 === 'How your data is handled',
+      'privacy: the data-handling page is public and linked from sign-in',
+      `${new URL(pp.url()).pathname}, "${h1}"`,
+    );
+    await ctxP.close();
   }
 
   // Sign up
@@ -177,6 +231,13 @@ try {
     await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
     const announcer = page.locator('#route-announcer');
     const quietOnLoad = (await announcer.innerText().catch(() => 'missing')).trim() === '';
+    // Click only once React owns the link: before hydration a click is a full
+    // page load, which the browser announces itself (so the announcer stays quiet).
+    await page
+      .waitForFunction((el) => !!el && Object.keys(el).some((k) => k.startsWith('__reactProps')), await link('Gap Analysis').elementHandle(), {
+        timeout: 15000,
+      })
+      .catch(() => {});
     await link('Gap Analysis').click();
     await page.waitForURL((u) => u.pathname === '/gaps', { timeout: 15000 });
     const said = await page
@@ -211,10 +272,12 @@ try {
     check(newErrors.length === 0, 'onboarding has no page errors', newErrors.join(' | '));
   }
 
-  // Dashboard "Today": the core study loop. The demo learner's progress is
-  // shown (seeded states belong to the demo learners), a due review can be
-  // marked as remembered, and "I've got it" on a recommended concept raises
-  // the mastered count — all saved server-side and reloaded.
+  // Dashboard "Today": the core study loop with quiz evidence (Roadmap M1).
+  // The demo learner's progress is shown (seeded states belong to the demo
+  // learners). Example concepts have quiz questions, so they offer a quiz
+  // instead of self-report buttons: a due review is answered by quiz, a failed
+  // quiz leaves the mastered count alone and a passed one raises it — all
+  // graded and saved server-side, then reloaded.
   {
     const before = errors.length;
     await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
@@ -233,14 +296,18 @@ try {
         'dashboard: a due review says how late it is in plain words',
         firstReview.replace(/\s+/g, ' ').slice(0, 80),
       );
-      await reviews.first().getByRole('button', { name: 'I remembered it' }).click();
+      const selfReport = await today.getByRole('button', { name: /I remembered it|I've got it|I forgot|Still learning/ }).count();
+      check(selfReport === 0, 'dashboard: quiz-checked concepts offer a quiz, not self-report buttons', `${selfReport} self-report buttons`);
+      await reviews.first().getByRole('button', { name: 'Review with a quiz' }).click();
+      const result = await answerQuiz(today, { right: true });
+      await closeQuiz(today);
       const saved = await today
         .getByText('will come back after a longer break', { exact: false })
         .waitFor({ timeout: 15000 })
         .then(() => true, () => false);
-      check(saved, 'dashboard: a due review can be marked as remembered');
+      check(/passed/.test(result) && saved, 'dashboard: a due review is answered with a quiz graded on the server', result.split('\n')[0]);
     } else {
-      check(false, 'dashboard: a due review can be marked as remembered', 'no reviews due for the demo learner');
+      check(false, 'dashboard: a due review is answered with a quiz graded on the server', 'no reviews due for the demo learner');
     }
 
     // Reviewed concepts unlock new ones: keep reviewing until something is
@@ -248,26 +315,92 @@ try {
     // only some of the demo learner's reviews are due).
     const next = today.getByRole('list', { name: 'Recommended next concepts' }).getByRole('listitem');
     for (let i = 0; i < 8 && !(await next.count()) && (await reviews.count()) > 0; i++) {
-      await reviews.first().getByRole('button', { name: 'I remembered it' }).click();
+      await reviews.first().getByRole('button', { name: 'Review with a quiz' }).click();
+      await answerQuiz(today, { right: true });
+      await closeQuiz(today);
       await page.waitForTimeout(1500);
     }
     await next.first().waitFor({ timeout: 15000 }).catch(() => {});
     if ((await next.count()) > 0) {
-      const beforeGotIt = Number(await mastered.innerText());
-      await next.first().getByRole('button', { name: "I've got it" }).click();
-      await today.getByText('is marked as mastered', { exact: false }).waitFor({ timeout: 15000 }).catch(() => {});
+      const name = (await next.first().locator('p').first().innerText()).trim();
+      const item = next.filter({ hasText: name });
+      const beforeQuiz = Number(await mastered.innerText());
+      await item.getByRole('button', { name: 'Take the quick quiz' }).click();
+      const failedResult = await answerQuiz(today, { right: false });
+      await closeQuiz(today);
+      await today.getByText('not passed yet', { exact: false }).first().waitFor({ timeout: 15000 }).catch(() => {});
+      await item.getByRole('button', { name: 'Take the quick quiz' }).waitFor({ timeout: 15000 }).catch(() => {});
+      const afterFail = Number(await mastered.innerText());
+      check(
+        /not passed yet/.test(failedResult) && afterFail === beforeQuiz && (await item.count()) > 0,
+        'dashboard: a failed quiz does not mark the concept mastered',
+        `"${name}", ${beforeQuiz} → ${afterFail} mastered`,
+      );
+      await item.getByRole('button', { name: 'Take the quick quiz' }).click();
+      const passedResult = await answerQuiz(today, { right: true });
+      await closeQuiz(today);
       await page.waitForFunction(
         (n) => Number(document.querySelector('[data-testid="mastered-count"]')?.textContent) > n,
-        beforeGotIt,
+        beforeQuiz,
         { timeout: 15000 },
       ).catch(() => {});
-      const masteredAfter = Number(await mastered.innerText());
-      check(masteredAfter > beforeGotIt, 'dashboard: "I\'ve got it" raises the mastered count', `${beforeGotIt} → ${masteredAfter}`);
+      const afterPass = Number(await mastered.innerText());
+      check(
+        /passed/.test(passedResult) && afterPass > beforeQuiz,
+        'dashboard: passing the quick quiz raises the mastered count',
+        `"${name}", ${beforeQuiz} → ${afterPass} mastered`,
+      );
     } else {
-      check(false, 'dashboard: "I\'ve got it" raises the mastered count', 'no recommended concept');
+      check(false, 'dashboard: passing the quick quiz raises the mastered count', 'no recommended concept');
     }
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'dashboard study loop has no page errors', newErrors.join(' | '));
+  }
+
+  // Mastery says where it came from (Roadmap M1, decision D5): Gap Analysis
+  // labels quiz results and the rest, and counts due reviews answered by quiz.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
+    const sources = page.getByTestId('mastery-source');
+    await sources.first().waitFor({ timeout: 30000 }).catch(() => {});
+    const labels = await sources.allInnerTexts();
+    const retention = await page.getByTestId('review-retention').innerText().catch(() => '');
+    check(
+      labels.length > 0 && labels.every((l) => /From quizzes|Self-reported|Set by hand|Not quiz-checked|From practice notes|Synced from Michi/.test(l)),
+      'gaps: each mastery says where it came from',
+      labels.slice(0, 3).join('; '),
+    );
+    check(/By quiz: \d+ of \d+ due reviews? answered correctly/.test(retention), 'gaps: due reviews answered by quiz are counted from the event log', retention.replace(/\s+/g, ' '));
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'mastery sources have no page errors', newErrors.join(' | '));
+  }
+
+  // Admin → Quiz Questions: the example concepts have a bank, and a question
+  // can be added, which makes a concept quiz-checked.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/admin/questions`, { waitUntil: 'networkidle' });
+    const conceptPicker = page.getByLabel('Concept', { exact: true });
+    await conceptPicker.waitFor({ timeout: 30000 });
+    await page.getByRole('list', { name: /^Questions for / }).waitFor({ timeout: 15000 }).catch(() => {});
+    const exampleCount = await page.getByRole('list', { name: /^Questions for / }).locator(':scope > li').count();
+    check(exampleCount >= 3, 'questions: the example concepts come with quiz questions', `${exampleCount} questions`);
+    // Accessibility: deleting a row by keyboard keeps focus in the list
+    // (on the same button of the row that takes its place), not on <body>.
+    page.once('dialog', (d) => d.accept());
+    await page.getByRole('button', { name: 'Delete question 1', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await page
+      .waitForFunction((n) => document.querySelectorAll('[aria-label^="Questions for "] > li').length < n, exampleCount, { timeout: 15000 })
+      .catch(() => {});
+    await page
+      .waitForFunction(() => document.activeElement && document.activeElement !== document.body, null, { timeout: 5000 })
+      .catch(() => {});
+    const focusedLabel = await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.tagName ?? '');
+    check(/^Delete question \d+$/.test(focusedLabel), 'a11y: after deleting a row, keyboard focus moves to the next row, not the page body', focusedLabel);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'question editor has no page errors', newErrors.join(' | '));
   }
 
   // "Remind me tomorrow": a due review can be postponed without answering it.
@@ -437,7 +570,7 @@ try {
 
   // Onboarding, for real: create my own plan (name, one subject, "I know the
   // basics"). The plan switches to the new learner, follows the chosen subject,
-  // starts with the basics already known, and is remembered after a reload.
+  // offers the basics as quick quizzes, and is remembered after a reload.
   {
     const before = errors.length;
     await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
@@ -465,9 +598,13 @@ try {
     const mastered = Number(await today.getByTestId('mastered-count').innerText().catch(() => '0'));
     const nextItems = today.getByRole('list', { name: 'Recommended next concepts' }).getByRole('listitem');
     await nextItems.first().waitFor({ timeout: 15000 }).catch(() => {});
+    // The math basics are quiz-checked: "I know the basics" doesn't claim them,
+    // the plan offers their quick quiz instead (decision D5).
+    const welcomeText = await today.getByText('Welcome, Sari Smoke!', { exact: false }).innerText().catch(() => '');
+    const quizOffered = await nextItems.first().getByRole('button', { name: 'Take the quick quiz' }).count();
     check(
-      /Mathematics/.test(focusText) && mastered > 0 && (await nextItems.count()) > 0,
-      'onboarding: plan follows the chosen subject and skips the basics',
+      /Mathematics/.test(focusText) && mastered === 0 && quizOffered > 0 && /quick quiz/.test(welcomeText),
+      'onboarding: plan follows the chosen subject and offers the quiz-checked basics as quick quizzes',
       `focus "${focusText}", ${mastered} mastered, ${await nextItems.count()} to learn next`,
     );
     await page.reload({ waitUntil: 'networkidle' });
@@ -478,6 +615,94 @@ try {
     check(after === 'Sari Smoke' && noPrompt && (await onboarding.count()) === 0, 'onboarding: my plan is remembered after a reload', `selected "${after}"`);
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'onboarding flow has no page errors', newErrors.join(' | '));
+  }
+
+  // Learning in the app (Roadmap M2): Today plans a session, and "Learn next"
+  // opens the lesson — explanation, worked example and practice — where a
+  // solution stays hidden until asked for, the format choice reorders the
+  // lesson and is remembered, and passing the quiz masters the concept and
+  // offers a next step. A new learner gets there in well under 5 minutes.
+  {
+    const before = errors.length;
+    const started = Date.now();
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const today = page.getByTestId('study-today');
+    const steps = today.getByTestId('session-plan').getByRole('list', { name: 'Session steps' }).getByRole('listitem');
+    await steps.first().waitFor({ timeout: 30000 }).catch(() => {});
+    await today.getByTestId('session-plan').getByText('15 min', { exact: true }).click().catch(() => {});
+    const summary = await today.getByTestId('session-summary').innerText().catch(() => '');
+    const planned = Number((summary.match(/^(\d+) min planned/) ?? [])[1]);
+    check((await steps.count()) > 0 && planned > 0, "dashboard: today's session plans steps for the time chosen", `${await steps.count()} steps, "${summary}"`);
+
+    const nextItem = today.getByRole('list', { name: 'Recommended next concepts' }).getByRole('listitem').first();
+    await nextItem.getByRole('link', { name: /Open the lesson/ }).click();
+    await page.waitForURL(/\/learn\//, { timeout: 15000 }).catch(() => {});
+    const lesson = page.getByTestId('lesson');
+    await lesson.waitFor({ timeout: 30000 }).catch(() => {});
+    const kinds = await lesson.getByTestId('lesson-item').evaluateAll((els) => els.map((e) => e.getAttribute('data-kind')));
+    check(
+      ['text', 'example', 'exercise'].every((k) => kinds.includes(k)),
+      'lesson: "Learn next" opens a lesson with an explanation, a worked example and practice',
+      `${new URL(page.url()).pathname}: ${kinds.join(', ')}`,
+    );
+    const solution = lesson.getByTestId('solution').first();
+    const hiddenAtFirst = await solution.isHidden().catch(() => false);
+    await lesson.getByRole('button', { name: 'Show the solution' }).first().click().catch(() => {});
+    const shown = await solution.isVisible().catch(() => false);
+    check(hiddenAtFirst && shown, 'lesson: a practice solution stays hidden until asked for');
+
+    await lesson.getByRole('radio', { name: 'Practice first' }).check().catch(() => {});
+    await page
+      .waitForFunction(() => document.querySelector('[data-testid="lesson-item"]')?.getAttribute('data-kind') === 'exercise', null, { timeout: 10000 })
+      .catch(() => {});
+    const firstKind = await lesson.getByTestId('lesson-item').first().getAttribute('data-kind').catch(() => '');
+    await page.waitForTimeout(1000);
+    await page.reload({ waitUntil: 'networkidle' });
+    await lesson.getByTestId('lesson-item').first().waitFor({ timeout: 30000 }).catch(() => {});
+    const afterReload = await lesson.getByTestId('lesson-item').first().getAttribute('data-kind').catch(() => '');
+    check(firstKind === 'exercise' && afterReload === 'exercise', 'lesson: "Practice first" leads with practice and is remembered', `${firstKind} → ${afterReload}`);
+
+    await lesson.getByRole('button', { name: 'Take the quick quiz' }).click();
+    const result = await answerQuiz(lesson, { right: true });
+    await closeQuiz(lesson);
+    await lesson.getByTestId('lesson-progress').filter({ hasText: 'From quizzes' }).waitFor({ timeout: 15000 }).catch(() => {});
+    const progress = await lesson.getByTestId('lesson-progress').innerText().catch(() => '');
+    const nextStep = await lesson.getByRole('navigation', { name: 'Next step' }).getByRole('link', { name: /^Next: / }).count();
+    const minutes = (Date.now() - started) / 60000;
+    check(
+      /passed/.test(result) && /From quizzes/.test(progress) && nextStep > 0 && minutes < 5,
+      'lesson: passing its quiz masters the concept and offers the next step',
+      `${progress}; ${minutes.toFixed(1)} min`,
+    );
+    // Roadmap M4 (no LLM): the brief for an AI tutor is shown before copying,
+    // knows the topic and where mastery came from, and has no sensitive domains.
+    const tutor = lesson.getByTestId('tutor-context');
+    await tutor.getByLabel(/Your question/).fill("I'm stuck on the order of operations");
+    await tutor.getByRole('button', { name: 'Prepare the context' }).click();
+    const brief = tutor.getByLabel(/What the tutor will read/);
+    await brief.waitFor({ timeout: 15000 }).catch(() => {});
+    const briefText = await brief.inputValue().catch(() => '');
+    check(
+      /^You are tutoring one learner/.test(briefText) &&
+        /Topic: /.test(briefText) &&
+        /from quizzes/.test(briefText) &&
+        /hint before the full solution/.test(briefText) &&
+        !/dark|politic|neurotic|narciss|ideolog/i.test(briefText),
+      'lesson: the AI tutor brief is shown first, knows the topic and progress, and leaves out sensitive traits',
+      briefText.split('\n').slice(0, 3).join(' / ').slice(0, 120),
+    );
+    // Roadmap M4: the built-in chat uses the learner's own key (no network call
+    // here: a malformed key is refused before anything is sent).
+    const chat = tutor.getByTestId('tutor-chat');
+    await chat.getByLabel('Anthropic API key').fill('not-a-key');
+    await chat.getByRole('button', { name: 'Ask Claude' }).click();
+    const refused = await chat.getByRole('alert').filter({ hasText: 'starts with sk-ant-' }).waitFor({ timeout: 10000 }).then(() => true, () => false);
+    check(refused, 'tutor chat: asks for the learner’s own Anthropic key and refuses a malformed one before sending');
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'lessons have no page errors', newErrors.join(' | '));
+    // The next checks start from the dashboard.
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.getByTestId('study-today').waitFor({ timeout: 30000 }).catch(() => {});
   }
 
   // Changing subjects after onboarding: "Change subjects" on the Today panel
@@ -681,14 +906,28 @@ try {
     const firstCat = await cats.locator('[data-testid^="profile-category-"] h3').first().innerText().catch(() => '');
     const more = page.getByTestId('profile-more');
     const moreOpen = await more.evaluate((el) => el.open).catch(() => null);
-    const hiddenTrait = await page.getByText('Difficult traits').isVisible().catch(() => true);
+    const hiddenTrait = await page.getByText('Difficult traits', { exact: true }).isVisible().catch(() => true);
     const mainText = await page.locator('main').innerText().catch(() => '');
     check(firstCat === 'How you think and learn' && moreOpen === false && !hiddenTrait, 'profile: learning-relevant topics first, the rest folded under "More about you"', `"${firstCat}", open=${moreOpen}`);
     check(!/Dark Personality|NEO-PI-R|MACH-IV|domains configured|^[A-H]\. /m.test(mainText), 'profile: no instrument names or lettered jargon categories', '');
     await more.locator('summary').click();
-    check(await page.getByText('Difficult traits').isVisible().catch(() => false), 'profile: "More about you" opens on request');
+    // Decision D4: the optional (personal) topics are only shown after the learner agrees.
+    const consentShown = await more.getByTestId('more-topics-consent').isVisible().catch(() => false);
+    const hiddenBeforeConsent = !(await page.getByText('Difficult traits', { exact: true }).isVisible().catch(() => false));
+    await more.getByRole('button', { name: 'I agree — show these optional topics' }).click().catch(() => {});
+    const shownAfterConsent = await page.getByText('Difficult traits', { exact: true }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+    check(
+      consentShown && hiddenBeforeConsent && shownAfterConsent,
+      'profile: "More about you" asks before showing personal topics the plan does not use',
+      `asked ${consentShown}, hidden before ${hiddenBeforeConsent}, shown after ${shownAfterConsent}`,
+    );
+    await more.getByRole('button', { name: 'Hide these topics again' }).click().catch(() => {});
 
     const setMyself = page.getByRole('button', { name: 'Set it myself' });
+    await setMyself.waitFor({ timeout: 30000 }).catch(() => {});
+    // Roadmap M3: modes whose inference is not built are not offered.
+    const unbuilt = await page.getByRole('button', { name: /^(Automatic|Set, then adjust)$/ }).count();
+    check(unbuilt === 0, 'profile: modes that are not built yet are not offered', `${unbuilt} shown`);
     for (let i = 0; i < 20 && (await setMyself.getAttribute('aria-pressed').catch(() => null)) !== 'true'; i++) {
       await setMyself.click();
       await page.waitForTimeout(300);
@@ -725,6 +964,13 @@ try {
     const dialogText = await dialog.innerText().catch(() => '');
     const focusedInDialog = await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')).catch(() => false);
     check(!/\(R\)|Source:|Response Scale/.test(dialogText) && focusedInDialog, 'quizzes: dialog in plain words, keyboard focus moves into it', `focus=${focusedInDialog}`);
+    // Tab never leaves the modal quiz (it wraps around inside it).
+    let escaped = 0;
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.press(i % 7 === 6 ? 'Shift+Tab' : 'Tab');
+      if (!(await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')))) escaped++;
+    }
+    check(escaped === 0, 'a11y: Tab stays inside the quiz dialog', `${escaped} of 40 steps left it`);
     const groups = dialog.getByRole('group');
     const n = await groups.count();
     for (let i = 0; i < n; i++) await groups.nth(i).getByRole('button').last().click();
@@ -772,10 +1018,75 @@ try {
     const narrow = [];
     for (const path of ['/', '/profile', '/recommendations', '/gaps', '/admin/learners', '/about']) {
       await m.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+      // Pages show a loading state without <main> until the client has hydrated
+      // and DBProvider is ready, which can happen after `networkidle`.
+      await m.locator('main').first().waitFor({ timeout: 30000 }).catch(() => {});
       const r = await fits();
       if (r.main < 350 || r.overflow > 1) narrow.push(`${path}: main ${r.main}px, overflow ${r.overflow}px`);
     }
     check(narrow.length === 0, 'mobile: pages use the full width without sideways scrolling', narrow.join('; '));
+
+    // Admin tables become one card per row: nothing scrolls sideways inside
+    // the card, the row's buttons are on screen, and the column names are
+    // still there for screen readers.
+    const cards = [];
+    for (const [path, header] of [
+      ['/admin/learners', 'Email'],
+      ['/admin/states', 'Mastery'],
+      ['/admin/prerequisites', 'Reason'],
+    ]) {
+      await m.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+      const table = m.locator('table.stack-table');
+      await table.locator('tbody tr').first().waitFor({ timeout: 30000 }).catch(() => {});
+      const r = await table
+        .evaluate((t) => {
+          const row = t.querySelector('tbody tr');
+          const scroller = t.parentElement;
+          const button = row?.querySelector('button')?.getBoundingClientRect();
+          return {
+            display: row ? getComputedStyle(row).display : 'none',
+            sideways: scroller ? scroller.scrollWidth - scroller.clientWidth : -1,
+            buttonOnScreen: !!button && button.right <= window.innerWidth && button.left >= 0,
+          };
+        })
+        .catch(() => ({ display: 'missing', sideways: -1, buttonOnScreen: false }));
+      const headerKept = (await m.getByRole('columnheader', { name: header }).count()) === 1;
+      if (r.display !== 'block' || r.sideways > 1 || r.sideways < 0 || !r.buttonOnScreen || !headerKept) {
+        cards.push(`${path}: row ${r.display}, sideways ${r.sideways}px, button on screen ${r.buttonOnScreen}, header ${headerKept}`);
+      }
+    }
+    check(cards.length === 0, 'mobile: admin tables show one card per row, without sideways scrolling', cards.join('; '));
+
+    // The graph's details open as a bottom sheet (full width, at the bottom);
+    // the close button and Escape close it.
+    {
+      await m.goto(`${BASE}/graph`, { waitUntil: 'networkidle' });
+      const node = m.locator('.react-flow__node').first();
+      await node.waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+      const panel = m.getByTestId('graph-detail-panel');
+      for (let i = 0; i < 10 && !(await panel.isVisible()); i++) {
+        await node.click().catch(() => {});
+        await m.waitForTimeout(400);
+      }
+      await m.waitForTimeout(400); // slide-in
+      const sheet = await panel
+        .evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return { layout: el.dataset.layout, width: Math.round(r.width), gap: Math.round(window.innerHeight - r.bottom), vw: window.innerWidth };
+        })
+        .catch(() => null);
+      await m.getByRole('button', { name: 'Close details' }).click().catch(() => {});
+      const closed = await panel.waitFor({ state: 'detached', timeout: 5000 }).then(() => true, () => false);
+      await node.click().catch(() => {});
+      await panel.waitFor({ timeout: 5000 }).catch(() => {});
+      await m.keyboard.press('Escape');
+      const escClosed = await panel.waitFor({ state: 'detached', timeout: 5000 }).then(() => true, () => false);
+      check(
+        sheet?.layout === 'sheet' && sheet.width >= sheet.vw - 1 && Math.abs(sheet.gap) <= 2 && closed && escClosed,
+        'mobile: graph details open as a bottom sheet that closes with its button or Escape',
+        JSON.stringify({ ...sheet, closed, escClosed }),
+      );
+    }
 
     // The study loop starts on the first screen (no big hero pushing it down).
     await m.goto(`${BASE}/`, { waitUntil: 'networkidle' });
@@ -919,6 +1230,242 @@ try {
       .waitFor({ timeout: 15000 })
       .then(() => true, () => false);
     check(refused, 'invalid input is rejected server-side with a readable message');
+  }
+
+  // Accessibility (Roadmap, cross-milestone): the first Tab reaches "Skip to
+  // content", and it moves keyboard focus to the page's main content.
+  {
+    await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
+    await page.locator('main').first().waitFor({ timeout: 30000 }).catch(() => {});
+    await page.keyboard.press('Tab');
+    const first = await page.evaluate(() => (document.activeElement?.textContent ?? '').trim());
+    await page.keyboard.press('Enter');
+    const inMain = await page.evaluate(() => document.activeElement?.tagName === 'MAIN');
+    check(first === 'Skip to content' && inMain, 'a11y: "Skip to content" is the first Tab stop and moves focus to the main content', `first "${first}", in main ${inMain}`);
+  }
+
+  // Roadmap M3: import a learner from a JSON export (PR #29's format) — a new
+  // learner, with progress only on concepts this workspace has.
+  {
+    const before = errors.length;
+    const { writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const file = `${tmpdir()}/learngraph-smoke-import-${Date.now()}.json`;
+    await writeFile(
+      file,
+      JSON.stringify({
+        format: 'learngraph.learner-export',
+        version: 1,
+        learner: { id: 'me-imported', name: 'Imported Ines', profile: { userId: 'me-imported', name: 'Imported Ines' } },
+        knowledgeStates: [
+          { userId: 'me-imported', conceptId: 'decimals', mastery: 60 },
+          { userId: 'me-imported', conceptId: 'not-here', mastery: 90 },
+        ],
+      }),
+    );
+    await page.goto(`${BASE}/admin/learners`, { waitUntil: 'networkidle' });
+    await page.getByLabel('Import from a file').setInputFiles(file);
+    const notice = page.getByTestId('import-notice');
+    await notice.getByText('as a new learner', { exact: false }).waitFor({ timeout: 15000 }).catch(() => {});
+    const text = await notice.innerText().catch(() => '');
+    const listed = await page.getByText('Imported Ines', { exact: true }).first().isVisible().catch(() => false);
+    check(
+      /Imported “Imported Ines” as a new learner with 1 progress record\. 1 skipped/.test(text) && listed,
+      'import: a learner export becomes a new learner (unknown concepts skipped)',
+      text,
+    );
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'learner import has no page errors', newErrors.join(' | '));
+  }
+
+  // Roadmap M5: AI drafts are off until the account turns them on; then the
+  // curriculum and question drafting forms appear, use the person's own key
+  // (a malformed key is refused before anything is sent), and nothing is
+  // saved without review. No model is called here.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/admin/curriculum`, { waitUntil: 'networkidle' });
+    const toggle = page.getByLabel(/Let Claude draft curricula and questions/);
+    await toggle.waitFor({ timeout: 30000 }).catch(() => {});
+    const offAtFirst = !(await toggle.isChecked().catch(() => true)) && (await page.getByLabel('Course description or syllabus').count()) === 0;
+    await toggle.check();
+    const syllabus = page.getByLabel('Course description or syllabus');
+    const formShown = await syllabus.waitFor({ timeout: 15000 }).then(() => true, () => false);
+    // A Word file is read in the browser into the description box (nothing is sent yet).
+    await page.getByLabel(/Or attach the course as a PDF or Word file/).setInputFiles({
+      name: 'course.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      buffer: Buffer.from(makeDocx(['Statistics 101', 'Week 1: averages & spread', 'Week 2: probability'])),
+    });
+    const fromWord = await page
+      .waitForFunction(
+        (el) => el.value.includes('Week 1: averages & spread\nWeek 2: probability'),
+        await syllabus.elementHandle({ timeout: 5000 }).catch(() => null),
+        { timeout: 10000 },
+      )
+      .then(() => true, () => false);
+    check(fromWord, 'curriculum: the text of a Word file fills the description to check before drafting', (await syllabus.inputValue()).slice(0, 80));
+    await page.getByLabel('Subject').fill('Statistics');
+    await syllabus.fill('An introduction to statistics: averages, spread, probability and simple tests.');
+    await page.getByLabel('Anthropic API key').fill('not-a-key');
+    await page.getByRole('button', { name: 'Draft with Claude' }).click();
+    const refused = await page.getByRole('alert').filter({ hasText: 'starts with sk-ant-' }).waitFor({ timeout: 10000 }).then(() => true, () => false);
+    await page.goto(`${BASE}/admin/questions`, { waitUntil: 'networkidle' });
+    const panel = await page.getByTestId('ai-question-drafts').waitFor({ timeout: 30000 }).then(() => true, () => false);
+    await page.getByLabel(/Let Claude draft questions/).uncheck().catch(() => {});
+    const hiddenAgain = await page.getByTestId('ai-question-drafts').waitFor({ state: 'detached', timeout: 15000 }).then(() => true, () => false);
+    check(
+      offAtFirst && formShown && refused && panel && hiddenAgain,
+      'AI drafts: off by default, then drafting forms use the person’s own key and can be turned off again',
+      `off ${offAtFirst}, form ${formShown}, bad key refused ${refused}, question panel ${panel}, off again ${hiddenAgain}`,
+    );
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'AI draft pages have no page errors', newErrors.join(' | '));
+  }
+
+  // Roadmap M4: a read-only API key lets an outside assistant fetch the tutor
+  // brief (no cookies), only with the key, and not after it is revoked.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
+    const access = page.getByTestId('api-access');
+    await access.getByLabel('Key name').fill('Smoke assistant');
+    await access.getByRole('button', { name: 'Create a read-only key' }).click();
+    const secretBox = access.getByTestId('new-api-key').getByRole('textbox');
+    await secretBox.waitFor({ timeout: 15000 }).catch(() => {});
+    const key = await secretBox.inputValue().catch(() => '');
+    const call = (url, k) => fetch(url, { headers: k ? { authorization: `Bearer ${k}` } : {} });
+    const ctxRes = await call(`${BASE}/api/v1/context?concept=Fractions&q=${encodeURIComponent('explain adding fractions')}`, key);
+    const ctxBody = await ctxRes.json().catch(() => ({}));
+    const anon = await call(`${BASE}/api/v1/context`, null);
+    const learnersRes = await call(`${BASE}/api/v1/learners`, key);
+    const learnersBody = await learnersRes.json().catch(() => ({}));
+    check(
+      /^lg_/.test(key) &&
+        ctxRes.status === 200 &&
+        /^You are tutoring one learner/.test(ctxBody.context ?? '') &&
+        ctxBody.queryType === 'explain' &&
+        anon.status === 401 &&
+        learnersRes.status === 200 &&
+        (learnersBody.learners ?? []).length > 0,
+      'api: a read-only key fetches the tutor brief; without a key the API refuses',
+      `context ${ctxRes.status} (${ctxBody.queryType}), no key ${anon.status}, learners ${learnersRes.status}`,
+    );
+    page.once('dialog', (d) => d.accept());
+    await access.getByRole('button', { name: /^Revoke/ }).first().click();
+    await access.getByRole('list', { name: 'Your API keys' }).waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
+    const afterRevoke = await call(`${BASE}/api/v1/context`, key);
+    check(afterRevoke.status === 401, 'api: a revoked key stops working at once', `HTTP ${afterRevoke.status}`);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'API access settings have no page errors', newErrors.join(' | '));
+  }
+
+  // Roadmap M3, data control: a second account starts with an empty workspace
+  // (the examples are removed and do not come back after a reload), then
+  // deletes itself from My Profile, which signs it out for good.
+  {
+    const ctx3 = await browser.newContext();
+    const p3 = await ctx3.newPage();
+    const errors3 = [];
+    p3.on('pageerror', (e) => errors3.push(`pageerror: ${e.message}`));
+    p3.on('dialog', (d) => d.accept());
+    const email3 = `smoke-empty-${Date.now()}@example.test`;
+    const password3 = `smoke-${Math.random().toString(36).slice(2)}-pw`;
+    await p3.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
+    for (let i = 0; i < 20 && !(await p3.locator('#name').isVisible()); i++) {
+      await p3.getByRole('button', { name: 'Create one' }).click();
+      await p3.waitForTimeout(500);
+    }
+    await p3.fill('#name', 'Empty Tester');
+    await p3.fill('#email', email3);
+    await p3.fill('#password', password3);
+    await p3.getByRole('button', { name: 'Create account' }).click();
+    await p3.waitForURL((u) => u.pathname === '/', { timeout: 30000 }).catch(() => {});
+    const onboarding3 = p3.getByTestId('onboarding');
+    await onboarding3.getByRole('button', { name: 'Start with an empty workspace' }).click({ timeout: 30000 });
+    const noSubjects = await onboarding3
+      .getByText('No subjects yet', { exact: false })
+      .waitFor({ timeout: 15000 })
+      .then(() => true, () => false);
+    await p3.reload({ waitUntil: 'networkidle' });
+    await p3.getByTestId('onboarding').waitFor({ timeout: 30000 }).catch(() => {});
+    // The subjects load after the step appears: wait for the text, don't sample it.
+    const stillEmpty = await p3
+      .getByTestId('onboarding')
+      .getByText('No subjects yet', { exact: false })
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    const skipOffered = await p3.getByRole('button', { name: 'Explore the example learners first' }).count();
+    check(
+      noSubjects && stillEmpty && skipOffered === 0,
+      'onboarding: "Start with an empty workspace" removes the examples for good',
+      `empty at once ${noSubjects}, after reload ${stillEmpty}, skip offered ${skipOffered}`,
+    );
+
+    // Roadmap M3: "Forgot your password?" emails a one-hour link (read from
+    // the dev outbox in CI); the new password works and old sessions end.
+    let currentPassword = password3;
+    await p3.goto(`${BASE}/forgot-password`, { waitUntil: 'networkidle' });
+    await p3.getByLabel('Email').fill(email3);
+    await p3.getByRole('button', { name: 'Send the reset link' }).click();
+    const requested = await p3.getByText('a reset link is on its way', { exact: false }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const outboxFile = process.env.DEV_EMAIL_OUTBOX;
+    if (outboxFile) {
+      const { readFile } = await import('node:fs/promises');
+      let link = null;
+      for (let i = 0; i < 20 && !link; i++) {
+        const lines = (await readFile(outboxFile, 'utf8').catch(() => '')).split('\n').filter(Boolean).map((l) => JSON.parse(l));
+        const mail = lines.filter((m) => m.to === email3).at(-1);
+        link = mail?.text.match(/https?:\/\/\S+\/reset-password\/\S+/)?.[0] ?? null;
+        if (!link) await p3.waitForTimeout(500);
+      }
+      const newPassword = `${password3}-new`;
+      if (link) {
+        await p3.goto(link, { waitUntil: 'networkidle' });
+        await p3.getByLabel('New password', { exact: true }).fill(newPassword);
+        await p3.getByLabel('New password again').fill(newPassword);
+        await p3.getByRole('button', { name: 'Save the new password' }).click();
+        const changed = await p3.getByText('Your password is changed', { exact: false }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+        // A fresh browser: the old password is refused, the new one works.
+        // (Other signed-in browsers end within the 5-minute session cookie cache.)
+        await ctx3.clearCookies();
+        await p3.goto(`${BASE}/sign-in?redirect=%2Fprofile`, { waitUntil: 'networkidle' });
+        await p3.fill('#email', email3);
+        await p3.fill('#password', password3);
+        await p3.getByRole('button', { name: 'Sign in' }).click();
+        const oldRefused = await p3.getByRole('alert').waitFor({ timeout: 15000 }).then(() => true, () => false);
+        await p3.fill('#password', newPassword);
+        await p3.getByRole('button', { name: 'Sign in' }).click();
+        await p3.waitForURL((u) => u.pathname === '/profile', { timeout: 30000 }).catch(() => {});
+        const signedIn = new URL(p3.url()).pathname === '/profile';
+        if (signedIn) currentPassword = newPassword;
+        check(
+          requested && changed && oldRefused && signedIn,
+          'password reset: the emailed link sets a new password (the old one stops working)',
+          `changed ${changed}, old refused ${oldRefused}, signed in with new ${signedIn}`,
+        );
+      } else {
+        check(false, 'password reset: the emailed link sets a new password (the old one stops working)', 'no reset email in the dev outbox');
+      }
+    } else {
+      check(requested, 'password reset: a reset link can be requested');
+    }
+
+    await p3.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
+    const del = p3.getByTestId('delete-account');
+    await del.getByRole('button', { name: 'Delete my account…' }).click({ timeout: 30000 });
+    await del.getByLabel('Your password').fill(currentPassword);
+    await del.getByLabel('Type DELETE to confirm').fill('DELETE');
+    await del.getByRole('button', { name: 'Delete my account and all data' }).click();
+    await p3.waitForURL(/\/sign-in/, { timeout: 30000 }).catch(() => {});
+    await p3.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
+    await p3.waitForURL(/\/sign-in/, { timeout: 15000 }).catch(() => {});
+    check(
+      p3.url().includes('/sign-in') && errors3.length === 0,
+      'profile: "Delete my account" removes the account and signs it out',
+      `${new URL(p3.url()).pathname}${errors3.length ? `, ${errors3.join(' | ')}` : ''}`,
+    );
+    await ctx3.close();
   }
 
   // Sign out, then sign in again

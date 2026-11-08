@@ -4,9 +4,12 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
-import { Plus, Edit, Trash2, X, Save, User, Users, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Save, User, Users, AlertCircle, Loader2, Upload } from 'lucide-react';
+import { MAX_IMPORT_BYTES } from '@/lib/learner-import';
+import { importLearner } from '@/server/import.functions';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { uuidv4 } from '@/lib/uuid';
+import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 
 export const Route = createFileRoute('/admin/learners')({
   head: () => pageHead('/admin/learners'),
@@ -29,11 +32,35 @@ const containerVariants = {
 
 function LearnersPage() {
   const { isLoading: dbLoading, error: dbError } = useDB();
-  const { learners, loading, createLearner, updateLearner, deleteLearner } = useLearners();
+  const { learners, loading, createLearner, updateLearner, deleteLearner, refresh } = useLearners();
   const [showForm, setShowForm] = useState(false);
   const [editingLearner, setEditingLearner] = useState<LearnerFormData | null>(null);
   const [formData, setFormData] = useState<LearnerFormData>({ userId: '', name: '', email: '' });
   const [error, setError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState('');
+
+  async function handleImport(file: File) {
+    setError('');
+    setImportNotice('');
+    if (file.size > MAX_IMPORT_BYTES) {
+      setError('The file is too large to import (max 2 MB).');
+      return;
+    }
+    setImporting(true);
+    try {
+      const result = await importLearner({ data: { text: await file.text() } });
+      await refresh();
+      const parts = [`Imported “${result.name}” as a new learner with ${result.imported} progress ${result.imported === 1 ? 'record' : 'records'}.`];
+      if (result.skippedConcepts.length) parts.push(`${result.skippedConcepts.length} skipped: concepts not in this workspace.`);
+      if (result.capped.length) parts.push(`${result.capped.length} quiz-checked ${result.capped.length === 1 ? 'concept stays' : 'concepts stay'} below mastered until a quiz is passed.`);
+      setImportNotice(parts.join(' '));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not import the file.');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,11 +88,13 @@ function LearnersPage() {
     }
   }
 
-  async function handleDelete(userId: string) {
+  async function handleDelete(userId: string, button?: HTMLElement) {
     if (!confirm('Are you sure you want to delete this learner?')) return;
+    const focus = rememberRowFocus(button);
 
     try {
       await deleteLearner(userId);
+      restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
@@ -173,7 +202,7 @@ function LearnersPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="mb-6"
+            className="mb-6 flex flex-wrap items-center gap-2"
           >
             <button
               onClick={openNewForm}
@@ -182,7 +211,26 @@ function LearnersPage() {
               <Plus className="w-4 h-4" />
               Add Learner
             </button>
+            {/* Roadmap M3: import a learner from a LearnGraph JSON export (always a new learner). */}
+            <label className="btn btn-secondary flex cursor-pointer items-center gap-2 focus-within:ring-2 focus-within:ring-primary">
+              <Upload className="w-4 h-4" aria-hidden="true" />
+              {importing ? 'Importing…' : 'Import from a file'}
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="sr-only"
+                disabled={importing}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) void handleImport(file);
+                }}
+              />
+            </label>
           </motion.div>
+          <p role="status" aria-live="polite" className={importNotice ? 'mb-6 text-sm text-emerald-700 dark:text-emerald-400' : 'sr-only'} data-testid="import-notice">
+            {importNotice}
+          </p>
 
           {/* Form */}
           <AnimatePresence>
@@ -302,36 +350,37 @@ function LearnersPage() {
               className="glass-card overflow-hidden"
             >
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <table className="stack-table w-full" role="table">
+                  <thead role="rowgroup">
+                    <tr role="row" className="border-b border-border/50">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Learner
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         User ID
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Email
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Created
                       </th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/30">
+                  <tbody role="rowgroup" className="divide-y divide-border/30">
                     {learners.map((learner, index) => (
                       <motion.tr
+                        role="row"
                         key={learner.userId}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4, delay: index * 0.05 }}
                         className="hover:bg-muted/30 transition-colors"
                       >
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
                               <User className="w-5 h-5 text-white" />
@@ -339,20 +388,20 @@ function LearnersPage() {
                             <span className="font-medium text-foreground">{learner.name}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" data-label="User ID" className="px-6 py-4 whitespace-nowrap">
                           <code className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded">
                             {learner.userId}
                           </code>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        <td role="cell" data-label="Email" className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                           {learner.email || '—'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        <td role="cell" data-label="Created" className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                           {learner.createdAt
                             ? new Date(learner.createdAt).toLocaleDateString()
                             : '—'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <td role="cell" className="px-6 py-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => openEditForm(learner)}
@@ -362,7 +411,7 @@ function LearnersPage() {
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => handleDelete(learner.userId)}
+                              onClick={(e) => handleDelete(learner.userId, e.currentTarget)}
                               className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
                               title="Delete"
                             >

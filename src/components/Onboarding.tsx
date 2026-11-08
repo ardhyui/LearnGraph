@@ -2,7 +2,9 @@
  * First-visit "Welcome" step on the dashboard: create the learner's own
  * profile (name, subjects, starting point) so the Today plan is about them
  * rather than a demo learner. Everything is saved through the regular,
- * server-validated graph calls, scoped to the signed-in account.
+ * server-validated calls, scoped to the signed-in account. "I know the
+ * basics" only marks basics without a quiz as known (a self-report); basics
+ * with a quiz stay in the plan to be passed first (decision D5).
  */
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useRouteContext } from '@tanstack/react-router';
@@ -17,18 +19,22 @@ import {
   listDomains,
   makeLearnerId,
 } from '@/lib/onboarding';
-import { applyStudyOutcome } from '@/lib/study';
+import { evidenceMode } from '@/lib/evidence/labels';
+import { getQuizOverview, recordStudyOutcome } from '@/server/evidence.functions';
+import { removeExampleData } from '@/server/graph.functions';
 
 interface OnboardingProps {
   /** Ids already used in this workspace (the new id must not collide). */
   existingIds: string[];
-  /** Called with the new learner once it is saved. */
-  onCreated: (learnerId: string, name: string) => void | Promise<void>;
+  /** Called with the new learner once it is saved, and how many basics wait for their quiz. */
+  onCreated: (learnerId: string, name: string, basicsToQuiz: number) => void | Promise<void>;
   /** Hide the form and use the demo learners instead (absent = not offered). */
   onSkip?: () => void;
+  /** The example learners and concepts were removed ("Start with an empty workspace"). */
+  onExamplesRemoved?: () => void | Promise<void>;
 }
 
-export function Onboarding({ existingIds, onCreated, onSkip }: OnboardingProps) {
+export function Onboarding({ existingIds, onCreated, onSkip, onExamplesRemoved }: OnboardingProps) {
   const { db, isReady } = useDB();
   const { user } = useRouteContext({ from: '__root__' });
   const [name, setName] = useState(() => user?.name?.trim() ?? '');
@@ -37,6 +43,8 @@ export function Onboarding({ existingIds, onCreated, onSkip }: OnboardingProps) 
   const [start, setStart] = useState<'new' | 'basics'>('new');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [graphVersion, setGraphVersion] = useState(0);
+  const hasExamples = existingIds.some((id) => id.startsWith('demo-'));
   const ids = { heading: useId(), name: useId(), nameHint: useId(), subjectsHint: useId() };
 
   useEffect(() => {
@@ -52,7 +60,27 @@ export function Onboarding({ existingIds, onCreated, onSkip }: OnboardingProps) 
     return () => {
       live = false;
     };
-  }, [db, isReady]);
+  }, [db, isReady, graphVersion]);
+
+  /** "Start with an empty workspace": remove the examples for good (Roadmap M3). */
+  const startEmpty = async () => {
+    if (saving) return;
+    if (!window.confirm('Remove the example learners and concepts? They will not come back. Anything you made yourself stays.')) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await removeExampleData();
+      setChosen([]);
+      setStart('new');
+      setGraph(null);
+      setGraphVersion((v) => v + 1);
+      await onExamplesRemoved?.();
+    } catch (err) {
+      setError(`Could not remove the examples: ${err instanceof Error ? err.message : 'please try again.'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const domains = graph ? listDomains(graph.concepts) : [];
 
@@ -78,12 +106,20 @@ export function Onboarding({ existingIds, onCreated, onSkip }: OnboardingProps) 
         learnerId = makeLearnerId(clean, taken);
       }
       await db.setLearnerProfile(learnerId, { name: clean, tags: focusTags(chosen) });
+      let basicsToQuiz = 0;
       if (start === 'basics' && graph) {
+        const { counts } = await getQuizOverview();
+        const byId = new Map(graph.concepts.map((c) => [c.conceptId, c]));
         for (const conceptId of basicConcepts(graph.concepts, graph.edges, chosen)) {
-          await db.setKnowledgeState(learnerId, conceptId, applyStudyOutcome(undefined, 'got-it'));
+          const concept = byId.get(conceptId);
+          if (concept && evidenceMode(concept, counts) !== 'self-report') {
+            basicsToQuiz++;
+            continue;
+          }
+          await recordStudyOutcome({ data: { learnerId, conceptId, outcome: 'got-it' } });
         }
       }
-      await onCreated(learnerId, clean);
+      await onCreated(learnerId, clean, basicsToQuiz);
     } catch (err) {
       setError(`Could not create your profile: ${err instanceof Error ? err.message : 'please try again.'}`);
       setSaving(false);
@@ -152,7 +188,7 @@ export function Onboarding({ existingIds, onCreated, onSkip }: OnboardingProps) 
             {(
               [
                 ['new', 'I’m new to this', 'Start from the very first concepts.'],
-                ['basics', 'I know the basics', 'Skip the entry-level concepts — they come back once for a quick review.'],
+                ['basics', 'I know the basics', 'Skip the entry-level concepts — pass a quick quiz where they have one.'],
               ] as const
             ).map(([value, title, hint]) => (
               <label
@@ -203,6 +239,16 @@ export function Onboarding({ existingIds, onCreated, onSkip }: OnboardingProps) 
               className="inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
             >
               Explore the example learners first
+            </button>
+          )}
+          {hasExamples && (
+            <button
+              type="button"
+              onClick={() => void startEmpty()}
+              disabled={saving}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
+            >
+              Start with an empty workspace
             </button>
           )}
         </div>

@@ -19,15 +19,17 @@ import {
   Position,
 } from '@xyflow/react';
 import { Sidebar } from '@/components/Sidebar';
+import { GraphDetailPanel } from '@/components/GraphDetailPanel';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { cn } from '@/lib/utils';
 import { useLearners, useConcepts, useEdges, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 import { isReviewDue } from '@/lib/graph/spacing';
+import { masterySourceLabel } from '@/lib/evidence/labels';
+import type { MasterySource } from '@/lib/graph/types';
 import {
   RefreshCw,
   User,
-  X,
   BookOpen,
   GitBranch,
   Clock,
@@ -81,6 +83,8 @@ interface ConceptDetails {
   description?: string;
   difficulty?: { absolute: number; cognitiveLoad: number; abstractness: number };
   mastery?: number;
+  /** Where the mastery came from (quiz, self-report, …). */
+  masterySource?: MasterySource | null;
   isZPD?: boolean;
   isForgotten?: boolean;
   prerequisites?: string[];
@@ -91,6 +95,7 @@ interface GraphOverlay {
   userId: string;
   learnerName: string;
   masteryLevels: Record<string, number>;
+  masterySources: Record<string, MasterySource | null>;
   zpdConcepts: string[];
   forgottenConcepts: string[];
 }
@@ -246,12 +251,14 @@ function GraphPage() {
         const selectedLearnerData = learners.find(l => l.userId === selectedLearner);
         const learnerStates = await db.getLearnerKnowledgeStates(selectedLearner);
         const masteryLevels: Record<string, number> = {};
+        const masterySources: Record<string, MasterySource | null> = {};
         const forgottenConcepts: string[] = [];
         const now = new Date();
         const difficultyById = new Map(concepts.map(c => [c.conceptId, c.difficulty?.absolute]));
 
         for (const state of learnerStates) {
           masteryLevels[state.conceptId] = state.mastery;
+          masterySources[state.conceptId] = state.masterySource ?? null;
           // Same rule as the Today review queue and "Fading" on Gap Analysis.
           const difficulty = difficultyById.get(state.conceptId);
           if (isReviewDue(state, difficulty, now)) {
@@ -267,6 +274,7 @@ function GraphPage() {
           userId: selectedLearner,
           learnerName: selectedLearnerData?.name || selectedLearner,
           masteryLevels,
+          masterySources,
           zpdConcepts,
           forgottenConcepts,
         };
@@ -280,6 +288,12 @@ function GraphPage() {
         id: concept.conceptId,
         type: 'concept',
         position: { x: 0, y: 0 },
+        // Screen readers: name the node and its progress (Roadmap, accessibility).
+        ariaLabel: `${concept.name}${
+          graphOverlay?.masteryLevels?.[concept.conceptId] !== undefined
+            ? `, ${graphOverlay.masteryLevels[concept.conceptId]}% mastered`
+            : ''
+        }`,
         data: {
           label: concept.name,
           domain: concept.domain || 'general',
@@ -287,6 +301,7 @@ function GraphPage() {
           description: concept.description,
           difficulty: concept.difficulty,
           mastery: graphOverlay?.masteryLevels?.[concept.conceptId],
+          masterySource: graphOverlay?.masterySources?.[concept.conceptId],
           isZPD: graphOverlay?.zpdConcepts?.includes(concept.conceptId),
           isForgotten: graphOverlay?.forgottenConcepts?.includes(concept.conceptId),
         },
@@ -389,6 +404,11 @@ function GraphPage() {
     [setEdges]
   );
 
+  const closeDetails = useCallback(() => {
+    setSelectedConcept(null);
+    setNodes((prevNodes) => prevNodes.map((n) => ({ ...n, data: { ...n.data, isSelected: false } })));
+  }, [setNodes]);
+
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     const prerequisites = edges
       .filter(e => e.target === node.id)
@@ -412,6 +432,7 @@ function GraphPage() {
       description: node.data?.description as string,
       difficulty: node.data?.difficulty as ConceptDetails['difficulty'],
       mastery: node.data?.mastery as number,
+      masterySource: node.data?.masterySource as MasterySource | null | undefined,
       isZPD: node.data?.isZPD as boolean,
       isForgotten: node.data?.isForgotten as boolean,
       prerequisites,
@@ -640,7 +661,7 @@ function GraphPage() {
               <div
                 className={cn(
                   'glass-card overflow-hidden flex-1 transition-all duration-300',
-                  selectedConcept ? 'w-2/3' : 'w-full'
+                  selectedConcept ? 'w-full md:w-2/3' : 'w-full'
                 )}
                 style={{ height: '600px' }}
               >
@@ -691,34 +712,9 @@ function GraphPage() {
                 </ReactFlow>
               </div>
 
-              {/* Details Panel */}
-              <AnimatePresence>
+              {/* Details panel (a bottom sheet on phones) */}
+              <GraphDetailPanel open={!!selectedConcept} title={selectedConcept?.name} onClose={closeDetails}>
                 {selectedConcept && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 20, width: 0 }}
-                    animate={{ opacity: 1, x: 0, width: '33.333%' }}
-                    exit={{ opacity: 0, x: 20, width: 0 }}
-                    className="glass-card p-5 overflow-y-auto"
-                    style={{ height: '600px' }}
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-lg font-bold text-foreground">{selectedConcept.name}</h3>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => {
-                          setSelectedConcept(null);
-                          setNodes(prevNodes => prevNodes.map(n => ({
-                            ...n,
-                            data: { ...n.data, isSelected: false }
-                          })));
-                        }}
-                        className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                      >
-                        <X size={18} />
-                      </motion.button>
-                    </div>
-
                     <div className="space-y-4">
                       {/* Domain */}
                       <div className="flex items-center gap-2">
@@ -777,6 +773,9 @@ function GraphPage() {
                           <div className="text-center text-sm font-medium text-foreground">
                             {selectedConcept.mastery}% Mastery
                           </div>
+                          <div className="text-center text-xs text-muted-foreground" data-testid="mastery-source">
+                            {masterySourceLabel(selectedConcept.masterySource)}
+                          </div>
                           {selectedConcept.isZPD && (
                             <div className="inline-block bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs px-3 py-1.5 rounded-lg">
                               🎯 In Zone of Proximal Development
@@ -829,9 +828,8 @@ function GraphPage() {
                         ID: <span className="font-mono">{selectedConcept.conceptId}</span>
                       </div>
                     </div>
-                  </motion.div>
                 )}
-              </AnimatePresence>
+              </GraphDetailPanel>
             </motion.div>
           )}
 

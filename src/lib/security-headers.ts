@@ -3,19 +3,39 @@
  * server functions, /api/auth). Applied by the global request middleware in
  * `src/start.ts`, so they work the same in `vite dev`, preview and on Vercel.
  *
- * The CSP still allows inline scripts/styles: TanStack Start inlines its
- * hydration data and the theme no-flash script, and components use inline
- * `style` attributes. Everything else is locked to this origin; the app can't
- * be framed (clickjacking) and plugins/<base> hijacking are blocked.
+ * Scripts (production): only files from this origin, scripts carrying this
+ * request's nonce (TanStack Start puts it on its hydration scripts, via
+ * `ssr.nonce` in `src/router.tsx`), and the theme no-flash script by its hash.
+ * Inline scripts injected any other way do not run. In `vite dev` inline
+ * scripts stay allowed, because Vite injects its own without a nonce.
+ *
+ * Styles still allow inline: components use `style` attributes, which a nonce
+ * cannot cover. Everything else is locked to this origin; the app can't be
+ * framed (clickjacking) and plugins/<base> hijacking are blocked.
  */
 
 /** Hosts allowed for images besides this origin (decorative backgrounds). */
 const IMG_HOSTS = ['https://framerusercontent.com'];
 
-export function buildContentSecurityPolicy({ dev = false }: { dev?: boolean } = {}): string {
+/**
+ * SHA-256 of `NO_FLASH_SCRIPT` (src/lib/theme-script.ts). A unit test fails if
+ * the script changes without this hash.
+ */
+export const NO_FLASH_SCRIPT_SHA256 = 'SuI8CBBy2MimOdSyZoKg8MOMYQDeOw/G2zMrwscLEjg=';
+
+/** A fresh, unguessable nonce for one response (128 random bits, base64). */
+export function createNonce(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return btoa(String.fromCharCode(...bytes));
+}
+
+export function buildContentSecurityPolicy({ dev = false, nonce }: { dev?: boolean; nonce?: string } = {}): string {
+  const scripts = dev
+    ? ["'self'", "'unsafe-inline'"]
+    : ["'self'", ...(nonce ? [`'nonce-${nonce}'`] : []), `'sha256-${NO_FLASH_SCRIPT_SHA256}'`];
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
-    'script-src': ["'self'", "'unsafe-inline'"],
+    'script-src': scripts,
     'style-src': ["'self'", "'unsafe-inline'"],
     'img-src': ["'self'", 'data:', 'blob:', ...IMG_HOSTS],
     'font-src': ["'self'", 'data:'],
@@ -36,9 +56,10 @@ export function buildContentSecurityPolicy({ dev = false }: { dev?: boolean } = 
 export function securityHeaders({
   dev = false,
   https = false,
-}: { dev?: boolean; https?: boolean } = {}): Record<string, string> {
+  nonce,
+}: { dev?: boolean; https?: boolean; nonce?: string } = {}): Record<string, string> {
   const headers: Record<string, string> = {
-    'Content-Security-Policy': buildContentSecurityPolicy({ dev }),
+    'Content-Security-Policy': buildContentSecurityPolicy({ dev, nonce }),
     'X-Frame-Options': 'DENY',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -59,7 +80,7 @@ export function securityHeaders({
  */
 export function withSecurityHeaders(
   response: Response,
-  opts: { dev?: boolean; https?: boolean } = {},
+  opts: { dev?: boolean; https?: boolean; nonce?: string } = {},
 ): Response {
   const entries = Object.entries(securityHeaders(opts));
   try {

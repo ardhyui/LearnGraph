@@ -7,7 +7,10 @@ import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
 import { GAP_KINDS, conceptLabel, countLabel, priorityLabel, reviewSummary, snoozeLabel, stepTypeLabel } from '@/lib/gaps';
 import { snoozedReviews } from '@/lib/graph/spacing';
-import { applyUnsnooze, focusAfterAnswer } from '@/lib/study';
+import { focusAfterAnswer } from '@/lib/study';
+import { masterySourceLabel, retentionLine } from '@/lib/evidence/labels';
+import type { MasterySource } from '@/lib/graph/types';
+import { getLearningStats, recordStudyOutcome } from '@/server/evidence.functions';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 
@@ -22,6 +25,8 @@ interface GapItem {
   type: 'missing' | 'partial' | 'forgotten' | 'misconception';
   severity: 'high' | 'medium' | 'low';
   mastery?: number;
+  /** Where the mastery came from (quiz, self-report, …), shown next to it. */
+  masterySource?: MasterySource | null;
   predictedRetention?: number;
   daysSinceReview?: number;
   blockedConcepts?: string[];
@@ -100,6 +105,7 @@ function GapsDashboard() {
     stats: { totalItems: number; urgent: number; normal: number; low: number; overdue: number };
   } | null>(null);
   const [snoozed, setSnoozed] = useState<SnoozedItem[]>([]);
+  const [retention, setRetention] = useState<string[]>([]);
   const [remediation, setRemediation] = useState<{
     plan: { steps: RemediationStep[]; estimatedTotalTime: number; priorityFocus: string };
     gaps: { total: number };
@@ -128,17 +134,26 @@ function GapsDashboard() {
     if (!quiet) {
       setLoading(true);
       setSnoozed([]);
+      setRetention([]);
       setLoadedFor(null);
     }
     try {
       // Detect gaps using the database
-      const [detectedGaps, states, concepts] = await Promise.all([
+      const [detectedGaps, states, concepts, stats] = await Promise.all([
         db.detectGaps(userId),
-        // Only for the "Snoozed" list: if it can't load, the analysis still shows.
+        // Only for the "Snoozed" list and mastery sources: if it can't load, the analysis still shows.
         db.getLearnerKnowledgeStates(userId).catch(() => []),
         db.listConcepts().catch(() => []),
+        getLearningStats({ data: { learnerId: userId } }).catch(() => null),
       ]);
       if (stale()) return;
+      const sourceOf = new Map(states.map((st) => [st.conceptId, st.masterySource ?? null]));
+      const byQuiz = stats && retentionLine(stats.retention.quiz);
+      const bySelf = stats && retentionLine(stats.retention.selfReport);
+      setRetention([
+        ...(byQuiz ? [`By quiz: ${byQuiz}`] : []),
+        ...(bySelf ? [`Self-reported: ${bySelf}`] : []),
+      ]);
       // Reviews postponed with "Remind me tomorrow" aren't due (so they're not
       // in "Fading" or the review list) — show them separately instead of
       // letting them silently disappear.
@@ -165,6 +180,7 @@ function GapsDashboard() {
         type: 'partial' as const,
         severity: g.mastery < 50 ? 'high' as const : 'medium' as const,
         mastery: g.mastery,
+        masterySource: sourceOf.get(g.conceptId),
       }));
       const forgotten: GapItem[] = detectedGaps.forgotten.map(g => ({
         conceptId: g.conceptId,
@@ -173,6 +189,7 @@ function GapsDashboard() {
         severity: g.predictedRetention < 50 ? 'high' as const : 'medium' as const,
         predictedRetention: g.predictedRetention,
         daysSinceReview: g.daysSinceReview,
+        masterySource: sourceOf.get(g.conceptId),
       }));
       const misconceptions: GapItem[] = detectedGaps.misconceptions.map(g => ({
         conceptId: g.conceptId,
@@ -254,7 +271,7 @@ function GapsDashboard() {
     setSnoozeNotice(null);
     const name = conceptLabel(item.conceptId, item.conceptName);
     try {
-      await db.setKnowledgeState(learnerId, item.conceptId, applyUnsnooze(item));
+      await recordStudyOutcome({ data: { learnerId, conceptId: item.conceptId, outcome: 'unsnooze' } });
       if (selectedLearnerRef.current !== learnerId) return;
       setSnoozeNotice(`“${name}” is due again — you can review it now on the dashboard.`);
       await fetchGapData(learnerId, { quiet: true });
@@ -528,6 +545,7 @@ function GapsDashboard() {
                             <div className="flex-1">
                               <p className="font-medium text-foreground">{conceptLabel(gap.conceptId, gap.conceptName)}</p>
                               <p className="text-sm opacity-75">{gap.mastery}% mastered</p>
+                              <p className="text-xs mt-1 opacity-60" data-testid="mastery-source">{masterySourceLabel(gap.masterySource)}</p>
                             </div>
                           </div>
                         </motion.div>
@@ -547,6 +565,7 @@ function GapsDashboard() {
                               <p className="text-sm opacity-75">
                                 Due for a review · about {gap.predictedRetention?.toFixed(0)}% remembered · last reviewed {countLabel(Math.round(gap.daysSinceReview ?? 0), 'day')} ago
                               </p>
+                              <p className="text-xs mt-1 opacity-60" data-testid="mastery-source">{masterySourceLabel(gap.masterySource)}</p>
                             </div>
                           </div>
                         </motion.div>
@@ -644,6 +663,15 @@ function GapsDashboard() {
                             {priorityLabel(item.priority)}
                           </span>
                         </motion.div>
+                      ))}
+                    </div>
+                  )}
+
+                  {retention.length > 0 && (
+                    <div className="mt-4 text-xs text-muted-foreground" data-testid="review-retention">
+                      <p className="font-medium text-foreground">Remembered at review time</p>
+                      {retention.map((line) => (
+                        <p key={line}>{line}</p>
                       ))}
                     </div>
                   )}

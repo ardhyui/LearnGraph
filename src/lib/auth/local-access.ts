@@ -1,3 +1,6 @@
+/** The workstation-only owner of the local Japanese setup (no password, never deleted from the UI). */
+export const LOCAL_OWNER_ID = 'local-japanese-owner';
+
 /** Explicit workstation-only mode. Its service MUST bind to loopback. No proxy deployment. */
 export function permitsLocalUser(request: Request, configuredOrigin: string | undefined): boolean {
   if (!configuredOrigin) return false;
