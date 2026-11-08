@@ -977,21 +977,24 @@ try {
       for await (const c of stream) chunks.push(c);
       return Buffer.concat(chunks).toString('utf8');
     };
+    // One click each, once React owns the buttons (repeated clicks could leave
+    // a late CSV download to be mistaken for the JSON one).
     const csvBtn = box.getByRole('button', { name: 'Download progress (CSV)' });
-    let csvDl = null;
-    for (let i = 0; i < 10 && !csvDl; i++) {
-      [csvDl] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }).catch(() => null), csvBtn.click()]);
-    }
+    await untilHydrated(csvBtn, 60000);
+    const [csvDl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }).catch(() => null), csvBtn.click()]);
     const csvName = csvDl?.suggestedFilename() ?? '';
     const csv = csvDl ? await readText(csvDl) : '';
     const csvLines = csv.replace(/^\uFEFF/, '').trim().split(/\r?\n/);
     check(/^learngraph-sari-smoke-\d{4}-\d{2}-\d{2}\.csv$/.test(csvName), 'my data: progress downloads as a named CSV', `"${csvName}"`);
     check(csvLines[0]?.startsWith('Concept,Subject,Status,Mastery (%)') && csvLines.length > 1 && !/concept:/.test(csv), 'my data: CSV lists concepts by name with status and mastery', `${csvLines.length} lines`);
-    const csvNotice = await box.getByText(/^Downloaded learngraph-sari-smoke-.*\.csv — \d+ concepts? with your progress\.$/).isVisible().catch(() => false);
+    const csvNotice = await box
+      .getByText(/^Downloaded learngraph-sari-smoke-.*\.csv — \d+ concepts? with your progress\.$/)
+      .waitFor({ timeout: 15000 })
+      .then(() => true, () => false);
     check(csvNotice, 'my data: download is confirmed in a status message');
 
     const [jsonDl] = await Promise.all([
-      page.waitForEvent('download', { timeout: 15000 }).catch(() => null),
+      page.waitForEvent('download', { timeout: 60000 }).catch(() => null),
       box.getByRole('button', { name: 'Download everything (JSON)' }).click(),
     ]);
     let data = null;
