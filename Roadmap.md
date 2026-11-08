@@ -208,7 +208,7 @@ Dimulai setelah data event cukup. Perkiraan awal: 3 bulan data dari 50 pelajar a
 
 Dikerjakan saat menyentuh area terkait. Rinciannya ada di `docs/ROADMAP.md`.
 
-- **Aksesibilitas:** tautan "Skip to content", jebakan fokus di dialog kuis, fokus setelah hapus baris admin, `aria-*` pada graph. Selesai: "Skip to content" di setiap halaman, dan fokus setelah hapus baris di 6 halaman admin (keduanya ada cek smoke). Juga: Tab terkunci di dialog kuis profil, dan node graph punya `aria-label` (nama + penguasaan). Smoke untuk ketiganya belum dijalankan.
+- **Aksesibilitas:** tautan "Skip to content", jebakan fokus di dialog kuis, fokus setelah hapus baris admin, `aria-*` pada graph. Selesai: "Skip to content" di setiap halaman, dan fokus setelah hapus baris di 6 halaman admin (keduanya ada cek smoke). Juga: Tab terkunci di dialog kuis profil (ada cek smoke), dan node graph punya `aria-label` (nama + penguasaan).
 - **Mobile:** tabel admin menjadi kartu, panel detail graph menjadi bottom sheet.
 - **Keamanan:** CSP dengan nonce, karena `script-src` masih memakai `unsafe-inline`.
 - **Performa:** code-splitting halaman graph. Sudah terpenuhi oleh pemisahan per route: React Flow (176 KB) berada di chunk sendiri yang hanya dimuat `/graph`, `/combined-graph`, dan `/domains` (diperiksa di hasil build).
