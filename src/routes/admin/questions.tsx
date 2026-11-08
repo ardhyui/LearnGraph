@@ -12,6 +12,9 @@ import { useConcepts, useDB } from '@/lib/DBContext';
 import { cn } from '@/lib/utils';
 import { MAX_OPTIONS, MIN_OPTIONS, QUIZ_LENGTH, type QuizQuestion } from '@/lib/evidence/quiz';
 import { deleteQuizQuestion, listQuizQuestions, saveQuizQuestion } from '@/server/evidence.functions';
+import { getAiDraftSettings, reviewQuestionDraft, setAiDraftSettings } from '@/server/ai.functions';
+import { AiQuestionDrafts } from '@/components/AiQuestionDrafts';
+import type { QuestionInput } from '@/lib/evidence/quiz';
 import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 
 export const Route = createFileRoute('/admin/questions')({
@@ -39,6 +42,32 @@ function QuestionsPage() {
   const [questions, setQuestions] = useState<QuizQuestion[] | null>(null);
   const [conceptId, setConceptId] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
+  /** The AI draft the form was opened from (Roadmap M5): saved as an "edited" review. */
+  const [aiOriginal, setAiOriginal] = useState<QuestionInput | null>(null);
+  const [ai, setAi] = useState<Awaited<ReturnType<typeof getAiDraftSettings>> | null>(null);
+
+  const loadAi = useCallback(async () => {
+    try {
+      setAi(await getAiDraftSettings());
+    } catch {
+      setAi(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAi();
+  }, [loadAi]);
+
+  // The box changes at once; if saving fails it goes back and says why.
+  const toggleAi = async (enabled: boolean) => {
+    setAi((s) => (s ? { ...s, enabled } : s));
+    try {
+      await setAiDraftSettings({ data: { enabled } });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not change the setting.');
+    }
+    await loadAi();
+  };
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -100,16 +129,21 @@ function QuestionsPage() {
     setSaving(true);
     setError(null);
     try {
-      await saveQuizQuestion({
-        data: {
-          id: draft.id,
-          conceptId,
-          prompt: draft.prompt.trim(),
-          options,
-          answer: options[draft.correct] ?? options[0],
-          explanation: draft.explanation.trim(),
-        },
-      });
+      const final = {
+        conceptId,
+        prompt: draft.prompt.trim(),
+        options,
+        answer: options[draft.correct] ?? options[0],
+        explanation: draft.explanation.trim(),
+      };
+      if (aiOriginal) {
+        // An edited AI draft: saved and recorded as "edited" (Roadmap M5).
+        await reviewQuestionDraft({ data: { draft: aiOriginal, decision: 'edited', final } });
+        setAiOriginal(null);
+        void loadAi();
+      } else {
+        await saveQuizQuestion({ data: { id: draft.id, ...final } });
+      }
       setNotice(draft.id ? 'Question updated.' : 'Question added.');
       setDraft(null);
       await load();
@@ -238,6 +272,39 @@ function QuestionsPage() {
                   )}
                 </div>
 
+                {/* Roadmap M5: AI question drafts (off until turned on; a person approves each one). */}
+                {ai && (
+                  <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground" data-testid="ai-drafts-setting">
+                    <label className="inline-flex items-center gap-1.5">
+                      <input type="checkbox" checked={ai.enabled} onChange={(e) => void toggleAi(e.target.checked)} className="h-3.5 w-3.5 accent-primary" />
+                      Let Claude draft questions (with your own API key)
+                    </label>
+                    {ai.questions.proposed > 0 && ai.questions.rate !== null && (
+                      <span>
+                        AI drafts kept so far: {ai.questions.accepted} of {ai.questions.proposed} ({Math.round(ai.questions.rate * 100)}%)
+                      </span>
+                    )}
+                  </div>
+                )}
+                {ai?.enabled && (
+                  <AiQuestionDrafts
+                    conceptId={conceptId}
+                    onSaved={() => {
+                      void load();
+                      void loadAi();
+                    }}
+                    onEdit={(d) => {
+                      setAiOriginal(d);
+                      openForm({
+                        prompt: d.prompt,
+                        options: [...d.options],
+                        correct: Math.max(0, d.options.indexOf(d.answer)),
+                        explanation: d.explanation ?? '',
+                      });
+                    }}
+                  />
+                )}
+
                 {draft && (
                   <form onSubmit={submit} aria-labelledby={ids.form} className="glass-card mb-6 space-y-4 p-4 sm:p-6" noValidate>
                     <h3 id={ids.form} ref={formHeadingRef} tabIndex={-1} className="font-semibold text-foreground focus:outline-none">
@@ -325,7 +392,17 @@ function QuestionsPage() {
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
                         Save question
                       </button>
-                      <button type="button" onClick={() => setDraft(null)} disabled={saving} className="btn btn-secondary">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Closing an opened AI draft without saving counts as discarding it.
+                          if (aiOriginal) void reviewQuestionDraft({ data: { draft: aiOriginal, decision: 'discarded' } }).then(loadAi, () => {});
+                          setAiOriginal(null);
+                          setDraft(null);
+                        }}
+                        disabled={saving}
+                        className="btn btn-secondary"
+                      >
                         Cancel
                       </button>
                     </div>

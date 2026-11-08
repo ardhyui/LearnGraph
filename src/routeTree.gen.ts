@@ -28,6 +28,7 @@ import { Route as StatusRouteImport } from './routes/status'
 import { Route as TestsRouteImport } from './routes/tests'
 import { Route as AdminConceptsRouteImport } from './routes/admin/concepts'
 import { Route as AdminContentRouteImport } from './routes/admin/content'
+import { Route as AdminCurriculumRouteImport } from './routes/admin/curriculum'
 import { Route as AdminLearnersRouteImport } from './routes/admin/learners'
 import { Route as AdminPrerequisitesRouteImport } from './routes/admin/prerequisites'
 import { Route as AdminPsychometricsRouteImport } from './routes/admin/psychometrics'
@@ -134,6 +135,11 @@ const AdminContentRoute = AdminContentRouteImport.update({
   path: '/admin/content',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminCurriculumRoute = AdminCurriculumRouteImport.update({
+  id: '/admin/curriculum',
+  path: '/admin/curriculum',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminLearnersRoute = AdminLearnersRouteImport.update({
   id: '/admin/learners',
   path: '/admin/learners',
@@ -205,6 +211,7 @@ export interface FileRoutesByFullPath {
   '/tests': typeof TestsRoute
   '/admin/concepts': typeof AdminConceptsRoute
   '/admin/content': typeof AdminContentRoute
+  '/admin/curriculum': typeof AdminCurriculumRoute
   '/admin/learners': typeof AdminLearnersRoute
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
@@ -236,6 +243,7 @@ export interface FileRoutesByTo {
   '/tests': typeof TestsRoute
   '/admin/concepts': typeof AdminConceptsRoute
   '/admin/content': typeof AdminContentRoute
+  '/admin/curriculum': typeof AdminCurriculumRoute
   '/admin/learners': typeof AdminLearnersRoute
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
@@ -268,6 +276,7 @@ export interface FileRoutesById {
   '/tests': typeof TestsRoute
   '/admin/concepts': typeof AdminConceptsRoute
   '/admin/content': typeof AdminContentRoute
+  '/admin/curriculum': typeof AdminCurriculumRoute
   '/admin/learners': typeof AdminLearnersRoute
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
@@ -301,6 +310,7 @@ export interface FileRouteTypes {
     | '/tests'
     | '/admin/concepts'
     | '/admin/content'
+    | '/admin/curriculum'
     | '/admin/learners'
     | '/admin/prerequisites'
     | '/admin/psychometrics'
@@ -332,6 +342,7 @@ export interface FileRouteTypes {
     | '/tests'
     | '/admin/concepts'
     | '/admin/content'
+    | '/admin/curriculum'
     | '/admin/learners'
     | '/admin/prerequisites'
     | '/admin/psychometrics'
@@ -363,6 +374,7 @@ export interface FileRouteTypes {
     | '/tests'
     | '/admin/concepts'
     | '/admin/content'
+    | '/admin/curriculum'
     | '/admin/learners'
     | '/admin/prerequisites'
     | '/admin/psychometrics'
@@ -395,6 +407,7 @@ export interface RootRouteChildren {
   TestsRoute: typeof TestsRoute
   AdminConceptsRoute: typeof AdminConceptsRoute
   AdminContentRoute: typeof AdminContentRoute
+  AdminCurriculumRoute: typeof AdminCurriculumRoute
   AdminLearnersRoute: typeof AdminLearnersRoute
   AdminPrerequisitesRoute: typeof AdminPrerequisitesRoute
   AdminPsychometricsRoute: typeof AdminPsychometricsRoute
@@ -542,6 +555,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminContentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/curriculum': {
+      id: '/admin/curriculum'
+      path: '/admin/curriculum'
+      fullPath: '/admin/curriculum'
+      preLoaderRoute: typeof AdminCurriculumRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/learners': {
       id: '/admin/learners'
       path: '/admin/learners'
@@ -635,6 +655,7 @@ const rootRouteChildren: RootRouteChildren = {
   TestsRoute: TestsRoute,
   AdminConceptsRoute: AdminConceptsRoute,
   AdminContentRoute: AdminContentRoute,
+  AdminCurriculumRoute: AdminCurriculumRoute,
   AdminLearnersRoute: AdminLearnersRoute,
   AdminPrerequisitesRoute: AdminPrerequisitesRoute,
   AdminPsychometricsRoute: AdminPsychometricsRoute,

@@ -403,7 +403,7 @@ After:   ### Phase 1: Core Database Foundation [DONE]
 | 3 - Knowledge Model | **DONE** | - |
 | 4 - ZPD Engine | **DONE** | - |
 | 5 - Gap Analysis | **DONE** | - |
-| 6 - Content Delivery | Part A done (Roadmap M2); B and C not started | B, C need an LLM (decision D3) |
+| 6 - Content Delivery | Part A done (M2); B and C built with the user's own API key (M5): text/PDF/Word curriculum drafts and question drafts, human-approved | `learnFromCorrections()`; real-model run not yet done |
 | 7 - RAG Integration | Not Started | - |
 | 8 - GNN Prep | Not Started | All above |
 

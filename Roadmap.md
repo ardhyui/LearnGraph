@@ -165,16 +165,23 @@ Bagian 🔒 (keputusan D3):
 - Daftar 12 domain sensitif di `src/lib/tutor/context.ts` adalah usulan sementara sampai keputusan D4. Konteks memang tidak pernah membaca skor psikometrik mentah; daftar itu hanya jaring pengaman untuk test.
 - Antarmuka baca untuk LLM eksternal dibuat sebagai API key baca-saja per akun, sesuai item roadmap. Ini permukaan publik baru; batas lajunya per instance (bukan global di serverless). Bila tidak diinginkan, cukup hapus kedua route `src/routes/api/v1/`.
 - Tes fungsional Fase 7 baru bisa diuji dengan LLM sungguhan (🔒 D3). Yang sudah teruji: brief memuat riwayat dan kesulitan pelajar.
+- Chat tutor bawaan dan pembandingnya belum pernah dijalankan ke model sungguhan; test memakai klien tiruan karena tidak ada API key di lingkungan ini.
 
 ### M5: Kurikulum dan soal dengan AI (Fase 6B dan 6C, 🔒)
 
 **Tujuan:** mengatasi kekurangan konten tanpa menyerahkan mutu sepenuhnya kepada AI.
 
-- [ ] Deskripsi atau silabus teks menjadi draf konsep, prasyarat, tingkat kesulitan, dan level Bloom. PDF dan Word menyusul.
-- [ ] Validasi draf: tanpa siklus prasyarat, id valid, lolos skema yang ada.
-- [ ] Review visual sebelum disimpan, lalu simpan secara atomik.
-- [ ] Buat Quick Check, Mastery Test, dan Misconception Probe sebagai draf di bank soal M1, wajib disetujui manusia. Fitur ini punya toggle `assessmentsEnabled`.
-- [ ] Simpan koreksi guru sebagai data. `learnFromCorrections()` ditunda sampai datanya cukup.
+- [x] Deskripsi atau silabus teks menjadi draf konsep, prasyarat, tingkat kesulitan, dan level Bloom. PDF dan Word menyusul. Admin → Curriculum Import: teks, PDF (dikirim apa adanya ke model), dan Word `.docx` (teksnya dibaca di browser tanpa dependensi baru, lalu tampil di kotak deskripsi untuk dicek sebelum dikirim). Berkas `.doc` lama tidak didukung.
+- [x] Validasi draf: tanpa siklus prasyarat, id valid, lolos skema yang ada. `validateCurriculumDraft`: id dibersihkan, duplikat dan tautan ke konsep tak dikenal dibuang, dan prasyarat yang membentuk loop (termasuk dengan graph yang ada) ditolak.
+- [x] Review visual sebelum disimpan, lalu simpan secara atomik. Setiap konsep dan prasyarat dicentang atau tidak; yang disimpan masuk dalam satu transaksi (`addConceptsAndEdges`); konsep yang sudah ada tidak pernah ditimpa.
+- [x] Buat Quick Check, Mastery Test, dan Misconception Probe sebagai draf di bank soal M1, wajib disetujui manusia. Fitur ini punya toggle `assessmentsEnabled`. Panel "Draft questions with Claude" di Admin → Quiz Questions: setiap draf disetujui, diedit dulu, atau dibuang; toggle per akun mati secara bawaan.
+- [x] Simpan koreksi guru sebagai data. `learnFromCorrections()` ditunda sampai datanya cukup. Tabel `ai_draft_reviews` (migrasi 0009): draf, keputusan, dan versi akhir; rasio yang disetujui tampil di kedua halaman.
+
+**Catatan implementasi (perlu ditinjau pemilik):**
+
+- Mengikuti rekomendasi D3: draf dibuat dengan API key Anthropic milik orang yang memakainya (`claude-opus-5-5`, structured outputs, fallback penolakan), tanpa biaya proyek.
+- Jalur ke model sungguhan belum pernah dijalankan; test dan smoke memakai klien tiruan, karena tidak ada API key di lingkungan ini. Uji sekali dengan key Anda sebelum dipakai.
+- Target 80% dan "< 5 menit / < 2 menit" baru bisa diukur dari pemakaian nyata; datanya terkumpul di `ai_draft_reviews`.
 
 **Selesai bila (target Fase 6):**
 

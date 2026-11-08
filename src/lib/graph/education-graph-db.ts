@@ -493,6 +493,50 @@ export class EducationGraphDB {
   }
 
   /**
+   * Add several concepts and prerequisite edges in one transaction (Roadmap
+   * M5: an approved curriculum draft is saved completely or not at all).
+   * Existing concepts are updated like `addConcept` (fields merged).
+   */
+  async addConceptsAndEdges(
+    concepts: (Partial<ConceptNode> & { conceptId: string })[],
+    edges: { from: string; to: string; strength?: PrerequisiteEdge['strength']; reason?: string }[],
+  ): Promise<{ concepts: number; edges: number }> {
+    const now = new Date().toISOString();
+    const ops: BatchOperation[] = [];
+    for (const concept of concepts) {
+      const existing = await this.getConcept(concept.conceptId);
+      const full: ConceptNode = {
+        name: concept.conceptId,
+        domain: 'general',
+        description: '',
+        difficulty: { absolute: 5, cognitiveLoad: 0.5, abstractness: 0.5 },
+        ...existing,
+        ...concept,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      } as ConceptNode;
+      ops.push({ type: 'put', key: this.conceptKey(concept.conceptId), value: full });
+      if (existing && existing.domain !== full.domain) {
+        ops.push({ type: 'del', key: this.domainIndexKey(existing.domain, concept.conceptId) });
+      }
+      ops.push({ type: 'put', key: this.domainIndexKey(full.domain, concept.conceptId), value: concept.conceptId });
+    }
+    for (const edge of edges) {
+      const full: PrerequisiteEdge = {
+        edgeId: `${edge.from}:${edge.to}`,
+        from: edge.from,
+        to: edge.to,
+        strength: edge.strength || 'recommended',
+        reason: edge.reason,
+        createdAt: now,
+      };
+      ops.push({ type: 'put', key: this.prereqEdgeKey(edge.from, edge.to), value: full });
+    }
+    await this.batch(ops);
+    return { concepts: concepts.length, edges: edges.length };
+  }
+
+  /**
    * Get a prerequisite edge
    */
   async getEdge(from: string, to: string): Promise<PrerequisiteEdge | null> {

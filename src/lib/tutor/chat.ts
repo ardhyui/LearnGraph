@@ -31,7 +31,7 @@ export interface TutorClient {
   beta: { messages: { create: Anthropic['beta']['messages']['create'] } };
 }
 
-export function createTutorClient(apiKey: string): TutorClient {
+export function createTutorClient(apiKey: string): Anthropic {
   return new Anthropic({ apiKey, maxRetries: 1, timeout: 90_000 });
 }
 

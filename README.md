@@ -41,6 +41,8 @@ LearnGraph is a **Graph RAG (Retrieval-Augmented Generation) knowledge base** th
 | **Knowledge Graph** | Concepts, prerequisites, Bloom's taxonomy, difficulty ratings | **Working** |
 | **Progress Tracking** | Mastery levels (0-100%), misconceptions, review history | **Working** |
 | **Lessons in the app** | `/learn/<concept>`: explanation, worked example and practice in the learner's preferred order, then the quiz; Today plans a session that fits the time available | **Working** (mathematics example subject) |
+| **Tutor chat (bring your own key)** | Ask Claude on a lesson page with your own Anthropic API key; optional blind comparison with an answer that doesn't know you | **Working** (not yet tried against the live API here) |
+| **AI drafts for teachers** | Curriculum (text, PDF or Word .docx) and quiz questions drafted by Claude with your own key; every draft is approved, edited or discarded before saving | **Working** (off by default; not yet tried against the live API here) |
 | **Quiz Evidence** | Concepts with questions are learned and reviewed by short quizzes graded on the server; every answer, review and snooze is logged | **Working** |
 | **Learning Style Derivation** | Automatically derive learning style from psychometric scores | **Working** |
 | **Cognitive Profile Estimation** | Estimate working memory, attention span, processing speed | **Working** |
@@ -151,6 +153,8 @@ The schema lives in `migrations/*.sql` (single source of truth):
   explanations, worked examples, practice, links, videos) and the `lesson`
   event kind
 - `0007_api_keys.sql` — read-only API keys (only a SHA-256 hash is stored)
+- `0008_tutor_events.sql` — `tutor` events (questions asked, comparison choices; no question text)
+- `0009_ai_draft_reviews.sql` — every AI draft and the person's decision on it
 
 ```bash
 DATABASE_URL=postgres://… npm run db:migrate   # apply pending migrations
@@ -626,8 +630,8 @@ LearnGraph/
 | **Phase 3** | Knowledge Model Enhancements | **Complete** |
 | **Phase 4** | ZPD Engine | **Complete** |
 | **Phase 5** | Knowledge Gap Analysis & Spaced Repetition | **Complete** |
-| Phase 6 | Adaptive Content Delivery | Planned (Roadmap M1, M2, M5) |
-| Phase 7 | RAG Integration with LLMs | Context without LLM done; tutor chat planned (Roadmap M4) |
+| Phase 6 | Adaptive Content Delivery | Lessons and session plans done (Roadmap M2); AI curriculum and question drafts with your own key (M5) |
+| Phase 7 | RAG Integration with LLMs | Tutor brief without an LLM, read-only API, and tutor chat with your own key (Roadmap M4) |
 | Phase 8 | GNN Preparation (ML Export) | Future (Roadmap M7) |
 
 **MVP = Phases 1-5** — Delivers personalized "what to learn next" recommendations with gap analysis and spaced repetition.

@@ -10,6 +10,7 @@
 import { chromium } from 'playwright';
 // Answer key for the example quizzes (TypeScript, so run with --experimental-strip-types).
 import { DEMO_QUESTIONS } from '../src/lib/evidence/demo-questions.ts';
+import { makeDocx } from '../tests/support/docx.ts';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8080';
 const PAGES = [
@@ -19,6 +20,7 @@ const PAGES = [
   ['/admin/psychometrics', null],
   ['/admin/concepts', null],
   ['/admin/prerequisites', null],
+  ['/admin/curriculum', null],
   ['/admin/content', null],
   ['/admin/questions', null],
   ['/learn/arithmetic', null],
@@ -1205,6 +1207,51 @@ try {
     );
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'learner import has no page errors', newErrors.join(' | '));
+  }
+
+  // Roadmap M5: AI drafts are off until the account turns them on; then the
+  // curriculum and question drafting forms appear, use the person's own key
+  // (a malformed key is refused before anything is sent), and nothing is
+  // saved without review. No model is called here.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/admin/curriculum`, { waitUntil: 'networkidle' });
+    const toggle = page.getByLabel(/Let Claude draft curricula and questions/);
+    await toggle.waitFor({ timeout: 30000 }).catch(() => {});
+    const offAtFirst = !(await toggle.isChecked().catch(() => true)) && (await page.getByLabel('Course description or syllabus').count()) === 0;
+    await toggle.check();
+    const syllabus = page.getByLabel('Course description or syllabus');
+    const formShown = await syllabus.waitFor({ timeout: 15000 }).then(() => true, () => false);
+    // A Word file is read in the browser into the description box (nothing is sent yet).
+    await page.getByLabel(/Or attach the course as a PDF or Word file/).setInputFiles({
+      name: 'course.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      buffer: Buffer.from(makeDocx(['Statistics 101', 'Week 1: averages & spread', 'Week 2: probability'])),
+    });
+    const fromWord = await page
+      .waitForFunction(
+        (el) => el.value.includes('Week 1: averages & spread\nWeek 2: probability'),
+        await syllabus.elementHandle({ timeout: 5000 }).catch(() => null),
+        { timeout: 10000 },
+      )
+      .then(() => true, () => false);
+    check(fromWord, 'curriculum: the text of a Word file fills the description to check before drafting', (await syllabus.inputValue()).slice(0, 80));
+    await page.getByLabel('Subject').fill('Statistics');
+    await syllabus.fill('An introduction to statistics: averages, spread, probability and simple tests.');
+    await page.getByLabel('Anthropic API key').fill('not-a-key');
+    await page.getByRole('button', { name: 'Draft with Claude' }).click();
+    const refused = await page.getByRole('alert').filter({ hasText: 'starts with sk-ant-' }).waitFor({ timeout: 10000 }).then(() => true, () => false);
+    await page.goto(`${BASE}/admin/questions`, { waitUntil: 'networkidle' });
+    const panel = await page.getByTestId('ai-question-drafts').waitFor({ timeout: 30000 }).then(() => true, () => false);
+    await page.getByLabel(/Let Claude draft questions/).uncheck().catch(() => {});
+    const hiddenAgain = await page.getByTestId('ai-question-drafts').waitFor({ state: 'detached', timeout: 15000 }).then(() => true, () => false);
+    check(
+      offAtFirst && formShown && refused && panel && hiddenAgain,
+      'AI drafts: off by default, then drafting forms use the person’s own key and can be turned off again',
+      `off ${offAtFirst}, form ${formShown}, bad key refused ${refused}, question panel ${panel}, off again ${hiddenAgain}`,
+    );
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'AI draft pages have no page errors', newErrors.join(' | '));
   }
 
   // Roadmap M4: a read-only API key lets an outside assistant fetch the tutor
