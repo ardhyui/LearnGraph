@@ -21,7 +21,7 @@ export interface RouterContext {
 }
 
 /** Routes reachable without an account. */
-const PUBLIC_PATHS = new Set(['/sign-in']);
+const PUBLIC_PATHS = new Set(['/sign-in', '/privacy', '/forgot-password', '/reset-password']);
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: async ({ location }) => {

@@ -15,11 +15,14 @@ import { Route as CombinedGraphRouteImport } from './routes/combined-graph'
 import { Route as DataEntryRouteImport } from './routes/data-entry'
 import { Route as DomainsRouteImport } from './routes/domains'
 import { Route as EduPsychologyRouteImport } from './routes/edu-psychology'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as GapsRouteImport } from './routes/gaps'
 import { Route as GraphRouteImport } from './routes/graph'
 import { Route as JapaneseRouteImport } from './routes/japanese'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RecommendationsRouteImport } from './routes/recommendations'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as TestsRouteImport } from './routes/tests'
@@ -33,6 +36,8 @@ import { Route as AdminStatesRouteImport } from './routes/admin/states'
 import { Route as ApiJapaneseBackupRouteImport } from './routes/api/japanese-backup'
 import { Route as LearnConceptIdRouteImport } from './routes/learn.$conceptId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiV1ContextRouteImport } from './routes/api/v1/context'
+import { Route as ApiV1LearnersRouteImport } from './routes/api/v1/learners'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -64,6 +69,11 @@ const EduPsychologyRoute = EduPsychologyRouteImport.update({
   path: '/edu-psychology',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GapsRoute = GapsRouteImport.update({
   id: '/gaps',
   path: '/gaps',
@@ -79,6 +89,11 @@ const JapaneseRoute = JapaneseRouteImport.update({
   path: '/japanese',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -87,6 +102,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const RecommendationsRoute = RecommendationsRouteImport.update({
   id: '/recommendations',
   path: '/recommendations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignInRoute = SignInRouteImport.update({
@@ -154,6 +174,16 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1ContextRoute = ApiV1ContextRouteImport.update({
+  id: '/api/v1/context',
+  path: '/api/v1/context',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1LearnersRoute = ApiV1LearnersRouteImport.update({
+  id: '/api/v1/learners',
+  path: '/api/v1/learners',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -162,11 +192,14 @@ export interface FileRoutesByFullPath {
   '/data-entry': typeof DataEntryRoute
   '/domains': typeof DomainsRoute
   '/edu-psychology': typeof EduPsychologyRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/gaps': typeof GapsRoute
   '/graph': typeof GraphRoute
   '/japanese': typeof JapaneseRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/recommendations': typeof RecommendationsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
   '/tests': typeof TestsRoute
@@ -180,6 +213,8 @@ export interface FileRoutesByFullPath {
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
   '/learn/$conceptId': typeof LearnConceptIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/v1/context': typeof ApiV1ContextRoute
+  '/api/v1/learners': typeof ApiV1LearnersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -188,11 +223,14 @@ export interface FileRoutesByTo {
   '/data-entry': typeof DataEntryRoute
   '/domains': typeof DomainsRoute
   '/edu-psychology': typeof EduPsychologyRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/gaps': typeof GapsRoute
   '/graph': typeof GraphRoute
   '/japanese': typeof JapaneseRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/recommendations': typeof RecommendationsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
   '/tests': typeof TestsRoute
@@ -206,6 +244,8 @@ export interface FileRoutesByTo {
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
   '/learn/$conceptId': typeof LearnConceptIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/v1/context': typeof ApiV1ContextRoute
+  '/api/v1/learners': typeof ApiV1LearnersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -215,11 +255,14 @@ export interface FileRoutesById {
   '/data-entry': typeof DataEntryRoute
   '/domains': typeof DomainsRoute
   '/edu-psychology': typeof EduPsychologyRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/gaps': typeof GapsRoute
   '/graph': typeof GraphRoute
   '/japanese': typeof JapaneseRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/recommendations': typeof RecommendationsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
   '/tests': typeof TestsRoute
@@ -233,6 +276,8 @@ export interface FileRoutesById {
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
   '/learn/$conceptId': typeof LearnConceptIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/v1/context': typeof ApiV1ContextRoute
+  '/api/v1/learners': typeof ApiV1LearnersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -243,11 +288,14 @@ export interface FileRouteTypes {
     | '/data-entry'
     | '/domains'
     | '/edu-psychology'
+    | '/forgot-password'
     | '/gaps'
     | '/graph'
     | '/japanese'
+    | '/privacy'
     | '/profile'
     | '/recommendations'
+    | '/reset-password'
     | '/sign-in'
     | '/status'
     | '/tests'
@@ -261,6 +309,8 @@ export interface FileRouteTypes {
     | '/api/japanese-backup'
     | '/learn/$conceptId'
     | '/api/auth/$'
+    | '/api/v1/context'
+    | '/api/v1/learners'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -269,11 +319,14 @@ export interface FileRouteTypes {
     | '/data-entry'
     | '/domains'
     | '/edu-psychology'
+    | '/forgot-password'
     | '/gaps'
     | '/graph'
     | '/japanese'
+    | '/privacy'
     | '/profile'
     | '/recommendations'
+    | '/reset-password'
     | '/sign-in'
     | '/status'
     | '/tests'
@@ -287,6 +340,8 @@ export interface FileRouteTypes {
     | '/api/japanese-backup'
     | '/learn/$conceptId'
     | '/api/auth/$'
+    | '/api/v1/context'
+    | '/api/v1/learners'
   id:
     | '__root__'
     | '/'
@@ -295,11 +350,14 @@ export interface FileRouteTypes {
     | '/data-entry'
     | '/domains'
     | '/edu-psychology'
+    | '/forgot-password'
     | '/gaps'
     | '/graph'
     | '/japanese'
+    | '/privacy'
     | '/profile'
     | '/recommendations'
+    | '/reset-password'
     | '/sign-in'
     | '/status'
     | '/tests'
@@ -313,6 +371,8 @@ export interface FileRouteTypes {
     | '/api/japanese-backup'
     | '/learn/$conceptId'
     | '/api/auth/$'
+    | '/api/v1/context'
+    | '/api/v1/learners'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -322,11 +382,14 @@ export interface RootRouteChildren {
   DataEntryRoute: typeof DataEntryRoute
   DomainsRoute: typeof DomainsRoute
   EduPsychologyRoute: typeof EduPsychologyRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   GapsRoute: typeof GapsRoute
   GraphRoute: typeof GraphRoute
   JapaneseRoute: typeof JapaneseRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   RecommendationsRoute: typeof RecommendationsRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SignInRoute: typeof SignInRoute
   StatusRoute: typeof StatusRoute
   TestsRoute: typeof TestsRoute
@@ -340,6 +403,8 @@ export interface RootRouteChildren {
   ApiJapaneseBackupRoute: typeof ApiJapaneseBackupRoute
   LearnConceptIdRoute: typeof LearnConceptIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiV1ContextRoute: typeof ApiV1ContextRoute
+  ApiV1LearnersRoute: typeof ApiV1LearnersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -386,6 +451,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EduPsychologyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/gaps': {
       id: '/gaps'
       path: '/gaps'
@@ -407,6 +479,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JapaneseRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -419,6 +498,13 @@ declare module '@tanstack/react-router' {
       path: '/recommendations'
       fullPath: '/recommendations'
       preLoaderRoute: typeof RecommendationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sign-in': {
@@ -512,6 +598,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/context': {
+      id: '/api/v1/context'
+      path: '/api/v1/context'
+      fullPath: '/api/v1/context'
+      preLoaderRoute: typeof ApiV1ContextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/learners': {
+      id: '/api/v1/learners'
+      path: '/api/v1/learners'
+      fullPath: '/api/v1/learners'
+      preLoaderRoute: typeof ApiV1LearnersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -522,11 +622,14 @@ const rootRouteChildren: RootRouteChildren = {
   DataEntryRoute: DataEntryRoute,
   DomainsRoute: DomainsRoute,
   EduPsychologyRoute: EduPsychologyRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   GapsRoute: GapsRoute,
   GraphRoute: GraphRoute,
   JapaneseRoute: JapaneseRoute,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   RecommendationsRoute: RecommendationsRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SignInRoute: SignInRoute,
   StatusRoute: StatusRoute,
   TestsRoute: TestsRoute,
@@ -540,6 +643,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiJapaneseBackupRoute: ApiJapaneseBackupRoute,
   LearnConceptIdRoute: LearnConceptIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiV1ContextRoute: ApiV1ContextRoute,
+  ApiV1LearnersRoute: ApiV1LearnersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

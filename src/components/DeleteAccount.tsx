@@ -4,7 +4,7 @@
  * deletes the user; every table of the account cascades from that row.
  */
 import { useId, useState, type FormEvent } from 'react';
-import { useRouteContext } from '@tanstack/react-router';
+import { Link, useRouteContext } from '@tanstack/react-router';
 import { Loader2, Trash2 } from 'lucide-react';
 import { authClient } from '@/lib/auth/client';
 import { LOCAL_OWNER_ID } from '@/lib/auth/local-access';
@@ -53,6 +53,10 @@ export function DeleteAccount() {
       <p className="mt-1 text-sm text-muted-foreground">
         Deleting your account removes your sign-in and everything in this workspace: learners, concepts, progress,
         quiz results, lessons and the activity log. This cannot be undone.
+      {' '}
+        <Link to="/privacy" className="font-medium text-primary hover:underline">
+          How your data is handled
+        </Link>
       </p>
       {!open ? (
         <button

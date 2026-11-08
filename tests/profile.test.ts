@@ -13,6 +13,9 @@ import {
   profileModeOptions,
   profileNextStep,
   UNBUILT_PROFILE_MODES,
+  hasMoreTopicsConsent,
+  offeredDomainIds,
+  withMoreTopicsConsent,
 } from '../src/lib/profile.ts';
 import { summarizeProgress } from '../src/lib/study.ts';
 import { focusDomains, inFocus, withFocus } from '../src/lib/onboarding.ts';
@@ -38,6 +41,27 @@ describe('profile mode copy', () => {
     for (const mode of UNBUILT_PROFILE_MODES) {
       assert.match(PROFILE_MODE_COPY[mode].description, /not built yet/, mode);
     }
+  });
+
+  it('D4: only the topics the plan uses are offered until the learner agrees to see the rest', () => {
+    const categories = [
+      { id: 'dark_personality', domains: ['dark_triad_narcissism'] },
+      { id: 'core_personality', domains: [{ id: 'big_five_openness' }] },
+      { id: 'social_cultural', domains: ['political_ideology'] },
+      { id: 'cognitive_learning', domains: ['learning_styles'] },
+    ];
+    assert.deepEqual(offeredDomainIds(categories, false), ['learning_styles', 'big_five_openness']);
+    assert.deepEqual(offeredDomainIds(categories, true), [
+      'learning_styles',
+      'big_five_openness',
+      'political_ideology',
+      'dark_triad_narcissism',
+    ]);
+    assert.equal(hasMoreTopicsConsent({ tags: ['focus:mathematics'] }), false);
+    const tags = withMoreTopicsConsent(['focus:mathematics'], true);
+    assert.equal(hasMoreTopicsConsent({ tags }), true);
+    assert.deepEqual(withMoreTopicsConsent(tags, false), ['focus:mathematics']);
+    assert.equal(hasMoreTopicsConsent(null), false);
   });
 
   it('labels the stored mode, ignoring unknown or "view"', () => {

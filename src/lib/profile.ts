@@ -204,3 +204,31 @@ export function filledInLine(filled: number, total: number): string {
   const f = Math.max(0, Math.floor(filled));
   return total <= 0 ? 'Nothing to fill in' : `${Math.min(f, total)} of ${total} filled in`;
 }
+
+/**
+ * Decision D4 (Roadmap M3): the profile only asks about what the study plan
+ * uses. The other topics — some of them personal (values, beliefs, difficult
+ * traits) — stay hidden until the learner agrees to see them; answers saved
+ * earlier are kept until the learner removes them. Stored as a learner tag.
+ */
+export const MORE_TOPICS_CONSENT_TAG = 'consent:more-topics';
+
+export function hasMoreTopicsConsent(learner: { tags?: string[] } | null | undefined): boolean {
+  return !!learner?.tags?.includes(MORE_TOPICS_CONSENT_TAG);
+}
+
+/** The learner's tags with the consent added or removed (other tags untouched). */
+export function withMoreTopicsConsent(tags: string[] | undefined, consent: boolean): string[] {
+  const others = (tags ?? []).filter((t) => t !== MORE_TOPICS_CONSENT_TAG);
+  return consent ? [...others, MORE_TOPICS_CONSENT_TAG].slice(0, 50) : others;
+}
+
+/** Topics to offer: the plan's, plus the others once the learner agreed. */
+export function offeredDomainIds<C extends { id: string; domains: readonly (string | { id: string })[] }>(
+  categories: readonly C[],
+  consent: boolean,
+): string[] {
+  const { main, more } = splitProfileCategories(categories);
+  const ids = (cs: C[]) => cs.flatMap((c) => c.domains.map((d) => (typeof d === 'string' ? d : d.id)));
+  return consent ? [...ids(main), ...ids(more)] : ids(main);
+}

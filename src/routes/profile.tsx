@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { DeleteAccount } from '@/components/DeleteAccount';
+import { ApiAccess } from '@/components/ApiAccess';
 import { cn } from '@/lib/utils';
 import {
   ALL_ASSESSMENTS,
@@ -60,6 +61,9 @@ import {
   profileCategoryCopy,
   profileModeLabel,
   splitProfileCategories,
+  hasMoreTopicsConsent,
+  offeredDomainIds,
+  withMoreTopicsConsent,
   type ProfileMode,
 } from '@/lib/profile';
 
@@ -196,10 +200,6 @@ const PSYCHOMETRIC_CATEGORIES: CategoryDefinition[] = [
   },
 ];
 
-// Get all domain IDs for iteration
-const ALL_DOMAIN_IDS = PSYCHOMETRIC_CATEGORIES.flatMap((cat) => cat.domains.map((d) => d.id));
-// Topics that have a quiz (shown as "x / N topics done").
-const QUIZ_TOPIC_COUNT = Math.max(1, ALL_DOMAIN_IDS.filter((id) => ALL_ASSESSMENTS[id]).length);
 
 // =============================================================================
 // TYPES
@@ -281,6 +281,7 @@ interface LearnerProfile {
   email?: string;
   psychometricScores: Record<string, PsychometricScore>;
   profileMode?: 'auto' | 'manual' | 'adaptive' | 'assessment';
+  tags?: string[];
   learningStyle?: {
     primary: string;
     secondary?: string;
@@ -303,10 +304,9 @@ type AssessmentViewMode = 'cards' | 'all';
 // Learning-style categories: the ones the study plan uses first, the rest
 // folded under "More about you". Same order for the questionnaires.
 const profileCategories = splitProfileCategories(PSYCHOMETRIC_CATEGORIES);
-const orderedAssessmentCategories = (() => {
-  const { main, more } = splitProfileCategories(ASSESSMENT_CATEGORIES);
-  return [...main, ...more];
-})();
+const assessmentCategorySplit = splitProfileCategories(ASSESSMENT_CATEGORIES);
+/** Topics not used by the study plan (decision D4: only shown after consent). */
+const MORE_DOMAIN_IDS = new Set(offeredDomainIds(PSYCHOMETRIC_CATEGORIES, true).filter((id) => !offeredDomainIds(PSYCHOMETRIC_CATEGORIES, false).includes(id)));
 
 function ProfilePage() {
   // Database hooks
@@ -326,6 +326,13 @@ function ProfilePage() {
   const learnerSelectId = useId();
   const activeLearnerProfile = learnersData.find((l) => l.userId === activeLearner);
   const [profile, setProfile] = useState<LearnerProfile | null>(null);
+  // Decision D4: only the topics the plan uses, unless the learner agreed to see the rest.
+  const moreTopicsConsent = hasMoreTopicsConsent(profile);
+  const offeredDomains = useMemo(() => offeredDomainIds(PSYCHOMETRIC_CATEGORIES, moreTopicsConsent), [moreTopicsConsent]);
+  const quizTopicCount = Math.max(1, offeredDomains.filter((id) => ALL_ASSESSMENTS[id]).length);
+  const orderedAssessmentCategories = moreTopicsConsent
+    ? [...assessmentCategorySplit.main, ...assessmentCategorySplit.more]
+    : assessmentCategorySplit.main;
   const [profileLoading, setProfileLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -469,7 +476,7 @@ function ProfilePage() {
     const newScores: Record<string, PsychometricScore> = {};
     const now = new Date().toISOString();
 
-    for (const domainId of ALL_DOMAIN_IDS) {
+    for (const domainId of offeredDomains) {
       // Use Box-Muller for normal distribution
       const u1 = Math.random();
       const u2 = Math.random();
@@ -493,10 +500,10 @@ function ProfilePage() {
       };
     }
 
-    setEditedScores(newScores);
+    setEditedScores((prev) => ({ ...prev, ...newScores }));
     setSuccess('Generated random profile values! Adjust any you\'d like, then save.');
     setTimeout(() => setSuccess(null), 3000);
-  }, []);
+  }, [offeredDomains]);
 
   // Confirm mode selection (exclusive - only one can be active)
   const handleConfirmMode = async () => {
@@ -543,6 +550,26 @@ function ProfilePage() {
   };
 
   const saveProfile = () => persistScores(editedScores, 'Saved. Your suggestions on Recommendations now use this profile.');
+
+  /** Decision D4: agree (or stop agreeing) to see the topics the plan does not use. */
+  const setMoreTopicsConsent = async (consent: boolean) => {
+    if (!profile || !db) return;
+    const userId = profile.userId;
+    setError(null);
+    try {
+      const saved = await db.setLearnerProfile(userId, { tags: withMoreTopicsConsent(profile.tags, consent) });
+      if (userId === selectedLearnerRef.current) setProfile(saved);
+    } catch {
+      if (userId === selectedLearnerRef.current) setError('Couldn’t save your choice. Try again.');
+    }
+  };
+
+  /** Remove saved answers for the topics the plan does not use. */
+  const removeMoreTopicAnswers = async () => {
+    if (!window.confirm('Remove your saved answers for these optional topics? This cannot be undone.')) return;
+    const kept = Object.fromEntries(Object.entries(editedScores).filter(([id]) => !MORE_DOMAIN_IDS.has(id)));
+    if (await persistScores(kept, 'Removed your answers to the optional topics.')) setEditedScores(kept);
+  };
 
   // Assessment functions
   const startAssessment = (domainId: string) => {
@@ -611,7 +638,7 @@ function ProfilePage() {
   const getBatchProgress = () => {
     let answered = 0;
     let total = 0;
-    for (const domainId of ALL_DOMAIN_IDS) {
+    for (const domainId of offeredDomains) {
       const assessmentData = ALL_ASSESSMENTS[domainId];
       if (!assessmentData) continue;
       const assessment = assessmentType === 'quick' ? assessmentData.quick : assessmentData.full;
@@ -628,7 +655,7 @@ function ProfilePage() {
     const newScores: Record<string, PsychometricScore> = { ...editedScores };
     let submittedCount = 0;
 
-    for (const domainId of ALL_DOMAIN_IDS) {
+    for (const domainId of offeredDomains) {
       const assessmentData = ALL_ASSESSMENTS[domainId];
       if (!assessmentData) continue;
 
@@ -1131,11 +1158,11 @@ function ProfilePage() {
               {/* Progress Summary */}
               <div className="mt-4 flex items-center gap-4 text-sm">
                 <span className="text-muted-foreground">Progress:</span>
-                <span className="font-medium text-foreground">{completedAssessments.size} / {QUIZ_TOPIC_COUNT} topics done</span>
+                <span className="font-medium text-foreground">{offeredDomains.filter((id) => completedAssessments.has(id)).length} / {quizTopicCount} topics done</span>
                 <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${(Math.min(completedAssessments.size, QUIZ_TOPIC_COUNT) / QUIZ_TOPIC_COUNT) * 100}%` }}
+                    animate={{ width: `${(Math.min(offeredDomains.filter((id) => completedAssessments.has(id)).length, quizTopicCount) / quizTopicCount) * 100}%` }}
                     className="h-full bg-gradient-to-r from-amber-500 to-orange-500"
                   />
                 </div>
@@ -1934,7 +1961,44 @@ function ProfilePage() {
                     </span>
                   </summary>
                   <div className="space-y-4 px-3 pb-3 sm:px-5 sm:pb-5">
-                    {profileCategories.more.map(renderCategory)}
+                    {(() => {
+                      const savedMore = Object.keys(editedScores).filter((id) => MORE_DOMAIN_IDS.has(id)).length;
+                      return (
+                        <div className="rounded-xl border border-border bg-secondary/40 p-4 text-sm" data-testid="more-topics-consent">
+                          <p className="text-foreground">
+                            These topics do not change your study plan, and some are personal: feelings and
+                            relationships, values and beliefs, and difficult traits. Answering is optional and stays in
+                            your account.
+                          </p>
+                          {savedMore > 0 && (
+                            <p className="mt-2 text-muted-foreground">
+                              {savedMore === 1 ? '1 answer' : `${savedMore} answers`} from earlier {savedMore === 1 ? 'is' : 'are'} kept until you remove {savedMore === 1 ? 'it' : 'them'}.
+                            </p>
+                          )}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => void setMoreTopicsConsent(!moreTopicsConsent)}
+                              className="inline-flex min-h-9 items-center rounded-lg border border-border bg-background px-3 py-1.5 font-medium text-foreground hover:bg-primary/10 disabled:opacity-60"
+                            >
+                              {moreTopicsConsent ? 'Hide these topics again' : 'I agree — show these optional topics'}
+                            </button>
+                            {savedMore > 0 && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => void removeMoreTopicAnswers()}
+                                className="inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 font-medium text-red-700 hover:bg-red-500/10 disabled:opacity-60 dark:text-red-400"
+                              >
+                                Remove my answers to these topics
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {moreTopicsConsent && profileCategories.more.map(renderCategory)}
                   </div>
                 </details>
               )}
@@ -2004,6 +2068,7 @@ function ProfilePage() {
             )}
           </div>
         )}
+        <ApiAccess />
         <DeleteAccount />
       </main>
     </div>

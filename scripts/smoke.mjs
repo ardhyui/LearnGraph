@@ -110,6 +110,22 @@ try {
     check(xs.status === 403, 'cross-site server function call is rejected', `HTTP ${xs.status}`);
   }
 
+  // Roadmap M3: "How your data is handled" is public and linked from sign-in.
+  {
+    const ctxP = await browser.newContext();
+    const pp = await ctxP.newPage();
+    await pp.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
+    const linked = await pp.getByRole('link', { name: 'How your data is handled' }).count();
+    const res = await pp.goto(`${BASE}/privacy`, { waitUntil: 'networkidle' });
+    const h1 = (await pp.locator('h1').innerText().catch(() => '')).trim();
+    check(
+      linked > 0 && res?.status() === 200 && new URL(pp.url()).pathname === '/privacy' && h1 === 'How your data is handled',
+      'privacy: the data-handling page is public and linked from sign-in',
+      `${new URL(pp.url()).pathname}, "${h1}"`,
+    );
+    await ctxP.close();
+  }
+
   // Sign up
   // Retry the toggle until hydrated (a click before hydration is a no-op).
   for (let i = 0; i < 20 && !(await page.locator('#name').isVisible()); i++) {
@@ -861,12 +877,22 @@ try {
     const firstCat = await cats.locator('[data-testid^="profile-category-"] h3').first().innerText().catch(() => '');
     const more = page.getByTestId('profile-more');
     const moreOpen = await more.evaluate((el) => el.open).catch(() => null);
-    const hiddenTrait = await page.getByText('Difficult traits').isVisible().catch(() => true);
+    const hiddenTrait = await page.getByText('Difficult traits', { exact: true }).isVisible().catch(() => true);
     const mainText = await page.locator('main').innerText().catch(() => '');
     check(firstCat === 'How you think and learn' && moreOpen === false && !hiddenTrait, 'profile: learning-relevant topics first, the rest folded under "More about you"', `"${firstCat}", open=${moreOpen}`);
     check(!/Dark Personality|NEO-PI-R|MACH-IV|domains configured|^[A-H]\. /m.test(mainText), 'profile: no instrument names or lettered jargon categories', '');
     await more.locator('summary').click();
-    check(await page.getByText('Difficult traits').isVisible().catch(() => false), 'profile: "More about you" opens on request');
+    // Decision D4: the optional (personal) topics are only shown after the learner agrees.
+    const consentShown = await more.getByTestId('more-topics-consent').isVisible().catch(() => false);
+    const hiddenBeforeConsent = !(await page.getByText('Difficult traits', { exact: true }).isVisible().catch(() => false));
+    await more.getByRole('button', { name: 'I agree — show these optional topics' }).click().catch(() => {});
+    const shownAfterConsent = await page.getByText('Difficult traits', { exact: true }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+    check(
+      consentShown && hiddenBeforeConsent && shownAfterConsent,
+      'profile: "More about you" asks before showing personal topics the plan does not use',
+      `asked ${consentShown}, hidden before ${hiddenBeforeConsent}, shown after ${shownAfterConsent}`,
+    );
+    await more.getByRole('button', { name: 'Hide these topics again' }).click().catch(() => {});
 
     const setMyself = page.getByRole('button', { name: 'Set it myself' });
     await setMyself.waitFor({ timeout: 30000 }).catch(() => {});
@@ -1108,6 +1134,43 @@ try {
     check(refused, 'invalid input is rejected server-side with a readable message');
   }
 
+  // Roadmap M4: a read-only API key lets an outside assistant fetch the tutor
+  // brief (no cookies), only with the key, and not after it is revoked.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
+    const access = page.getByTestId('api-access');
+    await access.getByLabel('Key name').fill('Smoke assistant');
+    await access.getByRole('button', { name: 'Create a read-only key' }).click();
+    const secretBox = access.getByTestId('new-api-key').getByRole('textbox');
+    await secretBox.waitFor({ timeout: 15000 }).catch(() => {});
+    const key = await secretBox.inputValue().catch(() => '');
+    const call = (url, k) => fetch(url, { headers: k ? { authorization: `Bearer ${k}` } : {} });
+    const ctxRes = await call(`${BASE}/api/v1/context?concept=Fractions&q=${encodeURIComponent('explain adding fractions')}`, key);
+    const ctxBody = await ctxRes.json().catch(() => ({}));
+    const anon = await call(`${BASE}/api/v1/context`, null);
+    const learnersRes = await call(`${BASE}/api/v1/learners`, key);
+    const learnersBody = await learnersRes.json().catch(() => ({}));
+    check(
+      /^lg_/.test(key) &&
+        ctxRes.status === 200 &&
+        /^You are tutoring one learner/.test(ctxBody.context ?? '') &&
+        ctxBody.queryType === 'explain' &&
+        anon.status === 401 &&
+        learnersRes.status === 200 &&
+        (learnersBody.learners ?? []).length > 0,
+      'api: a read-only key fetches the tutor brief; without a key the API refuses',
+      `context ${ctxRes.status} (${ctxBody.queryType}), no key ${anon.status}, learners ${learnersRes.status}`,
+    );
+    page.once('dialog', (d) => d.accept());
+    await access.getByRole('button', { name: /^Revoke/ }).first().click();
+    await access.getByRole('list', { name: 'Your API keys' }).waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
+    const afterRevoke = await call(`${BASE}/api/v1/context`, key);
+    check(afterRevoke.status === 401, 'api: a revoked key stops working at once', `HTTP ${afterRevoke.status}`);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'API access settings have no page errors', newErrors.join(' | '));
+  }
+
   // Roadmap M3, data control: a second account starts with an empty workspace
   // (the examples are removed and do not come back after a reload), then
   // deletes itself from My Profile, which signs it out for good.
@@ -1137,14 +1200,72 @@ try {
       .then(() => true, () => false);
     await p3.reload({ waitUntil: 'networkidle' });
     await p3.getByTestId('onboarding').waitFor({ timeout: 30000 }).catch(() => {});
-    const stillEmpty = await p3.getByTestId('onboarding').getByText('No subjects yet', { exact: false }).isVisible().catch(() => false);
+    // The subjects load after the step appears: wait for the text, don't sample it.
+    const stillEmpty = await p3
+      .getByTestId('onboarding')
+      .getByText('No subjects yet', { exact: false })
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
     const skipOffered = await p3.getByRole('button', { name: 'Explore the example learners first' }).count();
-    check(noSubjects && stillEmpty && skipOffered === 0, 'onboarding: "Start with an empty workspace" removes the examples for good');
+    check(
+      noSubjects && stillEmpty && skipOffered === 0,
+      'onboarding: "Start with an empty workspace" removes the examples for good',
+      `empty at once ${noSubjects}, after reload ${stillEmpty}, skip offered ${skipOffered}`,
+    );
+
+    // Roadmap M3: "Forgot your password?" emails a one-hour link (read from
+    // the dev outbox in CI); the new password works and old sessions end.
+    let currentPassword = password3;
+    await p3.goto(`${BASE}/forgot-password`, { waitUntil: 'networkidle' });
+    await p3.getByLabel('Email').fill(email3);
+    await p3.getByRole('button', { name: 'Send the reset link' }).click();
+    const requested = await p3.getByText('a reset link is on its way', { exact: false }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const outboxFile = process.env.DEV_EMAIL_OUTBOX;
+    if (outboxFile) {
+      const { readFile } = await import('node:fs/promises');
+      let link = null;
+      for (let i = 0; i < 20 && !link; i++) {
+        const lines = (await readFile(outboxFile, 'utf8').catch(() => '')).split('\n').filter(Boolean).map((l) => JSON.parse(l));
+        const mail = lines.filter((m) => m.to === email3).at(-1);
+        link = mail?.text.match(/https?:\/\/\S+\/reset-password\/\S+/)?.[0] ?? null;
+        if (!link) await p3.waitForTimeout(500);
+      }
+      const newPassword = `${password3}-new`;
+      if (link) {
+        await p3.goto(link, { waitUntil: 'networkidle' });
+        await p3.getByLabel('New password', { exact: true }).fill(newPassword);
+        await p3.getByLabel('New password again').fill(newPassword);
+        await p3.getByRole('button', { name: 'Save the new password' }).click();
+        const changed = await p3.getByText('Your password is changed', { exact: false }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+        // A fresh browser: the old password is refused, the new one works.
+        // (Other signed-in browsers end within the 5-minute session cookie cache.)
+        await ctx3.clearCookies();
+        await p3.goto(`${BASE}/sign-in?redirect=%2Fprofile`, { waitUntil: 'networkidle' });
+        await p3.fill('#email', email3);
+        await p3.fill('#password', password3);
+        await p3.getByRole('button', { name: 'Sign in' }).click();
+        const oldRefused = await p3.getByRole('alert').waitFor({ timeout: 15000 }).then(() => true, () => false);
+        await p3.fill('#password', newPassword);
+        await p3.getByRole('button', { name: 'Sign in' }).click();
+        await p3.waitForURL((u) => u.pathname === '/profile', { timeout: 30000 }).catch(() => {});
+        const signedIn = new URL(p3.url()).pathname === '/profile';
+        if (signedIn) currentPassword = newPassword;
+        check(
+          requested && changed && oldRefused && signedIn,
+          'password reset: the emailed link sets a new password (the old one stops working)',
+          `changed ${changed}, old refused ${oldRefused}, signed in with new ${signedIn}`,
+        );
+      } else {
+        check(false, 'password reset: the emailed link sets a new password (the old one stops working)', 'no reset email in the dev outbox');
+      }
+    } else {
+      check(requested, 'password reset: a reset link can be requested');
+    }
 
     await p3.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
     const del = p3.getByTestId('delete-account');
     await del.getByRole('button', { name: 'Delete my account…' }).click({ timeout: 30000 });
-    await del.getByLabel('Your password').fill(password3);
+    await del.getByLabel('Your password').fill(currentPassword);
     await del.getByLabel('Type DELETE to confirm').fill('DELETE');
     await del.getByRole('button', { name: 'Delete my account and all data' }).click();
     await p3.waitForURL(/\/sign-in/, { timeout: 30000 }).catch(() => {});

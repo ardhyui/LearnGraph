@@ -125,6 +125,11 @@ password. Every new account gets its own workspace seeded with demo data
 | `DATABASE_POOL_MAX` | No | Max Postgres connections per server instance (pg default 10; keep small on serverless). |
 | `PGLITE_DATA_DIR` | No | Local dev only: directory to persist PGlite data (e.g. `.data/pglite`). Default is in-memory (reset on restart). |
 
+Optional, for password reset and email confirmation: `RESEND_API_KEY` and
+`EMAIL_FROM` (Resend's HTTP API, no extra dependency). Without them, `npm run
+dev` prints the emails to the server log and production hides "Forgot your
+password?".
+
 `.env` is loaded automatically by `npm run dev`, `npm run build` and
 `npm run preview` (via `scripts/with-app-env.mjs`); real environment
 variables win.
@@ -145,6 +150,7 @@ The schema lives in `migrations/*.sql` (single source of truth):
 - `0006_content_items.sql` — lesson content per concept (`content_items`:
   explanations, worked examples, practice, links, videos) and the `lesson`
   event kind
+- `0007_api_keys.sql` — read-only API keys (only a SHA-256 hash is stored)
 
 ```bash
 DATABASE_URL=postgres://… npm run db:migrate   # apply pending migrations
@@ -499,9 +505,21 @@ const stats = await db.getStats()
 
 ## Server API
 
-There is no public REST API; the UI talks to the server through TanStack
-Start server functions, all protected by `authMiddleware` (session cookie +
-same-site check):
+The UI talks to the server through TanStack Start server functions, all
+protected by `authMiddleware` (session cookie + same-site check). For AI
+assistants and other tools there is a small **read-only** public API,
+authenticated with a key created under My Profile → "Connect an AI assistant":
+
+```bash
+curl -H "Authorization: Bearer lg_…" "https://<host>/api/v1/learners"
+curl -H "Authorization: Bearer lg_…" "https://<host>/api/v1/context?concept=Fractions&q=explain+adding+fractions"
+# → { "learner", "concept", "queryType", "tokens", "context": "You are tutoring one learner…" }
+```
+
+Keys can only read the tutor brief (≤ 2000 tokens, no raw psychometric
+scores) of their own account, are limited to 60 requests a minute, and stop
+working as soon as they are revoked.
+
 
 | Entry point | Description |
 |-------------|-------------|

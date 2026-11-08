@@ -720,7 +720,7 @@ const context = await getRAGContext(graph, { learnerId: 'user-123', conceptId: '
 
 ## API Reference
 
-There is no public REST API yet. The UI calls TanStack Start server functions, each of which requires a signed-in session and only touches that account's data:
+The UI calls TanStack Start server functions, each of which requires a signed-in session and only touches that account's data. A small read-only public API for AI assistants (`GET /api/v1/learners`, `GET /api/v1/context?learner=&concept=&q=`) takes an API key created on My Profile (`Authorization: Bearer lg_…`); see the README's Server API section.
 
 - `graphCall({ method, args })` - Runs one whitelisted `EducationGraphDB` method (`src/lib/graph/methods.ts`), with arguments validated in `src/lib/graph/rpc-schemas.ts`
 - `seedDemoData()` - Seeds example data into an empty workspace, and the example quiz questions once
@@ -1462,7 +1462,11 @@ Current state:
 - **Account deletion** — "Delete my account" on My Profile removes the account and all of its data (password required)
 - **No examples if you prefer** — "Start with an empty workspace" during onboarding removes the example data for good
 
-Not built yet (Roadmap M3): consent for sensitive domains, data export and import, and a privacy policy.
+- **Consent for personal topics** — My Profile only asks about topics the study plan uses; the others appear after the learner agrees, and saved answers can be removed
+- **Password reset** — "Forgot your password?" sends a one-hour link (needs `RESEND_API_KEY` and `EMAIL_FROM` in production; hidden without them)
+- **Plain-language data page** — `/privacy`, public
+
+Not built yet (Roadmap M3): data export and import (export is PR #29), interface language (D2), and a tested restore of production backups.
 
 ---
 

@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useRouter } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { z } from 'zod';
 import { Loader2, Network } from 'lucide-react';
@@ -168,6 +168,19 @@ function SignInPage() {
           >
             {mode === 'sign-in' ? 'Create one' : 'Sign in'}
           </button>
+        </p>
+        <p className="mt-3 text-xs text-center text-muted-foreground">
+          {mode === 'sign-in' && (
+            <>
+              <Link to="/forgot-password" className="hover:underline">
+                Forgot your password?
+              </Link>
+              {' · '}
+            </>
+          )}
+          <Link to="/privacy" className="hover:underline">
+            How your data is handled
+          </Link>
         </p>
       </div>
     </div>

@@ -14,6 +14,9 @@ export const APP_NAME = 'LearnGraph';
 /** Pages that are not in the sidebar menu. */
 const EXTRA_LABELS: Record<string, string> = {
   '/sign-in': 'Sign in',
+  '/privacy': 'Privacy',
+  '/forgot-password': 'Forgot password',
+  '/reset-password': 'Reset password',
   '/learn/$conceptId': 'Lesson',
 };
 

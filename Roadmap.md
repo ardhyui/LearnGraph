@@ -25,7 +25,7 @@ Karena itu roadmap ini mengubah urutan fase lama, yang menempatkan Fase 7 di ata
 | M6 | Guru dan kelas | Kurikulum bersama dan dasbor kelas | - | L |
 | M7 | Riset dan model | Personalisasi dikalibrasi dari data nyata | 8 | L |
 
-Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh akun, secret, atau keputusan biaya dari pemilik. Milestone dikerjakan berurutan, dengan dua pengecualian: M3 bisa dimajukan bila aplikasi akan dibuka lebih awal, dan bagian tanpa biaya di M4 bisa dimulai setelah M1.
+Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh akun, secret, atau keputusan biaya dari pemilik. `[~]` berarti kodenya selesai, tetapi sisanya butuh akun, akses, atau keputusan pemilik. Milestone dikerjakan berurutan, dengan dua pengecualian: M3 bisa dimajukan bila aplikasi akan dibuka lebih awal, dan bagian tanpa biaya di M4 bisa dimulai setelah M1.
 
 ## Kondisi saat ini
 
@@ -126,11 +126,11 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 - [ ] Impor JSON sebagai pasangan ekspor dari PR #29.
 - [x] Hapus akun dan seluruh data dari UI. Foreign key `on delete cascade` sudah tersedia. "Delete my account" di My Profile (password + ketik DELETE); test memeriksa setiap tabel ber-`owner_id`, termasuk `japanese_quizzes` yang tak punya FK.
 - [x] Opsi mulai tanpa data contoh. "Start with an empty workspace" di onboarding; contoh tidak di-seed lagi.
-- [ ] Profil hanya menanyakan domain yang dipakai; domain sensitif tidak aktif secara bawaan dan ada persetujuan singkat (keputusan D4).
+- [x] Profil hanya menanyakan domain yang dipakai; domain sensitif tidak aktif secara bawaan dan ada persetujuan singkat (keputusan D4). Dikerjakan sesuai rekomendasi D4: My Profile hanya menanyakan topik yang dipakai rencana belajar; topik lain (termasuk yang pribadi) baru tampil setelah pelajar setuju, dan jawaban lama bisa dihapus. Bisa diubah bila pemilik memutuskan lain.
 - [x] Sembunyikan mode "Automatic" dan "Set, then adjust" sampai inferensinya benar-benar ada. Profil yang dulu memilihnya tetap melihat pilihannya.
 - [ ] Tetapkan bahasa antarmuka (keputusan D2).
-- [ ] 🔒 Reset password dan verifikasi email (butuh layanan pengirim email).
-- [ ] Kebijakan privasi singkat, dan uji pemulihan backup database produksi.
+- [~] 🔒 Reset password dan verifikasi email (butuh layanan pengirim email). Kode siap: "Forgot your password?" → tautan 1 jam → password baru (sesi lama berakhir), dan email konfirmasi saat daftar. Di produksi aktif setelah `RESEND_API_KEY` dan `EMAIL_FROM` diisi (D7); tanpa itu fiturnya disembunyikan. Di dev, email dicetak ke log server.
+- [~] Kebijakan privasi singkat, dan uji pemulihan backup database produksi. Halaman publik `/privacy` ("How your data is handled") berisi hanya klaim yang berlaku di kode. Uji pemulihan backup produksi belum: butuh akses ke database produksi (D7).
 
 **Selesai bila:**
 
@@ -148,7 +148,7 @@ Bagian tanpa biaya LLM:
 - [x] Deteksi jenis pertanyaan dan template prompt. Enam jenis (explain, practice, stuck, review, next, general), Inggris dan Indonesia.
 - [x] Domain sensitif tidak pernah masuk konteks (daftar tolak dengan test). Konteks dibangun dari allow-list (tanpa skor mentah); test memeriksa 12 domain sensitif dan label-labelnya.
 - [x] Tombol "Salin konteks untuk AI tutor", dengan isi yang bisa dilihat sebelum disalin. Panel "Ask an AI tutor" di halaman pelajaran.
-- [ ] Antarmuka baca untuk LLM eksternal: API key per akun atau server MCP. Saat ini belum ada API publik, padahal tesis produknya adalah "makes any LLM smarter".
+- [x] Antarmuka baca untuk LLM eksternal: API key per akun atau server MCP. Saat ini belum ada API publik, padahal tesis produknya adalah "makes any LLM smarter". Dibuat sebagai API baca-saja dengan API key per akun: `GET /api/v1/learners` dan `GET /api/v1/context` (hash SHA-256 saja yang disimpan, 60 permintaan/menit per key, bisa dicabut). Server MCP belum dibuat.
 
 Bagian 🔒 (keputusan D3):
 
@@ -163,7 +163,7 @@ Bagian 🔒 (keputusan D3):
 **Catatan implementasi (perlu ditinjau pemilik):**
 
 - Daftar 12 domain sensitif di `src/lib/tutor/context.ts` adalah usulan sementara sampai keputusan D4. Konteks memang tidak pernah membaca skor psikometrik mentah; daftar itu hanya jaring pengaman untuk test.
-- Antarmuka baca untuk LLM eksternal belum dibuat. Fitur ini membuka permukaan keamanan baru (API key per akun atau server MCP), jadi bentuknya sebaiknya diputuskan pemilik dulu.
+- Antarmuka baca untuk LLM eksternal dibuat sebagai API key baca-saja per akun, sesuai item roadmap. Ini permukaan publik baru; batas lajunya per instance (bukan global di serverless). Bila tidak diinginkan, cukup hapus kedua route `src/routes/api/v1/`.
 - Tes fungsional Fase 7 baru bisa diuji dengan LLM sungguhan (🔒 D3). Yang sudah teruji: brief memuat riwayat dan kesulitan pelajar.
 
 ### M5: Kurikulum dan soal dengan AI (Fase 6B dan 6C, 🔒)

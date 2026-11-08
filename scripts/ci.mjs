@@ -10,6 +10,8 @@
  * empty so a local `.env` can never point CI at a real database.
  */
 import { spawn } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const PORT = process.env.CI_PORT ?? '8081';
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -20,6 +22,10 @@ const ciEnv = {
   PGLITE_DATA_DIR: '',
   BETTER_AUTH_URL: '',
   BETTER_AUTH_SECRET: 'local-ci-only-not-a-secret-0123456789abcdef',
+  // Dev-only email outbox (src/lib/email.ts): the smoke test reads reset links from it.
+  DEV_EMAIL_OUTBOX: join(tmpdir(), `learngraph-ci-outbox-${process.pid}.jsonl`),
+  RESEND_API_KEY: '',
+  EMAIL_FROM: '',
 };
 
 const run = (cmd, args, opts = {}) =>
