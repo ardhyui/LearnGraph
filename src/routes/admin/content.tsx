@@ -12,6 +12,7 @@ import { useConcepts, useDB } from '@/lib/DBContext';
 import { cn } from '@/lib/utils';
 import { CONTENT_KIND_LABELS, CONTENT_KINDS, type ContentItem, type ContentKind } from '@/lib/content/content';
 import { deleteLessonContent, listLessonContent, saveLessonContent } from '@/server/content.functions';
+import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 
 export const Route = createFileRoute('/admin/content')({
   head: () => pageHead('/admin/content'),
@@ -145,14 +146,16 @@ function ContentPage() {
     }
   };
 
-  const remove = async (c: ContentItem) => {
+  const remove = async (c: ContentItem, button?: HTMLElement) => {
     if (!confirm(`Delete “${c.title}”?`)) return;
     setError(null);
+    const focus = rememberRowFocus(button);
     try {
       await deleteLessonContent({ data: { id: c.id } });
       setNotice('Item deleted.');
       if (draft?.id === c.id) setDraft(null);
       await load();
+      restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not delete the item.');
     }
@@ -371,7 +374,7 @@ function ContentPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => remove(c)}
+                              onClick={(e) => remove(c, e.currentTarget)}
                               aria-label={`Delete ${c.title}`}
                               className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                             >

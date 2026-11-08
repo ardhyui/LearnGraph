@@ -12,6 +12,7 @@ import { DBProvider } from '@/lib/DBContext';
 import { ErrorPage, NotFoundPage } from '@/components/ErrorPages';
 import { getCurrentUser } from '@/server/session.functions';
 import { RouteAnnouncer } from '@/components/RouteAnnouncer';
+import { SkipLink } from '@/components/SkipLink';
 import { APP_NAME } from '@/lib/page-titles';
 import appCss from '../styles.css?url';
 
@@ -66,6 +67,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body className="min-h-screen bg-background antialiased">
+        <SkipLink />
         <ThemeProvider>{children}</ThemeProvider>
         <RouteAnnouncer />
         <Scripts />

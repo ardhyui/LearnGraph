@@ -288,6 +288,12 @@ function GraphPage() {
         id: concept.conceptId,
         type: 'concept',
         position: { x: 0, y: 0 },
+        // Screen readers: name the node and its progress (Roadmap, accessibility).
+        ariaLabel: `${concept.name}${
+          graphOverlay?.masteryLevels?.[concept.conceptId] !== undefined
+            ? `, ${graphOverlay.masteryLevels[concept.conceptId]}% mastered`
+            : ''
+        }`,
         data: {
           label: concept.name,
           domain: concept.domain || 'general',

@@ -12,6 +12,7 @@ import { useConcepts, useDB } from '@/lib/DBContext';
 import { cn } from '@/lib/utils';
 import { MAX_OPTIONS, MIN_OPTIONS, QUIZ_LENGTH, type QuizQuestion } from '@/lib/evidence/quiz';
 import { deleteQuizQuestion, listQuizQuestions, saveQuizQuestion } from '@/server/evidence.functions';
+import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 
 export const Route = createFileRoute('/admin/questions')({
   head: () => pageHead('/admin/questions'),
@@ -119,14 +120,16 @@ function QuestionsPage() {
     }
   };
 
-  const remove = async (q: QuizQuestion) => {
+  const remove = async (q: QuizQuestion, button?: HTMLElement) => {
     if (!confirm(`Delete this question?\n\n${q.prompt}`)) return;
     setError(null);
+    const focus = rememberRowFocus(button);
     try {
       await deleteQuizQuestion({ data: { id: q.id } });
       setNotice('Question deleted.');
       if (draft?.id === q.id) setDraft(null);
       await load();
+      restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not delete the question.');
     }
@@ -352,7 +355,7 @@ function QuestionsPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => remove(q)}
+                              onClick={(e) => remove(q, e.currentTarget)}
                               aria-label={`Delete question ${n + 1}`}
                               className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                             >

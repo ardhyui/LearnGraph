@@ -38,6 +38,7 @@ import {
 import { Sidebar } from '@/components/Sidebar';
 import { DeleteAccount } from '@/components/DeleteAccount';
 import { ApiAccess } from '@/components/ApiAccess';
+import { trapTabKey } from '@/lib/focus-trap';
 import { cn } from '@/lib/utils';
 import {
   ALL_ASSESSMENTS,
@@ -952,7 +953,9 @@ function ProfilePage() {
                   if (e.key === 'Escape') {
                     e.stopPropagation();
                     setActiveAssessment(null);
+                    return;
                   }
+                  trapTabKey(e, quizDialogRef.current);
                 }}
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}

@@ -8,6 +8,7 @@ import { Plus, Trash2, X, Save, BarChart3, AlertCircle, Loader2, AlertTriangle, 
 import { cn } from '@/lib/utils';
 import { useLearners, useConcepts, useDB } from '@/lib/DBContext';
 import type { KnowledgeState } from '@/lib/graph/types';
+import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 
 export const Route = createFileRoute('/admin/states')({
   head: () => pageHead('/admin/states'),
@@ -126,8 +127,9 @@ function StatesPage() {
     }
   }
 
-  async function handleDelete(userId: string, conceptId: string) {
+  async function handleDelete(userId: string, conceptId: string, button?: HTMLElement) {
     if (!confirm('Are you sure you want to delete this knowledge state?')) return;
+    const focus = rememberRowFocus(button);
 
     if (!db) {
       setError('Database not ready');
@@ -136,7 +138,8 @@ function StatesPage() {
 
     try {
       await db.deleteKnowledgeState(userId, conceptId);
-      fetchStates();
+      await fetchStates();
+      restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
@@ -528,7 +531,7 @@ function StatesPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           <button
-                            onClick={() => handleDelete(state.userId, state.conceptId)}
+                            onClick={(e) => handleDelete(state.userId, state.conceptId, e.currentTarget)}
                             className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
                             title="Delete"
                           >

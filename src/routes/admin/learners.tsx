@@ -7,6 +7,7 @@ import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { Plus, Edit, Trash2, X, Save, User, Users, AlertCircle, Loader2 } from 'lucide-react';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { uuidv4 } from '@/lib/uuid';
+import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 
 export const Route = createFileRoute('/admin/learners')({
   head: () => pageHead('/admin/learners'),
@@ -61,11 +62,13 @@ function LearnersPage() {
     }
   }
 
-  async function handleDelete(userId: string) {
+  async function handleDelete(userId: string, button?: HTMLElement) {
     if (!confirm('Are you sure you want to delete this learner?')) return;
+    const focus = rememberRowFocus(button);
 
     try {
       await deleteLearner(userId);
+      restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
@@ -362,7 +365,7 @@ function LearnersPage() {
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => handleDelete(learner.userId)}
+                              onClick={(e) => handleDelete(learner.userId, e.currentTarget)}
                               className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
                               title="Delete"
                             >

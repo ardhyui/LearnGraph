@@ -7,6 +7,7 @@ import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { Plus, Trash2, X, Save, ArrowRight, GitBranch, AlertCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEdges, useConcepts, useDB } from '@/lib/DBContext';
+import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 
 export const Route = createFileRoute('/admin/prerequisites')({
   head: () => pageHead('/admin/prerequisites'),
@@ -66,11 +67,13 @@ function PrerequisitesPage() {
     }
   }
 
-  async function handleDelete(from: string, to: string) {
+  async function handleDelete(from: string, to: string, button?: HTMLElement) {
     if (!confirm('Are you sure you want to delete this prerequisite?')) return;
+    const focus = rememberRowFocus(button);
 
     try {
       await deleteEdge(from, to);
+      restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
@@ -432,7 +435,7 @@ function PrerequisitesPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           <button
-                            onClick={() => handleDelete(edge.from, edge.to)}
+                            onClick={(e) => handleDelete(edge.from, edge.to, e.currentTarget)}
                             className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
                             title="Delete"
                           >

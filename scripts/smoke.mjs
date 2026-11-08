@@ -377,6 +377,19 @@ try {
     await page.getByRole('list', { name: /^Questions for / }).waitFor({ timeout: 15000 }).catch(() => {});
     const exampleCount = await page.getByRole('list', { name: /^Questions for / }).locator(':scope > li').count();
     check(exampleCount >= 3, 'questions: the example concepts come with quiz questions', `${exampleCount} questions`);
+    // Accessibility: deleting a row by keyboard keeps focus in the list
+    // (on the same button of the row that takes its place), not on <body>.
+    page.once('dialog', (d) => d.accept());
+    await page.getByRole('button', { name: 'Delete question 1', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await page
+      .waitForFunction((n) => document.querySelectorAll('[aria-label^="Questions for "] > li').length < n, exampleCount, { timeout: 15000 })
+      .catch(() => {});
+    await page
+      .waitForFunction(() => document.activeElement && document.activeElement !== document.body, null, { timeout: 5000 })
+      .catch(() => {});
+    const focusedLabel = await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.tagName ?? '');
+    check(/^Delete question \d+$/.test(focusedLabel), 'a11y: after deleting a row, keyboard focus moves to the next row, not the page body', focusedLabel);
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'question editor has no page errors', newErrors.join(' | '));
   }
@@ -935,6 +948,13 @@ try {
     const dialogText = await dialog.innerText().catch(() => '');
     const focusedInDialog = await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')).catch(() => false);
     check(!/\(R\)|Source:|Response Scale/.test(dialogText) && focusedInDialog, 'quizzes: dialog in plain words, keyboard focus moves into it', `focus=${focusedInDialog}`);
+    // Tab never leaves the modal quiz (it wraps around inside it).
+    let escaped = 0;
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.press(i % 7 === 6 ? 'Shift+Tab' : 'Tab');
+      if (!(await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')))) escaped++;
+    }
+    check(escaped === 0, 'a11y: Tab stays inside the quiz dialog', `${escaped} of 40 steps left it`);
     const groups = dialog.getByRole('group');
     const n = await groups.count();
     for (let i = 0; i < n; i++) await groups.nth(i).getByRole('button').last().click();
@@ -1132,6 +1152,18 @@ try {
       .waitFor({ timeout: 15000 })
       .then(() => true, () => false);
     check(refused, 'invalid input is rejected server-side with a readable message');
+  }
+
+  // Accessibility (Roadmap, cross-milestone): the first Tab reaches "Skip to
+  // content", and it moves keyboard focus to the page's main content.
+  {
+    await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
+    await page.locator('main').first().waitFor({ timeout: 30000 }).catch(() => {});
+    await page.keyboard.press('Tab');
+    const first = await page.evaluate(() => (document.activeElement?.textContent ?? '').trim());
+    await page.keyboard.press('Enter');
+    const inMain = await page.evaluate(() => document.activeElement?.tagName === 'MAIN');
+    check(first === 'Skip to content' && inMain, 'a11y: "Skip to content" is the first Tab stop and moves focus to the main content', `first "${first}", in main ${inMain}`);
   }
 
   // Roadmap M4: a read-only API key lets an outside assistant fetch the tutor
