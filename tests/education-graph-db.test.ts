@@ -2,9 +2,9 @@
  * Phase 1 Functional Tests: Core Database Foundation
  *
  * Pass Criteria:
- * - Write < 5ms
- * - Read < 2ms
  * - Data survives restart
+ *
+ * Latency is checked separately by `npm run test:perf` (tests/perf/).
  */
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
@@ -122,63 +122,6 @@ describe('Phase 1: Core Database Foundation', () => {
       expect(state?.bloomLevel).toBe(3);
 
       await db2.close();
-    });
-  });
-
-  // ===========================================================================
-  // Performance Tests
-  // ===========================================================================
-  describe('Performance', () => {
-    it('should write learner profile in < 5ms', async () => {
-      const start = performance.now();
-      await db.setLearnerProfile('perf-user', { name: 'Performance Test' });
-      const elapsed = performance.now() - start;
-
-      expect(elapsed).toBeLessThan(5);
-      console.log(`Write time: ${elapsed.toFixed(2)}ms`);
-    });
-
-    it('should read learner profile in < 2ms', async () => {
-      await db.setLearnerProfile('perf-user', { name: 'Performance Test' });
-
-      const start = performance.now();
-      const profile = await db.getLearnerProfile('perf-user');
-      const elapsed = performance.now() - start;
-
-      expect(profile).not.toBeNull();
-      expect(elapsed).toBeLessThan(2);
-      console.log(`Read time: ${elapsed.toFixed(2)}ms`);
-    });
-
-    it('should write concept in < 5ms', async () => {
-      const start = performance.now();
-      await db.addConcept({
-        conceptId: 'perf-concept',
-        name: 'Performance Concept',
-        domain: 'test',
-        description: 'Testing performance',
-      });
-      const elapsed = performance.now() - start;
-
-      expect(elapsed).toBeLessThan(5);
-      console.log(`Concept write time: ${elapsed.toFixed(2)}ms`);
-    });
-
-    it('should read concept in < 2ms', async () => {
-      await db.addConcept({
-        conceptId: 'perf-concept',
-        name: 'Performance Concept',
-        domain: 'test',
-        description: 'Testing',
-      });
-
-      const start = performance.now();
-      const concept = await db.getConcept('perf-concept');
-      const elapsed = performance.now() - start;
-
-      expect(concept).not.toBeNull();
-      expect(elapsed).toBeLessThan(2);
-      console.log(`Concept read time: ${elapsed.toFixed(2)}ms`);
     });
   });
 

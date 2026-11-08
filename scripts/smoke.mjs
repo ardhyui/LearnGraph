@@ -772,6 +772,9 @@ try {
     const narrow = [];
     for (const path of ['/', '/profile', '/recommendations', '/gaps', '/admin/learners', '/about']) {
       await m.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+      // Pages show a loading state without <main> until the client has hydrated
+      // and DBProvider is ready, which can happen after `networkidle`.
+      await m.locator('main').first().waitFor({ timeout: 30000 }).catch(() => {});
       const r = await fits();
       if (r.main < 350 || r.overflow > 1) narrow.push(`${path}: main ${r.main}px, overflow ${r.overflow}px`);
     }

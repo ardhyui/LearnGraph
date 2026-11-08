@@ -45,10 +45,10 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 | 3 | Riwayat belajar nyaris tidak tercatat | Satu-satunya penulis `interactions` adalah `recordJapanesePractice` | Retensi tak terukur, mode "Automatic" tak bisa dibangun, Fase 8 tak punya data |
 | 4 | Sistem bukti hanya untuk bahasa Jepang | Tabel `japanese_quizzes`, cek prefiks `jp-` di `src/server/graph.functions.ts:30` | Pola yang benar belum bisa dipakai subjek lain |
 | 5 | Hanya 10 dari 39 domain psikometrik memengaruhi rencana belajar | `trait-scores.ts`, `deriveLearningStyle`, `estimateCognitiveProfile` | 29 domain, termasuk `political_ideology` dan `dark_triad_*`, ditanyakan tanpa manfaat bagi rencana belajar |
-| 6 | Kontrol data belum lengkap | Tidak ada UI hapus akun atau persetujuan, walau `docs/SYSTEM_OVERVIEW.md` menjanjikan kontrol pengguna | Belum layak untuk pengguna selain pemilik |
-| 7 | Gerbang CI tidak andal | 4 dari 217 test, yaitu benchmark warisan (tulis < 5 ms, baca < 2 ms), gagal di `main` pada mesin ini, padahal lulus di PR #29; `scripts/ci.mjs` berhenti di langkah pertama yang gagal | `npm run ci` bergantung pada kecepatan mesin, dan build serta smoke tidak sempat berjalan |
-| 8 | Dokumen menyimpang dari kode | Penyebutan LevelDB, REST `/api/zpd`, port 3000, `/api/seed-users`, badge "37/37", `LICENSE` dan `docs/api.md` yang tidak ada | Pembaca dan agen AI mendapat arahan yang salah |
-| 9 | Klaim hasil tanpa pengukuran | README menulis "Gap detection accuracy 90%: Achieved", tetapi tidak ada kode atau test yang mengukurnya | Efektivitas produk belum diketahui |
+| 6 | Kontrol data belum lengkap | Tidak ada UI hapus akun atau persetujuan | Belum layak untuk pengguna selain pemilik |
+| 7 | Gerbang CI tidak andal | 4 dari 217 test, yaitu benchmark warisan (tulis < 5 ms, baca < 2 ms), gagal di `main` pada mesin ini, padahal lulus di PR #29; `scripts/ci.mjs` berhenti di langkah pertama yang gagal | `npm run ci` bergantung pada kecepatan mesin, dan build serta smoke tidak sempat berjalan. Diperbaiki di M0 |
+| 8 | Dokumen menyimpang dari kode | Penyebutan LevelDB, REST `/api/zpd`, port 3000, `/api/seed-users`, badge "37/37", `LICENSE` dan `docs/api.md` yang tidak ada | Pembaca dan agen AI mendapat arahan yang salah. Diperbaiki di M0 |
+| 9 | Klaim hasil tanpa pengukuran | README menulis "Gap detection accuracy 90%: Achieved", tetapi tidak ada kode atau test yang mengukurnya | Efektivitas produk belum diketahui. Klaim sudah dikoreksi di M0, pengukurannya di M1 |
 | 10 | Pengecekan prasyarat boros | `classifyConcept` membaca seluruh edge sekali per konsep lewat `getEdgesToConcept` | Melambat seiring kurikulum bertambah, terutama di Postgres jarak jauh |
 
 ## Milestone
@@ -58,11 +58,12 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 **Tujuan:** gerbang CI bisa dipercaya dan dokumen sesuai kode.
 
 - [ ] Putuskan PR #29 (unduh data CSV/JSON): rebase ke `main`, jalankan `npm run ci`, lalu merge atau tutup. Tidak ada konflik teks, tetapi hasil CI-nya mendahului PR #30.
-- [ ] Pindahkan benchmark warisan dari `npm test` ke `npm run test:perf`, dengan target yang sesuai Postgres/PGlite. Lihat bagian "Performance" di `tests/education-graph-db.test.ts`.
-- [ ] Selaraskan `README.md`, `.claude/CLAUDE.md`, dan `docs/SYSTEM_OVERVIEW.md` dengan arsitektur nyata: Postgres, server function, port 8080, jumlah test, `/japanese`.
-- [ ] Ganti klaim yang tak terukur menjadi "belum diukur".
-- [ ] Tambahkan file `LICENSE` (`README.md` dan `package.json` menyebut MIT).
-- [ ] Hapus yang tak terpakai: `zustand`, `class-variance-authority`, `src/components/ui/background-beams.tsx`.
+- [x] Pindahkan benchmark warisan dari `npm test` ke `npm run test:perf`, dengan target yang sesuai Postgres/PGlite.
+- [x] Perbaiki cek smoke mobile yang mengukur halaman sebelum `<main>` muncul.
+- [x] Selaraskan `README.md`, `.claude/CLAUDE.md`, dan `docs/SYSTEM_OVERVIEW.md` dengan arsitektur nyata: Postgres, server function, port 8080, jumlah test, `/japanese`.
+- [x] Ganti klaim yang tak terukur menjadi "belum diukur".
+- [x] Tambahkan file `LICENSE` (`README.md` dan `package.json` menyebut MIT).
+- [x] Hapus yang tak terpakai: `zustand`, `class-variance-authority`, `src/components/ui/background-beams.tsx`.
 
 **Selesai bila:**
 
