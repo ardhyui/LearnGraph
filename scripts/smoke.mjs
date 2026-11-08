@@ -964,6 +964,55 @@ try {
     check(newErrors.length === 0, 'my profile has no page errors', newErrors.join(' | '));
   }
 
+  // "Your data" on My Profile: the learner can download their own progress
+  // (CSV for a spreadsheet) and everything (JSON backup), made on the device.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
+    const box = page.getByTestId('download-my-data');
+    await box.waitFor({ timeout: 30000 }).catch(() => {});
+    const readText = async (download) => {
+      const stream = await download.createReadStream();
+      const chunks = [];
+      for await (const c of stream) chunks.push(c);
+      return Buffer.concat(chunks).toString('utf8');
+    };
+    // One click each, once React owns the buttons (repeated clicks could leave
+    // a late CSV download to be mistaken for the JSON one).
+    const csvBtn = box.getByRole('button', { name: 'Download progress (CSV)' });
+    await untilHydrated(csvBtn, 60000);
+    const [csvDl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }).catch(() => null), csvBtn.click()]);
+    const csvName = csvDl?.suggestedFilename() ?? '';
+    const csv = csvDl ? await readText(csvDl) : '';
+    const csvLines = csv.replace(/^\uFEFF/, '').trim().split(/\r?\n/);
+    check(/^learngraph-sari-smoke-\d{4}-\d{2}-\d{2}\.csv$/.test(csvName), 'my data: progress downloads as a named CSV', `"${csvName}"`);
+    check(csvLines[0]?.startsWith('Concept,Subject,Status,Mastery (%)') && csvLines.length > 1 && !/concept:/.test(csv), 'my data: CSV lists concepts by name with status and mastery', `${csvLines.length} lines`);
+    const csvNotice = await box
+      .getByText(/^Downloaded learngraph-sari-smoke-.*\.csv — \d+ concepts? with your progress\.$/)
+      .waitFor({ timeout: 15000 })
+      .then(() => true, () => false);
+    check(csvNotice, 'my data: download is confirmed in a status message');
+
+    const [jsonDl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60000 }).catch(() => null),
+      box.getByRole('button', { name: 'Download everything (JSON)' }).click(),
+    ]);
+    let data = null;
+    try {
+      data = JSON.parse(jsonDl ? await readText(jsonDl) : '');
+    } catch {
+      data = null;
+    }
+    const onlyMine = Array.isArray(data?.knowledgeStates) && data.knowledgeStates.length > 0 && data.knowledgeStates.every((st) => st.userId === data.learner.id);
+    check(
+      data?.format === 'learngraph.learner-export' && data?.learner?.name === 'Sari Smoke' && Array.isArray(data?.progress) && data.progress.length === csvLines.length - 1 && onlyMine,
+      'my data: JSON holds this learner’s profile and progress only',
+      data ? `${data.progress?.length} rows, ${data.knowledgeStates?.length} states` : 'no file',
+    );
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'my data downloads have no page errors (CSP allows them)', newErrors.join(' | '));
+  }
+
   // The optional learning-style profile leads with what the study plan reads
   // (no instrument names or "Dark Personality" up front), and saving it works
   // out a learning style that the recommendations use.

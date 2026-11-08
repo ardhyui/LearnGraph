@@ -13,6 +13,7 @@ import { ImportError, parseLearnerExport, planLearnerImport } from '../src/lib/l
 import { importLearnerFile } from '../src/lib/learner-import-apply.ts';
 import { openTestWorkspaces } from './support/graph-db.ts';
 import { saveQuestion } from '../src/lib/evidence/service.ts';
+import { buildLearnerExport } from '../src/lib/export.ts';
 
 const exportOf = (states: unknown[], profile: Record<string, unknown> = { userId: 'me-sari', name: 'Sari', tags: ['focus:mathematics'] }) =>
   JSON.stringify({
@@ -87,6 +88,49 @@ describe('learner import on PGlite', () => {
       assert.equal((await graph.getKnowledgeState('me-sari-2', 'decimals'))?.masterySource, 'manual');
       // Importing the same file again makes yet another learner.
       assert.equal((await importLearnerFile(ws.db, graph, 'owner-a', text)).learnerId, 'me-sari-3');
+    } finally {
+      await ws.close();
+    }
+  });
+
+  it('reads back a real "Download my data" file into another account', async () => {
+    const ws = await openTestWorkspaces(path.join(DIR, 'round-trip'), ['owner-x', 'owner-y']);
+    try {
+      // Account X: a learner with progress on two concepts, downloaded as JSON.
+      const from = await ws.graphFor('owner-x');
+      await from.addConcept({ conceptId: 'fractions', name: 'Fractions', domain: 'mathematics' });
+      await from.addConcept({ conceptId: 'decimals', name: 'Decimals', domain: 'mathematics' });
+      await from.setLearnerProfile('me-sari', { name: 'Sari', tags: ['focus:mathematics'] });
+      await from.setKnowledgeState('me-sari', 'fractions', { mastery: 92, reviewCount: 3 });
+      await from.setKnowledgeState('me-sari', 'decimals', { mastery: 55 });
+      const learner = await from.getLearnerProfile('me-sari');
+      assert.ok(learner);
+      const text = JSON.stringify(
+        buildLearnerExport({
+          learner,
+          states: await from.getLearnerKnowledgeStates('me-sari'),
+          concepts: await from.listConcepts(),
+          now: new Date('2026-11-08T00:00:00Z'),
+        }),
+      );
+
+      // Account Y: knows only "fractions", and has a quiz for it.
+      const to = await ws.graphFor('owner-y');
+      await to.addConcept({ conceptId: 'fractions', name: 'Fractions', domain: 'mathematics' });
+      await saveQuestion(ws.db, to, 'owner-y', { conceptId: 'fractions', prompt: 'p', options: ['1', '2'], answer: '1', explanation: '' }, randomUUID);
+      const result = await importLearnerFile(ws.db, to, 'owner-y', text);
+
+      assert.equal(result.name, 'Sari');
+      assert.equal(result.imported, 1);
+      assert.deepEqual(result.skippedConcepts, ['decimals']);
+      assert.deepEqual(result.capped, ['fractions']);
+      const imported = await to.getKnowledgeState(result.learnerId, 'fractions');
+      assert.equal(imported?.mastery, 79);
+      assert.equal(imported?.reviewCount, 3);
+      assert.equal(imported?.masterySource, 'manual');
+      assert.ok((await to.getLearnerProfile(result.learnerId))?.tags?.includes('focus:mathematics'));
+      // The original account is untouched.
+      assert.equal((await from.getKnowledgeState('me-sari', 'fractions'))?.mastery, 92);
     } finally {
       await ws.close();
     }

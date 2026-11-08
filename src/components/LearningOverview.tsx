@@ -1,7 +1,8 @@
 /**
  * "My learning" card at the top of My Profile: the subjects the plan follows
  * (with the same "Change subjects" editor as the Today panel), progress in
- * those subjects, and one clear next step back to the dashboard.
+ * those subjects, one clear next step back to the dashboard, and "Your data"
+ * downloads (CSV/JSON, see `DownloadMyData`).
  *
  * All reads go through the account-scoped graph server functions; subjects are
  * saved by `FocusEditor` (only `focus:*` tags change).
@@ -9,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, Loader2, Pencil } from 'lucide-react';
+import { DownloadMyData } from '@/components/DownloadMyData';
 import { FocusEditor } from '@/components/FocusEditor';
 import { useDB } from '@/lib/DBContext';
 import type { LearnerProfile } from '@/lib/graph/types';
@@ -188,6 +190,8 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
           )}
         </>
       )}
+
+      <DownloadMyData learnerId={learnerId} />
     </section>
   );
 }
