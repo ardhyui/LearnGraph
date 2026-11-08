@@ -229,6 +229,11 @@ Dikerjakan saat menyentuh area terkait. Rinciannya ada di `docs/ROADMAP.md`.
 
 Angka berikut menggantikan klaim yang belum terukur. Sumbernya data aplikasi sendiri, tanpa analitik pihak ketiga.
 
+Sejak 8 November angka-angka ini tampil di halaman Status, pada kartu **Learning measures** (`src/lib/evidence/measures.ts`). Angkanya dihitung per workspace dari `learning_events`, dengan target awal di sampingnya. Ada dua yang belum bisa diukur:
+
+- **Penyelesaian sesi:** mulai dan selesainya sesi belum dicatat.
+- **Hasil kuis dengan dan tanpa personalisasi:** butuh kelompok pembanding (M7). Untuk sementara, ukuran personalisasi yang tersedia adalah perbandingan buta jawaban tutor (M4).
+
 | Ukuran | Definisi | Tersedia sejak | Target awal |
 |--------|----------|----------------|-------------|
 | Retensi saat review | Persentase review jatuh tempo yang dijawab benar di kuis | M1 | Mendekati prediksi `spacing.ts` |

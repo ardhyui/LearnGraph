@@ -23,6 +23,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useDB, useDBStats } from '@/lib/DBContext';
+import { LearningMeasures } from '@/components/LearningMeasures';
 
 export const Route = createFileRoute('/status')({
   head: () => pageHead('/status'),
@@ -506,6 +507,8 @@ function StatusPage() {
                 color="bg-amber-500"
               />
             </div>
+
+            <LearningMeasures />
 
             {/* Algorithm Health */}
             <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
