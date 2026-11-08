@@ -48,6 +48,34 @@ const check = (ok, label, detail = '') => {
 
 const ANSWER_KEY = new Map(DEMO_QUESTIONS.map((q) => [q.prompt, q]));
 
+// What a page logs when the Vite dev server swaps a dependency bundle under it.
+const VITE_DEP_RELOAD = /Failed to fetch dynamically imported module|Outdated Optimize Dep/;
+
+/**
+ * Wait until React owns `locator`'s element. On a busy machine `networkidle`
+ * comes before hydration. Text typed into a form before that shows on screen
+ * but never reaches React's state (so the form later submits empty fields),
+ * and a click submits it the plain-HTML way. Call it before filling a form.
+ */
+async function untilHydrated(locator, timeout = 30000) {
+  const el = await locator.elementHandle({ timeout }).catch(() => null);
+  await locator
+    .page()
+    .waitForFunction((e) => !!e && Object.keys(e).some((k) => k.startsWith('__reactProps')), el, { timeout })
+    .catch(() => {});
+}
+
+/**
+ * Click `button` once React owns it, then wait for `shows` to become visible.
+ * (A click-and-retry loop clicks a toggle twice on a slow machine, which undoes
+ * the first click or hits the panel the first click opened.)
+ */
+async function clickWhenHydrated(button, shows, timeout = 30000) {
+  await untilHydrated(button, 60000);
+  await button.click();
+  await shows.waitFor({ state: 'visible', timeout }).catch(() => {});
+}
+
 /**
  * Answer the open concept quiz inside `scope` (all right, or all wrong), check
  * the answers and wait for the graded result. Returns the result text.
@@ -79,13 +107,41 @@ async function closeQuiz(scope) {
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
+// The dev server compiles each page on its first visit, slowly on a busy machine.
+page.setDefaultNavigationTimeout(60000);
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => {
   if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 });
 
+/**
+ * Before any check: in a fresh install the first visit makes the dev server
+ * bundle the dependencies (over half a minute on a busy machine), and it
+ * reloads the page when it finds more. Wait until /sign-in has loaded, React
+ * owns it, and it then stays put for 15 seconds.
+ */
+async function warmUpDevServer() {
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  p.setDefaultNavigationTimeout(180000);
+  let lastLoad = Date.now();
+  p.on('framenavigated', (f) => {
+    if (f === p.mainFrame()) lastLoad = Date.now();
+  });
+  const deadline = Date.now() + 240000;
+  await p.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' }).catch(() => {});
+  while (Date.now() < deadline) {
+    await untilHydrated(p.getByRole('button', { name: 'Create one' }), 60000);
+    const hydratedAt = Date.now();
+    await p.waitForTimeout(15000);
+    if (lastLoad < hydratedAt) break;
+  }
+  await ctx.close();
+}
+
 try {
+  await warmUpDevServer();
   await page.goto(`${BASE}/admin/concepts`, { waitUntil: 'networkidle' });
   await page.waitForURL(/\/sign-in/);
   await page.waitForFunction(() => document.readyState === 'complete');
@@ -129,11 +185,7 @@ try {
   }
 
   // Sign up
-  // Retry the toggle until hydrated (a click before hydration is a no-op).
-  for (let i = 0; i < 20 && !(await page.locator('#name').isVisible()); i++) {
-    await page.getByRole('button', { name: 'Create one' }).click();
-    await page.waitForTimeout(500);
-  }
+  await clickWhenHydrated(page.getByRole('button', { name: 'Create one' }), page.locator('#name'));
   await page.fill('#name', 'Smoke Tester');
   await page.fill('#email', email);
   await page.fill('#password', password);
@@ -147,11 +199,33 @@ try {
     () => check(false, 'demo data seeded into the new workspace'),
   );
 
+  // Warm-up: in a fresh install the dev server finds some dependencies only when
+  // a page first imports them, re-bundles them and reloads the open page. On a
+  // busy machine that reload lands in the middle of a check. Open every page
+  // once first, so it happens here; errors from this pass are not counted.
+  // The account pages used later (password reset) are warmed up as well.
+  {
+    const before = errors.length;
+    for (const path of [...PAGES.map(([p]) => p), '/forgot-password', '/reset-password?token=warm-up', '/privacy']) {
+      await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' }).catch(() => {});
+    }
+    errors.length = before;
+  }
+
   const h1Counts = [];
   const titles = [];
   for (const [path] of PAGES) {
-    const before = errors.length;
-    const res = await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+    let before = errors.length;
+    let res = await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+    // A late dependency reload after the warm-up is retried once: it is the dev
+    // server's doing, not the page's.
+    if (errors.slice(before).some((e) => VITE_DEP_RELOAD.test(e))) {
+      before = errors.length;
+      res = await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+    }
+    // Pages that draw on the client (the graphs) may still be rendering at
+    // `networkidle`: wait for the page title before looking.
+    await page.locator('h1').first().waitFor({ timeout: 30000 }).catch(() => {});
     const status = res?.status() ?? 0;
     // Desktop: the sidebar (or /status's own header) shows the brand; the phone
     // top bar's copy is hidden at this width, so match visible text only.
@@ -198,19 +272,17 @@ try {
         (await dev.getAttribute('aria-expanded')) === 'false',
       'navigation: learner pages shown, admin & developer tools tucked away',
     );
-    // Retry until hydrated (a click before hydration is a no-op).
-    for (let i = 0; i < 20 && (await manage.getAttribute('aria-expanded')) !== 'true'; i++) {
-      await manage.click();
-      await page.waitForTimeout(300);
-    }
+    await clickWhenHydrated(manage, link('Concepts'));
     const expanded = (await link('Concepts').isVisible()) && (await manage.getAttribute('aria-expanded')) === 'true';
     await page.reload({ waitUntil: 'networkidle' });
-    await page.waitForTimeout(500);
-    const remembered = await link('Concepts').isVisible();
+    // The saved state is applied after hydration: wait for it, don't sample.
+    const remembered = await link('Concepts').waitFor({ timeout: 30000 }).then(() => true, () => false);
     check(expanded && remembered, 'navigation: "Manage data" expands and stays open after reload');
     await page.goto(`${BASE}/tests`, { waitUntil: 'networkidle' });
+    // The group opens once the page has hydrated: wait for it, don't sample.
+    const autoOpened = await link('Functional Tests').waitFor({ timeout: 30000 }).then(() => true, () => false);
     check(
-      (await link('Functional Tests').isVisible()) && (await dev.getAttribute('aria-expanded')) === 'true',
+      autoOpened && (await dev.getAttribute('aria-expanded')) === 'true',
       'navigation: the current page’s group opens automatically',
     );
     // …and cannot be collapsed while you are on one of its pages
@@ -222,10 +294,9 @@ try {
       'navigation: the current page’s group stays open',
     );
     // Collapse "Manage data" again so later checks start from the default.
-    for (let i = 0; i < 20 && (await manage.getAttribute('aria-expanded')) !== 'false'; i++) {
-      await manage.click();
-      await page.waitForTimeout(300);
-    }
+    await untilHydrated(manage, 60000);
+    await manage.click();
+    await link('Concepts').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
     check(!(await link('Concepts').isVisible()), 'navigation: a group can be collapsed again');
     // In-app navigation updates the tab title and is announced to screen readers.
     await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
@@ -233,11 +304,7 @@ try {
     const quietOnLoad = (await announcer.innerText().catch(() => 'missing')).trim() === '';
     // Click only once React owns the link: before hydration a click is a full
     // page load, which the browser announces itself (so the announcer stays quiet).
-    await page
-      .waitForFunction((el) => !!el && Object.keys(el).some((k) => k.startsWith('__reactProps')), await link('Gap Analysis').elementHandle(), {
-        timeout: 15000,
-      })
-      .catch(() => {});
+    await untilHydrated(link('Gap Analysis'));
     await link('Gap Analysis').click();
     await page.waitForURL((u) => u.pathname === '/gaps', { timeout: 15000 });
     const said = await page
@@ -261,7 +328,12 @@ try {
     const onboarding = page.getByTestId('onboarding');
     const shown = await onboarding.waitFor({ timeout: 30000 }).then(() => true, () => false);
     const todayHidden = (await page.getByTestId('study-today').count()) === 0;
-    const prefilled = shown ? await onboarding.getByLabel('What should we call you?').inputValue() : '';
+    // The name arrives with the account after the step appears: wait for it.
+    let prefilled = '';
+    for (let i = 0; shown && !prefilled && i < 60; i++) {
+      prefilled = await onboarding.getByLabel('What should we call you?').inputValue().catch(() => '');
+      if (!prefilled) await page.waitForTimeout(250);
+    }
     check(shown && todayHidden && prefilled === 'Smoke Tester', 'onboarding: a new account is welcomed with a setup step', `name "${prefilled}"`);
     await onboarding.getByRole('button', { name: 'Explore the example learners first' }).click();
     const skipped = await page.getByTestId('study-today').waitFor({ timeout: 15000 }).then(() => true, () => false);
@@ -875,10 +947,7 @@ try {
 
     const changeBtn = card.getByRole('button', { name: 'Change subjects' });
     const editor = card.getByTestId('focus-editor');
-    for (let i = 0; i < 20 && !(await editor.isVisible().catch(() => false)); i++) {
-      await changeBtn.click();
-      await page.waitForTimeout(300);
-    }
+    await clickWhenHydrated(changeBtn, editor);
     await editor.getByRole('checkbox', { name: /Mathematics/ }).check();
     await editor.getByRole('button', { name: 'Save subjects' }).click();
     const saved = await card.getByText('Saved. Your plan now focuses on').waitFor({ timeout: 15000 }).then(() => true, () => false);
@@ -1099,11 +1168,7 @@ try {
     const drawer = m.locator('#app-sidebar');
     const menu = m.getByRole('button', { name: 'Open menu' });
     const hiddenAtStart = !(await drawer.isVisible());
-    // Retry until hydrated (a tap before hydration is a no-op).
-    for (let i = 0; i < 20 && !(await drawer.isVisible()); i++) {
-      await menu.click();
-      await m.waitForTimeout(400);
-    }
+    await clickWhenHydrated(menu, drawer);
     const opened = (await drawer.isVisible()) && (await menu.getAttribute('aria-expanded')) === 'true';
     check(hiddenAtStart && opened, 'mobile: menu button opens the navigation drawer');
     // Focus moves into the drawer and Tab cannot wander into the page behind it.
@@ -1143,8 +1208,8 @@ try {
     const res = await page.goto(`${BASE}/this-page-does-not-exist`, { waitUntil: 'networkidle' });
     const heading = await page
       .getByRole('heading', { name: 'Page not found' })
-      .isVisible()
-      .catch(() => false);
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
     const newErrors = errors.slice(before).filter((e) => !/404/.test(e));
     check(
       res?.status() === 404 && heading && newErrors.length === 0,
@@ -1329,6 +1394,7 @@ try {
     const before = errors.length;
     await page.goto(`${BASE}/profile`, { waitUntil: 'networkidle' });
     const access = page.getByTestId('api-access');
+    await untilHydrated(access.getByRole('button', { name: 'Create a read-only key' }));
     await access.getByLabel('Key name').fill('Smoke assistant');
     await access.getByRole('button', { name: 'Create a read-only key' }).click();
     const secretBox = access.getByTestId('new-api-key').getByRole('textbox');
@@ -1372,10 +1438,7 @@ try {
     const email3 = `smoke-empty-${Date.now()}@example.test`;
     const password3 = `smoke-${Math.random().toString(36).slice(2)}-pw`;
     await p3.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
-    for (let i = 0; i < 20 && !(await p3.locator('#name').isVisible()); i++) {
-      await p3.getByRole('button', { name: 'Create one' }).click();
-      await p3.waitForTimeout(500);
-    }
+    await clickWhenHydrated(p3.getByRole('button', { name: 'Create one' }), p3.locator('#name'));
     await p3.fill('#name', 'Empty Tester');
     await p3.fill('#email', email3);
     await p3.fill('#password', password3);
@@ -1406,14 +1469,16 @@ try {
     // the dev outbox in CI); the new password works and old sessions end.
     let currentPassword = password3;
     await p3.goto(`${BASE}/forgot-password`, { waitUntil: 'networkidle' });
+    await untilHydrated(p3.getByRole('button', { name: 'Send the reset link' }), 60000);
     await p3.getByLabel('Email').fill(email3);
     await p3.getByRole('button', { name: 'Send the reset link' }).click();
-    const requested = await p3.getByText('a reset link is on its way', { exact: false }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const requested = await p3.getByText('a reset link is on its way', { exact: false }).waitFor({ timeout: 30000 }).then(() => true, () => false);
     const outboxFile = process.env.DEV_EMAIL_OUTBOX;
     if (outboxFile) {
       const { readFile } = await import('node:fs/promises');
       let link = null;
-      for (let i = 0; i < 20 && !link; i++) {
+      // Up to a minute: on a busy machine the email can take longer than the page.
+      for (let i = 0; i < 120 && !link; i++) {
         const lines = (await readFile(outboxFile, 'utf8').catch(() => '')).split('\n').filter(Boolean).map((l) => JSON.parse(l));
         const mail = lines.filter((m) => m.to === email3).at(-1);
         link = mail?.text.match(/https?:\/\/\S+\/reset-password\/\S+/)?.[0] ?? null;
@@ -1422,21 +1487,25 @@ try {
       const newPassword = `${password3}-new`;
       if (link) {
         await p3.goto(link, { waitUntil: 'networkidle' });
+        await untilHydrated(p3.getByRole('button', { name: 'Save the new password' }), 60000);
         await p3.getByLabel('New password', { exact: true }).fill(newPassword);
         await p3.getByLabel('New password again').fill(newPassword);
         await p3.getByRole('button', { name: 'Save the new password' }).click();
-        const changed = await p3.getByText('Your password is changed', { exact: false }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+        // Hashing a password is slow on purpose, and slower on a busy machine:
+        // wait for the answer rather than navigate away and abort it.
+        const changed = await p3.getByText('Your password is changed', { exact: false }).waitFor({ timeout: 60000 }).then(() => true, () => false);
         // A fresh browser: the old password is refused, the new one works.
         // (Other signed-in browsers end within the 5-minute session cookie cache.)
         await ctx3.clearCookies();
         await p3.goto(`${BASE}/sign-in?redirect=%2Fprofile`, { waitUntil: 'networkidle' });
+        await untilHydrated(p3.getByRole('button', { name: 'Sign in' }), 60000);
         await p3.fill('#email', email3);
         await p3.fill('#password', password3);
         await p3.getByRole('button', { name: 'Sign in' }).click();
-        const oldRefused = await p3.getByRole('alert').waitFor({ timeout: 15000 }).then(() => true, () => false);
+        const oldRefused = await p3.getByRole('alert').waitFor({ timeout: 60000 }).then(() => true, () => false);
         await p3.fill('#password', newPassword);
         await p3.getByRole('button', { name: 'Sign in' }).click();
-        await p3.waitForURL((u) => u.pathname === '/profile', { timeout: 30000 }).catch(() => {});
+        await p3.waitForURL((u) => u.pathname === '/profile', { timeout: 60000 }).catch(() => {});
         const signedIn = new URL(p3.url()).pathname === '/profile';
         if (signedIn) currentPassword = newPassword;
         check(
@@ -1445,7 +1514,11 @@ try {
           `changed ${changed}, old refused ${oldRefused}, signed in with new ${signedIn}`,
         );
       } else {
-        check(false, 'password reset: the emailed link sets a new password (the old one stops working)', 'no reset email in the dev outbox');
+        check(
+          false,
+          'password reset: the emailed link sets a new password (the old one stops working)',
+          `no reset email in the dev outbox (form confirmed the request: ${requested})`,
+        );
       }
     } else {
       check(requested, 'password reset: a reset link can be requested');
@@ -1489,18 +1562,25 @@ try {
   check(true, 'sign-in works');
 
   // Brute-force protection: repeated wrong passwords get a friendly 429 message.
+  // The limit is 10 attempts a minute, so the 11th in a row is refused even if
+  // the counter started over here. Each attempt waits for the server's answer
+  // (the form clears its message while a request is pending).
   const ctx2 = await browser.newContext();
   const p2 = await ctx2.newPage();
   await p2.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
+  await untilHydrated(p2.getByRole('button', { name: 'Sign in' }), 60000);
   let limited = false;
-  for (let i = 0; i < 10 && !limited; i++) {
+  for (let i = 0; i < 12 && !limited; i++) {
     await p2.fill('#email', email);
     await p2.fill('#password', `wrong-password-${i}`);
+    const answer = p2
+      .waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/sign-in/email'), { timeout: 30000 })
+      .catch(() => null);
     await p2.getByRole('button', { name: 'Sign in' }).click();
-    await p2.waitForTimeout(800);
-    limited = /Too many attempts/.test((await p2.getByRole('alert').allInnerTexts()).join(' '));
+    limited = (await answer)?.status() === 429;
   }
-  check(limited, 'repeated wrong passwords are rate-limited with a friendly message');
+  const friendly = limited && (await p2.getByRole('alert').filter({ hasText: 'Too many attempts' }).waitFor({ timeout: 15000 }).then(() => true, () => false));
+  check(limited && friendly, 'repeated wrong passwords are rate-limited with a friendly message', `429 ${limited}, message ${friendly}`);
   await ctx2.close();
   await page.screenshot({ path: process.env.SMOKE_SCREENSHOT ?? '/tmp/learngraph-smoke.png' });
 } catch (err) {

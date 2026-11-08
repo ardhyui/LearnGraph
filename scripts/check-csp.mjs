@@ -42,11 +42,28 @@ export function checkPage(html, csp) {
   return problems;
 }
 
+/**
+ * GET a page, trying again (up to 3 times) when the connection drops: the
+ * server may close an idle keep-alive socket just as the next request reuses
+ * it, which a busy machine makes more likely. A server that is down still fails.
+ * @param {string} url
+ */
+async function getPage(url) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetch(url, { headers: { accept: 'text/html' } });
+    } catch (err) {
+      if (attempt >= 3) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const problems = [];
   const nonces = [];
   for (const path of PAGES) {
-    const res = await fetch(`${BASE}${path}`, { headers: { accept: 'text/html' } });
+    const res = await getPage(`${BASE}${path}`);
     const csp = res.headers.get('content-security-policy') ?? '';
     const html = await res.text();
     const scripts = (html.match(/<script\b/gi) ?? []).length;
