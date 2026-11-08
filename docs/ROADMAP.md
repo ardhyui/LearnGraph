@@ -58,7 +58,7 @@ secret, atau keputusan biaya dari pemilik ditandai 🔒 dan dilewati sampai ada 
    - Lanjutan: setelah pindah halaman di dalam aplikasi, fokus keyboard tetap di menu (sengaja, agar laci & menu tak terganggu); pertimbangkan tautan "Skip to content" di atas sidebar.
 6. Ekspor/impor data pengguna (JSON) — juga jalur migrasi data lama dari IndexedDB.
    - Sebagian: ✅ 2026-11-03 (putaran #28) — **ekspor**: bagian **Your data** di kartu My learning (My Profile): *Download progress (CSV)* & *Download everything (JSON)* untuk learner aktif.
-   - Lanjutan: **impor** file JSON (`format: learngraph.learner-export`, `version: 1`) — validasi lewat skema Zod yang sudah ada (`knowledgeStateInput`/profil), hanya menambah/menimpa learner dengan konfirmasi, tak pernah menghapus; juga jalur data lama IndexedDB.
+   - Selesai: ✅ 2026-11-08 (M3) — **impor** di Admin → Learners → "Import from a file", selalu sebagai pelajar baru (tidak pernah menimpa), dengan test round trip dari file unduhan. Rencana awalnya: **impor** file JSON (`format: learngraph.learner-export`, `version: 1`) — validasi lewat skema Zod yang sudah ada (`knowledgeStateInput`/profil), hanya menambah/menimpa learner dengan konfirmasi, tak pernah menghapus; juga jalur data lama IndexedDB.
    - Lanjutan: ekspor seluruh workspace (semua learner + konsep/prasyarat buatan sendiri) untuk guru/admin, mis. di halaman Manage data.
 
 ### P1 — Aman & andal (sisa, hanya bila ada risiko nyata)

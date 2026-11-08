@@ -1466,7 +1466,7 @@ Current state:
 - **Password reset** — "Forgot your password?" sends a one-hour link (needs `RESEND_API_KEY` and `EMAIL_FROM` in production; hidden without them)
 - **Plain-language data page** — `/privacy`, public
 
-Not built yet (Roadmap M3): data export and import (export is PR #29), interface language (D2), and a tested restore of production backups.
+Data export (My Profile → Your data: progress as CSV, everything as JSON) and import of that JSON (Admin → Learners → Import from a file, always as a new learner) are built. Not built yet (Roadmap M3): interface language (D2), and a tested restore of production backups.
 
 ---
 

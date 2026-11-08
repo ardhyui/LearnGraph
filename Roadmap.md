@@ -123,7 +123,7 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 
 **Tujuan:** orang selain pemilik bisa memakai LearnGraph dengan aman, dan aplikasi tidak menjanjikan hal yang belum ada.
 
-- [x] Impor JSON sebagai pasangan ekspor dari PR #29. Admin → Learners → "Import from a file" membaca format ekspor PR #29 (`learngraph.learner-export` v1) tanpa perlu PR itu di-merge: selalu menjadi pelajar baru, hanya konsep yang ada di workspace, dan penguasaan konsep bersoal dibatasi 79 (harus lewat kuis). Tombol unduhnya tetap menunggu keputusan PR #29.
+- [x] Impor JSON sebagai pasangan ekspor dari PR #29. Admin → Learners → "Import from a file" membaca format ekspor PR #29 (`learngraph.learner-export` v1): selalu menjadi pelajar baru, hanya konsep yang ada di workspace, dan penguasaan konsep bersoal dibatasi 79 (harus lewat kuis). Tombol unduhnya ada di My Profile → Your data sejak PR #29 di-merge, dan test round trip memastikan file unduhan terbaca oleh impor di akun lain.
 - [x] Hapus akun dan seluruh data dari UI. Foreign key `on delete cascade` sudah tersedia. "Delete my account" di My Profile (password + ketik DELETE); test memeriksa setiap tabel ber-`owner_id`, termasuk `japanese_quizzes` yang tak punya FK.
 - [x] Opsi mulai tanpa data contoh. "Start with an empty workspace" di onboarding; contoh tidak di-seed lagi.
 - [x] Profil hanya menanyakan domain yang dipakai; domain sensitif tidak aktif secara bawaan dan ada persetujuan singkat (keputusan D4). Dikerjakan sesuai rekomendasi D4: My Profile hanya menanyakan topik yang dipakai rencana belajar; topik lain (termasuk yang pribadi) baru tampil setelah pelajar setuju, dan jawaban lama bisa dihapus. Bisa diubah bila pemilik memutuskan lain.

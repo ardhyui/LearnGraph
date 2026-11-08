@@ -86,7 +86,11 @@ function PrivacyPage() {
           straight away. You can also delete single learners, concepts and progress under Manage data. Copies in backups
           made by the operator are outside what the software controls.
         </p>
-        <p>Downloading all of your data is not available yet.</p>
+        <p>
+          On My Profile, “Your data” downloads one learner’s progress as a spreadsheet (CSV), or that learner’s profile
+          and progress as a file (JSON) that can be imported again under Manage data. The file is made in your browser
+          from your own data; nothing is uploaded. There is no single download of a whole workspace yet.
+        </p>
       </Section>
     </main>
   );
