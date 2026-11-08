@@ -133,7 +133,7 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 - [x] Sembunyikan mode "Automatic" dan "Set, then adjust" sampai inferensinya benar-benar ada. Profil yang dulu memilihnya tetap melihat pilihannya.
 - [ ] Tetapkan bahasa antarmuka (keputusan D2).
 - [~] 🔒 Reset password dan verifikasi email (butuh layanan pengirim email). Kode siap: "Forgot your password?" → tautan 1 jam → password baru (sesi lama berakhir), dan email konfirmasi saat daftar. Di produksi aktif setelah `RESEND_API_KEY` dan `EMAIL_FROM` diisi (D7); tanpa itu fiturnya disembunyikan. Di dev, email dicetak ke log server.
-- [~] Kebijakan privasi singkat, dan uji pemulihan backup database produksi. Halaman publik `/privacy` ("How your data is handled") berisi hanya klaim yang berlaku di kode. Uji pemulihan backup produksi belum: butuh akses ke database produksi (D7).
+- [~] Kebijakan privasi singkat, dan uji pemulihan backup database produksi. Halaman publik `/privacy` ("How your data is handled") berisi hanya klaim yang berlaku di kode; setiap klaimnya dicocokkan dengan kode pada 8 November (lihat log `docs/ROADMAP.md`). Uji pemulihan backup produksi belum: butuh akses ke database produksi (D7).
 
 **Selesai bila:**
 
