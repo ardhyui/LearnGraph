@@ -150,3 +150,11 @@ secret, atau keputusan biaya dari pemilik ditandai 🔒 dan dilewati sampai ada 
   - Bila email dipasang, alamat dan pesan lewat Resend.
 
   README dan `docs/SYSTEM_OVERVIEW.md` sudah sesuai. Kriteria M3 lain (pemulihan password di produksi dan uji pemulihan backup) tetap menunggu D7.
+- **2026-11-09** — **Ukuran keberhasilan** (`Roadmap.md`): halaman Status kini punya kartu "Learning measures", dihitung per workspace dari `learning_events` dan ditampilkan bersama target awalnya. Isinya:
+  - retensi saat review dari kuis dan dari laporan diri;
+  - kalibrasi laporan diri (selisih keduanya dalam poin persen);
+  - kembali belajar (dari pelajar yang aktif 8–14 hari lalu, berapa yang belajar lagi dalam 7 hari terakhir);
+  - aktivasi (waktu dari akun dibuat sampai konsep pertama selesai);
+  - perbandingan buta jawaban tutor.
+
+  Penyelesaian sesi ditulis "Not recorded yet", karena rencana sesi dihitung di browser tanpa titik mulai dan selesai. Untuk mengukurnya perlu definisi produk dan perubahan model data. Tabel "Kondisi saat ini" juga diperbarui, karena baris 2, 5, 6, dan 9 sudah ditangani di M2 dan M3. Run CI pertama dihentikan Claude Code karena memori sistem hampir habis. `/tmp` di mesin ini adalah tmpfs, jadi setiap clone CI ikut memakai RAM. Run kedua di clone segar lulus penuh: typecheck, lint, test 292/292, build, CSP, dan smoke 160/160. Cek smoke baru menampilkan data dari alur smoke itu sendiri: "quizzes 100% of 1", dan konsep pertama selesai "4 minutes after the account was created" (target di bawah 5 menit).
