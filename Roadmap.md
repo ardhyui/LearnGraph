@@ -57,7 +57,7 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 
 **Tujuan:** gerbang CI bisa dipercaya dan dokumen sesuai kode.
 
-- [ ] Putuskan PR #29 (unduh data CSV/JSON): rebase ke `main`, jalankan `npm run ci`, lalu merge atau tutup. Tidak ada konflik teks, tetapi hasil CI-nya mendahului PR #30.
+- [x] Putuskan PR #29 (unduh data CSV/JSON): di-merge. `main` digabung ke branch-nya (konflik hanya di log), cek unduhannya dibuat tahan mesin lambat, ada test round trip dengan impor M3, dan `npm run ci` lulus di clone bersih (test 287/287, smoke 159/159).
 - [x] Pindahkan benchmark warisan dari `npm test` ke `npm run test:perf`, dengan target yang sesuai Postgres/PGlite.
 - [x] Perbaiki cek smoke mobile yang mengukur halaman sebelum `<main>` muncul.
 - [x] Selaraskan `README.md`, `.claude/CLAUDE.md`, dan `docs/SYSTEM_OVERVIEW.md` dengan arsitektur nyata: Postgres, server function, port 8080, jumlah test, `/japanese`.
@@ -67,8 +67,11 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 
 **Selesai bila:**
 
-- `npm run ci` hijau dari checkout bersih `main`.
-- Setiap perintah dan URL di README bisa dijalankan.
+- `npm run ci` hijau dari checkout bersih `main`. **Terpenuhi 8 November:** lulus pada tree yang identik dengan `main` `7ef9d0f` (setelah PR #32), di mesin yang sedang sibuk (load ±9 di 4 core). Hasilnya: test 278/278, build, cek CSP, smoke 154/154.
+- Setiap perintah dan URL di README bisa dijalankan. **Terpenuhi 8 November:**
+  - Kesepuluh skrip `npm run` ada. `build` sekaligus menjalankan `build:app` dan `db:migrate` di CI, dan `test:perf` lulus 7/7.
+  - Kesembilan path localhost punya route.
+  - Tautan eksternal menjawab HTTP 200, dan file yang dirujuk ada.
 
 ### M1: Bukti belajar
 
