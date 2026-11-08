@@ -49,7 +49,7 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 | 7 | Gerbang CI tidak andal | 4 dari 217 test, yaitu benchmark warisan (tulis < 5 ms, baca < 2 ms), gagal di `main` pada mesin ini, padahal lulus di PR #29; `scripts/ci.mjs` berhenti di langkah pertama yang gagal | `npm run ci` bergantung pada kecepatan mesin, dan build serta smoke tidak sempat berjalan. Diperbaiki di M0 |
 | 8 | Dokumen menyimpang dari kode | Penyebutan LevelDB, REST `/api/zpd`, port 3000, `/api/seed-users`, badge "37/37", `LICENSE` dan `docs/api.md` yang tidak ada | Pembaca dan agen AI mendapat arahan yang salah. Diperbaiki di M0 |
 | 9 | Klaim hasil tanpa pengukuran | README menulis "Gap detection accuracy 90%: Achieved", tetapi tidak ada kode atau test yang mengukurnya | Efektivitas produk belum diketahui. Klaim sudah dikoreksi di M0. Sejak M1 retensi saat review terhitung dari event; akurasi deteksi celah belum diukur |
-| 10 | Pengecekan prasyarat boros | `classifyConcept` membaca seluruh edge sekali per konsep lewat `getEdgesToConcept` | Melambat seiring kurikulum bertambah, terutama di Postgres jarak jauh |
+| 10 | Pengecekan prasyarat boros | `classifyConcept` membaca seluruh edge sekali per konsep lewat `getEdgesToConcept` | Melambat seiring kurikulum bertambah, terutama di Postgres jarak jauh. Diperbaiki di M2: edge dimuat sekali per `computeZPD` dan `detectGaps` |
 
 ## Milestone
 
@@ -104,7 +104,7 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 - [ ] Tempo dan saran istirahat sederhana dari `pacePreference` dan `attentionSpan`.
 - [ ] `scoreContentMatch()` dan `determinePresentationStrategy()` sebagai preferensi format yang bisa diubah pelajar, bukan diagnosis. Bukti bahwa mencocokkan materi dengan "gaya belajar" meningkatkan hasil masih lemah (Pashler dkk., 2008), jadi format yang dipakai dicatat di event agar efeknya bisa diuji.
 - [ ] Lengkapi satu subjek sebagai contoh utuh (keputusan D6).
-- [ ] Muat edge sekali per perhitungan ZPD, sebelum kurikulum melewati 100 konsep.
+- [x] Muat edge sekali per perhitungan ZPD, sebelum kurikulum melewati 100 konsep. Untuk 200 konsep di PGlite: `computeZPD` 1111 → 62 ms, `detectGaps` 573 → 36 ms (`npm run test:perf`).
 
 **Selesai bila:**
 

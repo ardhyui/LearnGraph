@@ -515,6 +515,50 @@ export class EducationGraphDB {
   }
 
   /**
+   * All prerequisite edges in one scan, grouped by the concept they lead to
+   * (same order as `getPrerequisites`). For algorithms that look at every
+   * concept: one query instead of one full edge scan per concept.
+   */
+  private async prerequisitesByTarget(): Promise<Map<string, PrerequisiteEdge[]>> {
+    const byTarget = new Map<string, PrerequisiteEdge[]>();
+    for (const edge of await this.listEdges()) {
+      const list = byTarget.get(edge.to);
+      if (list) list.push(edge);
+      else byTarget.set(edge.to, [edge]);
+    }
+    return byTarget;
+  }
+
+  /**
+   * `getPrerequisiteChain` over already loaded concepts and edges (no queries):
+   * breadth-first, each concept once, sorted by depth.
+   */
+  private prerequisiteChainFrom(
+    conceptId: string,
+    maxDepth: number,
+    prereqsOf: Map<string, PrerequisiteEdge[]>,
+    conceptById: Map<string, ConceptNode>,
+  ): { concept: ConceptNode; depth: number; edge: PrerequisiteEdge }[] {
+    const result: { concept: ConceptNode; depth: number; edge: PrerequisiteEdge }[] = [];
+    const visited = new Set<string>();
+    const queue: { conceptId: string; depth: number }[] = [{ conceptId, depth: 0 }];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (current.depth >= maxDepth || visited.has(current.conceptId)) continue;
+      visited.add(current.conceptId);
+      for (const edge of prereqsOf.get(current.conceptId) ?? []) {
+        if (visited.has(edge.from)) continue;
+        const concept = conceptById.get(edge.from);
+        if (concept) {
+          result.push({ concept, depth: current.depth + 1, edge });
+          queue.push({ conceptId: edge.from, depth: current.depth + 1 });
+        }
+      }
+    }
+    return result.sort((a, b) => a.depth - b.depth);
+  }
+
+  /**
    * Get direct prerequisites for a concept
    */
   async getPrerequisites(conceptId: string): Promise<PrerequisiteEdge[]> {
@@ -857,25 +901,27 @@ export class EducationGraphDB {
       throw new Error(`Learner not found: ${userId}`);
     }
 
-    // Get all concepts and learner's knowledge states
-    const concepts = await this.listConcepts();
-    const states = await this.getLearnerKnowledgeStates(userId);
+    // Get all concepts, their prerequisite edges (one scan) and the learner's knowledge states
+    const [concepts, states, prereqsOf] = await Promise.all([
+      this.listConcepts(),
+      this.getLearnerKnowledgeStates(userId),
+      this.prerequisitesByTarget(),
+    ]);
     const stateMap = new Map(states.map(s => [s.conceptId, s]));
+    const conceptById = new Map(concepts.map(c => [c.conceptId, c]));
 
     // Compute psychometric adjustments
     const psychometricAdjustments = this.adjustForPsychometrics(profile);
 
     // Partition all concepts into zones
-    const zonedConcepts: ZonedConcept[] = [];
-
-    for (const concept of concepts) {
-      const zonedConcept = await this.classifyConcept(
+    const zonedConcepts: ZonedConcept[] = concepts.map((concept) =>
+      this.classifyConcept(
         concept,
         stateMap,
-        psychometricAdjustments
-      );
-      zonedConcepts.push(zonedConcept);
-    }
+        psychometricAdjustments,
+        prereqsOf.get(concept.conceptId) ?? []
+      )
+    );
 
     // Partition into zones
     const tooEasy: ZonedConcept[] = [];
@@ -902,12 +948,10 @@ export class EducationGraphDB {
     // Generate recommendations for top ZPD concepts
     const recommendations: ZPDRecommendation[] = [];
     for (const zc of zpd.slice(0, limit)) {
-      const recommendation = await this.generateRecommendation(
-        zc,
-        profile,
-        psychometricAdjustments
+      const prereqChain = this.prerequisiteChainFrom(zc.concept.conceptId, 3, prereqsOf, conceptById);
+      recommendations.push(
+        this.generateRecommendation(zc, profile, psychometricAdjustments, prereqChain)
       );
-      recommendations.push(recommendation);
     }
 
     // Generate learning path
@@ -931,16 +975,16 @@ export class EducationGraphDB {
   /**
    * Classify a single concept into a zone for a learner
    */
-  private async classifyConcept(
+  private classifyConcept(
     concept: ConceptNode,
     stateMap: Map<string, KnowledgeState>,
-    adjustments: PsychometricAdjustments
-  ): Promise<ZonedConcept> {
+    adjustments: PsychometricAdjustments,
+    prereqs: PrerequisiteEdge[]
+  ): ZonedConcept {
     const state = stateMap.get(concept.conceptId);
     const currentMastery = state?.mastery ?? 0;
 
-    // Get prerequisites and check how many are mastered
-    const prereqs = await this.getPrerequisites(concept.conceptId);
+    // Check how many prerequisites are mastered
     const missingPrerequisites: string[] = [];
     let prereqsMasteredCount = 0;
 
@@ -1214,15 +1258,15 @@ export class EducationGraphDB {
   /**
    * Generate a recommendation for a ZPD concept
    */
-  private async generateRecommendation(
+  private generateRecommendation(
     zonedConcept: ZonedConcept,
     profile: LearnerProfile,
-    adjustments: PsychometricAdjustments
-  ): Promise<ZPDRecommendation> {
+    adjustments: PsychometricAdjustments,
+    prereqChain: { concept: ConceptNode }[]
+  ): ZPDRecommendation {
     const concept = zonedConcept.concept;
 
-    // Get prerequisite chain for context
-    const prereqChain = await this.getPrerequisiteChain(concept.conceptId, 3);
+    // Prerequisite chain for context ("First learn: A → B → C")
     const prerequisiteChain = prereqChain.map(p => p.concept.name);
 
     // Estimate mastery time based on difficulty and learner profile
@@ -1491,8 +1535,11 @@ export class EducationGraphDB {
       throw new Error(`Learner not found: ${userId}`);
     }
 
-    const concepts = await this.listConcepts();
-    const states = await this.getLearnerKnowledgeStates(userId);
+    const [concepts, states, prereqsOf] = await Promise.all([
+      this.listConcepts(),
+      this.getLearnerKnowledgeStates(userId),
+      this.prerequisitesByTarget(),
+    ]);
     const stateMap = new Map(states.map(s => [s.conceptId, s]));
     const now = new Date();
 
@@ -1507,7 +1554,7 @@ export class EducationGraphDB {
       // Check for missing knowledge (never learned)
       if ((type === 'all' || type === 'missing') && !state) {
         // Only flag as missing if prerequisites are met (otherwise it's just "not ready yet")
-        const prereqs = await this.getPrerequisites(concept.conceptId);
+        const prereqs = prereqsOf.get(concept.conceptId) ?? [];
         let prereqsMet = true;
 
         for (const prereq of prereqs) {
