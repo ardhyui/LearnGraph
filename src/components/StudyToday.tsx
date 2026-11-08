@@ -1,21 +1,20 @@
 /**
  * Dashboard "Today" panel — the core study loop for one learner:
  * progress at a glance, reviews due now (spaced repetition), and what to
- * learn next (ZPD). Self-reports are saved through `setKnowledgeState`
- * (server-validated, scoped to the signed-in account) and the panel reloads.
+ * learn next (ZPD). Concepts with quiz questions are learned and reviewed
+ * with a short quiz graded on the server; others take a self-report
+ * (decision D5). Both go through server functions that also log the event,
+ * scoped to the signed-in account, and the panel reloads.
  */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useRouteContext } from '@tanstack/react-router';
 import { CheckCircle2, Clock, Loader2, Pencil, RefreshCw, RotateCcw, Sparkles, Target, UserPlus } from 'lucide-react';
+import { ConceptQuiz, type ConceptQuizResult } from '@/components/ConceptQuiz';
 import { FocusEditor } from '@/components/FocusEditor';
 import { Onboarding } from '@/components/Onboarding';
 import { useDB, useLearners } from '@/lib/DBContext';
 import type { ConceptNode, KnowledgeState, ZPDRecommendation } from '@/lib/graph/types';
 import {
-  applyReviewOutcome,
-  applySnooze,
-  applyStudyOutcome,
-  applyUnsnooze,
   focusAfterAnswer,
   summarizeProgress,
   type ProgressSummary,
@@ -23,6 +22,8 @@ import {
   type SnoozeOutcome,
   type StudyOutcome,
 } from '@/lib/study';
+import { evidenceMode, quizResultNotice } from '@/lib/evidence/labels';
+import { getQuizOverview, recordStudyOutcome } from '@/server/evidence.functions';
 import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
 import { priorityLabel, reviewSummary, snoozedSummary } from '@/lib/gaps';
@@ -62,6 +63,14 @@ interface TodayData {
   /** Snoozed reviews and when each comes back (soonest first) — not counted as due. */
   snoozed: SnoozedReview[];
   next: ZPDRecommendation[];
+  /** Quiz questions per concept id: concepts listed here are learned by quiz. */
+  quizCounts: Record<string, number>;
+}
+
+/** The quiz open in one of the lists (one at a time). */
+interface OpenQuiz {
+  conceptId: string;
+  list: TodayList;
 }
 
 function readStored(key: string): string | null {
@@ -101,6 +110,7 @@ export function StudyToday() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [editingFocus, setEditingFocus] = useState(false);
+  const [quiz, setQuiz] = useState<OpenQuiz | null>(null);
   const selectId = useId();
   const changeSubjectsRef = useRef<HTMLButtonElement>(null);
   const activeLearnerIdRef = useRef<string | null>(null);
@@ -128,11 +138,12 @@ export function StudyToday() {
     setLoading(true);
     setError(null);
     try {
-      const [allConcepts, states, queue, zpd] = await Promise.all([
+      const [allConcepts, states, queue, zpd, overview] = await Promise.all([
         db.listConcepts(),
         db.getLearnerKnowledgeStates(learnerId),
         db.getReviewQueue(learnerId, { limit: 5 }),
         db.computeZPD(learnerId, { limit: focusKey ? 200 : 8 }),
+        getQuizOverview(),
       ]);
       if (seq !== requestSeq.current) return;
       // Progress and "learn next" follow the learner's chosen subjects;
@@ -168,6 +179,7 @@ export function StudyToday() {
           .filter((r) => !queue.queue.some((q) => q.conceptId === r.concept.conceptId))
           .filter((r) => !postponed.has(r.concept.conceptId))
           .slice(0, 3),
+        quizCounts: overview.counts,
       });
     } catch (err) {
       if (seq !== requestSeq.current) return;
@@ -187,6 +199,7 @@ export function StudyToday() {
   // (Not cleared on subject changes: that reload is announced by its own notice.)
   useEffect(() => {
     setNotice(null);
+    setQuiz(null);
     pendingFocus.current = null;
   }, [learnerId]);
 
@@ -216,13 +229,17 @@ export function StudyToday() {
     closeFocusEditor();
   };
 
-  const onboarded = async (id: string, name: string) => {
+  const onboarded = async (id: string, name: string, basicsToQuiz: number) => {
     // Reload the list first, so the welcome step doesn't flash back while the
     // new learner is not in it yet.
     await refreshLearners();
     setLearnerId(id);
     setOnboardingOpen(false);
-    setWelcome(`Welcome, ${name}! Here is your plan — start with the first concept under “Learn next”.`);
+    setWelcome(
+      basicsToQuiz > 0
+        ? `Welcome, ${name}! Here is your plan — already know the basics? Pass their quick quiz under “Learn next” to skip ahead.`
+        : `Welcome, ${name}! Here is your plan — start with the first concept under “Learn next”.`,
+    );
   };
 
   const skipOnboarding = () => {
@@ -271,14 +288,8 @@ export function StudyToday() {
     setNotice(null);
     setWelcome(null);
     try {
-      const prior = data.states.find((s) => s.conceptId === concept.conceptId);
-      const patch =
-        outcome === 'snooze'
-          ? applySnooze()
-          : outcome === 'remembered' || outcome === 'forgot'
-            ? applyReviewOutcome(prior, outcome)
-            : applyStudyOutcome(prior, outcome);
-      await db.setKnowledgeState(learnerId, concept.conceptId, patch);
+      // The server works out the new state from the stored one and logs the event.
+      await recordStudyOutcome({ data: { learnerId, conceptId: concept.conceptId, outcome } });
       setNotice(NOTICES[outcome](concept.name));
       await load();
     } catch (err) {
@@ -303,8 +314,7 @@ export function StudyToday() {
     setWelcome(null);
     try {
       for (const id of ids) {
-        const prior = data.states.find((s) => s.conceptId === id);
-        await db.setKnowledgeState(learnerId, id, applyUnsnooze(prior));
+        await recordStudyOutcome({ data: { learnerId, conceptId: id, outcome: 'unsnooze' } });
       }
       // Switched to another learner while saving: don't announce it on their plan.
       if (activeLearnerIdRef.current !== learnerId) return;
@@ -322,6 +332,40 @@ export function StudyToday() {
     } finally {
       setBusy(null);
     }
+  };
+
+  const openQuiz = (conceptId: string, list: TodayList) => {
+    setNotice(null);
+    setWelcome(null);
+    setQuiz({ conceptId, list });
+  };
+
+  /** Back to the button that opened the quiz (nothing changed). */
+  const cancelQuiz = () => {
+    const open = quiz;
+    setQuiz(null);
+    if (!open) return;
+    requestAnimationFrame(() => {
+      const item = Array.from(listRefs.current[open.list]?.children ?? []).find(
+        (li) => li instanceof HTMLElement && li.dataset.conceptId === open.conceptId,
+      );
+      item?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
+    });
+  };
+
+  /** "Done" after a graded quiz: announce the result and reload the lists. */
+  const finishQuiz = async (result: ConceptQuizResult) => {
+    const open = quiz;
+    if (!open || !learnerId || data?.learnerId !== learnerId) return;
+    pendingFocus.current = {
+      learnerId,
+      list: open.list,
+      conceptId: open.conceptId,
+      before: open.list === 'reviews' ? data.reviews.map((r) => r.conceptId) : data.next.map((r) => r.concept.conceptId),
+    };
+    setQuiz(null);
+    setNotice(quizResultNotice(result));
+    await load();
   };
 
   // Only the first load shows the placeholder; a later refresh (after saving
@@ -515,7 +559,9 @@ export function StudyToday() {
               className="space-y-2"
               aria-label="Reviews due"
             >
-              {current.reviews.map((item) => (
+              {current.reviews.map((item) => {
+                const mode = evidenceMode(item.concept, current.quizCounts);
+                return (
                 <li key={item.conceptId} data-concept-id={item.conceptId} className="rounded-xl border border-border/50 bg-background/40 p-3">
                   <p className="flex flex-wrap items-center gap-2 font-medium text-foreground">
                     {item.concept.name}
@@ -528,34 +574,59 @@ export function StudyToday() {
                   <p className="text-xs text-muted-foreground">
                     {reviewSummary(item.nextReviewDate, item.predictedRetention, new Date())}
                   </p>
+                  {mode === 'elsewhere' && <EvidenceElsewhere domain={item.concept.domain} />}
                   <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={`How did reviewing ${item.concept.name} go?`}>
+                    {mode === 'quiz' && (
+                      <ActionButton
+                        busy={false}
+                        disabled={!!busy || !!quiz}
+                        onClick={() => openQuiz(item.conceptId, 'reviews')}
+                        tone="good"
+                      >
+                        Review with a quiz
+                      </ActionButton>
+                    )}
+                    {mode === 'self-report' && (
+                      <>
+                        <ActionButton
+                          busy={busy === item.conceptId}
+                          disabled={!!busy || !!quiz}
+                          onClick={() => save(item.concept, 'remembered')}
+                          tone="good"
+                        >
+                          I remembered it
+                        </ActionButton>
+                        <ActionButton
+                          busy={false}
+                          disabled={!!busy || !!quiz}
+                          onClick={() => save(item.concept, 'forgot')}
+                          tone="neutral"
+                        >
+                          I forgot
+                        </ActionButton>
+                      </>
+                    )}
                     <ActionButton
-                      busy={busy === item.conceptId}
-                      disabled={!!busy}
-                      onClick={() => save(item.concept, 'remembered')}
-                      tone="good"
-                    >
-                      I remembered it
-                    </ActionButton>
-                    <ActionButton
-                      busy={false}
-                      disabled={!!busy}
-                      onClick={() => save(item.concept, 'forgot')}
-                      tone="neutral"
-                    >
-                      I forgot
-                    </ActionButton>
-                    <ActionButton
-                      busy={false}
-                      disabled={!!busy}
+                      busy={mode !== 'self-report' && busy === item.conceptId}
+                      disabled={!!busy || !!quiz}
                       onClick={() => save(item.concept, 'snooze')}
                       tone="quiet"
                     >
                       Remind me tomorrow
                     </ActionButton>
                   </div>
+                  {quiz?.list === 'reviews' && quiz.conceptId === item.conceptId && (
+                    <ConceptQuiz
+                      learnerId={current.learnerId}
+                      conceptId={item.conceptId}
+                      conceptName={item.concept.name}
+                      onFinished={finishQuiz}
+                      onCancel={cancelQuiz}
+                    />
+                  )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
           {current && current.snoozed.length > 0 && (
@@ -627,7 +698,9 @@ export function StudyToday() {
               className="space-y-2"
               aria-label="Recommended next concepts"
             >
-              {current.next.map((rec) => (
+              {current.next.map((rec) => {
+                const mode = evidenceMode(rec.concept, current.quizCounts);
+                return (
                 <li key={rec.concept.conceptId} data-concept-id={rec.concept.conceptId} className="rounded-xl border border-border/50 bg-background/40 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-medium text-foreground">{rec.concept.name}</p>
@@ -636,26 +709,51 @@ export function StudyToday() {
                     </span>
                   </div>
                   {rec.reasons[0] && <p className="text-xs text-muted-foreground">{rec.reasons[0]}</p>}
-                  <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={`After studying ${rec.concept.name}`}>
-                    <ActionButton
-                      busy={busy === rec.concept.conceptId}
-                      disabled={!!busy}
-                      onClick={() => save(rec.concept, 'got-it')}
-                      tone="good"
-                    >
-                      I've got it
-                    </ActionButton>
-                    <ActionButton
-                      busy={false}
-                      disabled={!!busy}
-                      onClick={() => save(rec.concept, 'started')}
-                      tone="neutral"
-                    >
-                      Still learning
-                    </ActionButton>
-                  </div>
+                  {mode === 'quiz' && (
+                    <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={`After studying ${rec.concept.name}`}>
+                      <ActionButton
+                        busy={false}
+                        disabled={!!busy || !!quiz}
+                        onClick={() => openQuiz(rec.concept.conceptId, 'next')}
+                        tone="good"
+                      >
+                        Take the quick quiz
+                      </ActionButton>
+                    </div>
+                  )}
+                  {mode === 'elsewhere' && <EvidenceElsewhere domain={rec.concept.domain} />}
+                  {mode === 'self-report' && (
+                    <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={`After studying ${rec.concept.name}`}>
+                      <ActionButton
+                        busy={busy === rec.concept.conceptId}
+                        disabled={!!busy || !!quiz}
+                        onClick={() => save(rec.concept, 'got-it')}
+                        tone="good"
+                      >
+                        I've got it
+                      </ActionButton>
+                      <ActionButton
+                        busy={false}
+                        disabled={!!busy || !!quiz}
+                        onClick={() => save(rec.concept, 'started')}
+                        tone="neutral"
+                      >
+                        Still learning
+                      </ActionButton>
+                    </div>
+                  )}
+                  {quiz?.list === 'next' && quiz.conceptId === rec.concept.conceptId && (
+                    <ConceptQuiz
+                      learnerId={current.learnerId}
+                      conceptId={rec.concept.conceptId}
+                      conceptName={rec.concept.name}
+                      onFinished={finishQuiz}
+                      onCancel={cancelQuiz}
+                    />
+                  )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
           <Link
@@ -677,6 +775,24 @@ const NOTICES: Record<StudyOutcome | ReviewOutcome | SnoozeOutcome, (name: strin
   forgot: (n) => `No problem — “${n}” will come back tomorrow so it sticks.`,
   snooze: (n) => `Okay — “${n}” is moved to tomorrow. Your progress on it is unchanged.`,
 };
+
+/** A concept whose evidence comes from its own page (e.g. Japanese topics). */
+function EvidenceElsewhere({ domain }: { domain: string }) {
+  return (
+    <p className="mt-1 text-xs text-muted-foreground">
+      Progress here comes from its own practice page
+      {domain === 'japanese' ? (
+        <>
+          {' '}—{' '}
+          <Link to="/japanese" className="font-medium text-primary underline">
+            open the Japanese page
+          </Link>
+        </>
+      ) : null}
+      .
+    </p>
+  );
+}
 
 function Placeholder({ loading }: { loading: boolean }) {
   return (

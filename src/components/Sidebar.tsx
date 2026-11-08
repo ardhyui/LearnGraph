@@ -23,6 +23,7 @@ import {
   X,
   Database,
   ChevronRight,
+  ListChecks,
   type LucideIcon,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -58,6 +59,7 @@ const icons: Record<NavIcon, LucideIcon> = {
   database: Database,
   activity: Activity,
   test: TestTube2,
+  quiz: ListChecks,
 };
 
 const navItemVariants = {

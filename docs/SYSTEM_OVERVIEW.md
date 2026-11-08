@@ -61,9 +61,10 @@ There is no public REST API yet, so try it in the browser:
 1. Run `npm install` and `npm run dev`, then open http://localhost:8080.
 2. Click **Create one** and sign up. Every new account gets a workspace with example learners and concepts.
 3. Under **Let's set up your learning plan**, enter your name, pick subjects and a starting point, then choose **Start learning**.
-4. The **Today** panel shows **Learn next**, with concepts whose prerequisites you already meet. Reviews appear under **Review now** once they fall due.
-5. Open **Gap Analysis** (`/gaps`) to see what you have not started, are still learning, or should review.
+4. The **Today** panel shows **Learn next**, with concepts whose prerequisites you already meet. Reviews appear under **Review now** once they fall due. The example concepts have quiz questions, so you pass a short quiz (graded on the server) instead of marking them as known.
+5. Open **Gap Analysis** (`/gaps`) to see what you have not started, are still learning, or should review, and where each mastery value came from (quiz or self-report).
 6. Open **Knowledge Graph** (`/graph`) to see the concepts with your progress overlaid.
+7. Open **Manage data → Quiz Questions** (`/admin/questions`) to edit a concept's question bank.
 
 ---
 
@@ -719,7 +720,8 @@ const context = await db.getRAGContext('user-123', 'explain algebra');
 There is no public REST API yet. The UI calls TanStack Start server functions, each of which requires a signed-in session and only touches that account's data:
 
 - `graphCall({ method, args })` - Runs one whitelisted `EducationGraphDB` method (`src/lib/graph/methods.ts`), with arguments validated in `src/lib/graph/rpc-schemas.ts`
-- `seedDemoData()` - Seeds example data into an empty workspace
+- `seedDemoData()` - Seeds example data into an empty workspace, and the example quiz questions once
+- Evidence functions (`src/server/evidence.functions.ts`) - `startConceptQuiz` / `submitConceptQuiz` (graded on the server), `recordStudyOutcome` (self-reports, snoozes), the question bank editor, and `getLearningStats` (retention at review time from the event log)
 - `getCurrentUser()` - Returns the session user
 - `/api/auth/*` - Better Auth endpoints
 

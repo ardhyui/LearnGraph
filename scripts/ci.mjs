@@ -58,7 +58,7 @@ async function smoke() {
       console.error(`dev server did not start on ${BASE}\n${log}`);
       return 1;
     }
-    const code = await run('node', ['scripts/smoke.mjs'], { env: { ...ciEnv, BASE_URL: BASE } });
+    const code = await run('node', ['--experimental-strip-types', 'scripts/smoke.mjs'], { env: { ...ciEnv, BASE_URL: BASE } });
     if (code !== 0) console.error(`--- dev server log ---\n${log.slice(-8000)}`);
     return code;
   } finally {

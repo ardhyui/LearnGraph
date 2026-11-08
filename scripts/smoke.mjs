@@ -8,6 +8,8 @@
  *   npm run smoke          # or: BASE_URL=http://127.0.0.1:8081 npm run smoke
  */
 import { chromium } from 'playwright';
+// Answer key for the example quizzes (TypeScript, so run with --experimental-strip-types).
+import { DEMO_QUESTIONS } from '../src/lib/evidence/demo-questions.ts';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8080';
 const PAGES = [
@@ -17,6 +19,7 @@ const PAGES = [
   ['/admin/psychometrics', null],
   ['/admin/concepts', null],
   ['/admin/prerequisites', null],
+  ['/admin/questions', null],
   ['/admin/states', null],
   ['/recommendations', null],
   ['/gaps', null],
@@ -38,6 +41,37 @@ const check = (ok, label, detail = '') => {
   results.push(`${ok ? 'PASS' : 'FAIL'} ${label}${detail ? ` — ${detail}` : ''}`);
   if (!ok) failed = true;
 };
+
+const ANSWER_KEY = new Map(DEMO_QUESTIONS.map((q) => [q.prompt, q]));
+
+/**
+ * Answer the open concept quiz inside `scope` (all right, or all wrong), check
+ * the answers and wait for the graded result. Returns the result text.
+ */
+async function answerQuiz(scope, { right }) {
+  const quiz = scope.getByTestId('concept-quiz');
+  const groups = quiz.getByRole('group');
+  await groups.first().waitFor({ timeout: 15000 });
+  const n = await groups.count();
+  for (let i = 0; i < n; i++) {
+    const group = groups.nth(i);
+    const prompt = (await group.locator('legend').innerText()).replace(/^\d+\.\s*/, '').trim();
+    const q = ANSWER_KEY.get(prompt);
+    if (!q) throw new Error(`no answer key for quiz question "${prompt}"`);
+    const pick = right ? q.answer : q.options.find((o) => o !== q.answer);
+    await group.getByRole('radio', { name: pick, exact: true }).check();
+  }
+  await quiz.getByRole('button', { name: 'Check my answers' }).click();
+  const result = quiz.getByTestId('quiz-result');
+  await result.waitFor({ timeout: 15000 });
+  return result.innerText();
+}
+
+/** "Done" on a graded quiz: the Today panel announces the result and reloads. */
+async function closeQuiz(scope) {
+  await scope.getByTestId('quiz-result').getByRole('button', { name: 'Done' }).click();
+  await scope.getByTestId('concept-quiz').waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
+}
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
@@ -211,10 +245,12 @@ try {
     check(newErrors.length === 0, 'onboarding has no page errors', newErrors.join(' | '));
   }
 
-  // Dashboard "Today": the core study loop. The demo learner's progress is
-  // shown (seeded states belong to the demo learners), a due review can be
-  // marked as remembered, and "I've got it" on a recommended concept raises
-  // the mastered count — all saved server-side and reloaded.
+  // Dashboard "Today": the core study loop with quiz evidence (Roadmap M1).
+  // The demo learner's progress is shown (seeded states belong to the demo
+  // learners). Example concepts have quiz questions, so they offer a quiz
+  // instead of self-report buttons: a due review is answered by quiz, a failed
+  // quiz leaves the mastered count alone and a passed one raises it — all
+  // graded and saved server-side, then reloaded.
   {
     const before = errors.length;
     await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
@@ -233,14 +269,18 @@ try {
         'dashboard: a due review says how late it is in plain words',
         firstReview.replace(/\s+/g, ' ').slice(0, 80),
       );
-      await reviews.first().getByRole('button', { name: 'I remembered it' }).click();
+      const selfReport = await today.getByRole('button', { name: /I remembered it|I've got it|I forgot|Still learning/ }).count();
+      check(selfReport === 0, 'dashboard: quiz-checked concepts offer a quiz, not self-report buttons', `${selfReport} self-report buttons`);
+      await reviews.first().getByRole('button', { name: 'Review with a quiz' }).click();
+      const result = await answerQuiz(today, { right: true });
+      await closeQuiz(today);
       const saved = await today
         .getByText('will come back after a longer break', { exact: false })
         .waitFor({ timeout: 15000 })
         .then(() => true, () => false);
-      check(saved, 'dashboard: a due review can be marked as remembered');
+      check(/passed/.test(result) && saved, 'dashboard: a due review is answered with a quiz graded on the server', result.split('\n')[0]);
     } else {
-      check(false, 'dashboard: a due review can be marked as remembered', 'no reviews due for the demo learner');
+      check(false, 'dashboard: a due review is answered with a quiz graded on the server', 'no reviews due for the demo learner');
     }
 
     // Reviewed concepts unlock new ones: keep reviewing until something is
@@ -248,26 +288,79 @@ try {
     // only some of the demo learner's reviews are due).
     const next = today.getByRole('list', { name: 'Recommended next concepts' }).getByRole('listitem');
     for (let i = 0; i < 8 && !(await next.count()) && (await reviews.count()) > 0; i++) {
-      await reviews.first().getByRole('button', { name: 'I remembered it' }).click();
+      await reviews.first().getByRole('button', { name: 'Review with a quiz' }).click();
+      await answerQuiz(today, { right: true });
+      await closeQuiz(today);
       await page.waitForTimeout(1500);
     }
     await next.first().waitFor({ timeout: 15000 }).catch(() => {});
     if ((await next.count()) > 0) {
-      const beforeGotIt = Number(await mastered.innerText());
-      await next.first().getByRole('button', { name: "I've got it" }).click();
-      await today.getByText('is marked as mastered', { exact: false }).waitFor({ timeout: 15000 }).catch(() => {});
+      const name = (await next.first().locator('p').first().innerText()).trim();
+      const item = next.filter({ hasText: name });
+      const beforeQuiz = Number(await mastered.innerText());
+      await item.getByRole('button', { name: 'Take the quick quiz' }).click();
+      const failedResult = await answerQuiz(today, { right: false });
+      await closeQuiz(today);
+      await today.getByText('not passed yet', { exact: false }).first().waitFor({ timeout: 15000 }).catch(() => {});
+      await item.getByRole('button', { name: 'Take the quick quiz' }).waitFor({ timeout: 15000 }).catch(() => {});
+      const afterFail = Number(await mastered.innerText());
+      check(
+        /not passed yet/.test(failedResult) && afterFail === beforeQuiz && (await item.count()) > 0,
+        'dashboard: a failed quiz does not mark the concept mastered',
+        `"${name}", ${beforeQuiz} → ${afterFail} mastered`,
+      );
+      await item.getByRole('button', { name: 'Take the quick quiz' }).click();
+      const passedResult = await answerQuiz(today, { right: true });
+      await closeQuiz(today);
       await page.waitForFunction(
         (n) => Number(document.querySelector('[data-testid="mastered-count"]')?.textContent) > n,
-        beforeGotIt,
+        beforeQuiz,
         { timeout: 15000 },
       ).catch(() => {});
-      const masteredAfter = Number(await mastered.innerText());
-      check(masteredAfter > beforeGotIt, 'dashboard: "I\'ve got it" raises the mastered count', `${beforeGotIt} → ${masteredAfter}`);
+      const afterPass = Number(await mastered.innerText());
+      check(
+        /passed/.test(passedResult) && afterPass > beforeQuiz,
+        'dashboard: passing the quick quiz raises the mastered count',
+        `"${name}", ${beforeQuiz} → ${afterPass} mastered`,
+      );
     } else {
-      check(false, 'dashboard: "I\'ve got it" raises the mastered count', 'no recommended concept');
+      check(false, 'dashboard: passing the quick quiz raises the mastered count', 'no recommended concept');
     }
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'dashboard study loop has no page errors', newErrors.join(' | '));
+  }
+
+  // Mastery says where it came from (Roadmap M1, decision D5): Gap Analysis
+  // labels quiz results and the rest, and counts due reviews answered by quiz.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
+    const sources = page.getByTestId('mastery-source');
+    await sources.first().waitFor({ timeout: 30000 }).catch(() => {});
+    const labels = await sources.allInnerTexts();
+    const retention = await page.getByTestId('review-retention').innerText().catch(() => '');
+    check(
+      labels.length > 0 && labels.every((l) => /From quizzes|Self-reported|Set by hand|Not quiz-checked|From practice notes|Synced from Michi/.test(l)),
+      'gaps: each mastery says where it came from',
+      labels.slice(0, 3).join('; '),
+    );
+    check(/By quiz: \d+ of \d+ due reviews? answered correctly/.test(retention), 'gaps: due reviews answered by quiz are counted from the event log', retention.replace(/\s+/g, ' '));
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'mastery sources have no page errors', newErrors.join(' | '));
+  }
+
+  // Admin → Quiz Questions: the example concepts have a bank, and a question
+  // can be added, which makes a concept quiz-checked.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/admin/questions`, { waitUntil: 'networkidle' });
+    const conceptPicker = page.getByLabel('Concept', { exact: true });
+    await conceptPicker.waitFor({ timeout: 30000 });
+    await page.getByRole('list', { name: /^Questions for / }).waitFor({ timeout: 15000 }).catch(() => {});
+    const exampleCount = await page.getByRole('list', { name: /^Questions for / }).locator(':scope > li').count();
+    check(exampleCount >= 3, 'questions: the example concepts come with quiz questions', `${exampleCount} questions`);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'question editor has no page errors', newErrors.join(' | '));
   }
 
   // "Remind me tomorrow": a due review can be postponed without answering it.
@@ -437,7 +530,7 @@ try {
 
   // Onboarding, for real: create my own plan (name, one subject, "I know the
   // basics"). The plan switches to the new learner, follows the chosen subject,
-  // starts with the basics already known, and is remembered after a reload.
+  // offers the basics as quick quizzes, and is remembered after a reload.
   {
     const before = errors.length;
     await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
@@ -465,9 +558,13 @@ try {
     const mastered = Number(await today.getByTestId('mastered-count').innerText().catch(() => '0'));
     const nextItems = today.getByRole('list', { name: 'Recommended next concepts' }).getByRole('listitem');
     await nextItems.first().waitFor({ timeout: 15000 }).catch(() => {});
+    // The math basics are quiz-checked: "I know the basics" doesn't claim them,
+    // the plan offers their quick quiz instead (decision D5).
+    const welcomeText = await today.getByText('Welcome, Sari Smoke!', { exact: false }).innerText().catch(() => '');
+    const quizOffered = await nextItems.first().getByRole('button', { name: 'Take the quick quiz' }).count();
     check(
-      /Mathematics/.test(focusText) && mastered > 0 && (await nextItems.count()) > 0,
-      'onboarding: plan follows the chosen subject and skips the basics',
+      /Mathematics/.test(focusText) && mastered === 0 && quizOffered > 0 && /quick quiz/.test(welcomeText),
+      'onboarding: plan follows the chosen subject and offers the quiz-checked basics as quick quizzes',
       `focus "${focusText}", ${mastered} mastered, ${await nextItems.count()} to learn next`,
     );
     await page.reload({ waitUntil: 'networkidle' });

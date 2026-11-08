@@ -27,6 +27,7 @@ import { Route as AdminConceptsRouteImport } from './routes/admin/concepts'
 import { Route as AdminLearnersRouteImport } from './routes/admin/learners'
 import { Route as AdminPrerequisitesRouteImport } from './routes/admin/prerequisites'
 import { Route as AdminPsychometricsRouteImport } from './routes/admin/psychometrics'
+import { Route as AdminQuestionsRouteImport } from './routes/admin/questions'
 import { Route as AdminStatesRouteImport } from './routes/admin/states'
 import { Route as ApiJapaneseBackupRouteImport } from './routes/api/japanese-backup'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -121,6 +122,11 @@ const AdminPsychometricsRoute = AdminPsychometricsRouteImport.update({
   path: '/admin/psychometrics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminQuestionsRoute = AdminQuestionsRouteImport.update({
+  id: '/admin/questions',
+  path: '/admin/questions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminStatesRoute = AdminStatesRouteImport.update({
   id: '/admin/states',
   path: '/admin/states',
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/admin/learners': typeof AdminLearnersRoute
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
+  '/admin/questions': typeof AdminQuestionsRoute
   '/admin/states': typeof AdminStatesRoute
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByTo {
   '/admin/learners': typeof AdminLearnersRoute
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
+  '/admin/questions': typeof AdminQuestionsRoute
   '/admin/states': typeof AdminStatesRoute
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -203,6 +211,7 @@ export interface FileRoutesById {
   '/admin/learners': typeof AdminLearnersRoute
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
+  '/admin/questions': typeof AdminQuestionsRoute
   '/admin/states': typeof AdminStatesRoute
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -228,6 +237,7 @@ export interface FileRouteTypes {
     | '/admin/learners'
     | '/admin/prerequisites'
     | '/admin/psychometrics'
+    | '/admin/questions'
     | '/admin/states'
     | '/api/japanese-backup'
     | '/api/auth/$'
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/admin/learners'
     | '/admin/prerequisites'
     | '/admin/psychometrics'
+    | '/admin/questions'
     | '/admin/states'
     | '/api/japanese-backup'
     | '/api/auth/$'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/admin/learners'
     | '/admin/prerequisites'
     | '/admin/psychometrics'
+    | '/admin/questions'
     | '/admin/states'
     | '/api/japanese-backup'
     | '/api/auth/$'
@@ -298,6 +310,7 @@ export interface RootRouteChildren {
   AdminLearnersRoute: typeof AdminLearnersRoute
   AdminPrerequisitesRoute: typeof AdminPrerequisitesRoute
   AdminPsychometricsRoute: typeof AdminPsychometricsRoute
+  AdminQuestionsRoute: typeof AdminQuestionsRoute
   AdminStatesRoute: typeof AdminStatesRoute
   ApiJapaneseBackupRoute: typeof ApiJapaneseBackupRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -431,6 +444,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPsychometricsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/questions': {
+      id: '/admin/questions'
+      path: '/admin/questions'
+      fullPath: '/admin/questions'
+      preLoaderRoute: typeof AdminQuestionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/states': {
       id: '/admin/states'
       path: '/admin/states'
@@ -474,6 +494,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminLearnersRoute: AdminLearnersRoute,
   AdminPrerequisitesRoute: AdminPrerequisitesRoute,
   AdminPsychometricsRoute: AdminPsychometricsRoute,
+  AdminQuestionsRoute: AdminQuestionsRoute,
   AdminStatesRoute: AdminStatesRoute,
   ApiJapaneseBackupRoute: ApiJapaneseBackupRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

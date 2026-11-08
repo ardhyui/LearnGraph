@@ -20,7 +20,7 @@
     "format": "prettier --write .",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:perf": "node --experimental-strip-types --test tests/perf/*.perf.ts",
-    "smoke": "node scripts/smoke.mjs",
+    "smoke": "node --experimental-strip-types scripts/smoke.mjs",
     "ci": "node scripts/ci.mjs",
     "build:local": "node scripts/with-app-env.mjs vite build"
   },

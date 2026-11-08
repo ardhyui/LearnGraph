@@ -24,7 +24,8 @@ export type NavIcon =
   | 'chart'
   | 'database'
   | 'activity'
-  | 'test';
+  | 'test'
+  | 'quiz';
 
 export interface NavItem {
   href: string;
@@ -124,6 +125,12 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Prerequisites',
         description: 'Dependencies',
         icon: 'branch',
+      },
+      {
+        href: '/admin/questions',
+        label: 'Quiz Questions',
+        description: 'Question banks',
+        icon: 'quiz',
       },
       {
         href: '/admin/states',

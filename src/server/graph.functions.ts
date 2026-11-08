@@ -24,18 +24,13 @@ export const graphCall = createServerFn({ method: 'POST' })
   })
   .handler(async ({ data, context }) => {
     const { graphForOwner } = await import('@/lib/graph/server');
-    if (
-      data.method === 'setKnowledgeState' &&
-      typeof data.args[1] === 'string' &&
-      data.args[1].startsWith('jp-')
-    ) {
-      throw new Error(
-        'Gunakan halaman Bahasa Jepang untuk merekam bukti latihan; mastery topik ini tidak diubah lewat penilaian diri.',
-      );
-    }
+    const { getDb } = await import('@/lib/db');
+    const { guardGraphCall } = await import('@/lib/evidence/service');
     const graph = await graphForOwner(context.userId);
+    // Quiz-checked concepts: no self-reported or hand-typed mastery (Roadmap M1, D5).
+    const args = await guardGraphCall(getDb(), graph, context.userId, data.method, data.args);
     const fn = graph[data.method] as (...args: unknown[]) => unknown;
-    const result = await fn.apply(graph, data.args);
+    const result = await fn.apply(graph, args);
     // JSON round-trip keeps the wire format identical to what the UI saw
     // from the old JSON-encoded store (undefined dropped, plain objects).
     return (result === undefined ? null : JSON.parse(JSON.stringify(result))) as any;
@@ -47,9 +42,13 @@ export const seedDemoData = createServerFn({ method: 'POST' })
   .handler(async ({ context }) => {
     const { graphForOwner } = await import('@/lib/graph/server');
     const { seedDemoDataIfEmpty, repairDemoKnowledgeStates } = await import('@/lib/graph/seed');
+    const { getDb } = await import('@/lib/db');
+    const { seedDemoQuestions } = await import('@/lib/evidence/service');
     const graph = await graphForOwner(context.userId);
     const seeded = await seedDemoDataIfEmpty(graph);
     // Older workspaces: attach demo progress to the demo learners (no-op once done).
     if (!seeded) await repairDemoKnowledgeStates(graph);
+    // Example concepts get their quiz questions once, in new and existing workspaces.
+    await seedDemoQuestions(getDb(), graph, context.userId);
     return { seeded };
   });

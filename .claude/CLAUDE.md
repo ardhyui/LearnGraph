@@ -81,6 +81,7 @@ const zpd = await db.computeZPD('user-123');
 - **Graph B**: Knowledge Model (concepts, prerequisites, Bloom levels, difficulty)
 - **ZPD Bridge**: Computed from both graphs to determine optimal learning targets
 - **Server API**: No public REST API. The UI calls TanStack Start server functions; `graphCall` runs one whitelisted engine method (`src/lib/graph/methods.ts`), validated by `src/lib/graph/rpc-schemas.ts`
+- **Learning evidence** (Roadmap M1, `src/lib/evidence/`): a concept with questions in its quiz bank, or flagged `evidenceRequired`, only gets mastery from quizzes graded on the server. `guardGraphCall` refuses self-reported or hand-typed mastery for such concepts. Every quiz, self-report, review and snooze is appended to `learning_events`, and `masterySource` on a knowledge state records where its mastery came from
 
 ---
 

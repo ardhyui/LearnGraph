@@ -24,6 +24,44 @@ function migrationFiles(): Record<string, string> {
   return files;
 }
 
+/**
+ * A test database with several workspaces: `graphFor(owner)` gives that
+ * owner's EducationGraphDB, `db` is the shared Kysely instance (for the
+ * evidence tables). `close()` shuts it all down.
+ */
+export async function openTestWorkspaces(
+  dataDir: string,
+  owners: string[] = [TEST_OWNER_ID],
+): Promise<{
+  db: Kysely<GraphDatabase>;
+  graphFor: (owner: string) => Promise<EducationGraphDB>;
+  close: () => Promise<void>;
+}> {
+  const pg = new PGlite(dataDir);
+  await pg.waitReady;
+  await applyMigrations(pgliteMigratable(pg), migrationFiles());
+  for (const owner of owners) {
+    await pg.query(
+      `insert into "user" (id, name, email, "emailVerified") values ($1, $2, $3, false)
+       on conflict (id) do nothing`,
+      [owner, owner, `${owner}@example.test`],
+    );
+  }
+  const db = new Kysely<GraphDatabase>({ dialect: pgliteDialect(() => pg) });
+  return {
+    db,
+    graphFor: async (owner) => {
+      const graph = new EducationGraphDB(new PostgresGraphStore(db, owner));
+      await graph.open();
+      return graph;
+    },
+    close: async () => {
+      await db.destroy();
+      await pg.close();
+    },
+  };
+}
+
 /** Open (or reopen) the test database at `dataDir`; `close()` shuts it all down. */
 export async function openTestGraphDB(
   dataDir: string,

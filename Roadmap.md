@@ -40,15 +40,15 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 
 | # | Temuan | Bukti | Akibat |
 |---|--------|-------|--------|
-| 1 | Penguasaan di subjek umum adalah laporan diri | `applyStudyOutcome` di `src/lib/study.ts` menaikkan mastery ke ≥ 85 saat "I've got it" | Gerbang prasyarat ZPD membaca angka yang belum teruji |
+| 1 | Penguasaan di subjek umum adalah laporan diri | `applyStudyOutcome` di `src/lib/study.ts` menaikkan mastery ke ≥ 85 saat "I've got it" | Gerbang prasyarat ZPD membaca angka yang belum teruji. Diperbaiki di M1 untuk konsep bersoal; konsep tanpa soal tetap laporan diri berlabel (D5) |
 | 2 | Belum ada materi belajar | `ConceptNode` hanya punya `description`; `bloomObjectives` tidak tampil di halaman pelajar; akun baru mendapat 11 konsep contoh | "Learn next" menyebut topik, tetapi tidak mengajarkannya |
-| 3 | Riwayat belajar nyaris tidak tercatat | Satu-satunya penulis `interactions` adalah `recordJapanesePractice` | Retensi tak terukur, mode "Automatic" tak bisa dibangun, Fase 8 tak punya data |
-| 4 | Sistem bukti hanya untuk bahasa Jepang | Tabel `japanese_quizzes`, cek prefiks `jp-` di `src/server/graph.functions.ts:30` | Pola yang benar belum bisa dipakai subjek lain |
+| 3 | Riwayat belajar nyaris tidak tercatat | Satu-satunya penulis `interactions` adalah `recordJapanesePractice` | Retensi tak terukur, mode "Automatic" tak bisa dibangun, Fase 8 tak punya data. Diperbaiki di M1: tabel `learning_events` |
+| 4 | Sistem bukti hanya untuk bahasa Jepang | Tabel `japanese_quizzes`, cek prefiks `jp-` di `src/server/graph.functions.ts:30` | Pola yang benar belum bisa dipakai subjek lain. Diperbaiki di M1: modul `src/lib/evidence/` dan flag `evidenceRequired` |
 | 5 | Hanya 10 dari 39 domain psikometrik memengaruhi rencana belajar | `trait-scores.ts`, `deriveLearningStyle`, `estimateCognitiveProfile` | 29 domain, termasuk `political_ideology` dan `dark_triad_*`, ditanyakan tanpa manfaat bagi rencana belajar |
 | 6 | Kontrol data belum lengkap | Tidak ada UI hapus akun atau persetujuan | Belum layak untuk pengguna selain pemilik |
 | 7 | Gerbang CI tidak andal | 4 dari 217 test, yaitu benchmark warisan (tulis < 5 ms, baca < 2 ms), gagal di `main` pada mesin ini, padahal lulus di PR #29; `scripts/ci.mjs` berhenti di langkah pertama yang gagal | `npm run ci` bergantung pada kecepatan mesin, dan build serta smoke tidak sempat berjalan. Diperbaiki di M0 |
 | 8 | Dokumen menyimpang dari kode | Penyebutan LevelDB, REST `/api/zpd`, port 3000, `/api/seed-users`, badge "37/37", `LICENSE` dan `docs/api.md` yang tidak ada | Pembaca dan agen AI mendapat arahan yang salah. Diperbaiki di M0 |
-| 9 | Klaim hasil tanpa pengukuran | README menulis "Gap detection accuracy 90%: Achieved", tetapi tidak ada kode atau test yang mengukurnya | Efektivitas produk belum diketahui. Klaim sudah dikoreksi di M0, pengukurannya di M1 |
+| 9 | Klaim hasil tanpa pengukuran | README menulis "Gap detection accuracy 90%: Achieved", tetapi tidak ada kode atau test yang mengukurnya | Efektivitas produk belum diketahui. Klaim sudah dikoreksi di M0. Sejak M1 retensi saat review terhitung dari event; akurasi deteksi celah belum diukur |
 | 10 | Pengecekan prasyarat boros | `classifyConcept` membaca seluruh edge sekali per konsep lewat `getEdgesToConcept` | Melambat seiring kurikulum bertambah, terutama di Postgres jarak jauh |
 
 ## Milestone
@@ -74,19 +74,25 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 
 **Tujuan:** penguasaan berasal dari jawaban yang dinilai, dan setiap aktivitas belajar tercatat. Mengingat lewat kuis juga lebih efektif daripada sekadar menandai selesai (Roediger & Karpicke, 2006).
 
-- [ ] Angkat kuis Jepang menjadi modul umum: bank soal per konsep, sesi kuis, penilaian di server, serta `evidenceMastery` dan `nextQuizReview` yang bisa dipakai ulang. Migrasi aditif; `/japanese` dan datanya tetap utuh.
-- [ ] Ganti cek prefiks `jp-` dengan properti konsep, misalnya `evidenceRequired`.
-- [ ] Catat aktivitas di tabel append-only baru, misalnya `learning_events`: jawaban, review, tunda, kuis. Tabel baru menghindari sanitasi data lama yang menghambat pencatatan riwayat di backlog.
-- [ ] Sediakan editor soal di Admin, dan minimal 3 soal untuk tiap 11 konsep contoh.
-- [ ] Panel Today memakai kuis singkat untuk "Learn next" dan "Review now" bila konsep punya soal. Konsep tanpa soal tetap memakai laporan diri (keputusan D5).
-- [ ] Tampilkan asal penguasaan ("dari kuis" atau "laporan diri") di Gap Analysis dan Knowledge Graph.
-- [ ] Tambahkan alur kuis umum ke smoke test di `npm run ci`. Smoke Jepang saat ini berada di luar CI.
+- [x] Angkat kuis Jepang menjadi modul umum: bank soal per konsep, sesi kuis, penilaian di server, serta `evidenceMastery` dan `nextQuizReview` yang bisa dipakai ulang. Migrasi aditif; `/japanese` dan datanya tetap utuh.
+- [x] Ganti cek prefiks `jp-` dengan properti konsep, misalnya `evidenceRequired`.
+- [x] Catat aktivitas di tabel append-only baru, misalnya `learning_events`: jawaban, review, tunda, kuis. Tabel baru menghindari sanitasi data lama yang menghambat pencatatan riwayat di backlog.
+- [x] Sediakan editor soal di Admin, dan minimal 3 soal untuk tiap 11 konsep contoh.
+- [x] Panel Today memakai kuis singkat untuk "Learn next" dan "Review now" bila konsep punya soal. Konsep tanpa soal tetap memakai laporan diri (keputusan D5).
+- [x] Tampilkan asal penguasaan ("dari kuis" atau "laporan diri") di Gap Analysis dan Knowledge Graph.
+- [x] Tambahkan alur kuis umum ke smoke test di `npm run ci`. Smoke Jepang saat ini berada di luar CI.
 
 **Selesai bila:**
 
 - Konsep bersoal tidak bisa menjadi "mastered" tanpa kuis yang lolos, termasuk lewat RPC langsung (ada test).
 - Setiap jawaban dan review tercatat sebagai event yang terikat akun (ada test isolasi).
 - Persentase review jatuh tempo yang dijawab benar bisa dihitung dari event.
+
+**Catatan implementasi (perlu ditinjau pemilik):**
+
+- Untuk konsep umum, satu kuis yang lolos (≥ 80%) langsung dihitung dikuasai (85). Retensinya diuji lewat review berkala yang juga berupa kuis, dengan jadwal dari `spacing.ts`. Halaman Jepang tetap memakai aturan ketat: lolos kedua minimal 1 hari kemudian. Dengan aturan ketat, pengguna baru tidak bisa membuka konsep berikutnya pada hari pertama.
+- "I know the basics" di onboarding hanya menandai dasar yang tidak punya soal. Dasar yang bersoal muncul di "Learn next" sebagai kuis singkat.
+- Workspace lama juga mendapat soal contoh, sekali saja dan hanya untuk konsep contoh yang masih utuh. Penguasaan lama tetap tersimpan dengan label "Not quiz-checked".
 
 ### M2: Belajar di dalam aplikasi (Fase 6A)
 

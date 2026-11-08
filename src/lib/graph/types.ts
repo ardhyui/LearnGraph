@@ -150,6 +150,12 @@ export interface ConceptNode {
   timeEstimates?: TimeEstimates;
 
   tags?: string[];
+  /**
+   * Mastery may only come from evidence (quizzes or the concept's own practice
+   * page), never from a self-report. Set by the server, not through graphCall.
+   * Concepts with questions in their quiz bank require evidence even without it.
+   */
+  evidenceRequired?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -211,6 +217,17 @@ export interface LearningInteraction {
 }
 
 /**
+ * Where the current mastery value came from. Set by the server only:
+ * - `quiz`: a graded quiz
+ * - `self_report`: the learner's own "I've got it" / "I remembered it"
+ * - `manual`: typed in an admin editor
+ * - `practice`: a practice log (Japanese page)
+ * - `sync`: imported from another app (Michi)
+ * Absent on states saved before this field existed (and on example data).
+ */
+export type MasterySource = 'quiz' | 'self_report' | 'manual' | 'practice' | 'sync';
+
+/**
  * Knowledge state for a learner on a specific concept
  */
 export interface KnowledgeState {
@@ -219,6 +236,7 @@ export interface KnowledgeState {
 
   // Mastery tracking
   mastery: number;        // 0-100 current mastery level
+  masterySource?: MasterySource;
   bloomLevel: BloomLevel; // Highest demonstrated Bloom level
 
   // Timing
