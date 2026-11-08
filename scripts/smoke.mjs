@@ -682,6 +682,13 @@ try {
       'lesson: the AI tutor brief is shown first, knows the topic and progress, and leaves out sensitive traits',
       briefText.split('\n').slice(0, 3).join(' / ').slice(0, 120),
     );
+    // Roadmap M4: the built-in chat uses the learner's own key (no network call
+    // here: a malformed key is refused before anything is sent).
+    const chat = tutor.getByTestId('tutor-chat');
+    await chat.getByLabel('Anthropic API key').fill('not-a-key');
+    await chat.getByRole('button', { name: 'Ask Claude' }).click();
+    const refused = await chat.getByRole('alert').filter({ hasText: 'starts with sk-ant-' }).waitFor({ timeout: 10000 }).then(() => true, () => false);
+    check(refused, 'tutor chat: asks for the learner’s own Anthropic key and refuses a malformed one before sending');
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'lessons have no page errors', newErrors.join(' | '));
     // The next checks start from the dashboard.
@@ -1164,6 +1171,40 @@ try {
     await page.keyboard.press('Enter');
     const inMain = await page.evaluate(() => document.activeElement?.tagName === 'MAIN');
     check(first === 'Skip to content' && inMain, 'a11y: "Skip to content" is the first Tab stop and moves focus to the main content', `first "${first}", in main ${inMain}`);
+  }
+
+  // Roadmap M3: import a learner from a JSON export (PR #29's format) — a new
+  // learner, with progress only on concepts this workspace has.
+  {
+    const before = errors.length;
+    const { writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const file = `${tmpdir()}/learngraph-smoke-import-${Date.now()}.json`;
+    await writeFile(
+      file,
+      JSON.stringify({
+        format: 'learngraph.learner-export',
+        version: 1,
+        learner: { id: 'me-imported', name: 'Imported Ines', profile: { userId: 'me-imported', name: 'Imported Ines' } },
+        knowledgeStates: [
+          { userId: 'me-imported', conceptId: 'decimals', mastery: 60 },
+          { userId: 'me-imported', conceptId: 'not-here', mastery: 90 },
+        ],
+      }),
+    );
+    await page.goto(`${BASE}/admin/learners`, { waitUntil: 'networkidle' });
+    await page.getByLabel('Import from a file').setInputFiles(file);
+    const notice = page.getByTestId('import-notice');
+    await notice.getByText('as a new learner', { exact: false }).waitFor({ timeout: 15000 }).catch(() => {});
+    const text = await notice.innerText().catch(() => '');
+    const listed = await page.getByText('Imported Ines', { exact: true }).first().isVisible().catch(() => false);
+    check(
+      /Imported “Imported Ines” as a new learner with 1 progress record\. 1 skipped/.test(text) && listed,
+      'import: a learner export becomes a new learner (unknown concepts skipped)',
+      text,
+    );
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'learner import has no page errors', newErrors.join(' | '));
   }
 
   // Roadmap M4: a read-only API key lets an outside assistant fetch the tutor

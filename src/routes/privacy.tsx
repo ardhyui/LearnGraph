@@ -63,9 +63,12 @@ function PrivacyPage() {
 
       <Section title="AI services">
         <p>
-          LearnGraph does not send your data to any AI service. “Ask an AI tutor” shows you a short brief that you can
-          copy yourself. A read-only API key lets a tool you choose fetch the same brief; you can revoke it at any time.
-          The brief never contains your answers to personality or values questionnaires.
+          LearnGraph sends nothing to AI services on its own. “Ask an AI tutor” shows you a short brief that you can
+          copy yourself. If you choose to ask Claude on a lesson page with your own Anthropic API key, your question and
+          that brief go to Anthropic under your key; LearnGraph uses the key for that request only and does not store it
+          (your browser keeps it only if you tick “Remember”). A read-only API key lets a tool you choose fetch the same
+          brief; you can revoke it at any time. The brief never contains your answers to personality or values
+          questionnaires.
         </p>
       </Section>
 

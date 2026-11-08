@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
-import { Plus, Edit, Trash2, X, Save, User, Users, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Save, User, Users, AlertCircle, Loader2, Upload } from 'lucide-react';
+import { MAX_IMPORT_BYTES } from '@/lib/learner-import';
+import { importLearner } from '@/server/import.functions';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { uuidv4 } from '@/lib/uuid';
 import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
@@ -30,11 +32,35 @@ const containerVariants = {
 
 function LearnersPage() {
   const { isLoading: dbLoading, error: dbError } = useDB();
-  const { learners, loading, createLearner, updateLearner, deleteLearner } = useLearners();
+  const { learners, loading, createLearner, updateLearner, deleteLearner, refresh } = useLearners();
   const [showForm, setShowForm] = useState(false);
   const [editingLearner, setEditingLearner] = useState<LearnerFormData | null>(null);
   const [formData, setFormData] = useState<LearnerFormData>({ userId: '', name: '', email: '' });
   const [error, setError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState('');
+
+  async function handleImport(file: File) {
+    setError('');
+    setImportNotice('');
+    if (file.size > MAX_IMPORT_BYTES) {
+      setError('The file is too large to import (max 2 MB).');
+      return;
+    }
+    setImporting(true);
+    try {
+      const result = await importLearner({ data: { text: await file.text() } });
+      await refresh();
+      const parts = [`Imported “${result.name}” as a new learner with ${result.imported} progress ${result.imported === 1 ? 'record' : 'records'}.`];
+      if (result.skippedConcepts.length) parts.push(`${result.skippedConcepts.length} skipped: concepts not in this workspace.`);
+      if (result.capped.length) parts.push(`${result.capped.length} quiz-checked ${result.capped.length === 1 ? 'concept stays' : 'concepts stay'} below mastered until a quiz is passed.`);
+      setImportNotice(parts.join(' '));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not import the file.');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -176,7 +202,7 @@ function LearnersPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="mb-6"
+            className="mb-6 flex flex-wrap items-center gap-2"
           >
             <button
               onClick={openNewForm}
@@ -185,7 +211,26 @@ function LearnersPage() {
               <Plus className="w-4 h-4" />
               Add Learner
             </button>
+            {/* Roadmap M3: import a learner from a LearnGraph JSON export (always a new learner). */}
+            <label className="btn btn-secondary flex cursor-pointer items-center gap-2 focus-within:ring-2 focus-within:ring-primary">
+              <Upload className="w-4 h-4" aria-hidden="true" />
+              {importing ? 'Importing…' : 'Import from a file'}
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="sr-only"
+                disabled={importing}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) void handleImport(file);
+                }}
+              />
+            </label>
           </motion.div>
+          <p role="status" aria-live="polite" className={importNotice ? 'mb-6 text-sm text-emerald-700 dark:text-emerald-400' : 'sr-only'} data-testid="import-notice">
+            {importNotice}
+          </p>
 
           {/* Form */}
           <AnimatePresence>

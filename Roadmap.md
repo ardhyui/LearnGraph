@@ -123,7 +123,7 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 
 **Tujuan:** orang selain pemilik bisa memakai LearnGraph dengan aman, dan aplikasi tidak menjanjikan hal yang belum ada.
 
-- [ ] Impor JSON sebagai pasangan ekspor dari PR #29.
+- [x] Impor JSON sebagai pasangan ekspor dari PR #29. Admin → Learners → "Import from a file" membaca format ekspor PR #29 (`learngraph.learner-export` v1) tanpa perlu PR itu di-merge: selalu menjadi pelajar baru, hanya konsep yang ada di workspace, dan penguasaan konsep bersoal dibatasi 79 (harus lewat kuis). Tombol unduhnya tetap menunggu keputusan PR #29.
 - [x] Hapus akun dan seluruh data dari UI. Foreign key `on delete cascade` sudah tersedia. "Delete my account" di My Profile (password + ketik DELETE); test memeriksa setiap tabel ber-`owner_id`, termasuk `japanese_quizzes` yang tak punya FK.
 - [x] Opsi mulai tanpa data contoh. "Start with an empty workspace" di onboarding; contoh tidak di-seed lagi.
 - [x] Profil hanya menanyakan domain yang dipakai; domain sensitif tidak aktif secara bawaan dan ada persetujuan singkat (keputusan D4). Dikerjakan sesuai rekomendasi D4: My Profile hanya menanyakan topik yang dipakai rencana belajar; topik lain (termasuk yang pribadi) baru tampil setelah pelajar setuju, dan jawaban lama bisa dihapus. Bisa diubah bila pemilik memutuskan lain.
@@ -152,8 +152,8 @@ Bagian tanpa biaya LLM:
 
 Bagian 🔒 (keputusan D3):
 
-- [ ] Chat tutor bawaan dengan provider di balik satu antarmuka.
-- [ ] Bandingkan jawaban dengan dan tanpa konteks pada pertanyaan yang sama.
+- [x] Chat tutor bawaan dengan provider di balik satu antarmuka. Mengikuti rekomendasi D3: pelajar memakai API key Anthropic miliknya sendiri (dipakai per permintaan, tidak disimpan di server), model `claude-opus-5-5` dengan fallback penolakan bawaan, lewat SDK resmi. Provider lain atau model lokal belum ada.
+- [x] Bandingkan jawaban dengan dan tanpa konteks pada pertanyaan yang sama. Opsi "Compare with an answer that doesn't know me": dua jawaban acak urutannya, pelajar memilih yang lebih membantu, dan pilihannya dicatat sebagai event `tutor` (`tutorPreference`).
 
 **Selesai bila:**
 

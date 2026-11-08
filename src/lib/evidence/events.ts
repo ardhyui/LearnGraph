@@ -4,7 +4,7 @@
  * measures here; `service.ts` writes and reads the rows.
  */
 
-export type LearningEventKind = 'quiz' | 'study' | 'review' | 'snooze' | 'unsnooze' | 'practice' | 'lesson';
+export type LearningEventKind = 'quiz' | 'study' | 'review' | 'snooze' | 'unsnooze' | 'practice' | 'lesson' | 'tutor';
 
 /** Which part of the app wrote the event. */
 export type LearningEventSource = 'app' | 'japanese';
@@ -68,4 +68,24 @@ export function dueReviewRetention(
     }
   }
   return { quiz: stat(quiz, quizCorrect), selfReport: stat(self, selfCorrect) };
+}
+
+/**
+ * Personalisation effect from the tutor comparison (Roadmap M4/M2 measure):
+ * how often the answer that knew the learner was preferred over one that did not.
+ */
+export function tutorPreference(events: readonly Pick<LearningEvent, 'kind' | 'outcome'>[]): {
+  compared: number;
+  preferContext: number;
+  preferPlain: number;
+  same: number;
+} {
+  const rated = events.filter((e) => e.kind === 'tutor' && e.outcome.startsWith('prefer-'));
+  const count = (o: string) => rated.filter((e) => e.outcome === o).length;
+  return {
+    compared: rated.length,
+    preferContext: count('prefer-context'),
+    preferPlain: count('prefer-plain'),
+    same: count('prefer-same'),
+  };
 }
