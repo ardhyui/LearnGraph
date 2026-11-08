@@ -36,11 +36,20 @@ function PrivacyPage() {
         <ul className="list-disc space-y-1 pl-5">
           <li>Your account: name, email address and a hash of your password (never the password itself).</li>
           <li>
+            Your sign-ins: for each signed-in browser, when the sign-in expires, and the IP address and browser details
+            (user agent) it came from. Asking for a password reset stores a token that works for one hour.
+          </li>
+          <li>
             Your workspace: learners, concepts and prerequisites, progress on each concept and where it came from
             (quiz or self-report), quiz answers and results, lesson material, and an activity log of answers, reviews,
-            postponed reviews and lessons opened.
+            postponed reviews, lessons opened and questions put to the AI tutor (the topic and kind of question, and
+            which answer you preferred when comparing, but not the text of the question or the answers).
           </li>
           <li>Learning-style answers you choose to give on My Profile.</li>
+          <li>
+            AI drafts you review under Admin: what Claude proposed, what you saved, and whether you approved, edited or
+            discarded it.
+          </li>
           <li>Read-only API keys you create, stored only as a hash.</li>
         </ul>
       </Section>
@@ -50,15 +59,23 @@ function PrivacyPage() {
           Everything in a workspace belongs to one account and is only shown to that account when signed in. Other
           accounts cannot read it. The operator of this copy has access to the database it runs on.
         </p>
+        <p>
+          If the operator has set up email, password-reset and confirmation emails are sent through Resend, which then
+          handles your email address and the message.
+        </p>
       </Section>
 
       <Section title="Cookies and tracking">
         <p>
-          LearnGraph sets a sign-in session cookie and nothing else. There are no advertising or analytics cookies and
-          no third-party trackers. To slow down password guessing, sign-in attempts are counted per IP address for a
-          few minutes.
+          LearnGraph sets sign-in cookies and nothing else: the session itself, and a signed copy of it that saves a
+          database lookup for up to five minutes. There are no advertising or analytics cookies and no third-party
+          trackers. To slow down password guessing and account spam, requests to the sign-in service (signing in,
+          signing up, password resets and the like) are counted per IP address for one to ten minutes.
         </p>
-        <p>The browser also remembers a few display choices (such as an open menu or a session length) on your device.</p>
+        <p>
+          The browser also remembers a few display choices on your device, such as an open menu, the learner you picked
+          or a session length.
+        </p>
       </Section>
 
       <Section title="AI services">
@@ -69,6 +86,12 @@ function PrivacyPage() {
           (your browser keeps it only if you tick “Remember”). A read-only API key lets a tool you choose fetch the same
           brief; you can revoke it at any time. The brief never contains your answers to personality or values
           questionnaires.
+        </p>
+        <p>
+          Under Admin, Claude can also draft a curriculum or quiz questions, once you turn this on. Each draft request
+          sends what it needs to Anthropic under your own key in the same way: the course description or PDF you give
+          it, or the concept and its existing questions. A draft is added to your curriculum or quiz bank only when
+          you approve it; your decision on each draft is kept, as listed above.
         </p>
       </Section>
 
