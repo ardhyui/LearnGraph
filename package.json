@@ -3,7 +3,9 @@
   "version": "0.2.0",
   "description": "Graph-Based Adaptive Education System - Personalized tutoring with psychometric profiling",
   "private": true,
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/lib/zod-config.ts"
+  ],
   "type": "module",
   "license": "MIT",
   "overrides": {

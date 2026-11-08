@@ -231,6 +231,13 @@ try {
     await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
     const announcer = page.locator('#route-announcer');
     const quietOnLoad = (await announcer.innerText().catch(() => 'missing')).trim() === '';
+    // Click only once React owns the link: before hydration a click is a full
+    // page load, which the browser announces itself (so the announcer stays quiet).
+    await page
+      .waitForFunction((el) => !!el && Object.keys(el).some((k) => k.startsWith('__reactProps')), await link('Gap Analysis').elementHandle(), {
+        timeout: 15000,
+      })
+      .catch(() => {});
     await link('Gap Analysis').click();
     await page.waitForURL((u) => u.pathname === '/gaps', { timeout: 15000 });
     const said = await page
@@ -1018,6 +1025,68 @@ try {
       if (r.main < 350 || r.overflow > 1) narrow.push(`${path}: main ${r.main}px, overflow ${r.overflow}px`);
     }
     check(narrow.length === 0, 'mobile: pages use the full width without sideways scrolling', narrow.join('; '));
+
+    // Admin tables become one card per row: nothing scrolls sideways inside
+    // the card, the row's buttons are on screen, and the column names are
+    // still there for screen readers.
+    const cards = [];
+    for (const [path, header] of [
+      ['/admin/learners', 'Email'],
+      ['/admin/states', 'Mastery'],
+      ['/admin/prerequisites', 'Reason'],
+    ]) {
+      await m.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+      const table = m.locator('table.stack-table');
+      await table.locator('tbody tr').first().waitFor({ timeout: 30000 }).catch(() => {});
+      const r = await table
+        .evaluate((t) => {
+          const row = t.querySelector('tbody tr');
+          const scroller = t.parentElement;
+          const button = row?.querySelector('button')?.getBoundingClientRect();
+          return {
+            display: row ? getComputedStyle(row).display : 'none',
+            sideways: scroller ? scroller.scrollWidth - scroller.clientWidth : -1,
+            buttonOnScreen: !!button && button.right <= window.innerWidth && button.left >= 0,
+          };
+        })
+        .catch(() => ({ display: 'missing', sideways: -1, buttonOnScreen: false }));
+      const headerKept = (await m.getByRole('columnheader', { name: header }).count()) === 1;
+      if (r.display !== 'block' || r.sideways > 1 || r.sideways < 0 || !r.buttonOnScreen || !headerKept) {
+        cards.push(`${path}: row ${r.display}, sideways ${r.sideways}px, button on screen ${r.buttonOnScreen}, header ${headerKept}`);
+      }
+    }
+    check(cards.length === 0, 'mobile: admin tables show one card per row, without sideways scrolling', cards.join('; '));
+
+    // The graph's details open as a bottom sheet (full width, at the bottom);
+    // the close button and Escape close it.
+    {
+      await m.goto(`${BASE}/graph`, { waitUntil: 'networkidle' });
+      const node = m.locator('.react-flow__node').first();
+      await node.waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+      const panel = m.getByTestId('graph-detail-panel');
+      for (let i = 0; i < 10 && !(await panel.isVisible()); i++) {
+        await node.click().catch(() => {});
+        await m.waitForTimeout(400);
+      }
+      await m.waitForTimeout(400); // slide-in
+      const sheet = await panel
+        .evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return { layout: el.dataset.layout, width: Math.round(r.width), gap: Math.round(window.innerHeight - r.bottom), vw: window.innerWidth };
+        })
+        .catch(() => null);
+      await m.getByRole('button', { name: 'Close details' }).click().catch(() => {});
+      const closed = await panel.waitFor({ state: 'detached', timeout: 5000 }).then(() => true, () => false);
+      await node.click().catch(() => {});
+      await panel.waitFor({ timeout: 5000 }).catch(() => {});
+      await m.keyboard.press('Escape');
+      const escClosed = await panel.waitFor({ state: 'detached', timeout: 5000 }).then(() => true, () => false);
+      check(
+        sheet?.layout === 'sheet' && sheet.width >= sheet.vw - 1 && Math.abs(sheet.gap) <= 2 && closed && escClosed,
+        'mobile: graph details open as a bottom sheet that closes with its button or Escape',
+        JSON.stringify({ ...sheet, closed, escClosed }),
+      );
+    }
 
     // The study loop starts on the first screen (no big hero pushing it down).
     await m.goto(`${BASE}/`, { waitUntil: 'networkidle' });

@@ -19,6 +19,7 @@ import {
   Position,
 } from '@xyflow/react';
 import { Sidebar } from '@/components/Sidebar';
+import { GraphDetailPanel } from '@/components/GraphDetailPanel';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { cn } from '@/lib/utils';
 import { useLearners, useConcepts, useEdges, useDB } from '@/lib/DBContext';
@@ -29,7 +30,6 @@ import type { MasterySource } from '@/lib/graph/types';
 import {
   RefreshCw,
   User,
-  X,
   BookOpen,
   GitBranch,
   Clock,
@@ -404,6 +404,11 @@ function GraphPage() {
     [setEdges]
   );
 
+  const closeDetails = useCallback(() => {
+    setSelectedConcept(null);
+    setNodes((prevNodes) => prevNodes.map((n) => ({ ...n, data: { ...n.data, isSelected: false } })));
+  }, [setNodes]);
+
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     const prerequisites = edges
       .filter(e => e.target === node.id)
@@ -656,7 +661,7 @@ function GraphPage() {
               <div
                 className={cn(
                   'glass-card overflow-hidden flex-1 transition-all duration-300',
-                  selectedConcept ? 'w-2/3' : 'w-full'
+                  selectedConcept ? 'w-full md:w-2/3' : 'w-full'
                 )}
                 style={{ height: '600px' }}
               >
@@ -707,34 +712,9 @@ function GraphPage() {
                 </ReactFlow>
               </div>
 
-              {/* Details Panel */}
-              <AnimatePresence>
+              {/* Details panel (a bottom sheet on phones) */}
+              <GraphDetailPanel open={!!selectedConcept} title={selectedConcept?.name} onClose={closeDetails}>
                 {selectedConcept && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 20, width: 0 }}
-                    animate={{ opacity: 1, x: 0, width: '33.333%' }}
-                    exit={{ opacity: 0, x: 20, width: 0 }}
-                    className="glass-card p-5 overflow-y-auto"
-                    style={{ height: '600px' }}
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-lg font-bold text-foreground">{selectedConcept.name}</h3>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => {
-                          setSelectedConcept(null);
-                          setNodes(prevNodes => prevNodes.map(n => ({
-                            ...n,
-                            data: { ...n.data, isSelected: false }
-                          })));
-                        }}
-                        className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                      >
-                        <X size={18} />
-                      </motion.button>
-                    </div>
-
                     <div className="space-y-4">
                       {/* Domain */}
                       <div className="flex items-center gap-2">
@@ -848,9 +828,8 @@ function GraphPage() {
                         ID: <span className="font-mono">{selectedConcept.conceptId}</span>
                       </div>
                     </div>
-                  </motion.div>
                 )}
-              </AnimatePresence>
+              </GraphDetailPanel>
             </motion.div>
           )}
 

@@ -350,36 +350,37 @@ function LearnersPage() {
               className="glass-card overflow-hidden"
             >
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <table className="stack-table w-full" role="table">
+                  <thead role="rowgroup">
+                    <tr role="row" className="border-b border-border/50">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Learner
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         User ID
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Email
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Created
                       </th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/30">
+                  <tbody role="rowgroup" className="divide-y divide-border/30">
                     {learners.map((learner, index) => (
                       <motion.tr
+                        role="row"
                         key={learner.userId}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4, delay: index * 0.05 }}
                         className="hover:bg-muted/30 transition-colors"
                       >
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
                               <User className="w-5 h-5 text-white" />
@@ -387,20 +388,20 @@ function LearnersPage() {
                             <span className="font-medium text-foreground">{learner.name}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" data-label="User ID" className="px-6 py-4 whitespace-nowrap">
                           <code className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded">
                             {learner.userId}
                           </code>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        <td role="cell" data-label="Email" className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                           {learner.email || '—'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        <td role="cell" data-label="Created" className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                           {learner.createdAt
                             ? new Date(learner.createdAt).toLocaleDateString()
                             : '—'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <td role="cell" className="px-6 py-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => openEditForm(learner)}

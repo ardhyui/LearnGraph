@@ -2,12 +2,14 @@
 /**
  * Local CI gate — required before every merge (no GitHub Actions).
  *
- *   npm run ci                # clean `npm ci`, typecheck, lint, tests, build, smoke
+ *   npm run ci                # clean `npm ci`, typecheck, lint, tests, build, CSP, smoke
  *   npm run ci -- --no-install  # skip the clean reinstall (faster local iteration)
  *
  * The smoke test runs against a dev server on CI_PORT (default 8081) backed by
  * a fresh in-memory PGlite database: DATABASE_URL / PGLITE_DATA_DIR are forced
- * empty so a local `.env` can never point CI at a real database.
+ * empty so a local `.env` can never point CI at a real database. The CSP check
+ * runs against the production build (`vite preview`) on CI_PREVIEW_PORT
+ * (default 8083), because the dev server still allows inline scripts.
  */
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -15,6 +17,7 @@ import { join } from 'node:path';
 
 const PORT = process.env.CI_PORT ?? '8081';
 const BASE = `http://127.0.0.1:${PORT}`;
+const PREVIEW_PORT = process.env.CI_PREVIEW_PORT ?? '8083';
 const skipInstall = process.argv.includes('--no-install');
 const ciEnv = {
   ...process.env,
@@ -49,23 +52,24 @@ async function waitFor(url, ms) {
   return false;
 }
 
-async function smoke() {
-  if ((await run('npx', ['playwright', 'install', 'chromium'])) !== 0) return 1;
+/** Start the app (`vite dev` or `vite preview`) on a port, run `fn`, then stop it. */
+async function withServer(mode, port, fn) {
   const server = spawn(
     'node',
-    ['scripts/with-app-env.mjs', 'vite', 'dev', '--host', '127.0.0.1', '--port', PORT, '--strictPort'],
+    ['scripts/with-app-env.mjs', 'vite', mode, '--host', '127.0.0.1', '--port', port, '--strictPort'],
     { env: ciEnv, stdio: ['ignore', 'pipe', 'pipe'], detached: true },
   );
   let log = '';
   server.stdout.on('data', (d) => (log += d));
   server.stderr.on('data', (d) => (log += d));
+  const base = `http://127.0.0.1:${port}`;
   try {
-    if (!(await waitFor(`${BASE}/sign-in`, 180_000))) {
-      console.error(`dev server did not start on ${BASE}\n${log}`);
+    if (!(await waitFor(`${base}/sign-in`, 180_000))) {
+      console.error(`${mode} server did not start on ${base}\n${log}`);
       return 1;
     }
-    const code = await run('node', ['--experimental-strip-types', 'scripts/smoke.mjs'], { env: { ...ciEnv, BASE_URL: BASE } });
-    if (code !== 0) console.error(`--- dev server log ---\n${log.slice(-8000)}`);
+    const code = await fn(base);
+    if (code !== 0) console.error(`--- ${mode} server log ---\n${log.slice(-8000)}`);
     return code;
   } finally {
     try {
@@ -76,12 +80,23 @@ async function smoke() {
   }
 }
 
+const productionCsp = () =>
+  withServer('preview', PREVIEW_PORT, (base) => run('node', ['scripts/check-csp.mjs'], { env: { ...ciEnv, BASE_URL: base } }));
+
+async function smoke() {
+  if ((await run('npx', ['playwright', 'install', 'chromium'])) !== 0) return 1;
+  return withServer('dev', PORT, () =>
+    run('node', ['--experimental-strip-types', 'scripts/smoke.mjs'], { env: { ...ciEnv, BASE_URL: BASE } }),
+  );
+}
+
 const steps = [
   ...(skipInstall ? [] : [['install (npm ci)', () => run('npm', ['ci'])]]),
   ['typecheck', () => run('npm', ['run', 'typecheck'])],
   ['lint (0 errors, 0 warnings)', () => run('npm', ['run', 'lint'])],
   ['tests', () => run('npm', ['test'])],
   ['build', () => run('npm', ['run', 'build'])],
+  ['CSP on the production build', productionCsp],
   ['smoke (Playwright + PGlite)', smoke],
 ];
 

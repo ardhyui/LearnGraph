@@ -752,13 +752,16 @@ Possible sources that are not built yet:
 There is no hosted CI (no GitHub Actions). The single gate is:
 
 ```bash
-npm run ci                  # clean npm ci → typecheck → lint → tests → build → Playwright smoke
+npm run ci                  # clean npm ci → typecheck → lint → tests → build → CSP check → Playwright smoke
 npm run ci -- --no-install  # same, without the clean reinstall
 ```
 
 It starts its own dev server on port 8081 (`CI_PORT` to change) with a fresh
 in-memory PGlite database — `DATABASE_URL` from `.env` is ignored — and prints
-a PASS/FAIL summary. Every PR must show a green `npm run ci` before merging.
+a PASS/FAIL summary. The CSP check serves the production build on port 8083
+(`CI_PREVIEW_PORT`) and fails if any inline script lacks the response's nonce;
+the dev server still allows inline scripts, so the smoke test can't see this.
+Every PR must show a green `npm run ci` before merging.
 
 ### Individual commands
 

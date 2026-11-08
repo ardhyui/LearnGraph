@@ -460,39 +460,40 @@ function StatesPage() {
               className="glass-card overflow-hidden"
             >
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <table className="stack-table w-full" role="table">
+                  <thead role="rowgroup">
+                    <tr role="row" className="border-b border-border/50">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Learner
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Concept
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Mastery
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Bloom Level
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Last Accessed
                       </th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <th role="columnheader" className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/30">
+                  <tbody role="rowgroup" className="divide-y divide-border/30">
                     {filteredStates.map((state, index) => (
                       <motion.tr
+                        role="row"
                         key={`${state.userId}-${state.conceptId}`}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4, delay: index * 0.05 }}
                         className="hover:bg-muted/30 transition-colors"
                       >
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
                               <User className="w-4 h-4 text-white" />
@@ -500,10 +501,10 @@ function StatesPage() {
                             <span className="font-medium text-foreground">{getLearnerName(state.userId)}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" data-label="Concept" className="px-6 py-4 whitespace-nowrap">
                           <span className="text-foreground">{getConceptName(state.conceptId)}</span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" data-label="Mastery" className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
                               <div
@@ -519,17 +520,17 @@ function StatesPage() {
                             </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td role="cell" data-label="Bloom level" className="px-6 py-4 whitespace-nowrap">
                           <span className="px-2 py-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded text-xs font-medium">
                             {state.bloomLevel || '—'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        <td role="cell" data-label="Last accessed" className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                           {state.lastAccessed
                             ? new Date(state.lastAccessed).toLocaleDateString()
                             : '—'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <td role="cell" className="px-6 py-4 whitespace-nowrap text-right">
                           <button
                             onClick={(e) => handleDelete(state.userId, state.conceptId, e.currentTarget)}
                             className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
