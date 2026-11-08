@@ -106,3 +106,20 @@ export const getLearningStats = createServerFn({ method: 'GET' })
     const events = await service.listEvents(db, context.userId, { learnerId: data.learnerId });
     return { events: events.length, retention: dueReviewRetention(events) };
   });
+
+/** The roadmap's measures of success for this workspace (all of its learners). */
+export const getLearningMeasures = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const [{ db, service }, { learningMeasures }, { sql }] = await Promise.all([
+      services(context.userId),
+      import('@/lib/evidence/measures'),
+      import('kysely'),
+    ]);
+    const [events, account] = await Promise.all([
+      service.listEvents(db, context.userId),
+      sql<{ createdAt: Date | string }>`select "createdAt" from "user" where id = ${context.userId}`.execute(db),
+    ]);
+    const created = account.rows[0]?.createdAt;
+    return learningMeasures(events, created ? new Date(created).toISOString() : null, new Date());
+  });

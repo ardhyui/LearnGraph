@@ -179,7 +179,7 @@ build command `npm run build`. `vercel.json` sets the install command.
 - **Recommendations**: http://localhost:8080/recommendations
 - **Gap Analysis**: http://localhost:8080/gaps
 - **Graph Visualization**: http://localhost:8080/graph
-- **System Status**: http://localhost:8080/status
+- **System Status**: http://localhost:8080/status (includes the workspace's learning measures from `Roadmap.md`)
 - **Functional Tests**: http://localhost:8080/tests
 - **Sign in / sign up**: http://localhost:8080/sign-in
 

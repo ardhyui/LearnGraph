@@ -1590,6 +1590,29 @@ try {
     await ctx3.close();
   }
 
+  // Roadmap "Ukuran keberhasilan": Status shows the measures of this workspace,
+  // from its own activity log. By now this account has answered due reviews with
+  // quizzes and finished a first concept.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/status`, { waitUntil: 'networkidle' });
+    const measures = page.getByTestId('learning-measures');
+    await measures.locator('dl').waitFor({ timeout: 30000 }).catch(() => {});
+    const value = async (id) => ((await measures.locator(`[data-measure="${id}"] dd`).first().textContent().catch(() => '')) ?? '').trim();
+    const retention = await value('retention');
+    const activation = await value('activation');
+    const session = await value('session');
+    const newErrors = errors.slice(before);
+    check(
+      /^Due reviews answered correctly: quizzes \d+% of \d+/.test(retention) &&
+        /after the account was created$/.test(activation) &&
+        session.startsWith('Not recorded yet') &&
+        newErrors.length === 0,
+      'status: learning measures come from this workspace’s activity log',
+      `retention "${retention}", first concept "${activation}"${newErrors.length ? `, ${newErrors.join(' | ')}` : ''}`,
+    );
+  }
+
   // Sign out, then sign in again
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
   for (let i = 0; i < 10 && !page.url().includes('/sign-in'); i++) {

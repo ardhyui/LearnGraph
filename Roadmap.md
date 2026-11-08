@@ -41,14 +41,14 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 | # | Temuan | Bukti | Akibat |
 |---|--------|-------|--------|
 | 1 | Penguasaan di subjek umum adalah laporan diri | `applyStudyOutcome` di `src/lib/study.ts` menaikkan mastery ke ≥ 85 saat "I've got it" | Gerbang prasyarat ZPD membaca angka yang belum teruji. Diperbaiki di M1 untuk konsep bersoal; konsep tanpa soal tetap laporan diri berlabel (D5) |
-| 2 | Belum ada materi belajar | `ConceptNode` hanya punya `description`; `bloomObjectives` tidak tampil di halaman pelajar; akun baru mendapat 11 konsep contoh | "Learn next" menyebut topik, tetapi tidak mengajarkannya |
+| 2 | Belum ada materi belajar | `ConceptNode` hanya punya `description`; `bloomObjectives` tidak tampil di halaman pelajar; akun baru mendapat 11 konsep contoh | "Learn next" menyebut topik, tetapi tidak mengajarkannya. Diperbaiki di M2: materi per konsep (`content_items`) dan halaman `/learn/$conceptId` |
 | 3 | Riwayat belajar nyaris tidak tercatat | Satu-satunya penulis `interactions` adalah `recordJapanesePractice` | Retensi tak terukur, mode "Automatic" tak bisa dibangun, Fase 8 tak punya data. Diperbaiki di M1: tabel `learning_events` |
 | 4 | Sistem bukti hanya untuk bahasa Jepang | Tabel `japanese_quizzes`, cek prefiks `jp-` di `src/server/graph.functions.ts:30` | Pola yang benar belum bisa dipakai subjek lain. Diperbaiki di M1: modul `src/lib/evidence/` dan flag `evidenceRequired` |
-| 5 | Hanya 10 dari 39 domain psikometrik memengaruhi rencana belajar | `trait-scores.ts`, `deriveLearningStyle`, `estimateCognitiveProfile` | 29 domain, termasuk `political_ideology` dan `dark_triad_*`, ditanyakan tanpa manfaat bagi rencana belajar |
-| 6 | Kontrol data belum lengkap | Tidak ada UI hapus akun atau persetujuan | Belum layak untuk pengguna selain pemilik. Hapus akun ada sejak M3; persetujuan domain sensitif menunggu D4 |
+| 5 | Hanya 10 dari 39 domain psikometrik memengaruhi rencana belajar | `trait-scores.ts`, `deriveLearningStyle`, `estimateCognitiveProfile` | 29 domain, termasuk `political_ideology` dan `dark_triad_*`, ditanyakan tanpa manfaat bagi rencana belajar. Ditangani di M3 sesuai rekomendasi D4: My Profile hanya menanyakan topik yang dipakai rencana belajar; topik lain tampil setelah pelajar setuju |
+| 6 | Kontrol data belum lengkap | Tidak ada UI hapus akun atau persetujuan | Belum layak untuk pengguna selain pemilik. Hapus akun, unduh data, impor, dan persetujuan domain sensitif ada sejak M3 |
 | 7 | Gerbang CI tidak andal | 4 dari 217 test, yaitu benchmark warisan (tulis < 5 ms, baca < 2 ms), gagal di `main` pada mesin ini, padahal lulus di PR #29; `scripts/ci.mjs` berhenti di langkah pertama yang gagal | `npm run ci` bergantung pada kecepatan mesin, dan build serta smoke tidak sempat berjalan. Diperbaiki di M0 |
 | 8 | Dokumen menyimpang dari kode | Penyebutan LevelDB, REST `/api/zpd`, port 3000, `/api/seed-users`, badge "37/37", `LICENSE` dan `docs/api.md` yang tidak ada | Pembaca dan agen AI mendapat arahan yang salah. Diperbaiki di M0 |
-| 9 | Klaim hasil tanpa pengukuran | README menulis "Gap detection accuracy 90%: Achieved", tetapi tidak ada kode atau test yang mengukurnya | Efektivitas produk belum diketahui. Klaim sudah dikoreksi di M0. Sejak M1 retensi saat review terhitung dari event; akurasi deteksi celah belum diukur |
+| 9 | Klaim hasil tanpa pengukuran | README menulis "Gap detection accuracy 90%: Achieved", tetapi tidak ada kode atau test yang mengukurnya | Efektivitas produk belum diketahui. Klaim sudah dikoreksi di M0. Sejak M1 retensi saat review terhitung dari event, dan ukuran keberhasilan tampil di halaman Status; akurasi deteksi celah belum diukur |
 | 10 | Pengecekan prasyarat boros | `classifyConcept` membaca seluruh edge sekali per konsep lewat `getEdgesToConcept` | Melambat seiring kurikulum bertambah, terutama di Postgres jarak jauh. Diperbaiki di M2: edge dimuat sekali per `computeZPD` dan `detectGaps` |
 
 ## Milestone
@@ -228,6 +228,11 @@ Dikerjakan saat menyentuh area terkait. Rinciannya ada di `docs/ROADMAP.md`.
 ## Ukuran keberhasilan
 
 Angka berikut menggantikan klaim yang belum terukur. Sumbernya data aplikasi sendiri, tanpa analitik pihak ketiga.
+
+Sejak 8 November angka-angka ini tampil di halaman Status, pada kartu **Learning measures** (`src/lib/evidence/measures.ts`). Angkanya dihitung per workspace dari `learning_events`, dengan target awal di sampingnya. Ada dua yang belum bisa diukur:
+
+- **Penyelesaian sesi:** mulai dan selesainya sesi belum dicatat.
+- **Hasil kuis dengan dan tanpa personalisasi:** butuh kelompok pembanding (M7). Untuk sementara, ukuran personalisasi yang tersedia adalah perbandingan buta jawaban tutor (M4).
 
 | Ukuran | Definisi | Tersedia sejak | Target awal |
 |--------|----------|----------------|-------------|
