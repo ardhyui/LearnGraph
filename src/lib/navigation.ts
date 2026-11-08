@@ -25,7 +25,8 @@ export type NavIcon =
   | 'database'
   | 'activity'
   | 'test'
-  | 'quiz';
+  | 'quiz'
+  | 'lesson';
 
 export interface NavItem {
   href: string;
@@ -125,6 +126,12 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Prerequisites',
         description: 'Dependencies',
         icon: 'branch',
+      },
+      {
+        href: '/admin/content',
+        label: 'Lesson Content',
+        description: 'Lessons per concept',
+        icon: 'lesson',
       },
       {
         href: '/admin/questions',

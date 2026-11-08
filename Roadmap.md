@@ -98,12 +98,12 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 
 **Tujuan:** pengguna baru bisa benar-benar mempelajari sesuatu tanpa keluar dari aplikasi.
 
-- [ ] Model konten per konsep, misalnya `content_items`: teks, tautan, video, latihan, durasi, bahasa, sumber. Konten dirender dengan sanitasi.
-- [ ] Halaman `/learn/$conceptId`: tujuan, materi, contoh, kuis singkat, langkah berikutnya.
-- [ ] `buildSessionPlan()`: gabungkan review jatuh tempo dan konsep ZPD menjadi sesi sesuai waktu yang dipilih pelajar, dari pola "Sesi hari ini" di `/japanese`.
-- [ ] Tempo dan saran istirahat sederhana dari `pacePreference` dan `attentionSpan`.
-- [ ] `scoreContentMatch()` dan `determinePresentationStrategy()` sebagai preferensi format yang bisa diubah pelajar, bukan diagnosis. Bukti bahwa mencocokkan materi dengan "gaya belajar" meningkatkan hasil masih lemah (Pashler dkk., 2008), jadi format yang dipakai dicatat di event agar efeknya bisa diuji.
-- [ ] Lengkapi satu subjek sebagai contoh utuh (keputusan D6).
+- [x] Model konten per konsep, misalnya `content_items`: teks, tautan, video, latihan, durasi, bahasa, sumber. Konten dirender dengan sanitasi. Tabel `content_items` (migrasi 0006), editor Admin → Lesson Content; teks dirender sebagai elemen React, bukan HTML, dan tautan wajib https.
+- [x] Halaman `/learn/$conceptId`: tujuan, materi, contoh, kuis singkat, langkah berikutnya.
+- [x] `buildSessionPlan()`: gabungkan review jatuh tempo dan konsep ZPD menjadi sesi sesuai waktu yang dipilih pelajar, dari pola "Sesi hari ini" di `/japanese`. Kartu "Today's session" di panel Today (15/30/45/60 menit).
+- [x] Tempo dan saran istirahat sederhana dari `pacePreference` dan `attentionSpan`.
+- [x] `scoreContentMatch()` dan `determinePresentationStrategy()` sebagai preferensi format yang bisa diubah pelajar, bukan diagnosis. Bukti bahwa mencocokkan materi dengan "gaya belajar" meningkatkan hasil masih lemah (Pashler dkk., 2008), jadi format yang dipakai dicatat di event agar efeknya bisa diuji. Pilihan "Show first" tersimpan sebagai tag pelajar; urutan yang dipakai dicatat di event `lesson`.
+- [x] Lengkapi satu subjek sebagai contoh utuh (keputusan D6). Matematika dasar: 6 konsep, masing-masing penjelasan, contoh, latihan berpembahasan, dan 4 soal kuis.
 - [x] Muat edge sekali per perhitungan ZPD, sebelum kurikulum melewati 100 konsep. Untuk 200 konsep di PGlite: `computeZPD` 1111 → 62 ms, `detectGaps` 573 → 36 ms (`npm run test:perf`).
 
 **Selesai bila:**
@@ -111,6 +111,13 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 - Akun baru bisa menyelesaikan satu konsep (materi dan kuis) kurang dari 5 menit setelah daftar.
 - `computeZPD` < 200 ms di Postgres dengan 200 konsep.
 - Tes fungsional Fase 6A lulus: "Start session → content matches your style".
+
+**Catatan implementasi (perlu ditinjau pemilik):**
+
+- Batas 200 ms diukur di PGlite pada disk (`npm run test:perf`), belum di Postgres jarak jauh, tempat latensi jaringan dominan.
+- Kriteria 5 menit diperiksa oleh smoke test (pelajar baru: buka pelajaran, latihan, lolos kuis). Belum ada pengukuran dengan pengguna nyata; ukuran "Aktivasi" butuh data event dari pengguna.
+- Saran format dari profil hanya titik awal: `visual` → contoh dulu, `kinesthetic` → latihan dulu, lainnya → penjelasan dulu. Pelajar melihat dan bisa mengubahnya.
+- Video dan tautan hanya ditampilkan sebagai tautan https yang dibuka di tab baru, tanpa embed, agar CSP tidak perlu dilonggarkan.
 
 ### M3: Siap dipakai orang lain
 

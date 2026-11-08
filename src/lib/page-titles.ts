@@ -14,7 +14,11 @@ export const APP_NAME = 'LearnGraph';
 /** Pages that are not in the sidebar menu. */
 const EXTRA_LABELS: Record<string, string> = {
   '/sign-in': 'Sign in',
+  '/learn/$conceptId': 'Lesson',
 };
+
+/** Pages with a path parameter: `/learn/fractions` → the `/learn/$conceptId` label. */
+const PARAM_ROUTES: [RegExp, string][] = [[/^\/learn\/[^/]+$/, '/learn/$conceptId']];
 
 export const PAGE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   ...Object.fromEntries(NAV_SECTIONS.flatMap((s) => s.items.map((i) => [i.href, i.label]))),
@@ -30,7 +34,9 @@ export function pageTitle(label?: string | null): string {
 /** Title for a pathname; unknown paths fall back to the app name. */
 export function titleForPath(pathname: string): string {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  return pageTitle(Object.hasOwn(PAGE_LABELS, path) ? PAGE_LABELS[path] : null);
+  if (Object.hasOwn(PAGE_LABELS, path)) return pageTitle(PAGE_LABELS[path]);
+  const route = PARAM_ROUTES.find(([re]) => re.test(path))?.[1];
+  return pageTitle(route ? PAGE_LABELS[route] : null);
 }
 
 /** Route `head` option: `head: () => pageHead('/gaps')`. */

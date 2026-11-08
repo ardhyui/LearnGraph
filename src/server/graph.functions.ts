@@ -44,11 +44,13 @@ export const seedDemoData = createServerFn({ method: 'POST' })
     const { seedDemoDataIfEmpty, repairDemoKnowledgeStates } = await import('@/lib/graph/seed');
     const { getDb } = await import('@/lib/db');
     const { seedDemoQuestions } = await import('@/lib/evidence/service');
+    const { seedDemoContent } = await import('@/lib/content/service');
     const graph = await graphForOwner(context.userId);
     const seeded = await seedDemoDataIfEmpty(graph);
     // Older workspaces: attach demo progress to the demo learners (no-op once done).
     if (!seeded) await repairDemoKnowledgeStates(graph);
-    // Example concepts get their quiz questions once, in new and existing workspaces.
+    // Example concepts get their quiz questions and lessons once, in new and existing workspaces.
     await seedDemoQuestions(getDb(), graph, context.userId);
+    await seedDemoContent(getDb(), graph, context.userId);
     return { seeded };
   });

@@ -40,6 +40,7 @@ LearnGraph is a **Graph RAG (Retrieval-Augmented Generation) knowledge base** th
 | **Learner Profiles** | Store and manage learner data with full psychometric profiles | **Working** |
 | **Knowledge Graph** | Concepts, prerequisites, Bloom's taxonomy, difficulty ratings | **Working** |
 | **Progress Tracking** | Mastery levels (0-100%), misconceptions, review history | **Working** |
+| **Lessons in the app** | `/learn/<concept>`: explanation, worked example and practice in the learner's preferred order, then the quiz; Today plans a session that fits the time available | **Working** (mathematics example subject) |
 | **Quiz Evidence** | Concepts with questions are learned and reviewed by short quizzes graded on the server; every answer, review and snooze is logged | **Working** |
 | **Learning Style Derivation** | Automatically derive learning style from psychometric scores | **Working** |
 | **Cognitive Profile Estimation** | Estimate working memory, attention span, processing speed | **Working** |
@@ -141,6 +142,9 @@ The schema lives in `migrations/*.sql` (single source of truth):
 - `0005_learning_evidence.sql` — quiz question banks per concept
   (`quiz_questions`), graded quiz attempts (`quiz_sessions`) and the
   append-only activity log (`learning_events`)
+- `0006_content_items.sql` — lesson content per concept (`content_items`:
+  explanations, worked examples, practice, links, videos) and the `lesson`
+  event kind
 
 ```bash
 DATABASE_URL=postgres://… npm run db:migrate   # apply pending migrations
@@ -504,6 +508,7 @@ same-site check):
 | `graphCall({ method, args })` | Runs one `EducationGraphDB` method (whitelist in `src/lib/graph/methods.ts`) against the caller's workspace |
 | `seedDemoData()` | Seeds the demo dataset when the caller's workspace is empty, and the example quiz questions once |
 | Evidence server functions | Concept quizzes graded on the server, the question bank editor, self-reports and the event log (`src/server/evidence.functions.ts`) |
+| Lesson server functions | The lesson page data, the lesson content editor and the "lesson opened" event (`src/server/content.functions.ts`) |
 | `getCurrentUser()` | Current session user (used by the route guard) |
 | `/api/auth/*` | Better Auth endpoints (sign-up, sign-in, sign-out, session) |
 | `/japanese` server functions | Quizzes graded on the server and practice logging (`src/server/japanese.functions.ts`) |
@@ -563,7 +568,8 @@ LearnGraph/
 │   │   ├── __root.tsx           # HTML shell, auth guard, providers
 │   │   ├── sign-in.tsx          # email/password sign-in & sign-up
 │   │   ├── index.tsx, profile.tsx, graph.tsx, gaps.tsx, …
-│   │   ├── admin/               # learners, concepts, prerequisites, quiz questions, states, psychometrics
+│   │   ├── learn.$conceptId.tsx # lesson page
+│   │   ├── admin/               # learners, concepts, prerequisites, lesson content, quiz questions, states, psychometrics
 │   │   └── api/auth/$.ts        # Better Auth handler
 │   ├── server/                  # server functions (graphCall, seedDemoData, quizzes, getCurrentUser)
 │   ├── lib/
@@ -574,6 +580,8 @@ LearnGraph/
 │   │   │   ├── types.ts, psychometrics.ts, seed.ts, methods.ts, server.ts
 │   │   ├── auth/                # Better Auth server/client/middleware
 │   │   ├── evidence/            # concept quizzes, mastery from evidence, event log
+│   │   ├── content/             # lesson content, format preference, example lessons
+│   │   ├── session.ts           # today's session plan (reviews, lessons, breaks)
 │   │   ├── japanese/            # Japanese curriculum, questions, evidence rules
 │   │   ├── db.ts                # Kysely: pg (DATABASE_URL) or PGlite
 │   │   ├── DBContext.tsx        # React hooks (proxy to graphCall)

@@ -24,12 +24,14 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as TestsRouteImport } from './routes/tests'
 import { Route as AdminConceptsRouteImport } from './routes/admin/concepts'
+import { Route as AdminContentRouteImport } from './routes/admin/content'
 import { Route as AdminLearnersRouteImport } from './routes/admin/learners'
 import { Route as AdminPrerequisitesRouteImport } from './routes/admin/prerequisites'
 import { Route as AdminPsychometricsRouteImport } from './routes/admin/psychometrics'
 import { Route as AdminQuestionsRouteImport } from './routes/admin/questions'
 import { Route as AdminStatesRouteImport } from './routes/admin/states'
 import { Route as ApiJapaneseBackupRouteImport } from './routes/api/japanese-backup'
+import { Route as LearnConceptIdRouteImport } from './routes/learn.$conceptId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -107,6 +109,11 @@ const AdminConceptsRoute = AdminConceptsRouteImport.update({
   path: '/admin/concepts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminContentRoute = AdminContentRouteImport.update({
+  id: '/admin/content',
+  path: '/admin/content',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminLearnersRoute = AdminLearnersRouteImport.update({
   id: '/admin/learners',
   path: '/admin/learners',
@@ -137,6 +144,11 @@ const ApiJapaneseBackupRoute = ApiJapaneseBackupRouteImport.update({
   path: '/api/japanese-backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LearnConceptIdRoute = LearnConceptIdRouteImport.update({
+  id: '/learn/$conceptId',
+  path: '/learn/$conceptId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -159,12 +171,14 @@ export interface FileRoutesByFullPath {
   '/status': typeof StatusRoute
   '/tests': typeof TestsRoute
   '/admin/concepts': typeof AdminConceptsRoute
+  '/admin/content': typeof AdminContentRoute
   '/admin/learners': typeof AdminLearnersRoute
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
   '/admin/questions': typeof AdminQuestionsRoute
   '/admin/states': typeof AdminStatesRoute
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
+  '/learn/$conceptId': typeof LearnConceptIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -183,12 +197,14 @@ export interface FileRoutesByTo {
   '/status': typeof StatusRoute
   '/tests': typeof TestsRoute
   '/admin/concepts': typeof AdminConceptsRoute
+  '/admin/content': typeof AdminContentRoute
   '/admin/learners': typeof AdminLearnersRoute
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
   '/admin/questions': typeof AdminQuestionsRoute
   '/admin/states': typeof AdminStatesRoute
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
+  '/learn/$conceptId': typeof LearnConceptIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -208,12 +224,14 @@ export interface FileRoutesById {
   '/status': typeof StatusRoute
   '/tests': typeof TestsRoute
   '/admin/concepts': typeof AdminConceptsRoute
+  '/admin/content': typeof AdminContentRoute
   '/admin/learners': typeof AdminLearnersRoute
   '/admin/prerequisites': typeof AdminPrerequisitesRoute
   '/admin/psychometrics': typeof AdminPsychometricsRoute
   '/admin/questions': typeof AdminQuestionsRoute
   '/admin/states': typeof AdminStatesRoute
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
+  '/learn/$conceptId': typeof LearnConceptIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -234,12 +252,14 @@ export interface FileRouteTypes {
     | '/status'
     | '/tests'
     | '/admin/concepts'
+    | '/admin/content'
     | '/admin/learners'
     | '/admin/prerequisites'
     | '/admin/psychometrics'
     | '/admin/questions'
     | '/admin/states'
     | '/api/japanese-backup'
+    | '/learn/$conceptId'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -258,12 +278,14 @@ export interface FileRouteTypes {
     | '/status'
     | '/tests'
     | '/admin/concepts'
+    | '/admin/content'
     | '/admin/learners'
     | '/admin/prerequisites'
     | '/admin/psychometrics'
     | '/admin/questions'
     | '/admin/states'
     | '/api/japanese-backup'
+    | '/learn/$conceptId'
     | '/api/auth/$'
   id:
     | '__root__'
@@ -282,12 +304,14 @@ export interface FileRouteTypes {
     | '/status'
     | '/tests'
     | '/admin/concepts'
+    | '/admin/content'
     | '/admin/learners'
     | '/admin/prerequisites'
     | '/admin/psychometrics'
     | '/admin/questions'
     | '/admin/states'
     | '/api/japanese-backup'
+    | '/learn/$conceptId'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -307,12 +331,14 @@ export interface RootRouteChildren {
   StatusRoute: typeof StatusRoute
   TestsRoute: typeof TestsRoute
   AdminConceptsRoute: typeof AdminConceptsRoute
+  AdminContentRoute: typeof AdminContentRoute
   AdminLearnersRoute: typeof AdminLearnersRoute
   AdminPrerequisitesRoute: typeof AdminPrerequisitesRoute
   AdminPsychometricsRoute: typeof AdminPsychometricsRoute
   AdminQuestionsRoute: typeof AdminQuestionsRoute
   AdminStatesRoute: typeof AdminStatesRoute
   ApiJapaneseBackupRoute: typeof ApiJapaneseBackupRoute
+  LearnConceptIdRoute: typeof LearnConceptIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -423,6 +449,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminConceptsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/content': {
+      id: '/admin/content'
+      path: '/admin/content'
+      fullPath: '/admin/content'
+      preLoaderRoute: typeof AdminContentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/learners': {
       id: '/admin/learners'
       path: '/admin/learners'
@@ -465,6 +498,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiJapaneseBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/learn/$conceptId': {
+      id: '/learn/$conceptId'
+      path: '/learn/$conceptId'
+      fullPath: '/learn/$conceptId'
+      preLoaderRoute: typeof LearnConceptIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -491,12 +531,14 @@ const rootRouteChildren: RootRouteChildren = {
   StatusRoute: StatusRoute,
   TestsRoute: TestsRoute,
   AdminConceptsRoute: AdminConceptsRoute,
+  AdminContentRoute: AdminContentRoute,
   AdminLearnersRoute: AdminLearnersRoute,
   AdminPrerequisitesRoute: AdminPrerequisitesRoute,
   AdminPsychometricsRoute: AdminPsychometricsRoute,
   AdminQuestionsRoute: AdminQuestionsRoute,
   AdminStatesRoute: AdminStatesRoute,
   ApiJapaneseBackupRoute: ApiJapaneseBackupRoute,
+  LearnConceptIdRoute: LearnConceptIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

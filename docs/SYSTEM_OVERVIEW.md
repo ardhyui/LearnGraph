@@ -64,7 +64,8 @@ There is no public REST API yet, so try it in the browser:
 4. The **Today** panel shows **Learn next**, with concepts whose prerequisites you already meet. Reviews appear under **Review now** once they fall due. The example concepts have quiz questions, so you pass a short quiz (graded on the server) instead of marking them as known.
 5. Open **Gap Analysis** (`/gaps`) to see what you have not started, are still learning, or should review, and where each mastery value came from (quiz or self-report).
 6. Open **Knowledge Graph** (`/graph`) to see the concepts with your progress overlaid.
-7. Open **Manage data → Quiz Questions** (`/admin/questions`) to edit a concept's question bank.
+7. Choose **Open the lesson** on a "Learn next" concept: the mathematics examples have an explanation, a worked example and practice, then the quiz. Pick "Show first" to change the order.
+8. Open **Manage data → Lesson Content** (`/admin/content`) or **Quiz Questions** (`/admin/questions`) to edit a concept's lesson or question bank.
 
 ---
 
@@ -721,6 +722,7 @@ There is no public REST API yet. The UI calls TanStack Start server functions, e
 
 - `graphCall({ method, args })` - Runs one whitelisted `EducationGraphDB` method (`src/lib/graph/methods.ts`), with arguments validated in `src/lib/graph/rpc-schemas.ts`
 - `seedDemoData()` - Seeds example data into an empty workspace, and the example quiz questions once
+- Lesson functions (`src/server/content.functions.ts`) - `getLesson` (content in the learner's preferred order, prerequisites, how the concept is checked, the next step), `logLessonOpened`, and the lesson content editor
 - Evidence functions (`src/server/evidence.functions.ts`) - `startConceptQuiz` / `submitConceptQuiz` (graded on the server), `recordStudyOutcome` (self-reports, snoozes), the question bank editor, and `getLearningStats` (retention at review time from the event log)
 - `getCurrentUser()` - Returns the session user
 - `/api/auth/*` - Better Auth endpoints

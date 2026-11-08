@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useRouteContext } from '@tanstack/react-router';
-import { CheckCircle2, Clock, Loader2, Pencil, RefreshCw, RotateCcw, Sparkles, Target, UserPlus } from 'lucide-react';
+import { BookOpen, CheckCircle2, Clock, Coffee, Loader2, Pencil, RefreshCw, RotateCcw, Sparkles, Target, UserPlus } from 'lucide-react';
 import { ConceptQuiz, type ConceptQuizResult } from '@/components/ConceptQuiz';
 import { FocusEditor } from '@/components/FocusEditor';
 import { Onboarding } from '@/components/Onboarding';
@@ -24,6 +24,8 @@ import {
 } from '@/lib/study';
 import { evidenceMode, quizResultNotice } from '@/lib/evidence/labels';
 import { getQuizOverview, recordStudyOutcome } from '@/server/evidence.functions';
+import { getContentOverview } from '@/server/content.functions';
+import { buildSessionPlan, SESSION_LENGTHS, REVIEW_MINUTES } from '@/lib/session';
 import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
 import { priorityLabel, reviewSummary, snoozedSummary } from '@/lib/gaps';
@@ -35,6 +37,8 @@ const UNSNOOZE_BUSY = '\u0000snoozed';
 
 /** Set (per account) when the user chose to explore the example learners instead of onboarding. */
 const ONBOARDING_SKIPPED_KEY = 'learngraph.onboardingSkipped';
+/** The session length the viewer picked last (a per-browser convenience). */
+const SESSION_MINUTES_KEY = 'learngraph.sessionMinutes';
 
 interface ReviewItem {
   conceptId: string;
@@ -65,6 +69,8 @@ interface TodayData {
   next: ZPDRecommendation[];
   /** Quiz questions per concept id: concepts listed here are learned by quiz. */
   quizCounts: Record<string, number>;
+  /** Minutes of lesson material per concept id (absent = no lesson yet). */
+  lessonMinutes: Record<string, number>;
 }
 
 /** The quiz open in one of the lists (one at a time). */
@@ -111,6 +117,7 @@ export function StudyToday() {
   const [notice, setNotice] = useState<string | null>(null);
   const [editingFocus, setEditingFocus] = useState(false);
   const [quiz, setQuiz] = useState<OpenQuiz | null>(null);
+  const [sessionMinutes, setSessionMinutes] = useState<number>(30);
   const selectId = useId();
   const changeSubjectsRef = useRef<HTMLButtonElement>(null);
   const activeLearnerIdRef = useRef<string | null>(null);
@@ -127,6 +134,11 @@ export function StudyToday() {
     setOnboardingSkipped(readStored(skippedKey) === '1');
   }, [skippedKey]);
 
+  useEffect(() => {
+    const saved = Number(readStored(SESSION_MINUTES_KEY));
+    if ((SESSION_LENGTHS as readonly number[]).includes(saved)) setSessionMinutes(saved);
+  }, []);
+
   // Subjects the active learner chose during onboarding (empty = everything).
   const activeLearner = learners.find((l) => l.userId === learnerId);
   const focus = focusDomains(activeLearner);
@@ -138,12 +150,13 @@ export function StudyToday() {
     setLoading(true);
     setError(null);
     try {
-      const [allConcepts, states, queue, zpd, overview] = await Promise.all([
+      const [allConcepts, states, queue, zpd, overview, lessons] = await Promise.all([
         db.listConcepts(),
         db.getLearnerKnowledgeStates(learnerId),
         db.getReviewQueue(learnerId, { limit: 5 }),
         db.computeZPD(learnerId, { limit: focusKey ? 200 : 8 }),
         getQuizOverview(),
+        getContentOverview(),
       ]);
       if (seq !== requestSeq.current) return;
       // Progress and "learn next" follow the learner's chosen subjects;
@@ -180,6 +193,7 @@ export function StudyToday() {
           .filter((r) => !postponed.has(r.concept.conceptId))
           .slice(0, 3),
         quizCounts: overview.counts,
+        lessonMinutes: lessons.minutes,
       });
     } catch (err) {
       if (seq !== requestSeq.current) return;
@@ -709,6 +723,17 @@ export function StudyToday() {
                     </span>
                   </div>
                   {rec.reasons[0] && <p className="text-xs text-muted-foreground">{rec.reasons[0]}</p>}
+                  <Link
+                    to="/learn/$conceptId"
+                    params={{ conceptId: rec.concept.conceptId }}
+                    className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    <BookOpen className="h-3 w-3" aria-hidden="true" />
+                    {current.lessonMinutes[rec.concept.conceptId]
+                      ? `Open the lesson (${current.lessonMinutes[rec.concept.conceptId]} min)`
+                      : 'Open the lesson page'}
+                    <span className="sr-only">: {rec.concept.name}</span>
+                  </Link>
                   {mode === 'quiz' && (
                     <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={`After studying ${rec.concept.name}`}>
                       <ActionButton
@@ -764,6 +789,19 @@ export function StudyToday() {
           </Link>
         </div>
       </div>
+
+      {current && (
+        <SessionPlanCard
+          data={current}
+          minutes={sessionMinutes}
+          onMinutes={(m) => {
+            setSessionMinutes(m);
+            store(SESSION_MINUTES_KEY, String(m));
+          }}
+          pace={activeLearner?.learningStyle?.pacePreference}
+          attentionSpan={activeLearner?.cognitiveProfile?.attentionSpan}
+        />
+      )}
     </section>
   );
 }
@@ -775,6 +813,103 @@ const NOTICES: Record<StudyOutcome | ReviewOutcome | SnoozeOutcome, (name: strin
   forgot: (n) => `No problem — “${n}” will come back tomorrow so it sticks.`,
   snooze: (n) => `Okay — “${n}” is moved to tomorrow. Your progress on it is unchanged.`,
 };
+
+/**
+ * "Today's session": due reviews first, then lessons, fitted into the time the
+ * learner has, with breaks paced by their profile. Every step opens its lesson.
+ */
+function SessionPlanCard({
+  data,
+  minutes,
+  onMinutes,
+  pace,
+  attentionSpan,
+}: {
+  data: TodayData;
+  minutes: number;
+  onMinutes: (minutes: number) => void;
+  pace?: Parameters<typeof buildSessionPlan>[0]['pace'];
+  attentionSpan?: Parameters<typeof buildSessionPlan>[0]['attentionSpan'];
+}) {
+  const legendId = useId();
+  const lessonFor = (concept: ConceptNode) => {
+    const material = data.lessonMinutes[concept.conceptId];
+    if (material) return material + (data.quizCounts[concept.conceptId] ? REVIEW_MINUTES : 0);
+    return concept.timeEstimates?.introduction ?? null;
+  };
+  const plan = buildSessionPlan({
+    minutes,
+    reviews: data.reviews.map((r) => ({ conceptId: r.conceptId, name: r.concept.name })),
+    next: data.next.map((r) => ({ conceptId: r.concept.conceptId, name: r.concept.name, minutes: lessonFor(r.concept) })),
+    pace,
+    attentionSpan,
+  });
+  if (plan.steps.length === 0) return null;
+  const left = plan.left.reviews + plan.left.next;
+  return (
+    <div className="mt-4 rounded-xl border border-border/50 bg-background/40 p-4" data-testid="session-plan">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Clock className="h-4 w-4 text-primary" aria-hidden="true" /> Today’s session
+        </h3>
+        <fieldset aria-labelledby={legendId} className="flex flex-wrap items-center gap-1 text-xs">
+          <span id={legendId} className="mr-1 text-muted-foreground">
+            I have
+          </span>
+          {SESSION_LENGTHS.map((m) => (
+            <label
+              key={m}
+              className={cn(
+                'cursor-pointer rounded-lg border px-2 py-1 focus-within:ring-2 focus-within:ring-primary',
+                minutes === m ? 'border-primary bg-primary/10 text-foreground' : 'border-border text-muted-foreground hover:bg-primary/5',
+              )}
+            >
+              <input
+                type="radio"
+                name={`${legendId}-minutes`}
+                checked={minutes === m}
+                onChange={() => onMinutes(m)}
+                className="sr-only"
+              />
+              {m} min
+            </label>
+          ))}
+        </fieldset>
+      </div>
+      <ol aria-label="Session steps" className="mt-3 space-y-1.5 text-sm">
+        {plan.steps.map((step, i) => (
+          <li key={step.kind === 'break' ? `break-${i}` : `${step.kind}-${step.conceptId}`} className="flex items-center gap-2">
+            {step.kind === 'break' ? (
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Coffee className="h-3.5 w-3.5" aria-hidden="true" /> Short break · {step.minutes} min
+              </span>
+            ) : (
+              <>
+                {step.kind === 'review' ? (
+                  <RotateCcw className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
+                ) : (
+                  <Target className="h-3.5 w-3.5 shrink-0 text-indigo-500" aria-hidden="true" />
+                )}
+                <Link
+                  to="/learn/$conceptId"
+                  params={{ conceptId: step.conceptId }}
+                  className="font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
+                >
+                  {step.kind === 'review' ? 'Review' : 'Learn'} {step.name}
+                </Link>
+                <span className="text-muted-foreground">· {step.minutes} min</span>
+              </>
+            )}
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 text-xs text-muted-foreground" data-testid="session-summary">
+        {plan.plannedMinutes} min planned · a short break every {plan.focusMinutes} min
+        {left > 0 ? ` · ${left} more for another day` : ''}
+      </p>
+    </div>
+  );
+}
 
 /** A concept whose evidence comes from its own page (e.g. Japanese topics). */
 function EvidenceElsewhere({ domain }: { domain: string }) {

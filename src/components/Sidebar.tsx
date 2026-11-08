@@ -24,6 +24,7 @@ import {
   Database,
   ChevronRight,
   ListChecks,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -60,6 +61,7 @@ const icons: Record<NavIcon, LucideIcon> = {
   activity: Activity,
   test: TestTube2,
   quiz: ListChecks,
+  lesson: FileText,
 };
 
 const navItemVariants = {

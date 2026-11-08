@@ -191,13 +191,13 @@ These checklists record what was built at the time, and the priority tags are th
 
 ### Phase 6: Adaptive Content Delivery & AI Curriculum Ingestion [MEDIUM]
 
-#### Part A: Content Delivery
-- [ ] `scoreContentMatch()` algorithm
-- [ ] `buildSessionPlan()` function
-- [ ] `determinePresentationStrategy()` function
-- [ ] Adaptive pacing model
-- [ ] Break recommendations
-- [ ] **FUNCTIONAL TEST**: Start session → content matches your style
+#### Part A: Content Delivery [DONE in Roadmap M2]
+- [x] `scoreContentMatch()` algorithm (`src/lib/content/content.ts`)
+- [x] `buildSessionPlan()` function (`src/lib/session.ts`)
+- [x] `determinePresentationStrategy()` function (a preference the learner sees and can change)
+- [x] Adaptive pacing model (focus blocks from `attentionSpan` and `pacePreference`)
+- [x] Break recommendations
+- [x] **FUNCTIONAL TEST**: Start session → content matches your style (`tests/learn-in-app.test.ts`)
 
 #### Part B: AI Curriculum Ingestion
 - [ ] `parseCurriculumInput()` - Extract topics from syllabus/text/documents
@@ -403,7 +403,7 @@ After:   ### Phase 1: Core Database Foundation [DONE]
 | 3 - Knowledge Model | **DONE** | - |
 | 4 - ZPD Engine | **DONE** | - |
 | 5 - Gap Analysis | **DONE** | - |
-| 6 - Content Delivery | Not Started | - |
+| 6 - Content Delivery | Part A done (Roadmap M2); B and C not started | B, C need an LLM (decision D3) |
 | 7 - RAG Integration | Not Started | - |
 | 8 - GNN Prep | Not Started | All above |
 

@@ -19,7 +19,9 @@ const PAGES = [
   ['/admin/psychometrics', null],
   ['/admin/concepts', null],
   ['/admin/prerequisites', null],
+  ['/admin/content', null],
   ['/admin/questions', null],
+  ['/learn/arithmetic', null],
   ['/admin/states', null],
   ['/recommendations', null],
   ['/gaps', null],
@@ -575,6 +577,67 @@ try {
     check(after === 'Sari Smoke' && noPrompt && (await onboarding.count()) === 0, 'onboarding: my plan is remembered after a reload', `selected "${after}"`);
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'onboarding flow has no page errors', newErrors.join(' | '));
+  }
+
+  // Learning in the app (Roadmap M2): Today plans a session, and "Learn next"
+  // opens the lesson — explanation, worked example and practice — where a
+  // solution stays hidden until asked for, the format choice reorders the
+  // lesson and is remembered, and passing the quiz masters the concept and
+  // offers a next step. A new learner gets there in well under 5 minutes.
+  {
+    const before = errors.length;
+    const started = Date.now();
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const today = page.getByTestId('study-today');
+    const steps = today.getByTestId('session-plan').getByRole('list', { name: 'Session steps' }).getByRole('listitem');
+    await steps.first().waitFor({ timeout: 30000 }).catch(() => {});
+    await today.getByTestId('session-plan').getByText('15 min', { exact: true }).click().catch(() => {});
+    const summary = await today.getByTestId('session-summary').innerText().catch(() => '');
+    const planned = Number((summary.match(/^(\d+) min planned/) ?? [])[1]);
+    check((await steps.count()) > 0 && planned > 0, "dashboard: today's session plans steps for the time chosen", `${await steps.count()} steps, "${summary}"`);
+
+    const nextItem = today.getByRole('list', { name: 'Recommended next concepts' }).getByRole('listitem').first();
+    await nextItem.getByRole('link', { name: /Open the lesson/ }).click();
+    await page.waitForURL(/\/learn\//, { timeout: 15000 }).catch(() => {});
+    const lesson = page.getByTestId('lesson');
+    await lesson.waitFor({ timeout: 30000 }).catch(() => {});
+    const kinds = await lesson.getByTestId('lesson-item').evaluateAll((els) => els.map((e) => e.getAttribute('data-kind')));
+    check(
+      ['text', 'example', 'exercise'].every((k) => kinds.includes(k)),
+      'lesson: "Learn next" opens a lesson with an explanation, a worked example and practice',
+      `${new URL(page.url()).pathname}: ${kinds.join(', ')}`,
+    );
+    const solution = lesson.getByTestId('solution').first();
+    const hiddenAtFirst = await solution.isHidden().catch(() => false);
+    await lesson.getByRole('button', { name: 'Show the solution' }).first().click().catch(() => {});
+    const shown = await solution.isVisible().catch(() => false);
+    check(hiddenAtFirst && shown, 'lesson: a practice solution stays hidden until asked for');
+
+    await lesson.getByRole('radio', { name: 'Practice first' }).check().catch(() => {});
+    await page
+      .waitForFunction(() => document.querySelector('[data-testid="lesson-item"]')?.getAttribute('data-kind') === 'exercise', null, { timeout: 10000 })
+      .catch(() => {});
+    const firstKind = await lesson.getByTestId('lesson-item').first().getAttribute('data-kind').catch(() => '');
+    await page.waitForTimeout(1000);
+    await page.reload({ waitUntil: 'networkidle' });
+    await lesson.getByTestId('lesson-item').first().waitFor({ timeout: 30000 }).catch(() => {});
+    const afterReload = await lesson.getByTestId('lesson-item').first().getAttribute('data-kind').catch(() => '');
+    check(firstKind === 'exercise' && afterReload === 'exercise', 'lesson: "Practice first" leads with practice and is remembered', `${firstKind} → ${afterReload}`);
+
+    await lesson.getByRole('button', { name: 'Take the quick quiz' }).click();
+    const result = await answerQuiz(lesson, { right: true });
+    await closeQuiz(lesson);
+    await lesson.getByTestId('lesson-progress').filter({ hasText: 'From quizzes' }).waitFor({ timeout: 15000 }).catch(() => {});
+    const progress = await lesson.getByTestId('lesson-progress').innerText().catch(() => '');
+    const nextStep = await lesson.getByRole('navigation', { name: 'Next step' }).getByRole('link', { name: /^Next: / }).count();
+    const minutes = (Date.now() - started) / 60000;
+    check(
+      /passed/.test(result) && /From quizzes/.test(progress) && nextStep > 0 && minutes < 5,
+      'lesson: passing its quiz masters the concept and offers the next step',
+      `${progress}; ${minutes.toFixed(1)} min`,
+    );
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'lessons have no page errors', newErrors.join(' | '));
   }
 
   // Changing subjects after onboarding: "Change subjects" on the Today panel

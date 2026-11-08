@@ -4,7 +4,7 @@
  * measures here; `service.ts` writes and reads the rows.
  */
 
-export type LearningEventKind = 'quiz' | 'study' | 'review' | 'snooze' | 'unsnooze' | 'practice';
+export type LearningEventKind = 'quiz' | 'study' | 'review' | 'snooze' | 'unsnooze' | 'practice' | 'lesson';
 
 /** Which part of the app wrote the event. */
 export type LearningEventSource = 'app' | 'japanese';
