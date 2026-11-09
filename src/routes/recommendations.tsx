@@ -12,7 +12,6 @@ import {
   Zap,
   Brain,
   Route as RouteIcon,
-  Loader2,
   AlertCircle,
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
@@ -20,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { conceptLabel, conceptNameMap, learnFirstLabel } from '@/lib/gaps';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
+import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 
 export const Route = createFileRoute('/recommendations')({
   head: () => pageHead('/recommendations'),
@@ -245,14 +245,7 @@ function RecommendationsPage() {
   };
 
   if (dbLoading) {
-    return (
-      <div className="flex min-h-screen bg-background items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">Initializing database...</p>
-        </div>
-      </div>
-    );
+    return <WorkspaceLoading />;
   }
 
   if (dbError) {

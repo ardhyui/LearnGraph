@@ -254,6 +254,43 @@ try {
   // Screen readers: one page title per page (the sidebar brand is not a heading).
   check(h1Counts.length === 0, 'every page has exactly one <h1>', h1Counts.join('; '));
 
+  // Later page loads don't wait for the workspace set-up check (Roadmap P0 #3):
+  // with that server call held back, a learner page still shows its content.
+  {
+    const before = errors.length;
+    const isSeedCall = (url) => {
+      const id = new URL(url).pathname.split('/_serverFn/')[1] ?? '';
+      try {
+        return Buffer.from(id, 'base64url').toString().includes('seedDemoData');
+      } catch {
+        return false;
+      }
+    };
+    let held = 0;
+    const release = [];
+    const hold = (route) => {
+      held += 1;
+      release.push(() => route.continue().catch(() => {}));
+    };
+    const seedUrl = (url) => url.pathname.startsWith('/_serverFn/') && isSeedCall(url.href);
+    await page.route(seedUrl, hold);
+    await page.goto(`${BASE}/gaps`, { waitUntil: 'domcontentloaded' });
+    const shown = await page
+      .getByRole('heading', { level: 1, name: 'Gap Analysis' })
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    const waiting = await page.getByText('Getting your learning space ready').isVisible().catch(() => false);
+    await page.unroute(seedUrl, hold);
+    for (const go of release) go();
+    check(
+      shown && !waiting && held > 0,
+      'returning visit: a learner page shows without waiting for the workspace set-up check',
+      `${held} set-up call(s) held${waiting ? ', still waiting' : ''}`,
+    );
+    await page.waitForLoadState('networkidle').catch(() => {});
+    check(errors.length === before, 'returning visit has no page errors', errors.slice(before).join(' | '));
+  }
+
   // Navigation: learner pages are listed first; admin editors and developer
   // tools sit in collapsible groups that start closed, open on their own
   // pages, and remember the user's choice.

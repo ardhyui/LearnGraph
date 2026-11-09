@@ -13,6 +13,7 @@ import type { MasterySource } from '@/lib/graph/types';
 import { getLearningStats, recordStudyOutcome } from '@/server/evidence.functions';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
+import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 
 export const Route = createFileRoute('/gaps')({
   head: () => pageHead('/gaps'),
@@ -346,14 +347,7 @@ function GapsDashboard() {
   };
 
   if (dbLoading) {
-    return (
-      <div className="flex min-h-screen bg-background items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">Initializing database...</p>
-        </div>
-      </div>
-    );
+    return <WorkspaceLoading />;
   }
 
   if (dbError) {

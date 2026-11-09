@@ -20,13 +20,13 @@ import {
   ArrowRight,
   Code,
   FileText,
-  Loader2,
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { cn } from '@/lib/utils';
 import { useDB, useLearners, useConcepts, useEdges, useKnowledgeStates } from '@/lib/DBContext';
 import { uuidv4 } from '@/lib/uuid';
+import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 
 export const Route = createFileRoute('/data-entry')({
   head: () => pageHead('/data-entry'),
@@ -372,14 +372,7 @@ function DataEntryPage() {
 
   // Show DB loading state
   if (dbLoading) {
-    return (
-      <div className="flex min-h-screen bg-background items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">Initializing database...</p>
-        </div>
-      </div>
-    );
+    return <WorkspaceLoading />;
   }
 
   if (dbError) {

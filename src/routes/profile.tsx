@@ -33,7 +33,6 @@ import {
   LayoutGrid,
   List,
   Send,
-  Loader2,
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { DeleteAccount } from '@/components/DeleteAccount';
@@ -67,6 +66,7 @@ import {
   withMoreTopicsConsent,
   type ProfileMode,
 } from '@/lib/profile';
+import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 
 export const Route = createFileRoute('/profile')({
   head: () => pageHead('/profile'),
@@ -718,14 +718,7 @@ function ProfilePage() {
 
   // Show DB loading state
   if (dbLoading) {
-    return (
-      <div className="flex min-h-screen bg-background items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">Initializing database...</p>
-        </div>
-      </div>
-    );
+    return <WorkspaceLoading />;
   }
 
   // Show DB error state
