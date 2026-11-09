@@ -5,19 +5,47 @@
  *   npm run ci                # clean `npm ci`, typecheck, lint, tests, build, CSP, smoke
  *   npm run ci -- --no-install  # skip the clean reinstall (faster local iteration)
  *
- * The smoke test runs against a dev server on CI_PORT (default 8081) backed by
+ * The smoke test runs against a dev server on CI_PORT (default 8081, or a free
+ * port when 8081 is taken) backed by
  * a fresh in-memory PGlite database: DATABASE_URL / PGLITE_DATA_DIR are forced
  * empty so a local `.env` can never point CI at a real database. The CSP check
  * runs against the production build (`vite preview`) on CI_PREVIEW_PORT
  * (default 8083), because the dev server still allows inline scripts.
  */
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const PORT = process.env.CI_PORT ?? '8081';
+/** Resolve with `port` if nothing listens on it, else with a free port chosen by the OS. */
+const freePort = (port) =>
+  new Promise((resolve) => {
+    const probe = createServer();
+    probe.once('error', () => {
+      const any = createServer();
+      any.listen(0, '127.0.0.1', () => {
+        const picked = String(any.address().port);
+        any.close(() => resolve(picked));
+      });
+    });
+    probe.listen(Number(port), '127.0.0.1', () => probe.close(() => resolve(String(port))));
+  });
+
+/**
+ * Default ports move aside when another app on this machine already uses them
+ * (a busy default port used to fail the whole gate with "Port 8081 is in use").
+ * Explicit CI_PORT / CI_PREVIEW_PORT are used as given.
+ */
+async function ciPort(envName, fallback) {
+  if (process.env[envName]) return process.env[envName];
+  const port = await freePort(fallback);
+  if (port !== fallback) console.log(`[ci] port ${fallback} is in use; using ${port} (set ${envName} to choose)`);
+  return port;
+}
+
+const PORT = await ciPort('CI_PORT', '8081');
 const BASE = `http://127.0.0.1:${PORT}`;
-const PREVIEW_PORT = process.env.CI_PREVIEW_PORT ?? '8083';
+const PREVIEW_PORT = await ciPort('CI_PREVIEW_PORT', '8083');
 const skipInstall = process.argv.includes('--no-install');
 const ciEnv = {
   ...process.env,

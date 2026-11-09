@@ -82,7 +82,7 @@ function RootComponent() {
   if (!user || PUBLIC_PATHS.has(pathname)) return <Outlet />;
   // Keyed by user so switching accounts never shows the previous account's data.
   return (
-    <DBProvider key={user.id} seedDemoData={user.id !== 'local-japanese-owner'}>
+    <DBProvider key={user.id} userId={user.id} seedDemoData={user.id !== 'local-japanese-owner'}>
       <Outlet />
     </DBProvider>
   );

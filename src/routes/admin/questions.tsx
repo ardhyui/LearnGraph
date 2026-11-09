@@ -16,6 +16,7 @@ import { getAiDraftSettings, reviewQuestionDraft, setAiDraftSettings } from '@/s
 import { AiQuestionDrafts } from '@/components/AiQuestionDrafts';
 import type { QuestionInput } from '@/lib/evidence/quiz';
 import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
+import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 
 export const Route = createFileRoute('/admin/questions')({
   head: () => pageHead('/admin/questions'),
@@ -170,14 +171,7 @@ function QuestionsPage() {
   };
 
   if (dbLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-muted-foreground">Initializing database...</p>
-        </div>
-      </div>
-    );
+    return <WorkspaceLoading />;
   }
 
   if (dbError) {

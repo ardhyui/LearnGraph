@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useConcepts, useDB } from '@/lib/DBContext';
 import type { ConceptNode } from '@/lib/graph/types';
 import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
+import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 
 export const Route = createFileRoute('/admin/concepts')({
   head: () => pageHead('/admin/concepts'),
@@ -108,14 +109,7 @@ function ConceptsPage() {
 
   // Show DB loading state
   if (dbLoading) {
-    return (
-      <div className="flex min-h-screen bg-background items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">Initializing database...</p>
-        </div>
-      </div>
-    );
+    return <WorkspaceLoading />;
   }
 
   if (dbError) {
