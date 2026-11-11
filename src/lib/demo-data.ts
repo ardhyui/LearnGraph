@@ -2,12 +2,15 @@
  * Demo data seeded into every new account's workspace
  * This provides a working demonstration of the LearnGraph system
  *
- * Note: This data uses a simplified format for demonstration purposes.
- * src/lib/graph/seed.ts handles conversion to the actual database types.
+ * Learner profiles use the same shapes as the graph API (learningStyle and
+ * cognitiveProfile objects, see src/lib/graph/types.ts). Psychometric scores
+ * keep the legacy bare 0–1 numbers on purpose: the engine ignores them
+ * (`traitScore` only reads `{ score }` 0–100), so the demo stays neutral.
+ * src/lib/graph/seed.ts handles the remaining conversion to database types.
  */
 
 // =============================================================================
-// Demo Learners (simplified format - converted in DBContext)
+// Demo Learners
 // =============================================================================
 export const demoLearners = [
   {
@@ -17,12 +20,18 @@ export const demoLearners = [
     email: 'alice@demo.learngraph.dev',
     createdAt: new Date('2024-01-15').toISOString(),
     updatedAt: new Date('2024-12-10').toISOString(),
-    learningStyle: 'visual',
+    learningStyle: {
+      primary: 'visual' as const,
+      secondary: 'reading' as const,
+      socialPreference: 'mixed' as const,
+      pacePreference: 'self-paced' as const,
+      feedbackPreference: 'immediate' as const,
+    },
     cognitiveProfile: {
-      processingSpeed: 0.75,
-      workingMemory: 0.82,
-      attentionSpan: 0.68,
-      preferredModality: 'visual',
+      workingMemoryCapacity: 'high' as const,
+      attentionSpan: 'medium' as const,
+      processingSpeed: 'fast' as const,
+      abstractThinking: 'mixed' as const,
     },
     psychometricScores: {
       openness: 0.85,
@@ -48,12 +57,18 @@ export const demoLearners = [
     email: 'bob@demo.learngraph.dev',
     createdAt: new Date('2024-02-20').toISOString(),
     updatedAt: new Date('2024-12-08').toISOString(),
-    learningStyle: 'kinesthetic',
+    learningStyle: {
+      primary: 'kinesthetic' as const,
+      secondary: 'auditory' as const,
+      socialPreference: 'collaborative' as const,
+      pacePreference: 'structured' as const,
+      feedbackPreference: 'immediate' as const,
+    },
     cognitiveProfile: {
-      processingSpeed: 0.65,
-      workingMemory: 0.70,
-      attentionSpan: 0.55,
-      preferredModality: 'kinesthetic',
+      workingMemoryCapacity: 'medium' as const,
+      attentionSpan: 'short' as const,
+      processingSpeed: 'medium' as const,
+      abstractThinking: 'concrete' as const,
     },
     psychometricScores: {
       openness: 0.70,
@@ -79,12 +94,18 @@ export const demoLearners = [
     email: 'carol@demo.learngraph.dev',
     createdAt: new Date('2024-03-10').toISOString(),
     updatedAt: new Date('2024-12-12').toISOString(),
-    learningStyle: 'reading-writing',
+    learningStyle: {
+      primary: 'reading' as const,
+      secondary: 'visual' as const,
+      socialPreference: 'solo' as const,
+      pacePreference: 'self-paced' as const,
+      feedbackPreference: 'on-request' as const,
+    },
     cognitiveProfile: {
-      processingSpeed: 0.80,
-      workingMemory: 0.88,
-      attentionSpan: 0.85,
-      preferredModality: 'verbal',
+      workingMemoryCapacity: 'high' as const,
+      attentionSpan: 'long' as const,
+      processingSpeed: 'fast' as const,
+      abstractThinking: 'abstract' as const,
     },
     psychometricScores: {
       openness: 0.78,
