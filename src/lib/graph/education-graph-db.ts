@@ -54,9 +54,8 @@ import type {
   LearningPathStep,
 } from './types.ts';
 import {
-  deriveLearningStyle,
+  derivedProfilesFromScores,
   estimateCognitiveProfile,
-  hasLearningStyleInputs,
 } from './psychometrics.ts';
 import {
   conceptNameMap,
@@ -334,8 +333,9 @@ export class EducationGraphDB {
       throw new Error(`Learner not found: ${userId}`);
     }
 
-    if (hasLearningStyleInputs(profile.psychometricScores)) {
-      profile.learningStyle = deriveLearningStyle(profile.psychometricScores);
+    const { learningStyle } = derivedProfilesFromScores(profile.psychometricScores);
+    if (learningStyle) {
+      profile.learningStyle = learningStyle;
     }
     profile.updatedAt = new Date().toISOString();
 
@@ -368,10 +368,11 @@ export class EducationGraphDB {
       throw new Error(`Learner not found: ${userId}`);
     }
 
-    if (hasLearningStyleInputs(profile.psychometricScores)) {
-      profile.learningStyle = deriveLearningStyle(profile.psychometricScores);
+    const { learningStyle, cognitiveProfile } = derivedProfilesFromScores(profile.psychometricScores);
+    if (learningStyle) {
+      profile.learningStyle = learningStyle;
     }
-    profile.cognitiveProfile = estimateCognitiveProfile(profile.psychometricScores);
+    profile.cognitiveProfile = cognitiveProfile;
     profile.updatedAt = new Date().toISOString();
 
     await this.put(this.learnerKey(userId), profile);

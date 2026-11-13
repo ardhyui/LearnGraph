@@ -7,8 +7,7 @@ import { EtherealShadow } from '@/components/ui/ethereal-shadow';
 import { Save, RefreshCw, ChevronDown, ChevronRight, Brain, User, AlertCircle, CheckCircle2, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLearners, useDB } from '@/lib/DBContext';
-import { ALL_DOMAIN_IDS, DOMAIN_METADATA } from '@/lib/graph/psychometrics';
-import { deriveLearningStyle, estimateCognitiveProfile } from '@/lib/graph/psychometrics';
+import { ALL_DOMAIN_IDS, DOMAIN_METADATA, derivedProfilesFromScores } from '@/lib/graph/psychometrics';
 import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 
 export const Route = createFileRoute('/admin/psychometrics')({
@@ -180,18 +179,22 @@ function PsychometricsPage() {
         };
       }
 
-      // Compute derived profiles
-      const learningStyle = deriveLearningStyle(scores as any);
-      const cognitiveProfile = estimateCognitiveProfile(scores as any);
+      // Compute derived profiles. A learning style needs all five key topics,
+      // so leave the stored one untouched while the profile is still partial.
+      const { learningStyle, cognitiveProfile } = derivedProfilesFromScores(scores);
 
       // Update learner profile
       await updateLearner(selectedUserId, {
         psychometricScores: scores as any,
-        learningStyle,
         cognitiveProfile,
+        ...(learningStyle ? { learningStyle } : {}),
       });
 
-      setSuccess('Scores saved and profiles computed successfully!');
+      setSuccess(
+        learningStyle
+          ? 'Scores saved and profiles computed successfully!'
+          : 'Scores saved and the cognitive profile updated. Fill in all five key topics (Learning Styles and Big Five) to work out a learning style.'
+      );
       await fetchPsychometricData(selectedUserId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -213,17 +216,21 @@ function PsychometricsPage() {
         throw new Error('No scores to compute profiles from');
       }
 
-      // Compute derived profiles
-      const learningStyle = deriveLearningStyle(learner.psychometricScores as any);
-      const cognitiveProfile = estimateCognitiveProfile(learner.psychometricScores as any);
+      // Compute derived profiles with the same rule as My Profile: no
+      // learning style until every key topic is filled in.
+      const { learningStyle, cognitiveProfile } = derivedProfilesFromScores(learner.psychometricScores);
 
       // Update learner profile
       await updateLearner(selectedUserId, {
-        learningStyle,
         cognitiveProfile,
+        ...(learningStyle ? { learningStyle } : {}),
       });
 
-      setSuccess('Profiles computed successfully!');
+      setSuccess(
+        learningStyle
+          ? 'Profiles computed successfully!'
+          : 'Cognitive profile updated. Fill in all five key topics (Learning Styles and Big Five) to work out a learning style.'
+      );
       await fetchPsychometricData(selectedUserId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -453,7 +460,8 @@ function PsychometricsPage() {
                     </div>
                   ) : (
                     <p className="text-muted-foreground italic text-sm">
-                      No learning style computed yet. Add scores and click &quot;Compute Profiles&quot;.
+                      No learning style yet. Fill in all five key topics (Learning Styles and Big Five),
+                      then click &quot;Compute Profiles&quot;.
                     </p>
                   )}
                 </motion.div>
