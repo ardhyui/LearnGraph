@@ -1,77 +1,77 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-13 (siklus 3: P0.1 selesai; berikutnya: P0.2 konfirmasi sebelum kuis menimpa nilai manual)
+Terakhir diperbarui: 2026-11-13 (siklus 4: P0.2 selesai; berikutnya: daftar per-item penundaan review di panel Today)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` P0.2 (baris "Lanjutan: hasil kuis kini menimpa
-nilai yang diisi manual untuk topik yang sama tanpa konfirmasi …;
-pertimbangkan tanya dulu bila nilai lama berasal dari 'Set by you'"):
-`submitAssessment` (kuis tunggal) dan `submitBatchAssessments` (mode batch)
-di `src/routes/profile.tsx` (±baris 599–696) langsung menimpa
-`editedScores[domainId]` apa pun sumber nilai lamanya, lalu
-`persistScores` menyimpan seketika. Nilai yang dulu diisi manual
-(sumber `manual_entry`/`adaptive_initial`, labelnya "Set by you" di
-`src/lib/quiz.ts` → `scoreSourceLabel`) hilang tanpa peringatan.
+Backlog `docs/ROADMAP.md` P0 #1 (baris "tombol di ringkasan Today
+mengakhiri **semua** penundaan sekaligus (pilihan per item ada di Gap
+Analysis); bila pelajar sering menunda banyak review, pertimbangkan daftar
+kecil per item di Today"): ringkasan snoozed di panel Today hanya punya SATU
+tombol "Review it now / Review them now" yang memanggil `unsnoozeAll`
+(`src/components/StudyToday.tsx` ±baris 316–349) — pelajar yang menunda
+banyak review tidak bisa mengakhiri satu saja tanpa mengakhiri semuanya
+(pilihan per item baru ada di Gap Analysis).
 
-Perilaku yang diinginkan: sebelum menimpa, bila nilai tersimpan untuk topik
-itu berasal dari "Set by you", tampilkan konfirmasi dulu di dalam dialog
-kuis yang sudah ada (bukan `window.confirm` — dialog sudah punya fokus
-masuk/kembali, Escape, dan `trapTabKey` dari `src/lib/focus-trap.ts`;
-pertahankan pola itu). Konfirmasi = simpan seperti sekarang; batal =
-tidak ada yang tersimpan dan jawaban tetap di layar (pola "Keep the
-answers on screen if saving failed"). Hasil kuis menimpa hasil kuis lain
-TETAP tanpa konfirmasi (tidak ada regresi putaran #24: hasil kuis tetap
-disimpan langsung, tidak menunggu tombol Save).
+Perilaku yang diinginkan: di bawah baris ringkasan snoozed di panel Today
+(render ±baris 650–671, `snoozedSummary(...)` dari `src/lib/gaps.ts` +
+tombol + tautan "See snoozed reviews"), tampilkan daftar kecil per item:
+nama konsep + tombol "Review it now" masing-masing. Tombol "Review them
+now" (semua sekaligus) tetap dipertahankan untuk >1 item (tanpa regresi —
+backlog hanya minta tambahan per item, bukan penghapusan). Per-item
+memakai `recordStudyOutcome` outcome `'unsnooze'` yang sama persis
+(tiru `reviewNow` di `src/routes/gaps.tsx` ±baris 266–289: `busy` per
+`conceptId`, notice `"${name}" is due again — you can review it now on the
+dashboard.`, fokus kembali ke tombol yang sama di baris penggantinya atau
+ke judul daftar bila kosong).
 
 Rencana implementasi:
 
-1. Helper murni di `src/lib/quiz.ts` (dites langsung di
-   `tests/quiz.test.ts`, ikuti helper lama di file itu):
-   mis. `manualTopicsAtRisk(scores, domainIds)` → daftar topik yang (a) ada
-   di `domainIds` (akan ditimpa kuis) dan (b) nilai lamanya bukan hasil kuis
-   dan bukan kosong — pakai `isQuizResult`/`SOURCE_LABELS` yang sudah ada.
-   Kembalikan id topik (atau pasangan id + label "Set by you") agar UI bisa
-   menyebutkannya.
-2. `submitAssessment`: bila helper mengembalisi topik berisiko untuk
-   `activeAssessment.domainId`, jangan langsung simpan — tampilkan langkah
-   konfirmasi di dialog (state lokal, mis. `confirmOverwrite: Set<string>`),
-   lalu simpan saat dikonfirmasi. `submitBatchAssessments`: sama untuk
-   daftar topik batch yang menjawab lengkap.
-3. UI pelajar berbahasa Inggris (keputusan D2): mis. "This will replace the
-   value you set yourself for <topic>. Continue?" dengan tombol
-   "Save quiz result" / "Go back".
+1. Nama konsep belum ada di data panel: `TodayData.snoozed` hanya
+   `SnoozedReview` (`conceptId` + `until`, dari `src/lib/graph/spacing.ts`).
+   Di `load` StudyToday (±baris 147–197) `allConcepts` sudah dimuat —
+   gabungkan nama di sana (mis. perluas entri snoozed jadi
+   `{ conceptId, name, until }`, peta nama dari `allConcepts`; konsep tanpa
+   nama memakai `conceptLabel`/id terbaca seperti pola gaps). Bentuk
+   `SnoozedReview` di `spacing.ts` TIDAK diubah.
+2. `unsnoozeOne(item)` baru di StudyToday mengikuti pola `unsnoozeAll`
+   (guard `activeLearnerIdRef` agar notice tidak bocor ke learner lain,
+   `pendingFocus.current` sebelum await, `await load()` setelah sukses);
+   `busy` memakai `item.conceptId` (sudah dipakai `save`), bukan
+   `UNSNOOZE_BUSY`.
+3. Daftar kecil di bawah baris ringkasan: `<ul>` dengan nama + tombol
+   "Review it now" per item (target sentuh ≥40 px, `disabled={!!busy}`
+   seperti tombol yang ada). Item habis → daftar menghilang, ringkasan
+   kembali polos.
 
 Perilaku yang dikunci:
 
-- Tanpa nilai manual lama → alur persis seperti sekarang (simpan langsung,
-  pesan sukses sama).
-- `persistScores`, bentuk `PsychometricScore` (score/confidence/source/
-  interpretation/answers), dan server function tidak berubah.
-- Escape tetap menutup dialog tanpa menyimpan; fokus kembali ke pembuka.
+- Server function `recordStudyOutcome` + outcome `'unsnooze'` tidak
+  berubah; Gap Analysis (`/gaps`) tidak berubah; `snoozedSummary` tidak
+  berubah.
+- Penundaan tetap tidak dihitung jatuh tempo; progres/interval tak berubah.
+- `unsnoozeAll` tetap berfungsi seperti sekarang (tombol + notice banyak).
+- UI pelajar berbahasa Inggris (D2).
 
-Test: unit helper di `tests/quiz.test.ts` (topik manual terdeteksi, hasil
-kuuis/absen tidak, daftar kosong); bila murah, test render alur konfirmasi
-mengikuti pola test profile yang ada. Smoke: cek lama cukup hijau; cek baru
-hanya bila tidak flaky (lihat catatan hidrasi log 2026-11-08/09).
+Test: unit untuk penggabung nama bila dibuat helper murni; cek dulu
+`tests/study.test.ts` / `tests/unsnooze.test.ts` untuk pola — ikuti yang
+ada (kemungkinan test statis sumber seperti quiz.test.ts). Smoke: cek lama
+(ada cek "Review them now"? cari `snoozed-summary`/`unsnooze` di
+`scripts/smoke.mjs`) tetap hijau; cek baru hanya bila tidak flaky.
 
-Dokumentasi: coret baris backlog P0.2 itu di `docs/ROADMAP.md` dengan
+Dokumentasi: coret baris backlog itu di `docs/ROADMAP.md` dengan
 `✅ <tanggal>` + satu baris penjelasan, plus entri log bertanggal di akhir
-file mengikuti pola entri lama. Sekalian (higien backlog, satu baris,
-verifikasi cepat dulu): baris "dialog kuis belum menjebak fokus Tab di
-dalamnya" tampak SUDAH selesai 2026-11-08 (commit d6477b6,
-`trapTabKey` terpasang di `onKeyDown` dialog kuis profile.tsx) tapi belum
-dicoret — bila masih benar, coret juga dengan `✅ <tanggal>`.
+file mengikuti pola entri lama.
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `fix:`. Setelah merge, tulis "Tugas berikutnya"
-untuk sesi setelahnya — kandidat (pilih satu, spekkan dengan membaca kode
-dulu): (a) backlog P0 "kunjungan pertama … layar muat penuh tanpa sidebar;
-pertimbangkan kerangka halaman (sidebar + placeholder)" di `DBContext.tsx`
-(catatan percobaan 12 Nov di baris backlog itu: cek harus menunggu keadaan,
-bukan waktu), atau (b) backlog P0 "tombol di ringkasan Today mengakhiri
-semua penundaan sekaligus; pertimbangkan daftar kecil per item di Today"
-di `src/components/StudyToday.tsx` + `src/routes/gaps.tsx`.
+berbahasa Indonesia, pola `feat:` atau `fix:`. Setelah merge, tulis
+"Tugas berikutnya" untuk sesi setelahnya — kandidat (spekkan dengan membaca
+kode dulu): (a) backlog P0 #3 baris 37 "kunjungan pertama … layar muat
+penuh tanpa sidebar; pertimbangkan kerangka halaman (sidebar + placeholder)"
+di `DBContext.tsx` (WAJIB baca catatan percobaan 12 Nov di baris backlog
+itu: cek harus menunggu keadaan, bukan waktu), atau (b) backlog P0 #4
+baris 48 "gaya belajar turunan memakai nilai 50 untuk topik yang belum
+diisi … pertimbangkan hanya menurunkan bila topik kunci sudah diisi".
 
 ## Riwayat
 
@@ -95,6 +95,14 @@ di `src/components/StudyToday.tsx` + `src/routes/gaps.tsx`.
   `nextActiveLearner` (placeholder learner pertama tidak menimpa pilihan
   per-akun begitu sesi termuat; pilihan klik pengguna tetap menang).
   `resolveActiveLearner` tak berubah (test lamanya utuh). Test unit 7 → 18.
+- 2026-11-13: PR #42 — fix: kuis tunggal & batch bertanya dulu sebelum
+  menimpa nilai topik yang labelnya "Set by you" (backlog P0.2). Helper murni
+  `manualTopicsAtRisk` + `topicListLine` di `src/lib/quiz.ts`; langkah
+  konfirmasi di dalam dialog kuis / panel batch (bukan `window.confirm`),
+  fokus dikelola; hasil kuis menimpa hasil kuis tetap tanpa konfirmasi
+  (regresi putaran #24 dijaga); `persistScores`/server function tak berubah.
+  Test quiz 13 → 19. Sekalian higien backlog: baris fokus-Tab dialog kuis
+  dicoret (sudah selesai 2026-11-08, commit d6477b6, terlewat).
 
 ## Blokiran
 
