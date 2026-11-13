@@ -1,67 +1,77 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-13 (siklus 2: P0.4 selesai; berikutnya: P0.1 kunci learner aktif per akun)
+Terakhir diperbarui: 2026-11-13 (siklus 3: P0.1 selesai; berikutnya: P0.2 konfirmasi sebelum kuis menimpa nilai manual)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` P0.1 (baris "Lanjutan: pilihan learner disimpan per
-browser (kunci lama `learngraph.activeLearner`, belum per akun)"): pilihan
-learner aktif disimpan di SATU kunci localStorage global
-`learngraph.activeLearner` di `src/lib/active-learner.ts`, jadi dua akun di
-browser yang sama saling menimpa pilihan (aman — id asing diabaikan oleh
-`resolveActiveLearner` yang memvalidasi terhadap daftar learner akun sendiri —
-tetapi tiap ganti akun, pilihan akun sebelumnya hilang).
+Backlog `docs/ROADMAP.md` P0.2 (baris "Lanjutan: hasil kuis kini menimpa
+nilai yang diisi manual untuk topik yang sama tanpa konfirmasi …;
+pertimbangkan tanya dulu bila nilai lama berasal dari 'Set by you'"):
+`submitAssessment` (kuis tunggal) dan `submitBatchAssessments` (mode batch)
+di `src/routes/profile.tsx` (±baris 599–696) langsung menimpa
+`editedScores[domainId]` apa pun sumber nilai lamanya, lalu
+`persistScores` menyimpan seketika. Nilai yang dulu diisi manual
+(sumber `manual_entry`/`adaptive_initial`, labelnya "Set by you" di
+`src/lib/quiz.ts` → `scoreSourceLabel`) hilang tanpa peringatan.
 
-Ubah agar pilihan disimpan **per akun**:
+Perilaku yang diinginkan: sebelum menimpa, bila nilai tersimpan untuk topik
+itu berasal dari "Set by you", tampilkan konfirmasi dulu di dalam dialog
+kuis yang sudah ada (bukan `window.confirm` — dialog sudah punya fokus
+masuk/kembali, Escape, dan `trapTabKey` dari `src/lib/focus-trap.ts`;
+pertahankan pola itu). Konfirmasi = simpan seperti sekarang; batal =
+tidak ada yang tersimpan dan jawaban tetap di layar (pola "Keep the
+answers on screen if saving failed"). Hasil kuis menimpa hasil kuis lain
+TETAP tanpa konfirmasi (tidak ada regresi putaran #24: hasil kuis tetap
+disimpan langsung, tidak menunggu tombol Save).
 
-1. Kunci penyimpanan jadi per akun: `learngraph.activeLearner:<userId>`
-   (userId dari sesi — `useSession()` di `src/lib/auth/client.ts`, field
-   `data.session.userId`). Sesi belum termuat/null → perlakukan seperti
-   "tanpa akun": jangan baca/tulis kunci per-akun (pilihan tetap berlaku di
-   dalam halaman lewat state, cuma tidak diingat lintas halaman; perilaku
-   sama seperti sekarang saat storage gagal). Pembangun kunci murni
-   (mis. `activeLearnerKey(userId?)`) dites langsung.
-2. Migrasi sekali tanpa merusak: bila kunci per-akun kosong, nilai kunci lama
-   `learngraph.activeLearner` tetap dibaca sebagai kandidat "remembered"
-   (divalidasi `resolveActiveLearner` seperti biasa — id yang bukan milik
-   akun ini diabaikan); kunci lama **tidak dihapus** (akun lain di browser
-   yang sama mungkin masih memakainya). Penulisan selanjutnya hanya ke kunci
-   per-akun.
-3. `useActiveLearner` mengambil sesi sendiri lewat `useSession()` (satu
-   tempat — JANGAN ubah keenam pemanggilnya: `src/components/StudyToday.tsx`,
-   `src/routes/recommendations.tsx`, `src/routes/gaps.tsx`, `src/routes/graph.tsx`,
-   `src/routes/profile.tsx`, `src/routes/learn.$conceptId.tsx`).
-   SSR/hidrasi tetap sepakat: hook tetap `null` di server, baca storage hanya
-   di `useEffect` (pola yang sudah ada).
-4. Batas lama tetap: id > 128 karakter ditolak; storage gagal/private mode →
-   no-op; hanya id yang disimpan, tanpa data learner.
+Rencana implementasi:
+
+1. Helper murni di `src/lib/quiz.ts` (dites langsung di
+   `tests/quiz.test.ts`, ikuti helper lama di file itu):
+   mis. `manualTopicsAtRisk(scores, domainIds)` → daftar topik yang (a) ada
+   di `domainIds` (akan ditimpa kuis) dan (b) nilai lamanya bukan hasil kuis
+   dan bukan kosong — pakai `isQuizResult`/`SOURCE_LABELS` yang sudah ada.
+   Kembalikan id topik (atau pasangan id + label "Set by you") agar UI bisa
+   menyebutkannya.
+2. `submitAssessment`: bila helper mengembalisi topik berisiko untuk
+   `activeAssessment.domainId`, jangan langsung simpan — tampilkan langkah
+   konfirmasi di dialog (state lokal, mis. `confirmOverwrite: Set<string>`),
+   lalu simpan saat dikonfirmasi. `submitBatchAssessments`: sama untuk
+   daftar topik batch yang menjawab lengkap.
+3. UI pelajar berbahasa Inggris (keputusan D2): mis. "This will replace the
+   value you set yourself for <topic>. Continue?" dengan tombol
+   "Save quiz result" / "Go back".
 
 Perilaku yang dikunci:
 
-- `resolveActiveLearner` (murni) tidak berubah perilaku maupun tanda tangan —
-  test lama di `tests/active-learner.test.ts` harus tetap hijau tanpa diubah.
-- Dua userId berbeda punya pilihan masing-masing yang tidak saling menimpa.
-- Setelah migrasi, penulisan baru tidak pernah menyentuh kunci lama.
+- Tanpa nilai manual lama → alur persis seperti sekarang (simpan langsung,
+  pesan sukses sama).
+- `persistScores`, bentuk `PsychometricScore` (score/confidence/source/
+  interpretation/answers), dan server function tidak berubah.
+- Escape tetap menutup dialog tanpa menyimpan; fokus kembali ke pembuka.
 
-Test: perluas `tests/active-learner.test.ts` (stub `window.localStorage`
-sudah ada di file itu): kunci per akun terpisah untuk dua userId; migrasi
-dari kunci lama (dibaca sekali sebagai kandidat, kunci lama tetap ada);
-penulisan tak menyentuh kunci lama; sesi null → tidak membaca/menulis kunci
-per-akun; pembangun kunci murni (userId kosong/aneh). Smoke: cek lama cukup
-hijau; cek baru hanya bila murah dan tidak flaky (lihat catatan hidrasi di
-log 2026-11-08/09).
+Test: unit helper di `tests/quiz.test.ts` (topik manual terdeteksi, hasil
+kuuis/absen tidak, daftar kosong); bila murah, test render alur konfirmasi
+mengikuti pola test profile yang ada. Smoke: cek lama cukup hijau; cek baru
+hanya bila tidak flaky (lihat catatan hidrasi log 2026-11-08/09).
 
-Dokumentasi: coret baris backlog P0.1 itu di `docs/ROADMAP.md` dengan
+Dokumentasi: coret baris backlog P0.2 itu di `docs/ROADMAP.md` dengan
 `✅ <tanggal>` + satu baris penjelasan, plus entri log bertanggal di akhir
-file mengikuti pola entri lama.
+file mengikuti pola entri lama. Sekalian (higien backlog, satu baris,
+verifikasi cepat dulu): baris "dialog kuis belum menjebak fokus Tab di
+dalamnya" tampak SUDAH selesai 2026-11-08 (commit d6477b6,
+`trapTabKey` terpasang di `onKeyDown` dialog kuis profile.tsx) tapi belum
+dicoret — bila masih benar, coret juga dengan `✅ <tanggal>`.
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
 berbahasa Indonesia, pola `fix:`. Setelah merge, tulis "Tugas berikutnya"
-untuk sesi setelahnya: kandidat (pilih satu, spekkan dengan membaca kode
-dulu): (a) backlog P0.2 "konfirmasi sebelum kuis menimpa nilai yang diisi
-manual" di My Profile (`src/lib/quiz.ts`, `src/routes/profile.tsx`), atau
-(b) backlog P0.4 "dialog kuis belum menjebak fokus Tab di dalamnya"
-(`src/routes/profile.tsx`, pola laci sidebar).
+untuk sesi setelahnya — kandidat (pilih satu, spekkan dengan membaca kode
+dulu): (a) backlog P0 "kunjungan pertama … layar muat penuh tanpa sidebar;
+pertimbangkan kerangka halaman (sidebar + placeholder)" di `DBContext.tsx`
+(catatan percobaan 12 Nov di baris backlog itu: cek harus menunggu keadaan,
+bukan waktu), atau (b) backlog P0 "tombol di ringkasan Today mengakhiri
+semua penundaan sekaligus; pertimbangkan daftar kecil per item di Today"
+di `src/components/StudyToday.tsx` + `src/routes/gaps.tsx`.
 
 ## Riwayat
 
@@ -76,6 +86,15 @@ manual" di My Profile (`src/lib/quiz.ts`, `src/routes/profile.tsx`), atau
   konsep, bukan id mentah (helper murni `missingPrereqReason` di
   `src/lib/gaps.ts`; peta nama dibangun sekali per `computeZPD`, tanpa N+1);
   test unit helper + test engine; backlog P0.4 dicoret.
+- 2026-11-13: PR #41 — fix: pilihan learner aktif disimpan per akun
+  (`learngraph.activeLearner:<userId>`), bukan satu kunci global per browser
+  (backlog P0.1). Sesi diambil di dalam `useActiveLearner` via `useSession()`
+  — keenam pemanggil tak berubah. Migrasi sekali: kunci lama dibaca sebagai
+  kandidat bila kunci per-akun kosong (tetap divalidasi `resolveActiveLearner`),
+  tidak pernah dihapus/ditulis lagi. Helper murni `activeLearnerKey` +
+  `nextActiveLearner` (placeholder learner pertama tidak menimpa pilihan
+  per-akun begitu sesi termuat; pilihan klik pengguna tetap menang).
+  `resolveActiveLearner` tak berubah (test lamanya utuh). Test unit 7 → 18.
 
 ## Blokiran
 
