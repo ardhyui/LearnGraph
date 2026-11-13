@@ -1090,8 +1090,10 @@ try {
     await page.getByRole('button', { name: 'Use this option' }).click();
     await page.getByRole('button', { name: 'Save Profile' }).click();
     const savedMsg = await page.getByText('Saved. Your suggestions on Recommendations now use this profile.').waitFor({ timeout: 15000 }).then(() => true, () => false);
-    const styleShown = await page.getByText('Your learning style (worked out from your answers)').waitFor({ timeout: 15000 }).then(() => true, () => false);
-    check(savedMsg && styleShown, 'profile: saving works out a learning style', `saved=${savedMsg}, style=${styleShown}`);
+    // Without the key topics (Learning Styles + four Big Five traits) there is
+    // nothing to derive from, so no style must be invented from default 50s.
+    const styleShown = await page.getByText('Your learning style (worked out from your answers)').isVisible().catch(() => false);
+    check(savedMsg && !styleShown, 'profile: saving without the key topics does not invent a learning style', `saved=${savedMsg}, style=${styleShown}`);
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'learning-style profile has no page errors', newErrors.join(' | '));
   }

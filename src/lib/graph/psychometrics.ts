@@ -631,6 +631,36 @@ export function getDomainMetadata(domainId: PsychometricDomainId): DomainMetadat
 import type { LearningStyle, LearningModality, CognitiveProfile, PsychometricScore } from './types.ts';
 
 /**
+ * The scores `deriveLearningStyle` really reads. Without any of them the
+ * derivation only sees the fallback 50 and would invent a learning style for
+ * a profile the learner never filled in.
+ */
+export const LEARNING_STYLE_INPUT_DOMAINS = [
+  PSYCHOMETRIC_DOMAINS.LEARNING_STYLES,
+  PSYCHOMETRIC_DOMAINS.BIG_FIVE_OPENNESS,
+  PSYCHOMETRIC_DOMAINS.BIG_FIVE_EXTRAVERSION,
+  PSYCHOMETRIC_DOMAINS.BIG_FIVE_CONSCIENTIOUSNESS,
+  PSYCHOMETRIC_DOMAINS.BIG_FIVE_NEUROTICISM,
+] as const;
+
+/**
+ * Whether every key topic behind the learning style is actually filled in.
+ * Only `{ score: number }` entries in 0–100 count: old demo data stores bare
+ * 0–1 numbers, and strings/NaN/out-of-range values are not real answers.
+ */
+export function hasLearningStyleInputs(scores: unknown): boolean {
+  if (!scores || typeof scores !== 'object') return false;
+  const record = scores as Record<string, unknown>;
+  return LEARNING_STYLE_INPUT_DOMAINS.every((domain) => {
+    if (!Object.hasOwn(record, domain)) return false;
+    const entry = record[domain];
+    if (!entry || typeof entry !== 'object') return false;
+    const score = (entry as { score?: unknown }).score;
+    return typeof score === 'number' && Number.isFinite(score) && score >= 0 && score <= 100;
+  });
+}
+
+/**
  * Derive learning style from psychometric scores
  */
 export function deriveLearningStyle(
