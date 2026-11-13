@@ -127,7 +127,7 @@ untuk sesi setelahnya.
   profil hanya "Always suggested"; Alice dengan gaya visual tersimpan melihat
   "From your profile"). `npm run ci` hijau: typecheck, lint 0/0, 339/339 unit,
   build, CSP, 164 cek smoke.
-- 2026-11-13: PR #__PR__ — fix: simpan admin psikometrik memakai helper
+- 2026-11-13: PR #46 — fix: simpan admin psikometrik memakai helper
   `derivedProfilesFromScores` yang sama dengan My Profile, jadi gaya belajar
   tidak lagi dikarang/ditulis dari topik parsial (nilai manual utuh) sementara
   `cognitiveProfile` tetap selalu diperbarui; `computeAndStoreLearningStyle`
