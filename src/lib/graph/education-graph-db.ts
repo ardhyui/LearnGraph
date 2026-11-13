@@ -56,6 +56,7 @@ import type {
 import {
   deriveLearningStyle,
   estimateCognitiveProfile,
+  hasLearningStyleInputs,
 } from './psychometrics.ts';
 import {
   conceptNameMap,
@@ -333,7 +334,9 @@ export class EducationGraphDB {
       throw new Error(`Learner not found: ${userId}`);
     }
 
-    profile.learningStyle = deriveLearningStyle(profile.psychometricScores);
+    if (hasLearningStyleInputs(profile.psychometricScores)) {
+      profile.learningStyle = deriveLearningStyle(profile.psychometricScores);
+    }
     profile.updatedAt = new Date().toISOString();
 
     await this.put(this.learnerKey(userId), profile);
@@ -365,7 +368,9 @@ export class EducationGraphDB {
       throw new Error(`Learner not found: ${userId}`);
     }
 
-    profile.learningStyle = deriveLearningStyle(profile.psychometricScores);
+    if (hasLearningStyleInputs(profile.psychometricScores)) {
+      profile.learningStyle = deriveLearningStyle(profile.psychometricScores);
+    }
     profile.cognitiveProfile = estimateCognitiveProfile(profile.psychometricScores);
     profile.updatedAt = new Date().toISOString();
 

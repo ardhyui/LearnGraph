@@ -10,7 +10,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { TRAIT_KEYS, traitScore } from '../src/lib/graph/trait-scores.ts';
-import { PSYCHOMETRIC_DOMAINS } from '../src/lib/graph/psychometrics.ts';
+import { PSYCHOMETRIC_DOMAINS, hasLearningStyleInputs } from '../src/lib/graph/psychometrics.ts';
 import { ASSESSMENT_CATEGORIES } from '../src/lib/assessments.ts';
 import {
   PROFILE_CATEGORY_COPY,
@@ -104,6 +104,8 @@ describe('engine uses the profile saved on My Profile', () => {
         learning_styles: s(85),
         big_five_openness: s(80),
         big_five_extraversion: s(20),
+        big_five_conscientiousness: s(20),
+        big_five_neuroticism: s(20),
         executive_functions: s(20),
         cognitive_abilities: s(20),
       } as LearnerProfile['psychometricScores'],
@@ -117,6 +119,116 @@ describe('engine uses the profile saved on My Profile', () => {
     const adj = db.adjustForPsychometrics(again!);
     const types = adj.scaffoldingStrategies.map((st) => st.type);
     assert.ok(types.includes('visual_aids') && types.includes('chunking'), types.join(','));
+  });
+});
+
+describe('hasLearningStyleInputs', () => {
+  const allFilled = {
+    learning_styles: s(50),
+    big_five_openness: s(50),
+    big_five_extraversion: s(50),
+    big_five_conscientiousness: s(50),
+    big_five_neuroticism: s(50),
+  };
+
+  it('needs every key topic the learning style reads', () => {
+    assert.equal(hasLearningStyleInputs(allFilled), true);
+    // These two may keep falling back to 50.
+    assert.equal(
+      hasLearningStyleInputs({ ...allFilled, information_processing: s(80), self_efficacy: s(10) }),
+      true,
+    );
+    for (const domain of Object.keys(allFilled)) {
+      const partial = Object.fromEntries(Object.entries(allFilled).filter(([key]) => key !== domain));
+      assert.equal(hasLearningStyleInputs(partial), false, domain);
+    }
+  });
+
+  it('does not count junk as an answer', () => {
+    assert.equal(hasLearningStyleInputs(null), false);
+    assert.equal(hasLearningStyleInputs(undefined), false);
+    assert.equal(hasLearningStyleInputs({}), false);
+    for (const bad of [
+      { score: Number.NaN },
+      { score: Number.POSITIVE_INFINITY },
+      { score: '80' },
+      { score: 140 },
+      { score: -1 },
+      {},
+      0.85,
+      null,
+    ]) {
+      assert.equal(
+        hasLearningStyleInputs({ ...allFilled, big_five_neuroticism: bad }),
+        false,
+        JSON.stringify(bad),
+      );
+    }
+    assert.equal(hasLearningStyleInputs({ ...allFilled, big_five_neuroticism: s(0) }), true);
+  });
+});
+
+describe('a learning style is only derived from filled-in key topics', () => {
+  const dir = path.join(os.tmpdir(), `learngraph-style-inputs-${process.pid}`);
+  let db: EducationGraphDB;
+
+  before(async () => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    db = await openTestGraphDB(dir);
+  });
+  after(async () => {
+    await db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  const manualStyle = {
+    primary: 'reading' as const,
+    secondary: 'visual' as const,
+    socialPreference: 'mixed' as const,
+    pacePreference: 'structured' as const,
+    feedbackPreference: 'delayed' as const,
+  };
+  const keyScores = {
+    learning_styles: s(85),
+    big_five_openness: s(80),
+    big_five_extraversion: s(20),
+    big_five_conscientiousness: s(20),
+    big_five_neuroticism: s(20),
+  };
+
+  it('keeps a manually set style when a key topic is missing or broken', async () => {
+    await db.setLearnerProfile('me-partial', {
+      name: 'Partial',
+      learningStyle: manualStyle,
+      psychometricScores: { learning_styles: s(85), big_five_neuroticism: { score: '80' } } as never,
+    });
+    const saved = await db.computeAndStoreDerivedProfiles('me-partial');
+    assert.deepEqual(saved.learningStyle, manualStyle);
+    assert.ok(saved.cognitiveProfile, 'the cognitive profile is still computed');
+
+    const stored = await db.getLearnerProfile('me-partial');
+    assert.deepEqual(stored?.learningStyle, manualStyle);
+    assert.equal(stored?.name, 'Partial', 'other profile fields stay');
+  });
+
+  it('does not invent a style for a profile still being filled in', async () => {
+    await db.setLearnerProfile('me-empty', { name: 'Empty' });
+    assert.equal((await db.computeAndStoreLearningStyle('me-empty')).learningStyle, undefined);
+    const saved = await db.computeAndStoreDerivedProfiles('me-empty');
+    assert.equal(saved.learningStyle, undefined);
+    assert.ok(saved.cognitiveProfile);
+  });
+
+  it('derives the style once all five key topics are filled in', async () => {
+    await db.setLearnerProfile('me-full', {
+      psychometricScores: { ...keyScores, information_processing: s(80) } as LearnerProfile['psychometricScores'],
+    });
+    const saved = await db.computeAndStoreLearningStyle('me-full');
+    assert.equal(saved.learningStyle?.primary, 'visual');
+    assert.equal(saved.learningStyle?.socialPreference, 'solo');
+
+    const consistent = await db.computeAndStoreDerivedProfiles('me-full');
+    assert.equal(consistent.learningStyle?.primary, 'visual');
   });
 });
 
