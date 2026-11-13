@@ -51,6 +51,18 @@ const ANSWER_KEY = new Map(DEMO_QUESTIONS.map((q) => [q.prompt, q]));
 // What a page logs when the Vite dev server swaps a dependency bundle under it.
 const VITE_DEP_RELOAD = /Failed to fetch dynamically imported module|Outdated Optimize Dep/;
 
+/** The server function that seeds/tops up a workspace (safe to hold up). */
+function isSeedCall(url) {
+  const id = new URL(url).pathname.split('/_serverFn/')[1] ?? '';
+  try {
+    return Buffer.from(id, 'base64url').toString().includes('seedDemoData');
+  } catch {
+    return false;
+  }
+}
+
+const seedUrl = (url) => url.pathname.startsWith('/_serverFn/') && isSeedCall(url.href);
+
 /**
  * Wait until React owns `locator`'s element. On a busy machine `networkidle`
  * comes before hydration. Text typed into a form before that shows on screen
@@ -258,21 +270,12 @@ try {
   // with that server call held back, a learner page still shows its content.
   {
     const before = errors.length;
-    const isSeedCall = (url) => {
-      const id = new URL(url).pathname.split('/_serverFn/')[1] ?? '';
-      try {
-        return Buffer.from(id, 'base64url').toString().includes('seedDemoData');
-      } catch {
-        return false;
-      }
-    };
     let held = 0;
     const release = [];
     const hold = (route) => {
       held += 1;
       release.push(() => route.continue().catch(() => {}));
     };
-    const seedUrl = (url) => url.pathname.startsWith('/_serverFn/') && isSeedCall(url.href);
     await page.route(seedUrl, hold);
     await page.goto(`${BASE}/gaps`, { waitUntil: 'domcontentloaded' });
     const shown = await page
@@ -289,6 +292,68 @@ try {
     );
     await page.waitForLoadState('networkidle').catch(() => {});
     check(errors.length === before, 'returning visit has no page errors', errors.slice(before).join(' | '));
+  }
+
+  // First visit in a browser that does not know the workspace yet: the app
+  // frame (sidebar / phone top bar) is already visible while the set-up check
+  // is held, then the real page replaces the skeleton without a second sidebar.
+  // Every wait is on a state, never on time: the sidebar is in the SSR HTML,
+  // so a click before hydration could otherwise land in the wrong place.
+  {
+    const ctxFirst = await browser.newContext();
+    const pFirst = await ctxFirst.newPage();
+    pFirst.setDefaultNavigationTimeout(60000);
+    const firstErrors = [];
+    pFirst.on('pageerror', (e) => firstErrors.push(`pageerror: ${e.message}`));
+    pFirst.on('console', (m) => {
+      if (m.type() === 'error') firstErrors.push(`console: ${m.text()}`);
+    });
+    let held = 0;
+    const release = [];
+    const hold = (route) => {
+      held += 1;
+      release.push(() => route.continue().catch(() => {}));
+    };
+    await ctxFirst.route(seedUrl, hold);
+    await pFirst.goto(`${BASE}/sign-in?redirect=%2Fgaps`, { waitUntil: 'networkidle' });
+    await untilHydrated(pFirst.getByRole('button', { name: 'Sign in' }), 60000);
+    await pFirst.fill('#email', email);
+    await pFirst.fill('#password', password);
+    await pFirst.getByRole('button', { name: 'Sign in' }).click();
+    await pFirst.waitForURL((u) => u.pathname === '/gaps', { timeout: 30000 });
+
+    const navWhile = pFirst.getByRole('navigation', { name: 'Pages' });
+    const statusWhile = pFirst.getByText('Getting your learning space ready');
+    const frameShown = await navWhile.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    const statusShown = await statusWhile.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    const sidebarCountWhile = await navWhile.count();
+    const headingWhile = await pFirst.locator('h1').count();
+
+    await ctxFirst.unroute(seedUrl, hold);
+    for (const go of release) go();
+
+    const pageShown = await pFirst
+      .getByRole('heading', { level: 1, name: 'Gap Analysis' })
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    const statusGone = await statusWhile
+      .waitFor({ state: 'detached', timeout: 30000 })
+      .then(() => true, () => false);
+    const sidebarCountAfter = await pFirst.getByRole('navigation', { name: 'Pages' }).count();
+
+    check(
+      frameShown && statusShown && held > 0 && sidebarCountWhile === 1 && headingWhile === 0,
+      'first visit: the app frame and status are visible while the workspace is prepared',
+      `${held} set-up call(s) held, ${sidebarCountWhile} sidebar(s), ${headingWhile} heading(s)`,
+    );
+    check(
+      pageShown && statusGone && sidebarCountAfter === 1 && firstErrors.length === 0,
+      'first visit: the page replaces the skeleton without a second sidebar or errors',
+      `${sidebarCountAfter} sidebar(s)${firstErrors.length ? `, ${firstErrors.join(' | ')}` : ''}`,
+    );
+    await pFirst.waitForLoadState('networkidle').catch(() => {});
+    check(firstErrors.length === 0, 'first visit: no page errors', firstErrors.join(' | '));
+    await ctxFirst.close();
   }
 
   // Navigation: learner pages are listed first; admin editors and developer
