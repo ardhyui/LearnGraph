@@ -11,9 +11,11 @@ import {
   answerLabel,
   completedQuizTopics,
   isQuizResult,
+  manualTopicsAtRisk,
   quizLengthLine,
   savedQuizzesLine,
   scoreSourceLabel,
+  topicListLine,
 } from '../src/lib/quiz.ts';
 import { ALL_ASSESSMENTS } from '../src/lib/assessments.ts';
 
@@ -100,6 +102,58 @@ describe('savedQuizzesLine', () => {
   });
 });
 
+describe('manualTopicsAtRisk', () => {
+  const scores = {
+    learning_styles: { source: 'manual_entry' },
+    growth_mindset: { source: 'adaptive_initial' },
+    big_five_openness: { source: 'assessment_quick' },
+    creativity: { source: 'surprise_me' },
+    stress_coping: { source: 'auto_discovery' },
+    risk_tolerance: {},
+  };
+  it('flags only values the learner set themselves ("Set by you")', () => {
+    assert.deepEqual(
+      manualTopicsAtRisk(scores, [
+        'learning_styles',
+        'growth_mindset',
+        'big_five_openness',
+        'creativity',
+        'stress_coping',
+        'risk_tolerance',
+        'empathy',
+      ]),
+      [
+        { id: 'learning_styles', label: 'Set by you' },
+        { id: 'growth_mindset', label: 'Set by you' },
+      ],
+    );
+  });
+  it('quiz results, other origins, absent values and other topics are not at risk', () => {
+    assert.deepEqual(manualTopicsAtRisk(scores, ['big_five_openness', 'creativity', 'stress_coping', 'risk_tolerance']), []);
+    assert.deepEqual(manualTopicsAtRisk(scores, ['empathy']), []);
+    assert.deepEqual(manualTopicsAtRisk({}, ['learning_styles']), []);
+  });
+  it('keeps the given order without duplicates', () => {
+    assert.deepEqual(
+      manualTopicsAtRisk(scores, ['growth_mindset', 'learning_styles', 'growth_mindset']).map((t) => t.id),
+      ['growth_mindset', 'learning_styles'],
+    );
+  });
+});
+
+describe('topicListLine', () => {
+  it('joins names the way a sentence reads', () => {
+    assert.equal(topicListLine(['A']), 'A');
+    assert.equal(topicListLine(['A', 'B']), 'A and B');
+    assert.equal(topicListLine(['A', 'B', 'C']), 'A, B and C');
+    assert.equal(topicListLine(['A', 'B', 'C', 'D']), 'A, B, C and D');
+  });
+  it('skips empty names and handles an empty list', () => {
+    assert.equal(topicListLine(['A', '', 'B']), 'A and B');
+    assert.equal(topicListLine([]), '');
+  });
+});
+
 describe('My Profile quiz page', () => {
   const src = fs.readFileSync(new URL('../src/routes/profile.tsx', import.meta.url), 'utf8');
   it('shows no research markers, instrument citations or shouting jargon', () => {
@@ -114,6 +168,23 @@ describe('My Profile quiz page', () => {
     assert.match(submit, /await persistScores\(/);
     const batch = src.slice(src.indexOf('const submitBatchAssessments'), src.indexOf('const getScoreColor'));
     assert.match(batch, /await persistScores\(/);
+  });
+  it('asks before quiz results replace values the learner set themselves', () => {
+    const submit = src.slice(src.indexOf('const submitAssessment'), src.indexOf('// Batch mode functions'));
+    assert.match(submit, /manualTopicsAtRisk\(editedScores/);
+    const batch = src.slice(src.indexOf('const submitBatchAssessments'), src.indexOf('const getScoreColor'));
+    assert.match(batch, /manualTopicsAtRisk\(editedScores/);
+    // Confirming still saves straight away; going back saves nothing.
+    assert.match(src, /submitAssessment\(true\)/);
+    assert.match(src, /submitBatchAssessments\(true\)/);
+    // Plain-word confirmation buttons in the page, not window.confirm.
+    assert.match(src, /'Save quiz result'\}/);
+    assert.match(src, /'Save quiz results'\}/);
+    assert.match(src, /Go back\s+<\/button>/);
+    assert.doesNotMatch(
+      src.slice(src.indexOf('const submitAssessment'), src.indexOf('const getScoreColor')),
+      /window\.confirm/,
+    );
   });
   it('the quiz is a labelled dialog with named, pressable answers', () => {
     assert.match(src, /role="dialog"/);
