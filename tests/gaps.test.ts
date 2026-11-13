@@ -14,6 +14,7 @@ import {
   dueLabel,
   humanizeConceptId,
   learnFirstLabel,
+  missingPrereqReason,
   priorityLabel,
   stepTypeLabel,
 } from '../src/lib/gaps.ts';
@@ -54,6 +55,43 @@ describe('concept labels', () => {
     assert.equal(learnFirstLabel([], names), '');
     assert.equal(learnFirstLabel(['a'], names), 'Learn first: Alpha');
     assert.equal(learnFirstLabel(['a', 'b', 'c', 'd', 'e'], names), 'Learn first: Alpha, Beta, Gamma and 2 more');
+  });
+});
+
+describe('too-hard reason wording', () => {
+  it('lists names, at most three, and keeps the true total as a number', () => {
+    assert.equal(missingPrereqReason(1, ['Fractions']), 'Missing 1 prerequisite(s): Fractions');
+    assert.equal(
+      missingPrereqReason(2, ['Fractions', 'Decimals']),
+      'Missing 2 prerequisite(s): Fractions, Decimals',
+    );
+    assert.equal(
+      missingPrereqReason(3, ['Fractions', 'Decimals', 'Percents']),
+      'Missing 3 prerequisite(s): Fractions, Decimals, Percents',
+    );
+    assert.equal(
+      missingPrereqReason(4, ['Fractions', 'Decimals', 'Percents', 'Ratios']),
+      'Missing 4 prerequisite(s): Fractions, Decimals, Percents...',
+    );
+  });
+
+  it('never leaves a dangling colon when nothing is missing', () => {
+    assert.equal(missingPrereqReason(0, []), 'Missing 0 prerequisite(s)');
+  });
+
+  it('works with the id→name lookup, including fallbacks and long names', () => {
+    const names = conceptNameMap([
+      { conceptId: 'concept:fractions', name: 'Fractions' },
+      { conceptId: 'concept:no-name', name: '   ' },
+      {
+        conceptId: 'concept:long-one',
+        name: 'Advanced Modelling Of Systems With Many Interdependent Parts',
+      },
+    ]);
+    assert.equal(
+      missingPrereqReason(4, conceptNames(['concept:fractions', 'concept:no-name', 'concept:long-one', 'concept:x-fourth'], names)),
+      'Missing 4 prerequisite(s): Fractions, No name, Advanced Modelling Of Systems With Many Interdependent Parts...',
+    );
   });
 });
 

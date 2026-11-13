@@ -55,6 +55,16 @@ export function learnFirstLabel(ids: readonly string[], names: ReadonlyMap<strin
   return `Learn first: ${shown}${rest > 0 ? ` and ${rest} more` : ''}`;
 }
 
+/**
+ * "Missing 2 prerequisite(s): Fractions, Decimals" — the ZPD engine's
+ * too-hard reason, with concept names instead of ids. At most `max` labels
+ * are listed (then "..."); `count` stays the true total.
+ */
+export function missingPrereqReason(count: number, labels: readonly string[], max = 3): string {
+  const shown = labels.slice(0, max).join(', ');
+  return `Missing ${count} prerequisite(s)${shown ? `: ${shown}` : ''}${count > max ? '...' : ''}`;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function startOfLocalDay(d: Date): number {
