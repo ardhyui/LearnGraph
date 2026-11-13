@@ -1,0 +1,16 @@
+[Unit]
+Description=LearnGraph self-improvement loop (opencode run)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Projects/LearnGraph
+ExecStart=/usr/bin/env bash %h/Projects/LearnGraph/automation/self-improve.sh
+Restart=on-failure
+RestartSec=3600
+# Batasi sumber daya bila perlu (CI smoke memakai browser headless):
+# MemoryMax=6G
+
+[Install]
+WantedBy=default.target
