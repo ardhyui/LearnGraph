@@ -661,6 +661,21 @@ export function hasLearningStyleInputs(scores: unknown): boolean {
 }
 
 /**
+ * Derive every profile the psychometric scores support, with one rule for all
+ * callers: a learning style only exists once the five key topics behind it are
+ * filled in, while the cognitive profile is always estimated (it may only see
+ * fallbacks, but it is never left stale).
+ */
+export function derivedProfilesFromScores(
+  scores: Record<string, PsychometricScore>
+): { learningStyle?: LearningStyle; cognitiveProfile: CognitiveProfile } {
+  return {
+    learningStyle: hasLearningStyleInputs(scores) ? deriveLearningStyle(scores) : undefined,
+    cognitiveProfile: estimateCognitiveProfile(scores),
+  };
+}
+
+/**
  * Derive learning style from psychometric scores
  */
 export function deriveLearningStyle(

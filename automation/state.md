@@ -1,65 +1,67 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-13 (siklus 7: asal saran "Ways to learn it"; berikutnya: guard gaya belajar di admin psikometrik)
+Terakhir diperbarui: 2026-11-13 (siklus 8: guard gaya belajar di admin psikometrik; berikutnya: kerangka halaman saat workspace disiapkan)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` baris 49 (sisa P0 #4): halaman admin psikometrik
-masih mengarang `learningStyle` dari skor yang belum diisi — guard siklus 6
-belum dipakai di jalur itu.
+Backlog `docs/ROADMAP.md` baris 37 (P0 #3): kunjungan pertama (dan halaman yang
+memuat datanya sendiri) masih menampilkan layar muat penuh tanpa sidebar.
+Pertimbangkan kerangka halaman (sidebar + placeholder) agar tata letak tidak
+melompat.
 
-Masalah: `src/routes/admin/psychometrics.tsx` memanggil `deriveLearningStyle`
-langsung di `handleSaveScores` (±baris 183–192) dan `handleComputeProfiles`
-(±baris 216–224), lalu menulis `learningStyle` + `cognitiveProfile` lewat
-`updateLearner`. `deriveLearningStyle` membaca topik kosong sebagai 50, jadi
-admin yang baru mengisi beberapa topik tetap mendapat gaya belajar turunan —
-padahal My Profile sejak siklus 6 hanya menurunkan gaya belajar bila kelima
-topik kunci terisi. Jalur ini juga bisa menimpa gaya belajar manual yang
-tersimpan.
+Masalah: 16 halaman mengembalikan `WorkspaceLoading`
+(`src/components/WorkspaceLoading.tsx`) selagi `dbLoading`; komponen itu berupa
+`min-h-screen` flex-center tanpa `Sidebar`, jadi pengunjung pertama melihat
+layar kosong berisi spinner, lalu seluruh tata letak bergeser saat sidebar
+muncul. Catatan percobaan 12 Nov: begitu sidebar ada di HTML SSR, klik uji bisa
+jatuh sebelum handler terpasang dan posisi klik melesat saat layout bergeser —
+**cek smoke harus menunggu keadaan (`locator.waitFor`/`untilHydrated`), bukan
+waktu (`waitForTimeout`)**.
 
-Perilaku yang diinginkan: satu helper murni yang dipakai semua jalur, sehingga
-aturan "gaya belajar hanya dari topik kunci lengkap" berlaku juga di admin.
-`cognitiveProfile` tetap selalu dihitung seperti sekarang.
+Perilaku yang diinginkan: kerangka aplikasi sudah terlihat sejak paint pertama
+(sidebar desktop, bar atas + laci di ponsel), dengan pesan status yang sama
+(`Getting your learning space ready…`, `role="status"`) di area konten; setelah
+siap, halaman asli menggantikan kerangka tanpa lompatan besar. Kunjungan
+berikutnya tetap tidak menunggu penyiapan (perilaku 2026-11-09 jangan
+dikembalikan).
 
 Rencana implementasi:
 
-1. Di `src/lib/graph/psychometrics.ts`, tambah helper murni
-   `derivedProfilesFromScores(scores)` yang mengembalikan
-   `{ learningStyle?: LearningStyle; cognitiveProfile: CognitiveProfile }`:
-   `learningStyle` hanya ada bila `hasLearningStyleInputs(scores)` true
-   (pakai `deriveLearningStyle`), `cognitiveProfile` selalu dari
-   `estimateCognitiveProfile`. Jangan ubah tanda tangan atau perilaku
-   `deriveLearningStyle`, `estimateCognitiveProfile`, atau
-   `hasLearningStyleInputs`.
-2. Pakai helper itu di `computeAndStoreLearningStyle` dan
-   `computeAndStoreDerivedProfiles` (`src/lib/graph/education-graph-db.ts`)
-   tanpa mengubah perilaku yang sudah dikunci test siklus 6.
-3. Di `src/routes/admin/psychometrics.tsx`, ganti kedua pemanggilan langsung
-   dengan helper. Bila `learningStyle` tidak ada, **jangan kirim** field itu ke
-   `updateLearner` (gaya belajar lama tetap utuh); `cognitiveProfile` tetap
-   dikirim dan pesan sukses tetap jelas. Jangan menambah skema/server
-   function/RPC/migrasi.
-4. Test: `tests/profile-traits.test.ts` atau file baru
-   `tests/admin-derived-profiles.test.ts` — skor kosong/parsial/rusak: tidak
-   ada `learningStyle`, `cognitiveProfile` tetap ada; kelima topik kunci lengkap:
-   gaya belajar muncul; penjaga statis bahwa halaman admin memakai helper dan
-   tidak memanggil `deriveLearningStyle` langsung. Cek smoke admin psikometrik
-   yang ada tetap hijau (tidak perlu cek baru bila alurnya panjang).
+1. Ubah `src/components/WorkspaceLoading.tsx` menjadi kerangka:
+   `Sidebar` + `<main className="flex-1 min-w-0 …">` berisi kartu/placeholder
+   dengan spinner dan teks status yang sudah ada. Tidak perlu mengubah 16
+   pemanggil bila tanda tangannya tetap tanpa argumen; jangan render sidebar
+   kedua (halaman yang `dbLoading` berhenti sebelum merender sidebar-nya).
+2. Jaga aksesibilitas: `role="status"` + `aria-live="polite"` tetap, spinner
+   `aria-hidden`, tidak menambah `<h1>` palsu (hindari dua `<h1>` saat selesai),
+   tidak ada fokus yang dipindah paksa.
+3. Test: unit statis kecil bila perlu (mis. komponen memuat `Sidebar` dan teks
+   status); smoke baru untuk kunjungan pertama — tahan panggilan server
+   `seedDemoData` (pola `page.route` yang sudah ada di smoke), buka halaman
+   pelajar, lalu **tunggu** sidebar/nav dan teks status muncul (`waitFor`),
+   lepaskan panggilan, dan tunggu konten halaman menggantikannya; pastikan
+   tanpa error halaman. Bila memakai akun baru, siapkan lewat alur sign-up yang
+   ada; jangan memakai `waitForTimeout` untuk menebak kapan handler siap.
+4. Tanpa perubahan skema/server function/RPC/migrasi. UI tetap bahasa Inggris
+   (D2).
 
 Perilaku yang dikunci:
 
-- Tanpa topik kunci lengkap tidak ada gaya belajar baru dari jalur mana pun;
-  nilai `learningStyle` lama tidak dihapus oleh simpan admin.
-- `cognitiveProfile` tetap dihitung dan disimpan seperti sebelumnya.
-- Tanpa perubahan skema/server function/RPC/migrasi; UI admin tetap bahasa
-  Inggris (D2).
+- Pengunjung pertama dan halaman yang memuat datanya sendiri tidak pernah
+  melihat layar penuh tanpa kerangka aplikasi.
+- Pesan status yang sama tetap diumumkan (`role="status"`), dan setelah siap
+  halaman normal tampil (satu sidebar, tanpa error).
+- Kunjungan berikutnya tetap melewati penantian penyiapan; cek lama
+  "returning visit" di smoke tetap hijau.
+- Tanpa perubahan data/skema.
+
+Bila kerangka penuh ternyata terlalu besar, kerjakan lebih dulu sidebar +
+placeholder di `WorkspaceLoading` (satu perubahan komponen), lalu simpan
+"halaman yang memuat datanya sendiri" sebagai tugas berikutnya.
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `fix:`. Setelah merge, tulis "Tugas berikutnya" untuk
-sesi setelahnya — kandidat: higien baris 51 mode "Automatic"/"Set, then adjust"
-(opsinya sudah disembunyikan 2026-11-08, jadi mungkin tinggal dicoret setelah
-verifikasi) lalu P0 #3 baris 37 kunjungan pertama (WAJIB baca catatan 12 Nov:
-cek harus menunggu keadaan, bukan waktu).
+berbahasa Indonesia, pola `feat:`/`fix:`. Setelah merge, tulis "Tugas berikutnya"
+untuk sesi setelahnya.
 
 ## Riwayat
 
@@ -125,6 +127,14 @@ cek harus menunggu keadaan, bukan waktu).
   profil hanya "Always suggested"; Alice dengan gaya visual tersimpan melihat
   "From your profile"). `npm run ci` hijau: typecheck, lint 0/0, 339/339 unit,
   build, CSP, 164 cek smoke.
+- 2026-11-13: PR #46 — fix: simpan admin psikometrik memakai helper
+  `derivedProfilesFromScores` yang sama dengan My Profile, jadi gaya belajar
+  tidak lagi dikarang/ditulis dari topik parsial (nilai manual utuh) sementara
+  `cognitiveProfile` tetap selalu diperbarui; `computeAndStoreLearningStyle`
+  dan `computeAndStoreDerivedProfiles` ikut memakai helper itu. Test baru
+  `tests/admin-derived-profiles.test.ts` (9). Sekalian higien backlog: baris
+  mode "Automatic"/"Set, then adjust" dicoret setelah verifikasi opsi memang
+  sudah disembunyikan. `npm run ci` hijau.
 
 ## Blokiran
 
