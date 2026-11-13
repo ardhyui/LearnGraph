@@ -959,6 +959,28 @@ try {
     // Back to my own plan for the rest of the run.
     const recSelect = page.getByLabel('Learner', { exact: true });
     await recSelect.selectOption({ label: 'Sari Smoke' });
+
+    // "Ways to learn it" says where each suggestion comes from: the universal
+    // worked example is always suggested, the rest follow the learner's answers.
+    await page.getByRole('button', { name: /^Recommendations \(/ }).click().catch(() => {});
+    const waysToLearn = page.getByText('Ways to learn it', { exact: true }).first();
+    const waysShown = await waysToLearn.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    const sariWays = await page.locator('main').innerText().catch(() => '');
+    check(
+      waysShown && /Always suggested/.test(sariWays),
+      'recommendations: the universal worked example says it is always suggested',
+      waysShown ? '' : 'no recommendation cards',
+    );
+    // Alice Chen is an example learner with a stored visual learning style.
+    await recSelect.selectOption({ label: 'Alice Chen' });
+    const fromProfile = await page
+      .getByText('From your profile', { exact: true })
+      .first()
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    check(fromProfile, 'recommendations: suggestions based on the learner’s answers say so');
+    await recSelect.selectOption({ label: 'Sari Smoke' });
+
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'readable gaps/recommendations have no page errors', newErrors.join(' | '));
   }

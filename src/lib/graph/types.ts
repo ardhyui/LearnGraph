@@ -323,6 +323,9 @@ export interface ScaffoldingStrategy {
   type: 'worked_example' | 'guided_practice' | 'hints' | 'visual_aids' | 'chunking' | 'peer_discussion' | 'analogy' | 'repetition';
   reason: string;
   priority: number;  // 1-10, higher = more important
+  // Why the strategy is offered: 'general' suits everyone, 'profile' comes
+  // from this learner's answers. Optional so older/other call sites stay valid.
+  source?: 'general' | 'profile';
 }
 
 /**
