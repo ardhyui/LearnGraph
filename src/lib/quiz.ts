@@ -43,12 +43,15 @@ export function answerButtonName(scale: QuizScale, value: number): string {
   return label ? `${value} — ${label}` : String(value);
 }
 
+/** The everyday label for values the learner set themselves. */
+const SET_BY_YOU = 'Set by you';
+
 /** Where a saved profile value came from, in everyday words. */
 const SOURCE_LABELS: Readonly<Record<string, string>> = {
   assessment_quick: 'From a quick quiz',
   assessment_full: 'From a full quiz',
-  manual_entry: 'Set by you',
-  adaptive_initial: 'Set by you',
+  manual_entry: SET_BY_YOU,
+  adaptive_initial: SET_BY_YOU,
   surprise_me: 'Random starting value',
   auto_discovery: 'Filled in automatically',
 };
@@ -78,4 +81,41 @@ export function savedQuizzesLine(count: number): string {
   const n = Math.max(0, Math.floor(count));
   if (n === 0) return 'Answer every question in a topic to get a result.';
   return n === 1 ? 'Saved 1 quiz result.' : `Saved ${n} quiz results.`;
+}
+
+/** A topic whose saved value a quiz result would replace (Roadmap P0.2). */
+export interface TopicAtRisk {
+  /** Domain id, e.g. "growth_mindset". */
+  id: string;
+  /** Where the old value came from, e.g. "Set by you". */
+  label: string;
+}
+
+/**
+ * Topics from `domainIds` (about to be overwritten by a quiz) whose saved
+ * value the learner set themselves, so saving should ask first. Quiz results
+ * replacing quiz results, random starting values, auto-filled values and
+ * empty topics are not at risk: replacing those loses nothing the learner
+ * chose (Roadmap P0.2 — ask only when the old value is "Set by you").
+ */
+export function manualTopicsAtRisk(
+  scores: Readonly<Record<string, { source?: string | null }>>,
+  domainIds: readonly string[],
+): TopicAtRisk[] {
+  const atRisk: TopicAtRisk[] = [];
+  for (const id of new Set(domainIds)) {
+    const score = scores[id];
+    if (!score || isQuizResult(score)) continue;
+    if (scoreSourceLabel(score.source) !== SET_BY_YOU) continue;
+    atRisk.push({ id, label: SET_BY_YOU });
+  }
+  return atRisk;
+}
+
+/** "A", "A and B", "A, B and C" — names of replaced topics in one sentence. */
+export function topicListLine(names: readonly string[]): string {
+  const clean = names.filter((name) => name.trim() !== '');
+  if (clean.length <= 1) return clean[0] ?? '';
+  if (clean.length === 2) return `${clean[0]} and ${clean[1]}`;
+  return `${clean.slice(0, -1).join(', ')} and ${clean[clean.length - 1]}`;
 }

@@ -50,9 +50,11 @@ import { LearningOverview } from '@/components/LearningOverview';
 import {
   answerButtonName,
   completedQuizTopics,
+  manualTopicsAtRisk,
   quizLengthLine,
   savedQuizzesLine,
   scoreSourceLabel,
+  topicListLine,
 } from '@/lib/quiz';
 import {
   profileModeOptions,
@@ -369,6 +371,16 @@ function ProfilePage() {
   const [assessmentViewMode, setAssessmentViewMode] = useState<AssessmentViewMode>('cards');
   // Batch answers for "all questions" view: domainId -> questionId -> answer
   const [batchAnswers, setBatchAnswers] = useState<Record<string, Record<string, number>>>({});
+  // Quiz results would replace values the learner set themselves, so saving
+  // asks first (Roadmap P0.2). Holds the topic ids at risk until answered;
+  // empty means "no confirmation pending".
+  const [overwriteAtRisk, setOverwriteAtRisk] = useState<string[]>([]);
+  // The confirmation step grabs focus when it appears (keyboard users stay
+  // inside the quiz dialog), and gives it back to the dialog when dismissed.
+  const confirmRef = useRef<HTMLDivElement>(null);
+  // The batch header's "Save answers" button: dismissing the batch
+  // confirmation puts focus back on it.
+  const batchSubmitRef = useRef<HTMLButtonElement>(null);
 
   // Load selected learner's profile
   useEffect(() => {
@@ -406,6 +418,7 @@ function ProfilePage() {
           // Answers in progress belong to the previous learner.
           setBatchAnswers({});
           setActiveAssessment(null);
+          setOverwriteAtRisk([]);
           // Set default profile mode
           setActiveMode('view');
           setModeConfirmed(false);
@@ -581,6 +594,14 @@ function ProfilePage() {
     quizOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setActiveAssessment(assessment);
     setAssessmentAnswers({});
+    setOverwriteAtRisk([]);
+  };
+
+  /** Topic names as the learner sees them, for the overwrite confirmation. */
+  const assessmentName = (domainId: string): string => {
+    const data = ALL_ASSESSMENTS[domainId];
+    const assessment = data ? (assessmentType === 'quick' ? data.quick : data.full) : undefined;
+    return assessment?.shortName || domainId;
   };
 
   // Keyboard: move into the quiz when it opens, and back to the card that
@@ -596,8 +617,28 @@ function ProfilePage() {
     if (opener?.isConnected) opener.focus();
   }, [quizOpen]);
 
-  const submitAssessment = async () => {
+  // The overwrite confirmation takes focus when it appears, and hands it
+  // back to the dialog when dismissed — focus never lands on <body> while
+  // the quiz dialog is open.
+  useEffect(() => {
+    if (overwriteAtRisk.length > 0) {
+      confirmRef.current?.focus();
+    } else if (activeAssessment) {
+      quizDialogRef.current?.focus();
+    }
+  }, [overwriteAtRisk, activeAssessment]);
+
+  const submitAssessment = async (confirmed = false) => {
     if (!activeAssessment || saving) return;
+
+    // A quiz result replaces whatever is saved for this topic — including a
+    // value the learner set themselves. Ask first in that case (Roadmap
+    // P0.2); quiz results replacing quiz results still save without asking.
+    if (!confirmed && manualTopicsAtRisk(editedScores, [activeAssessment.domainId]).length > 0) {
+      setOverwriteAtRisk([activeAssessment.domainId]);
+      return;
+    }
+    setOverwriteAtRisk([]);
 
     const score = activeAssessment.calculateScore(assessmentAnswers);
     const now = new Date().toISOString();
@@ -650,22 +691,39 @@ function ProfilePage() {
     return { answered, total };
   };
 
-  const submitBatchAssessments = async () => {
+  /** Topics in the batch view whose every question is answered (these get a result on save). */
+  const fullyAnsweredBatchTopics = (): string[] =>
+    offeredDomains.filter((domainId) => {
+      const assessmentData = ALL_ASSESSMENTS[domainId];
+      if (!assessmentData) return false;
+      const assessment = assessmentType === 'quick' ? assessmentData.quick : assessmentData.full;
+      const domainAnswers = batchAnswers[domainId] || {};
+      return assessment.questions.every((q) => domainAnswers[q.id] !== undefined);
+    });
+
+  const submitBatchAssessments = async (confirmed = false) => {
     if (saving) return;
+    const completeTopics = fullyAnsweredBatchTopics();
+
+    // Ask first when the results would replace values the learner set
+    // themselves (Roadmap P0.2). Everything else saves straight away.
+    const atRisk = manualTopicsAtRisk(editedScores, completeTopics);
+    if (!confirmed && atRisk.length > 0) {
+      setOverwriteAtRisk(atRisk.map((topic) => topic.id));
+      return;
+    }
+    setOverwriteAtRisk([]);
+
     const now = new Date().toISOString();
     const newScores: Record<string, PsychometricScore> = { ...editedScores };
     let submittedCount = 0;
 
-    for (const domainId of offeredDomains) {
+    for (const domainId of completeTopics) {
       const assessmentData = ALL_ASSESSMENTS[domainId];
       if (!assessmentData) continue;
 
       const assessment = assessmentType === 'quick' ? assessmentData.quick : assessmentData.full;
       const domainAnswers = batchAnswers[domainId] || {};
-
-      // Check if all questions for this domain are answered
-      const allAnswered = assessment.questions.every((q) => domainAnswers[q.id] !== undefined);
-      if (!allAnswered) continue;
 
       const score = assessment.calculateScore(domainAnswers);
       const isFullAssessment = assessment.questions.length > 1;
@@ -693,6 +751,12 @@ function ProfilePage() {
     const ok = await persistScores(newScores, `${savedQuizzesLine(submittedCount)} Your suggestions on Recommendations now use them.`);
     // Keep the answers on screen if saving failed, so nothing is lost.
     if (ok) setBatchAnswers({});
+  };
+
+  /** Dismiss the batch overwrite confirmation: nothing is saved, answers stay on screen. */
+  const cancelBatchOverwrite = () => {
+    setOverwriteAtRisk([]);
+    batchSubmitRef.current?.focus();
   };
 
   const getScoreColor = (score: number | undefined) => {
@@ -1038,21 +1102,59 @@ function ProfilePage() {
                   </div>
                 </div>
 
+                {/* Overwrite confirmation (Roadmap P0.2): the learner set this topic's value themselves. */}
+                {overwriteAtRisk.length > 0 && (
+                  <div
+                    ref={confirmRef}
+                    tabIndex={-1}
+                    data-testid="quiz-overwrite-confirm"
+                    className="mt-6 mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 focus:outline-none"
+                  >
+                    <p className="text-sm font-medium text-foreground">
+                      This will replace the value you set yourself for {activeAssessment.shortName}. Continue?
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Going back keeps your value and your answers on screen.
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex gap-3">
-                  <button
-                    onClick={() => setActiveAssessment(null)}
-                    className="flex-1 px-4 py-2 rounded-lg border border-border hover:bg-secondary transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={submitAssessment}
-                    disabled={saving || Object.keys(assessmentAnswers).length < activeAssessment.questions.length}
-                    className="flex-1 px-4 py-2 rounded-lg bg-primary text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                    {saving ? 'Saving…' : 'Save my answers'}
-                  </button>
+                  {overwriteAtRisk.length > 0 ? (
+                    <>
+                      <button
+                        onClick={() => setOverwriteAtRisk([])}
+                        className="flex-1 px-4 py-2 rounded-lg border border-border hover:bg-secondary transition-colors"
+                      >
+                        Go back
+                      </button>
+                      <button
+                        onClick={() => submitAssessment(true)}
+                        disabled={saving}
+                        className="flex-1 px-4 py-2 rounded-lg bg-primary text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                        {saving ? 'Saving…' : 'Save quiz result'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setActiveAssessment(null)}
+                        className="flex-1 px-4 py-2 rounded-lg border border-border hover:bg-secondary transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => submitAssessment()}
+                        disabled={saving || Object.keys(assessmentAnswers).length < activeAssessment.questions.length}
+                        className="flex-1 px-4 py-2 rounded-lg bg-primary text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                        {saving ? 'Saving…' : 'Save my answers'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </motion.div>
             </motion.div>
@@ -1280,7 +1382,8 @@ function ProfilePage() {
                         <div className="text-xs text-muted-foreground">questions answered</div>
                       </div>
                       <button
-                        onClick={submitBatchAssessments}
+                        ref={batchSubmitRef}
+                        onClick={() => submitBatchAssessments()}
                         disabled={saving || getBatchProgress().answered === 0}
                         className="px-5 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium shadow-lg shadow-amber-500/25 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl transition-all"
                       >
@@ -1297,6 +1400,40 @@ function ProfilePage() {
                     />
                   </div>
                 </div>
+
+                {/* Overwrite confirmation (Roadmap P0.2): some results would replace values the learner set themselves. */}
+                {overwriteAtRisk.length > 0 && !activeAssessment && (
+                  <div
+                    ref={confirmRef}
+                    tabIndex={-1}
+                    data-testid="batch-overwrite-confirm"
+                    className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 focus:outline-none"
+                  >
+                    <p className="text-sm font-medium text-foreground">
+                      This will replace the values you set yourself for{' '}
+                      {topicListLine(overwriteAtRisk.map(assessmentName))}. Continue?
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Going back keeps your values and your answers on screen.
+                    </p>
+                    <div className="mt-3 flex gap-3">
+                      <button
+                        onClick={cancelBatchOverwrite}
+                        className="flex-1 px-4 py-2 rounded-lg border border-border hover:bg-secondary transition-colors"
+                      >
+                        Go back
+                      </button>
+                      <button
+                        onClick={() => submitBatchAssessments(true)}
+                        disabled={saving}
+                        className="flex-1 px-4 py-2 rounded-lg bg-primary text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                        {saving ? 'Saving…' : 'Save quiz results'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* All Questions by Category */}
                 <div className="space-y-8">
@@ -1428,16 +1565,11 @@ function ProfilePage() {
                       <div>
                         <span className="font-medium text-foreground">{getBatchProgress().answered} questions answered</span>
                         <span className="text-muted-foreground text-sm ml-2">
-                          ({Object.keys(batchAnswers).filter((d) => {
-                            const assessment = assessmentType === 'quick' ? ALL_ASSESSMENTS[d]?.quick : ALL_ASSESSMENTS[d]?.full;
-                            if (!assessment) return false;
-                            const answers = batchAnswers[d] || {};
-                            return assessment.questions.every((q) => answers[q.id] !== undefined);
-                          }).length} topics complete)
+                          ({fullyAnsweredBatchTopics().length} topics complete)
                         </span>
                       </div>
                       <button
-                        onClick={submitBatchAssessments}
+                        onClick={() => submitBatchAssessments()}
                         disabled={saving}
                         className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium shadow-lg shadow-amber-500/25 flex items-center gap-2 hover:shadow-xl transition-all"
                       >
