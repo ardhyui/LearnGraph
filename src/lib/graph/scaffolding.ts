@@ -101,6 +101,7 @@ export function selectScaffoldingStrategies(profile: LearnerProfile): Scaffoldin
     type: 'worked_example',
     reason: 'Universal foundation for learning new concepts',
     priority: 8,
+    source: 'general',
   });
 
   // Visual learners
@@ -109,6 +110,7 @@ export function selectScaffoldingStrategies(profile: LearnerProfile): Scaffoldin
       type: 'visual_aids',
       reason: 'Primary learning modality is visual',
       priority: 9,
+      source: 'profile',
     });
   }
 
@@ -119,11 +121,13 @@ export function selectScaffoldingStrategies(profile: LearnerProfile): Scaffoldin
       type: 'guided_practice',
       reason: 'Reduces anxiety through step-by-step guidance',
       priority: 8,
+      source: 'profile',
     });
     strategies.push({
       type: 'hints',
       reason: 'Provides safety net when struggling',
       priority: 7,
+      source: 'profile',
     });
   }
 
@@ -133,6 +137,7 @@ export function selectScaffoldingStrategies(profile: LearnerProfile): Scaffoldin
       type: 'chunking',
       reason: 'Accommodates limited working memory capacity',
       priority: 9,
+      source: 'profile',
     });
   }
 
@@ -143,6 +148,7 @@ export function selectScaffoldingStrategies(profile: LearnerProfile): Scaffoldin
       type: 'peer_discussion',
       reason: 'Leverages social learning preference',
       priority: 6,
+      source: 'profile',
     });
   }
 
@@ -153,6 +159,7 @@ export function selectScaffoldingStrategies(profile: LearnerProfile): Scaffoldin
       type: 'analogy',
       reason: 'Connects new concepts to familiar ones',
       priority: 7,
+      source: 'profile',
     });
   }
 
@@ -162,6 +169,7 @@ export function selectScaffoldingStrategies(profile: LearnerProfile): Scaffoldin
       type: 'repetition',
       reason: 'Reinforces learning with shorter attention span',
       priority: 7,
+      source: 'profile',
     });
   }
 
@@ -171,6 +179,7 @@ export function selectScaffoldingStrategies(profile: LearnerProfile): Scaffoldin
       type: 'guided_practice',
       reason: 'Hands-on practice matches learning style',
       priority: 9,
+      source: 'profile',
     });
   }
 

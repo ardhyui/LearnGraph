@@ -1,73 +1,65 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-13 (siklus 6: gaya belajar turunan hanya bila topik kunci terisi; berikutnya: tandai "Ways to learn it" yang berasal dari profil)
+Terakhir diperbarui: 2026-11-13 (siklus 7: asal saran "Ways to learn it"; berikutnya: guard gaya belajar di admin psikometrik)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` baris 49 (sisa P0 #4): "Ways to learn it" di
-Recommendations belum menunjukkan bagian mana yang berasal dari profil pelajar.
+Backlog `docs/ROADMAP.md` baris 49 (sisa P0 #4): halaman admin psikometrik
+masih mengarang `learningStyle` dari skor yang belum diisi — guard siklus 6
+belum dipakai di jalur itu.
 
-Masalah: `selectScaffoldingStrategies` (`src/lib/graph/scaffolding.ts` ±baris
-95–181) selalu menyertakan `worked_example` ("Universal foundation…") untuk
-semua orang, lalu menambah strategi lain hanya bila profil mendukungnya
-(gaya belajar visual/kinesthetic, neuroticism/extraversion/openness dari Big
-Five, working memory/attention span dari `cognitiveProfile`). Di kartu
-Recommendations (`src/routes/recommendations.tsx` ±baris 520–540) semua chip
-tampil sama, jadi pelajar tak bisa membedakan saran umum dari saran yang
-dihitung dari jawabannya — padahal sejak siklus 6 gaya belajar hanya ada bila
-topik kunci terisi.
+Masalah: `src/routes/admin/psychometrics.tsx` memanggil `deriveLearningStyle`
+langsung di `handleSaveScores` (±baris 183–192) dan `handleComputeProfiles`
+(±baris 216–224), lalu menulis `learningStyle` + `cognitiveProfile` lewat
+`updateLearner`. `deriveLearningStyle` membaca topik kosong sebagai 50, jadi
+admin yang baru mengisi beberapa topik tetap mendapat gaya belajar turunan —
+padahal My Profile sejak siklus 6 hanya menurunkan gaya belajar bila kelima
+topik kunci terisi. Jalur ini juga bisa menimpa gaya belajar manual yang
+tersimpan.
 
-Perilaku yang diinginkan: setiap `ScaffoldingStrategy` membawa asal yang
-eksplisit, dan UI menampilkannya dengan bahasa sehari-hari (Inggris, D2).
-Saran universal (`worked_example`) ditandai umum; saran yang muncul karena
-profil (gaya belajar, Big Five, `cognitiveProfile`) ditandai berasal dari
-profil. `reason` yang ada tetap utuh (dipakai `title`), urutan/prioritas
-strategi tidak berubah, dan profil kosong tetap hanya menghasilkan
-`worked_example` bertanda umum.
+Perilaku yang diinginkan: satu helper murni yang dipakai semua jalur, sehingga
+aturan "gaya belajar hanya dari topik kunci lengkap" berlaku juga di admin.
+`cognitiveProfile` tetap selalu dihitung seperti sekarang.
 
 Rencana implementasi:
 
-1. Tambah field opsional pada `ScaffoldingStrategy` di
-   `src/lib/graph/types.ts`, mis. `source?: 'profile' | 'general'` (atau
-   helper murni `strategySource` bila lebih kecil); isi di
-   `selectScaffoldingStrategies` — `worked_example` = `general`, sisanya =
-   `profile`. Jangan mengubah `priority`, `reason`, atau daftar strategi.
-2. Di `src/routes/recommendations.tsx`, tampilkan penanda kecil yang terbaca
-   (mis. label "From your profile" / "Always suggested" di dalam chip atau
-   `aria-label` + teks visual) tanpa mengubah tinggi kartu secara berlebihan;
-   jangan mengandalkan `title` saja (tak terbaca keyboard/pembaca layar).
-   Chip tanpa `source` (data lama) tetap tampil seperti sekarang.
-3. Test: `tests/profile-traits.test.ts` (atau file baru
-   `tests/scaffolding-source.test.ts`) — profil kosong: hanya
-   `worked_example` dan `source: 'general'`; profil dengan `learning_styles`
-   + Big Five lengkap: `visual_aids`/`peer_discussion`/`analogy` bertanda
-   `profile`; `cognitiveProfile.workingMemoryCapacity: 'low'` menandai
-   `chunking` sebagai `profile`. Tambah penjaga statis bahwa halaman
-   Recommendations merender label asal. Cek `tests/graph-rpc-schemas.test.ts`
-   dan smoke Recommendations tetap hijau (bila bentuk respons RPC berubah,
-   pastikan aditif dan tidak ada assertion kunci yang patah).
-4. Bila ada cek smoke yang mudah: di kartu Recommendations, chip
-   `worked_example` menampilkan label umum dan minimal satu chip dari profil
-   menampilkan label profil setelah kuis/profil terisi. Jangan menambah cek
-   berbasis waktu; tunggu keadaan.
+1. Di `src/lib/graph/psychometrics.ts`, tambah helper murni
+   `derivedProfilesFromScores(scores)` yang mengembalikan
+   `{ learningStyle?: LearningStyle; cognitiveProfile: CognitiveProfile }`:
+   `learningStyle` hanya ada bila `hasLearningStyleInputs(scores)` true
+   (pakai `deriveLearningStyle`), `cognitiveProfile` selalu dari
+   `estimateCognitiveProfile`. Jangan ubah tanda tangan atau perilaku
+   `deriveLearningStyle`, `estimateCognitiveProfile`, atau
+   `hasLearningStyleInputs`.
+2. Pakai helper itu di `computeAndStoreLearningStyle` dan
+   `computeAndStoreDerivedProfiles` (`src/lib/graph/education-graph-db.ts`)
+   tanpa mengubah perilaku yang sudah dikunci test siklus 6.
+3. Di `src/routes/admin/psychometrics.tsx`, ganti kedua pemanggilan langsung
+   dengan helper. Bila `learningStyle` tidak ada, **jangan kirim** field itu ke
+   `updateLearner` (gaya belajar lama tetap utuh); `cognitiveProfile` tetap
+   dikirim dan pesan sukses tetap jelas. Jangan menambah skema/server
+   function/RPC/migrasi.
+4. Test: `tests/profile-traits.test.ts` atau file baru
+   `tests/admin-derived-profiles.test.ts` — skor kosong/parsial/rusak: tidak
+   ada `learningStyle`, `cognitiveProfile` tetap ada; kelima topik kunci lengkap:
+   gaya belajar muncul; penjaga statis bahwa halaman admin memakai helper dan
+   tidak memanggil `deriveLearningStyle` langsung. Cek smoke admin psikometrik
+   yang ada tetap hijau (tidak perlu cek baru bila alurnya panjang).
 
 Perilaku yang dikunci:
 
-- `selectScaffoldingStrategies` tetap fungsi murni; tanpa perubahan
-  skema/server function/RPC/migrasi (field baru hanya di objek respons).
-- Profil tanpa topik kunci/cognitive profile tidak boleh mendapat strategi
-  profil baru; label asal tidak boleh mengubah jumlah/urutan strategi.
-- UI pelajar berbahasa Inggris (D2); `deriveLearningStyle` dan guard
-  `hasLearningStyleInputs` dari siklus 6 tidak diubah.
+- Tanpa topik kunci lengkap tidak ada gaya belajar baru dari jalur mana pun;
+  nilai `learningStyle` lama tidak dihapus oleh simpan admin.
+- `cognitiveProfile` tetap dihitung dan disimpan seperti sebelumnya.
+- Tanpa perubahan skema/server function/RPC/migrasi; UI admin tetap bahasa
+  Inggris (D2).
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `feat:`/`fix:`. Setelah merge, tulis "Tugas
-berikutnya" untuk sesi setelahnya — kandidat: sisa baris 49 (mode
-"Automatic"/"Set, then adjust" belum berinferensi; opsi sudah disembunyikan,
-jadi mungkin tinggal higien backlog) atau baris 48 bagian menimpa
-`learningStyle`/`cognitiveProfile` manual (baca dulu apakah masih nyata
-setelah guard siklus 6), lalu P0 #3 baris 37 kunjungan pertama (WAJIB baca
-catatan 12 Nov: cek harus menunggu keadaan, bukan waktu).
+berbahasa Indonesia, pola `fix:`. Setelah merge, tulis "Tugas berikutnya" untuk
+sesi setelahnya — kandidat: higien baris 51 mode "Automatic"/"Set, then adjust"
+(opsinya sudah disembunyikan 2026-11-08, jadi mungkin tinggal dicoret setelah
+verifikasi) lalu P0 #3 baris 37 kunjungan pertama (WAJIB baca catatan 12 Nov:
+cek harus menunggu keadaan, bukan waktu).
 
 ## Riwayat
 
@@ -121,6 +113,18 @@ catatan 12 Nov: cek harus menunggu keadaan, bukan waktu).
   `tests/profile-traits.test.ts` 4 → 8; smoke Profile kini mengunci bahwa
   menyimpan tanpa topik kunci **tidak** mengarang gaya belajar. `npm run ci`
   hijau: typecheck, lint 0/0, 333/333 unit, build, CSP, 171/171 smoke. PR #44.
+- 2026-11-13: PR #45 — feat: "Ways to learn it" di Recommendations menunjukkan
+  asal tiap saran (sisa backlog P0 #4). `ScaffoldingStrategy` mendapat
+  `source?: 'profile' | 'general'` (aditif, tanpa skema/RPC/migrasi);
+  `selectScaffoldingStrategies` menandai `worked_example` = `general` dan semua
+  strategi kondisi (gaya belajar, Big Five, `cognitiveProfile`) = `profile`
+  tanpa mengubah `priority`, `reason`, jumlah, atau urutan. Chip kini memuat
+  teks kecil **Always suggested** / **From your profile** (bukan hanya
+  `title`); chip tanpa `source` tampil seperti dulu. Test baru
+  `tests/scaffolding-source.test.ts` (6) + 2 cek smoke (Sari tanpa saran
+  profil hanya "Always suggested"; Alice dengan gaya visual tersimpan melihat
+  "From your profile"). `npm run ci` hijau: typecheck, lint 0/0, 339/339 unit,
+  build, CSP, 164 cek smoke.
 
 ## Blokiran
 

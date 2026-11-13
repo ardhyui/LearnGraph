@@ -30,6 +30,7 @@ interface ScaffoldingStrategy {
   type: string;
   reason: string;
   priority: number;
+  source?: 'general' | 'profile';
 }
 
 interface ConceptNode {
@@ -92,6 +93,11 @@ const SCAFFOLDING_ICONS: Record<string, string> = {
   peer_discussion: '👥',
   analogy: '🔗',
   repetition: '🔄',
+};
+
+const SCAFFOLDING_SOURCE_LABELS: Record<'general' | 'profile', string> = {
+  general: 'Always suggested',
+  profile: 'From your profile',
 };
 
 const containerVariants = {
@@ -534,8 +540,13 @@ function RecommendationsPage() {
                                       className="px-3 py-1.5 bg-purple-500/10 rounded-full text-sm flex items-center gap-1.5 text-foreground cursor-default"
                                       title={strategy.reason}
                                     >
-                                      <span>{SCAFFOLDING_ICONS[strategy.type] || '📚'}</span>
+                                      <span aria-hidden="true">{SCAFFOLDING_ICONS[strategy.type] || '📚'}</span>
                                       <span className="capitalize">{strategy.type.replace('_', ' ')}</span>
+                                      {strategy.source && (
+                                        <span className="text-xs text-muted-foreground border-l border-purple-500/30 pl-1.5">
+                                          {SCAFFOLDING_SOURCE_LABELS[strategy.source]}
+                                        </span>
+                                      )}
                                     </motion.span>
                                   ))}
                                 </div>
