@@ -159,3 +159,27 @@ export function snoozedSummary(untils: readonly number[], now: Date): string {
   const n = countLabel(untils.length, 'review');
   return labels.every((l) => l === labels[0]) ? `${n} snoozed ${labels[0]}` : `${n} snoozed — the first ${labels[0]}`;
 }
+
+/** One snoozed review as the Today panel lists it: a name per item, not just an id. */
+export interface NamedSnoozedReview {
+  conceptId: string;
+  name: string;
+  /** When the review comes back (ms since epoch). */
+  until: number;
+}
+
+/**
+ * Pair snoozed reviews (soonest first) with learner-facing concept names.
+ * A concept that was deleted or has no name falls back to a readable id, so
+ * the Today list never shows "concept:linear-equations".
+ */
+export function namedSnoozedReviews(
+  snoozed: readonly { conceptId: string; until: number }[],
+  names: ReadonlyMap<string, string>,
+): NamedSnoozedReview[] {
+  return snoozed.map((s) => ({
+    conceptId: s.conceptId,
+    name: names.get(s.conceptId) ?? humanizeConceptId(s.conceptId),
+    until: s.until,
+  }));
+}
