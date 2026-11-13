@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { pageHead } from '@/lib/page-titles';
 import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/Sidebar';
+import { MichiSkillEvidence } from '@/components/michi/SkillEvidence';
 import {
   japaneseDashboard,
   startJapaneseQuiz,
@@ -118,6 +119,7 @@ function JapanesePage() {
                 </a>
               </div>
             </section>
+            <MichiSkillEvidence />
             <section className="rounded-2xl border border-primary/30 bg-primary/5 p-5">
               <h2 className="text-xl font-semibold">Sesi hari ini · 90 menit</h2>
               <p className="mt-2">

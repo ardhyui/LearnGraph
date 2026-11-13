@@ -61,10 +61,23 @@ describe('page titles', () => {
       const src = fs.readFileSync(file, 'utf8');
       const m = src.match(/createFileRoute\('([^']+)'\)/);
       assert.ok(m, `${file} has no route`);
-      assert.ok(src.includes(`head: () => pageHead('${m[1]}')`), `${file} sets no page title`);
+      // Either exactly `head: () => pageHead('<path>')`, or a head that
+      // spreads that same call to add more tags (e.g. Open Graph on /sign-in).
+      const wired =
+        src.includes(`head: () => pageHead('${m[1]}')`) ||
+        new RegExp(`head\\s*:\\s*\\(\\)\\s*=>\\s*\\(\\{[\\s\\S]*?\\.\\.\\.pageHead\\('${m[1]}'\\)`).test(src);
+      assert.ok(wired, `${file} sets no page title`);
       assert.ok(Object.hasOwn(PAGE_LABELS, m[1]), `${m[1]} has no title label`);
     }
     assert.deepEqual(pageHead('/profile'), { meta: [{ title: 'My Profile · LearnGraph' }] });
+  });
+
+  it('gives the crawlable sign-in page an Open Graph preview', async () => {
+    const src = fs.readFileSync(new URL('../src/routes/sign-in.tsx', import.meta.url), 'utf8');
+    assert.ok(src.includes(`...pageHead('/sign-in')`), 'keeps the page title');
+    assert.ok(src.includes('og:title'), 'og:title');
+    assert.ok(src.includes('og:description'), 'og:description');
+    assert.ok(src.includes(`'website'`), 'og:type website');
   });
 
   it('announces the new page after navigation', () => {

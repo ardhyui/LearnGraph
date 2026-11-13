@@ -34,7 +34,7 @@ Ukuran bersifat relatif (S < M < L), bukan janji tanggal. 🔒 berarti butuh aku
 - Fase 1 sampai 5 selesai: graph ganda, ZPD, deteksi celah, dan satu model memori di `src/lib/graph/spacing.ts`.
 - Fondasi server: PostgreSQL dengan isolasi per akun, validasi Zod untuk 46 method RPC, rate limit auth, dan header keamanan.
 - Pengalaman pelajar: panel Today, onboarding, navigasi mobile, serta dasar aksesibilitas.
-- `/japanese` membuktikan alur berbasis bukti: 48 soal, penilaian di server, dan syarat bukti tertunda sebelum dianggap kuasai.
+- `/japanese` membuktikan alur berbasis bukti: 48 soal, penilaian di server, dan syarat bukti tertunda sebelum dianggap kuasai. Panel "Bukti pelajaran Michi" membaca proyeksi riwayat lokal Michi (baca-saja, hanya untuk pemilik workstation).
 
 ### Yang membentuk urutan roadmap
 
@@ -220,10 +220,10 @@ Dikerjakan saat menyentuh area terkait. Rinciannya ada di `docs/ROADMAP.md`.
 
 - **Aksesibilitas:** tautan "Skip to content", jebakan fokus di dialog kuis, fokus setelah hapus baris admin, `aria-*` pada graph. Selesai: "Skip to content" di setiap halaman, dan fokus setelah hapus baris di 6 halaman admin (keduanya ada cek smoke). Juga: Tab terkunci di dialog kuis profil (ada cek smoke), dan node graph punya `aria-label` (nama + penguasaan).
 - **Mobile:** tabel admin menjadi kartu, panel detail graph menjadi bottom sheet. Selesai: di bawah 640 px tabel Learners, Knowledge States, dan Prerequisites menjadi satu kartu per baris (markup tabel yang sama, judul kolom tetap terbaca pembaca layar); di bawah 768 px panel detail Knowledge Graph dan Domains menjadi bottom sheet selebar layar yang ditutup dengan tombol atau Escape. Keduanya ada cek smoke.
-- **Keamanan:** CSP dengan nonce, karena `script-src` masih memakai `unsafe-inline`. Selesai: di build produksi `script-src` hanya mengizinkan file dari origin sendiri, nonce baru per respons (dipasang TanStack pada skrip hidrasinya lewat `ssr.nonce`), dan skrip tema lewat hash-nya. Di browser Zod memakai mode `jitless`, jadi tanpa `unsafe-eval`. Langkah CI baru "CSP on the production build" menggagalkan CI bila ada skrip inline tanpa nonce. `vite dev` tetap mengizinkan skrip inline (Vite menyisipkan skrip tanpa nonce), dan `style-src` tetap `unsafe-inline` karena komponen memakai atribut `style`.
-- **Performa:** code-splitting halaman graph. Sudah terpenuhi oleh pemisahan per route: React Flow (176 KB) berada di chunk sendiri yang hanya dimuat `/graph`, `/combined-graph`, dan `/domains` (diperiksa di hasil build).
+- **Keamanan:** CSP dengan nonce, karena `script-src` masih memakai `unsafe-inline`. Selesai: di build produksi `script-src` hanya mengizinkan file dari origin sendiri, nonce baru per respons (dipasang TanStack pada skrip hidrasinya lewat `ssr.nonce`), dan skrip tema lewat hash-nya. Di browser Zod memakai mode `jitless`, jadi tanpa `unsafe-eval`. Langkah CI baru "CSP on the production build" menggagalkan CI bila ada skrip inline tanpa nonce. `vite dev` tetap mengizinkan skrip inline (Vite menyisipkan skrip tanpa nonce), dan `style-src` tetap `unsafe-inline` karena komponen memakai atribut `style`. `X-Content-Type-Options` kini juga berlaku untuk `/assets/*` yang dilayani CDN Vercel (header di `vercel.json`), bukan hanya respons middleware.
+- **Performa:** code-splitting halaman graph. Sudah terpenuhi oleh pemisahan per route: React Flow (176 KB) berada di chunk sendiri yang hanya dimuat `/graph`, `/combined-graph`, dan `/domains` (diperiksa di hasil build). Juga: kunjungan berikutnya per akun di browser yang sama tidak lagi menunggu cek penyiapan workspace (berjalan di latar, `workspace-ready`); kunjungan pertama masih menunggu dengan copy "Getting your learning space ready…".
 - **Utang kode:** pecah file terbesar saat diubah, yaitu `src/lib/assessments.ts` (2516 baris), `src/routes/profile.tsx` (2009), dan `src/lib/graph/education-graph-db.ts` (1950). Dimulai: `education-graph-db.ts` (diubah di M5) turun dari 2046 ke 1848 baris; adaptasi psikometrik (penyesuaian, scaffolding, kecocokan konsep) pindah ke `src/lib/graph/scaffolding.ts` sebagai fungsi murni, dan method kelas dengan nama yang sama tetap ada.
-- **Dependensi:** `nitro` masih dipin ke versi beta; pindah ke rilis stabil saat tersedia. Per 8 November belum ada rilis stabil (terbaru `3.0.261103-rc`).
+- **Dependensi:** `nitro` masih dipin ke versi beta; pindah ke rilis stabil saat tersedia. Per 11 November belum ada rilis stabil (terbaru `3.0.261103-rc`).
 
 ## Ukuran keberhasilan
 

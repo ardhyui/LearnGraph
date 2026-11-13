@@ -5,9 +5,13 @@ import { Loader2, Network } from 'lucide-react';
 import { authClient } from '@/lib/auth/client';
 import { rateLimitMessage } from '@/lib/auth/rate-limit';
 import { cn } from '@/lib/utils';
-import { pageHead } from '@/lib/page-titles';
+import { pageHead, pageTitle } from '@/lib/page-titles';
 
 const searchSchema = z.object({ redirect: z.string().optional() });
+
+/** Link-preview text for the only crawlable page (robots.txt allows just /sign-in). */
+const SIGN_IN_DESCRIPTION =
+  'Sign in to LearnGraph: your study plan, reviews that are due, and your progress.';
 
 /** Only same-app relative paths are allowed as post-login targets. */
 function safeRedirect(target: string | undefined): string {
@@ -20,7 +24,15 @@ export const Route = createFileRoute('/sign-in')({
   beforeLoad: ({ context, search }) => {
     if (context.user) throw redirect({ href: safeRedirect(search.redirect) });
   },
-  head: () => pageHead('/sign-in'),
+  head: () => ({
+    ...pageHead('/sign-in'),
+    meta: [
+      ...pageHead('/sign-in').meta,
+      { property: 'og:title', content: pageTitle('Sign in') },
+      { property: 'og:description', content: SIGN_IN_DESCRIPTION },
+      { property: 'og:type', content: 'website' },
+    ],
+  }),
   component: SignInPage,
 });
 

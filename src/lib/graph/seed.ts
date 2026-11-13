@@ -22,9 +22,9 @@ export async function seedDemoDataIfEmpty(db: EducationGraphDB, now: Date = new 
     await db.setLearnerProfile(learner.userId, {
       name: learner.name,
       email: learner.email,
-      learningStyle: learner.learningStyle as any,
-      cognitiveProfile: learner.cognitiveProfile as any,
-      psychometricScores: learner.psychometricScores as any,
+      learningStyle: learner.learningStyle,
+      cognitiveProfile: learner.cognitiveProfile,
+      psychometricScores: learner.psychometricScores as any, // legacy bare 0–1 numbers (ignored by the engine)
       tags: learner.tags,
       notes: learner.notes,
     });
