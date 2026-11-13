@@ -53,7 +53,7 @@ systemctl --user disable --now learngraph-self-improve  # berhenti
 | `LEARNGRAPH_SLEEP_TASK` | `300` | Jeda antar tugas sukses (CI LearnGraph ±25 menit/session) |
 | `LEARNGRAPH_SLEEP_FAIL` | `300` | Jeda antar kegagalan |
 | `LEARNGRAPH_MAX_FAIL` | `6` | Stop setelah N kegagalan beruntun |
-| `LEARNGRAPH_DRY_RUN` | `0` | `1`/`limit`/`limit2`/`error` = simulasi satu iterasi tanpa memanggil model |
+| `LEARNGRAPH_DRY_RUN` | `0` | `1`/`limit`/`limit2`/`limitreset`/`error` = simulasi satu iterasi tanpa memanggil model |
 
 ## Cara kerja & batas
 
@@ -72,7 +72,13 @@ systemctl --user disable --now learngraph-self-improve  # berhenti
   ternyata masuk area itu.
 - Limit kuota dideteksi dari pola pesan pada log sesi (429/rate limit/quota/insufficient
   balance). Perilakunya:
-  1. **Kuota GLM habis → otomatis pindah ke DeepSeek 4.1 Flash** tanpa jeda.
+  1. **Kuota GLM habis → otomatis pindah ke DeepSeek 4.1 Flash** tanpa jeda, dan
+     **kembali ke GLM sendiri begitu waktu reset yang dilaporkan provider lewat**
+     (mis. "reset at 16:34:58" + grace 60 detik) — walaupun DeepSeek masih punya
+     kuota. Bila waktunya tak terbaca, model utama dicoba lagi setelah satu jeda
+     kuota (15 menit). Bug lama (warisan skrip Michi): kembali ke model utama hanya
+     terjadi bila fallback ikut kehabisan kuota, jadi loop bisa menetap di fallback
+     selamanya; kini transisinya dicatat di log.
   2. **Kuota fallback juga habis → tidur 15 menit**, lalu kembali mencoba GLM.
   3. Tanpa fallback (`LEARNGRAPH_FALLBACK_MODEL=""`) → tidur 15 menit lalu ulangi model yang sama.
   `opencode run` bisa exit 0 meski model error, jadi sukses juga diverifikasi dari event
@@ -80,5 +86,9 @@ systemctl --user disable --now learngraph-self-improve  # berhenti
 - Keamanan: `--auto` menyetujui izin tool secara otomatis. Loop ini hanya seaman
   task prompt-nya; review `TASK_PROMPT.md` dan riwayat PR (`gh pr list`) secara berkala,
   dan pisahkan limit kuota bila perlu. Satu instance saja (dilindungi flock).
+- **Satu mesin, satu CI:** bila loop lain (mis. `michi-auto`) berjalan di mesin yang sama,
+  dua `npm run ci` bersamaan bisa saling menggagalkan smoke (server dev kehilangan sumber
+  daya — teramati 13 Nov: `ERR_CONNECTION_REFUSED` di tengah smoke). Jalankan satu loop per
+  mesin bila memungkinkan; bila tidak, sesi yang gagal akan diulang otomatis oleh loop.
 - Log per sesi ada di `automation/log/`; audit hasil lewat `gh pr list` dan
   `automation/state.md`.
