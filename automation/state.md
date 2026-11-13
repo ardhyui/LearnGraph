@@ -1,70 +1,79 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-13 (siklus 8: guard gaya belajar di admin psikometrik; berikutnya: kerangka halaman saat workspace disiapkan)
+Terakhir diperbarui: 2026-11-13 (siklus 9: kerangka aplikasi saat workspace disiapkan; berikutnya: ekspor seluruh workspace)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` baris 37 (P0 #3): kunjungan pertama (dan halaman yang
-memuat datanya sendiri) masih menampilkan layar muat penuh tanpa sidebar.
-Pertimbangkan kerangka halaman (sidebar + placeholder) agar tata letak tidak
-melompat.
+Backlog `docs/ROADMAP.md` baris 65 (P0 #6): ekspor seluruh workspace untuk
+guru/admin — semua learner milik akun beserta profil, subjek, progres, dan
+konsep/prasyarat buatan sendiri — sebagai satu file JSON dari halaman Manage
+data.
 
-Masalah: 16 halaman mengembalikan `WorkspaceLoading`
-(`src/components/WorkspaceLoading.tsx`) selagi `dbLoading`; komponen itu berupa
-`min-h-screen` flex-center tanpa `Sidebar`, jadi pengunjung pertama melihat
-layar kosong berisi spinner, lalu seluruh tata letak bergeser saat sidebar
-muncul. Catatan percobaan 12 Nov: begitu sidebar ada di HTML SSR, klik uji bisa
-jatuh sebelum handler terpasang dan posisi klik melesat saat layout bergeser —
-**cek smoke harus menunggu keadaan (`locator.waitFor`/`untilHydrated`), bukan
-waktu (`waitForTimeout`)**.
+Masalah: My Profile hanya bisa mengunduh data **satu learner aktif**
+(`learner-export` v1, `src/lib/export.ts`). Guru/admin yang ingin mencadangkan
+atau memindahkan seluruh workspace harus membuka tiap learner satu per satu,
+dan konsep/prasyarat yang mereka buat tidak ikut terekspor sama sekali.
 
-Perilaku yang diinginkan: kerangka aplikasi sudah terlihat sejak paint pertama
-(sidebar desktop, bar atas + laci di ponsel), dengan pesan status yang sama
-(`Getting your learning space ready…`, `role="status"`) di area konten; setelah
-siap, halaman asli menggantikan kerangka tanpa lompatan besar. Kunjungan
-berikutnya tetap tidak menunggu penyiapan (perilaku 2026-11-09 jangan
-dikembalikan).
+Perilaku yang diinginkan: dari halaman Admin → Learners (kelompok Manage data)
+ada satu tombol **Download workspace (JSON)** yang membuat satu file di
+perangkat (tanpa unggah, tanpa server function baru) berisi:
+
+- `format: "learngraph.workspace-export"`, `version: 1`, tanggal ekspor;
+- semua learner akun itu (profil lengkap, tag/subjek, skor psikometrik, dan
+  knowledge state masing-masing, termasuk state konsep yang sudah dihapus);
+- semua konsep dan edge prasyarat workspace (termasuk buatan sendiri).
+
+Nama file ASCII bertanggal (`learngraph-workspace-YYYY-MM-DD.json`), isi
+mengikuti aturan aman ekspor yang ada (tidak pernah memuat rahasia/API key;
+state learner lain tidak ikut). Bila akun tanpa learner/konsep, file tetap
+sah dan tombol menjelaskan bahwa workspace kosong atau tetap mengunduh file
+kosong yang valid.
 
 Rencana implementasi:
 
-1. Ubah `src/components/WorkspaceLoading.tsx` menjadi kerangka:
-   `Sidebar` + `<main className="flex-1 min-w-0 …">` berisi kartu/placeholder
-   dengan spinner dan teks status yang sudah ada. Tidak perlu mengubah 16
-   pemanggil bila tanda tangannya tetap tanpa argumen; jangan render sidebar
-   kedua (halaman yang `dbLoading` berhenti sebelum merender sidebar-nya).
-2. Jaga aksesibilitas: `role="status"` + `aria-live="polite"` tetap, spinner
-   `aria-hidden`, tidak menambah `<h1>` palsu (hindari dua `<h1>` saat selesai),
-   tidak ada fokus yang dipindah paksa.
-3. Test: unit statis kecil bila perlu (mis. komponen memuat `Sidebar` dan teks
-   status); smoke baru untuk kunjungan pertama — tahan panggilan server
-   `seedDemoData` (pola `page.route` yang sudah ada di smoke), buka halaman
-   pelajar, lalu **tunggu** sidebar/nav dan teks status muncul (`waitFor`),
-   lepaskan panggilan, dan tunggu konten halaman menggantikannya; pastikan
-   tanpa error halaman. Bila memakai akun baru, siapkan lewat alur sign-up yang
-   ada; jangan memakai `waitForTimeout` untuk menebak kapan handler siap.
-4. Tanpa perubahan skema/server function/RPC/migrasi. UI tetap bahasa Inggris
-   (D2).
+1. Tambah builder murni (di `src/lib/export.ts` atau modul baru
+   `src/lib/workspace-export.ts`): terima data yang sudah dimuat lewat RPC baca
+   yang ada (`listLearnerProfiles`, `listConcepts`, `listEdges`,
+   `getLearnerKnowledgeStates` per learner — semuanya terikat akun), kembalikan
+   objek + nama file. Muat data sekali per learner; jangan menambah
+   RPC/server function/migrasi.
+2. UI: tombol di header Admin → Learners dengan status `role="status"` dan
+   galat `role="alert"`, keadaan sibuk, target sentuh ≥40 px, teks bahasa
+   Inggris (D2); unduhan lewat Blob seperti ekspor CSV/JSON yang ada. Jangan
+   memakai `window.confirm` (tidak ada operasi merusak).
+3. Test: unit builder (bentuk file, semua learner/state/konsep/edge ikut, hanya
+   data yang diberikan, tanpa rahasia, nama file aman, workspace kosong) +
+   penjaga statis halaman memakai builder dan tidak memanggil server function
+   baru. Smoke: buka Admin → Learners, klik unduhan setelah terhidrasi, baca
+   file JSON-nya, dan pastikan learner/konsep/prasyarat smoke ada serta tanpa
+   error halaman. Jangan mengklik sebelum hidrasi.
+4. Tanpa perubahan skema/RPC/migrasi. Bila terbukti terlalu besar, kerjakan
+   dulu builder + test unitnya, lalu simpan UI sebagai "Tugas berikutnya".
 
 Perilaku yang dikunci:
 
-- Pengunjung pertama dan halaman yang memuat datanya sendiri tidak pernah
-  melihat layar penuh tanpa kerangka aplikasi.
-- Pesan status yang sama tetap diumumkan (`role="status"`), dan setelah siap
-  halaman normal tampil (satu sidebar, tanpa error).
-- Kunjungan berikutnya tetap melewati penantian penyiapan; cek lama
-  "returning visit" di smoke tetap hijau.
-- Tanpa perubahan data/skema.
-
-Bila kerangka penuh ternyata terlalu besar, kerjakan lebih dulu sidebar +
-placeholder di `WorkspaceLoading` (satu perubahan komponen), lalu simpan
-"halaman yang memuat datanya sendiri" sebagai tugas berikutnya.
+- Satu file JSON berisi seluruh workspace akun yang sedang masuk; tidak ada
+  data akun lain dan tidak ada rahasia.
+- Semua state learner (termasuk konsep terhapus) dan semua edge ikut; format
+  dan versi eksplisit sehingga impor nanti bisa memvalidasinya.
+- Unduhan dibuat di perangkat; tidak ada unggahan/perubahan data.
+- Status/galat terbaca pembaca layar dan tombol bisa dipakai di ponsel.
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `feat:`/`fix:`. Setelah merge, tulis "Tugas berikutnya"
+berbahasa Indonesia, pola `feat:`. Setelah merge, tulis "Tugas berikutnya"
 untuk sesi setelahnya.
 
 ## Riwayat
 
+- 2026-11-13: PR #47 — Kerangka aplikasi (sidebar + bar atas/laci + placeholder)
+  tampil sejak paint pertama selagi workspace disiapkan, menggantikan layar
+  penuh tanpa sidebar di 16 halaman (`WorkspaceLoading`). Pesan status lama
+  tetap `role="status"`, tanpa `<h1>` palsu dan tanpa sidebar ganda; kunjungan
+  berikutnya tetap tidak menunggu. Test unit statis 3 + smoke baru yang
+  menahan `seedDemoData` dan menunggu keadaan (sidebar + status, lalu halaman
+  menggantikan; satu sidebar/`<h1>`, tanpa error). Tanpa migrasi. Sekalian
+  higien backlog: baris "mulai tanpa data demo" dan "tabel admin jadi kartu di
+  ponsel" dicoret (sudah selesai 2026-11-08, tertinggal).
 - 2026-11-13: PR #39 — Loop self-improve dibuat (automation/): self-improve.sh
   (loop opencode run satu tugas per sesi, deteksi kuota + fallback model,
   worktree terpisah, flock satu instance), TASK_PROMPT.md (konstitusi sesi:
