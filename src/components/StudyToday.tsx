@@ -28,8 +28,15 @@ import { getContentOverview } from '@/server/content.functions';
 import { buildSessionPlan, SESSION_LENGTHS, REVIEW_MINUTES } from '@/lib/session';
 import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
-import { priorityLabel, reviewSummary, snoozedSummary } from '@/lib/gaps';
-import { snoozedReviews, snoozedUntil, type SnoozedReview } from '@/lib/graph/spacing';
+import {
+  conceptNameMap,
+  namedSnoozedReviews,
+  priorityLabel,
+  reviewSummary,
+  snoozedSummary,
+  type NamedSnoozedReview,
+} from '@/lib/gaps';
+import { snoozedReviews, snoozedUntil } from '@/lib/graph/spacing';
 import { cn } from '@/lib/utils';
 
 /** `busy` while ending snoozes from the Today summary (can't clash with a concept id). */
@@ -65,7 +72,7 @@ interface TodayData {
   reviews: ReviewItem[];
   reviewsDue: number;
   /** Snoozed reviews and when each comes back (soonest first) — not counted as due. */
-  snoozed: SnoozedReview[];
+  snoozed: NamedSnoozedReview[];
   next: ZPDRecommendation[];
   /** Quiz questions per concept id: concepts listed here are learned by quiz. */
   quizCounts: Record<string, number>;
@@ -174,10 +181,13 @@ export function StudyToday() {
         states.filter((st) => (snoozedUntil(st) ?? 0) > nowMs).map((st) => st.conceptId),
       );
       const difficulty = new Map(allConcepts.map((c) => [c.conceptId, c.difficulty?.absolute]));
-      const snoozed = snoozedReviews(
-        states.filter((st) => difficulty.has(st.conceptId)),
-        (id) => difficulty.get(id),
-        new Date(nowMs),
+      const snoozed = namedSnoozedReviews(
+        snoozedReviews(
+          states.filter((st) => difficulty.has(st.conceptId)),
+          (id) => difficulty.get(id),
+          new Date(nowMs),
+        ),
+        conceptNameMap(allConcepts),
       );
       setData({
         learnerId,
@@ -343,6 +353,34 @@ export function StudyToday() {
       setNotice(`Could not save: ${err instanceof Error ? err.message : 'please try again.'}`);
       // Some may already be saved: show the lists as they are now.
       await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** "Review it now" for one snoozed review: end just that one, leave the rest. */
+  const unsnoozeOne = async (item: NamedSnoozedReview) => {
+    if (!db || !learnerId || busy || data?.learnerId !== learnerId) return;
+    pendingFocus.current = {
+      learnerId,
+      list: 'reviews',
+      conceptId: item.conceptId,
+      before: data.reviews.map((r) => r.conceptId),
+    };
+    setBusy(item.conceptId);
+    setNotice(null);
+    setWelcome(null);
+    try {
+      await recordStudyOutcome({ data: { learnerId, conceptId: item.conceptId, outcome: 'unsnooze' } });
+      // Switched to another learner while saving: don't announce it on their plan.
+      if (activeLearnerIdRef.current !== learnerId) return;
+      setNotice(`“${item.name}” is due again — you can review it now on the dashboard.`);
+      await load();
+    } catch (err) {
+      // The item is still listed: focus goes back to its own button.
+      pendingFocus.current = null;
+      if (activeLearnerIdRef.current !== learnerId) return;
+      setNotice(`Could not save: ${err instanceof Error ? err.message : 'please try again.'}`);
     } finally {
       setBusy(null);
     }
@@ -648,26 +686,50 @@ export function StudyToday() {
             </ul>
           )}
           {current && current.snoozed.length > 0 && (
-            <p className="mt-2 text-xs text-muted-foreground" data-testid="snoozed-summary">
-              {snoozedSummary(
-                current.snoozed.map((s) => s.until),
-                new Date(),
-              )}{' '}
-              ·{' '}
-              <button
-                type="button"
-                onClick={unsnoozeAll}
-                disabled={!!busy}
-                className="inline-flex min-h-6 items-center gap-1 font-medium text-primary underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
-              >
-                {busy === UNSNOOZE_BUSY && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
-                {current.snoozed.length === 1 ? 'Review it now' : 'Review them now'}
-              </button>{' '}
-              ·{' '}
-              <Link to="/gaps" className="font-medium text-primary underline underline-offset-2">
-                See snoozed reviews
-              </Link>
-            </p>
+            <div className="mt-2" data-testid="snoozed-summary">
+              <p className="text-xs text-muted-foreground">
+                {snoozedSummary(
+                  current.snoozed.map((s) => s.until),
+                  new Date(),
+                )}
+                {current.snoozed.length > 1 && (
+                  <>
+                    {' '}
+                    ·{' '}
+                    <button
+                      type="button"
+                      onClick={unsnoozeAll}
+                      disabled={!!busy}
+                      className="inline-flex min-h-6 items-center gap-1 font-medium text-primary underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+                    >
+                      {busy === UNSNOOZE_BUSY && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
+                      Review them now
+                    </button>
+                  </>
+                )}{' '}
+                ·{' '}
+                <Link to="/gaps" className="font-medium text-primary underline underline-offset-2">
+                  See snoozed reviews
+                </Link>
+              </p>
+              <ul className="mt-1 space-y-1" aria-label="Snoozed reviews">
+                {current.snoozed.map((item) => (
+                  <li key={item.conceptId} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">{item.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => unsnoozeOne(item)}
+                      disabled={!!busy}
+                      aria-label={`Review it now: ${item.name}`}
+                      className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+                    >
+                      {busy === item.conceptId && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
+                      Review it now
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 

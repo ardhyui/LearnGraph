@@ -5,8 +5,9 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
 import { isReviewDue, snoozedReviewUntil, snoozedReviews } from '../src/lib/graph/spacing.ts';
-import { snoozeLabel, snoozedSummary } from '../src/lib/gaps.ts';
+import { conceptNameMap, namedSnoozedReviews, snoozeLabel, snoozedSummary } from '../src/lib/gaps.ts';
 import { applyReviewOutcome, applySnooze } from '../src/lib/study.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -52,6 +53,43 @@ describe('which reviews count as snoozed', () => {
       { conceptId: 'c:a', until: Date.parse(at(2)) },
     ]);
     assert.deepEqual(snoozedReviews([], () => null, NOW), []);
+  });
+});
+
+describe('snoozed reviews per item on Today', () => {
+  it('pairs every snoozed review with a learner-facing name, in the same order', () => {
+    const names = conceptNameMap([
+      { conceptId: 'concept:fractions', name: 'Fractions' },
+      { conceptId: 'concept:decimals', name: '  ' },
+    ]);
+    assert.deepEqual(
+      namedSnoozedReviews(
+        [
+          { conceptId: 'concept:fractions', until: 100 },
+          { conceptId: 'concept:decimals', until: 200 },
+          { conceptId: 'concept:deleted-topic', until: 300 },
+        ],
+        names,
+      ),
+      [
+        { conceptId: 'concept:fractions', name: 'Fractions', until: 100 },
+        { conceptId: 'concept:decimals', name: 'Decimals', until: 200 },
+        { conceptId: 'concept:deleted-topic', name: 'Deleted topic', until: 300 },
+      ],
+    );
+    assert.deepEqual(namedSnoozedReviews([], names), []);
+  });
+
+  it('offers one "Review it now" per item and keeps the all-at-once action', () => {
+    const src = fs.readFileSync(new URL('../src/components/StudyToday.tsx', import.meta.url), 'utf8');
+    assert.ok(src.includes('const unsnoozeOne = async'));
+    assert.ok(src.includes("outcome: 'unsnooze'"));
+    assert.ok(src.includes('aria-label={`Review it now: ${item.name}`}'));
+    assert.ok(src.includes('aria-label="Snoozed reviews"'));
+    assert.ok(src.includes('Review them now'));
+    assert.ok(src.includes('onClick={unsnoozeAll}'));
+    // Per-item saves use the item's own concept id as the busy marker.
+    assert.ok(src.includes('setBusy(item.conceptId)'));
   });
 });
 

@@ -1,77 +1,82 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-13 (siklus 4: P0.2 selesai; berikutnya: daftar per-item penundaan review di panel Today)
+Terakhir diperbarui: 2026-11-13 (siklus 5: P0 #1 daftar per-item penundaan di Today selesai; berikutnya: gaya belajar turunan hanya bila topik kunci sudah diisi)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` P0 #1 (baris "tombol di ringkasan Today
-mengakhiri **semua** penundaan sekaligus (pilihan per item ada di Gap
-Analysis); bila pelajar sering menunda banyak review, pertimbangkan daftar
-kecil per item di Today"): ringkasan snoozed di panel Today hanya punya SATU
-tombol "Review it now / Review them now" yang memanggil `unsnoozeAll`
-(`src/components/StudyToday.tsx` ±baris 316–349) — pelajar yang menunda
-banyak review tidak bisa mengakhiri satu saja tanpa mengakhiri semuanya
-(pilihan per item baru ada di Gap Analysis).
+Backlog `docs/ROADMAP.md` P0 #4, baris 48, bagian pertama: "gaya belajar
+turunan memakai nilai 50 untuk topik yang belum diisi … pertimbangkan hanya
+menurunkan bila topik kunci (Learning Styles, Big Five) sudah diisi".
 
-Perilaku yang diinginkan: di bawah baris ringkasan snoozed di panel Today
-(render ±baris 650–671, `snoozedSummary(...)` dari `src/lib/gaps.ts` +
-tombol + tautan "See snoozed reviews"), tampilkan daftar kecil per item:
-nama konsep + tombol "Review it now" masing-masing. Tombol "Review them
-now" (semua sekaligus) tetap dipertahankan untuk >1 item (tanpa regresi —
-backlog hanya minta tambahan per item, bukan penghapusan). Per-item
-memakai `recordStudyOutcome` outcome `'unsnooze'` yang sama persis
-(tiru `reviewNow` di `src/routes/gaps.tsx` ±baris 266–289: `busy` per
-`conceptId`, notice `"${name}" is due again — you can review it now on the
-dashboard.`, fokus kembali ke tombol yang sama di baris penggantinya atau
-ke judul daftar bila kosong).
+Masalah: `deriveLearningStyle` (`src/lib/graph/psychometrics.ts` ±baris 636)
+memakai `getScore = (domain) => scores[domain]?.score ?? 50`, lalu
+`computeAndStoreLearningStyle` dan `computeAndStoreDerivedProfiles`
+(`src/lib/graph/education-graph-db.ts` ±baris 328 & 362) selalu menulis
+`profile.learningStyle`. Akibatnya pelajar yang baru mengisi satu topik
+langsung mendapat gaya belajar "turunan" dari nilai default 50 (mis.
+multimodal/reading, pace self-paced) dan Recommendations menampilkan "Ways
+to learn it" seolah-olah dari profilnya — padahal topik kuncinya kosong.
+
+Perilaku yang diinginkan: turunkan & simpan `learningStyle` **hanya** bila
+topik kunci yang benar-benar dibaca `deriveLearningStyle` sudah diisi:
+`learning_styles`, `big_five_openness`, `big_five_extraversion`,
+`big_five_conscientiousness`, `big_five_neuroticism` (id dari
+`PSYCHOMETRIC_DOMAINS`). Bila salah satu belum ada / bukan skor sah,
+jangan menulis `learningStyle` sama sekali — `learningStyle` yang sudah ada
+(mis. diisi manual di editor admin) tetap utuh, dan profil baru tetap tanpa
+`learningStyle`. `information_processing` boleh tetap memakai default 50
+saat topik kunci sudah lengkap; jangan memperluas tugas ini ke
+`estimateCognitiveProfile`/`cognitiveProfile` (perilakunya tidak berubah).
 
 Rencana implementasi:
 
-1. Nama konsep belum ada di data panel: `TodayData.snoozed` hanya
-   `SnoozedReview` (`conceptId` + `until`, dari `src/lib/graph/spacing.ts`).
-   Di `load` StudyToday (±baris 147–197) `allConcepts` sudah dimuat —
-   gabungkan nama di sana (mis. perluas entri snoozed jadi
-   `{ conceptId, name, until }`, peta nama dari `allConcepts`; konsep tanpa
-   nama memakai `conceptLabel`/id terbaca seperti pola gaps). Bentuk
-   `SnoozedReview` di `spacing.ts` TIDAK diubah.
-2. `unsnoozeOne(item)` baru di StudyToday mengikuti pola `unsnoozeAll`
-   (guard `activeLearnerIdRef` agar notice tidak bocor ke learner lain,
-   `pendingFocus.current` sebelum await, `await load()` setelah sukses);
-   `busy` memakai `item.conceptId` (sudah dipakai `save`), bukan
-   `UNSNOOZE_BUSY`.
-3. Daftar kecil di bawah baris ringkasan: `<ul>` dengan nama + tombol
-   "Review it now" per item (target sentuh ≥40 px, `disabled={!!busy}`
-   seperti tombol yang ada). Item habis → daftar menghilang, ringkasan
-   kembali polos.
+1. Helper murni baru di `psychometrics.ts`, mis.
+   `hasLearningStyleInputs(scores): boolean` — hanya `true` bila kelima id
+   di atas punya `{ score }` finite (0–100); kosong, string, NaN, atau
+   skor di luar rentang = belum diisi. Ekspor untuk dites langsung.
+2. Pakai guard itu di `computeAndStoreLearningStyle` **dan**
+   `computeAndStoreDerivedProfiles` di `education-graph-db.ts`: bila
+   `false`, lewati penulisan `learningStyle` (jangan mengosongkannya);
+   `cognitiveProfile` dan field lain tetap seperti sekarang, dan profile
+   tetap tersimpan (`put`) walau gaya belajar tidak berubah.
+3. `tests/profile-traits.test.ts` ±baris 100 memakai fixture tanpa
+   `big_five_conscientiousness`/`big_five_neuroticism`; lengkapi fixture
+   itu agar tetap mengharapkan `primary: 'visual'`, atau sesuaikan hanya
+   bila perilaku yang dikunci memang berubah. Tambah test: skor kosong /
+   sebagian / skor rusak tidak menurunkan gaya belajar (profil lama
+   dipertahankan, profil baru tanpa `learningStyle`), sedangkan kelima
+   topik lengkap menurunkan gaya seperti sekarang. Cek juga
+   `tests/graph-rpc-schemas.test.ts` (memanggil `deriveLearningStyle`
+   dengan semua domain) tetap hijau — tanda tangan `deriveLearningStyle`
+   tidak perlu berubah.
 
 Perilaku yang dikunci:
 
-- Server function `recordStudyOutcome` + outcome `'unsnooze'` tidak
-  berubah; Gap Analysis (`/gaps`) tidak berubah; `snoozedSummary` tidak
-  berubah.
-- Penundaan tetap tidak dihitung jatuh tempo; progres/interval tak berubah.
-- `unsnoozeAll` tetap berfungsi seperti sekarang (tombol + notice banyak).
-- UI pelajar berbahasa Inggris (D2).
+- `deriveLearningStyle` tetap fungsi murni dengan tanda tangan & hasil
+  yang sama untuk skor lengkap; tidak ada perubahan skema/server function/
+  RPC (`computeAndStoreDerivedProfiles` sudah ada di skema).
+- Menyimpan profil tanpa topik kunci tidak boleh menghapus
+  `learningStyle`/`cognitiveProfile` lama dan tidak menulis nilai default.
+- UI pelajar berbahasa Inggris (D2); copy halaman Profile tidak perlu
+  diubah kecuali memang menyesatkan.
 
-Test: unit untuk penggabung nama bila dibuat helper murni; cek dulu
-`tests/study.test.ts` / `tests/unsnooze.test.ts` untuk pola — ikuti yang
-ada (kemungkinan test statis sumber seperti quiz.test.ts). Smoke: cek lama
-(ada cek "Review them now"? cari `snoozed-summary`/`unsnooze` di
-`scripts/smoke.mjs`) tetap hijau; cek baru hanya bila tidak flaky.
+Dokumentasi: baris 48 memuat beberapa sub-item. Pisahkan bagian yang
+selesai menjadi butir `~~...~~ ✅ 2026-11-13 — ...` (gaya belajar turunan
+hanya bila topik kunci terisi), dan biarkan sisa baris (menyimpan profil
+menimpa `learningStyle`/`cognitiveProfile` manual di editor admin, serta
+menampilkan asal "Ways to learn it") sebagai "Lanjutan:" terbuka. Tambah
+entri log bertanggal di akhir `docs/ROADMAP.md` mengikuti pola entri lama.
 
-Dokumentasi: coret baris backlog itu di `docs/ROADMAP.md` dengan
-`✅ <tanggal>` + satu baris penjelasan, plus entri log bertanggal di akhir
-file mengikuti pola entri lama.
-
-Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `feat:` atau `fix:`. Setelah merge, tulis
-"Tugas berikutnya" untuk sesi setelahnya — kandidat (spekkan dengan membaca
-kode dulu): (a) backlog P0 #3 baris 37 "kunjungan pertama … layar muat
-penuh tanpa sidebar; pertimbangkan kerangka halaman (sidebar + placeholder)"
-di `DBContext.tsx` (WAJIB baca catatan percobaan 12 Nov di baris backlog
-itu: cek harus menunggu keadaan, bukan waktu), atau (b) backlog P0 #4
-baris 48 "gaya belajar turunan memakai nilai 50 untuk topik yang belum
-diisi … pertimbangkan hanya menurunkan bila topik kunci sudah diisi".
+Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Bila `/tmp`
+penuh (`ErrnoError` 28 di test PGlite), jalankan dengan
+`TMPDIR=/home/<user>/.cache/lg-ci-tmp` — jangan menghapus data pengguna.
+Commit berbahasa Indonesia, pola `fix:`/`feat:`. Setelah merge, tulis
+"Tugas berikutnya" untuk sesi setelahnya — kandidat: sisa baris 48
+(menyimpan profil menimpa `learningStyle`/`cognitiveProfile` yang diisi
+manual di editor admin; baca `computeAndStoreDerivedProfiles` dan editor
+admin dulu) atau backlog P0 #3 baris 37 "kunjungan pertama … layar muat
+penuh tanpa sidebar; pertimbangkan kerangka halaman" (WAJIB baca catatan
+percobaan 12 Nov: cek harus menunggu keadaan, bukan waktu).
 
 ## Riwayat
 
@@ -103,6 +108,16 @@ diisi … pertimbangkan hanya menurunkan bila topik kunci sudah diisi".
   (regresi putaran #24 dijaga); `persistScores`/server function tak berubah.
   Test quiz 13 → 19. Sekalian higien backlog: baris fokus-Tab dialog kuis
   dicoret (sudah selesai 2026-11-08, commit d6477b6, terlewat).
+- 2026-11-13: PR #43 — feat: penundaan review bisa diakhiri **per item**
+  dari ringkasan Today (backlog P0 #1). Daftar kecil di bawah ringkasan
+  (nama konsep + **Review it now** per item) memakai `recordStudyOutcome`
+  outcome `'unsnooze'` yang sama; **Review them now** tetap ada bila >1;
+  helper murni `namedSnoozedReviews` (`src/lib/gaps.ts`) + `conceptNameMap`
+  sekali saat `load` (bentuk `SnoozedReview` tak berubah); fokus pindah ke
+  review yang kembali / judul **Review now** bila kosong, kegagalan simpan
+  membiarkan item tetap di daftar; pesan/fokus tak bocor saat ganti learner.
+  Test unit baru 2 (`tests/snoozed-display.test.ts`), smoke lama hijau tanpa
+  perubahan. `npm run ci` 328/328 unit, 172/172 smoke. Tanpa migrasi.
 
 ## Blokiran
 
