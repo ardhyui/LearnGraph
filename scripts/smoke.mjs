@@ -117,6 +117,14 @@ async function closeQuiz(scope) {
   await scope.getByTestId('concept-quiz').waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
 }
 
+/** The text of a downloaded file (one stream read, then closed). */
+async function readDownload(download) {
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const c of stream) chunks.push(c);
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 const browser = await chromium.launch();
 const page = await browser.newPage();
 // The dev server compiles each page on its first visit, slowly on a busy machine.
@@ -1518,6 +1526,51 @@ try {
     check(newErrors.length === 0, 'learner import has no page errors', newErrors.join(' | '));
   }
 
+  // Roadmap P0 #6: the teacher downloads the whole workspace as one JSON file
+  // (every learner with their states, plus the workspace's own concepts and
+  // prerequisites), made on the device from the existing account-scoped reads.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/admin/learners`, { waitUntil: 'networkidle' });
+    const btn = page.getByTestId('download-workspace');
+    await btn.waitFor({ timeout: 30000 }).catch(() => {});
+    await untilHydrated(btn, 60000);
+    const [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60000 }).catch(() => null),
+      btn.click(),
+    ]);
+    const name = dl?.suggestedFilename() ?? '';
+    let data = null;
+    try {
+      data = JSON.parse(dl ? await readDownload(dl) : '');
+    } catch {
+      data = null;
+    }
+    check(/^learngraph-workspace-\d{4}-\d{2}-\d{2}\.json$/.test(name), 'workspace: downloads as a dated JSON file', `"${name}"`);
+    const ids = new Set(data?.learners?.map((l) => l.name) ?? []);
+    const ownStatesOnly =
+      Array.isArray(data?.learners) &&
+      data.learners.every((l) => l.knowledgeStates.every((st) => st.userId === l.id));
+    check(
+      data?.format === 'learngraph.workspace-export' && data?.version === 1 &&
+        ids.has('Sari Smoke') && ids.has('Imported Ines') && ids.has('Alice Chen') && ownStatesOnly,
+      'workspace: one file holds every learner of this account, each with only their own states',
+      data ? `${data.learners?.length} learners, ${data.learners?.reduce((n, l) => n + l.knowledgeStates.length, 0)} states` : 'no file',
+    );
+    const hasDemoGraph =
+      Array.isArray(data?.concepts) && data.concepts.length > 0 &&
+      Array.isArray(data?.edges) && data.edges.length > 0 &&
+      data.concepts.some((c) => c.name === 'Basic Arithmetic');
+    check(hasDemoGraph, 'workspace: the workspace\'s own concepts and prerequisites travel with it', data ? `${data.concepts?.length} concepts, ${data.edges?.length} edges` : 'no file');
+    const notice = await page
+      .getByText(/^Downloaded learngraph-workspace-\d{4}-\d{2}-\d{2}\.json — /)
+      .waitFor({ timeout: 15000 })
+      .then(() => true, () => false);
+    check(notice, 'workspace: the download is confirmed in a status message');
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'workspace download has no page errors', newErrors.join(' | '));
+  }
+
   // Roadmap M5: AI drafts are off until the account turns them on; then the
   // curriculum and question drafting forms appear, use the person's own key
   // (a malformed key is refused before anything is sent), and nothing is
@@ -1639,6 +1692,34 @@ try {
       'onboarding: "Start with an empty workspace" removes the examples for good',
       `empty at once ${noSubjects}, after reload ${stillEmpty}, skip offered ${skipOffered}`,
     );
+
+    // Roadmap P0 #6: downloading an empty workspace still gives a valid file,
+    // and the button says so (no confirm dialog — nothing destructive).
+    {
+      await p3.goto(`${BASE}/admin/learners`, { waitUntil: 'networkidle' });
+      const btn3 = p3.getByTestId('download-workspace');
+      await btn3.waitFor({ timeout: 30000 }).catch(() => {});
+      await untilHydrated(btn3, 60000);
+      const [dl3] = await Promise.all([
+        p3.waitForEvent('download', { timeout: 60000 }).catch(() => null),
+        btn3.click(),
+      ]);
+      let emptyData = null;
+      try {
+        emptyData = JSON.parse(dl3 ? await readDownload(dl3) : '');
+      } catch {
+        emptyData = null;
+      }
+      const emptyNotice = await p3
+        .getByText(/Downloaded learngraph-workspace-\d{4}-\d{2}-\d{2}\.json — this workspace is empty\./)
+        .waitFor({ timeout: 15000 })
+        .then(() => true, () => false);
+      check(
+        emptyData?.format === 'learngraph.workspace-export' && emptyData?.learners?.length === 0 && emptyData?.concepts?.length === 0 && emptyNotice,
+        'workspace: an empty account downloads a valid (empty) file and says so',
+        emptyData ? `${emptyData.learners?.length ?? '?'} learners, ${emptyData.concepts?.length ?? '?'} concepts` : 'no file',
+      );
+    }
 
     // Roadmap M3: "Forgot your password?" emails a one-hour link (read from
     // the dev outbox in CI); the new password works and old sessions end.

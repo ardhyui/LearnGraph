@@ -11,6 +11,7 @@ import { useLearners, useDB } from '@/lib/DBContext';
 import { uuidv4 } from '@/lib/uuid';
 import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 import { WorkspaceLoading } from '@/components/WorkspaceLoading';
+import { DownloadWorkspace } from '@/components/DownloadWorkspace';
 
 export const Route = createFileRoute('/admin/learners')({
   head: () => pageHead('/admin/learners'),
@@ -221,6 +222,9 @@ function LearnersPage() {
                 }}
               />
             </label>
+            {/* Roadmap P0 #6: one JSON file with every learner (profile + states)
+                and the workspace's own concepts and prerequisites. */}
+            <DownloadWorkspace />
           </motion.div>
           <p role="status" aria-live="polite" className={importNotice ? 'mb-6 text-sm text-emerald-700 dark:text-emerald-400' : 'sr-only'} data-testid="import-notice">
             {importNotice}
