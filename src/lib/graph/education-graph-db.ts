@@ -57,6 +57,11 @@ import {
   deriveLearningStyle,
   estimateCognitiveProfile,
 } from './psychometrics.ts';
+import {
+  conceptNameMap,
+  conceptNames,
+  missingPrereqReason,
+} from '../gaps.ts';
 
 export class EducationGraphDB {
   private db: GraphStore;
@@ -953,6 +958,9 @@ export class EducationGraphDB {
     ]);
     const stateMap = new Map(states.map(s => [s.conceptId, s]));
     const conceptById = new Map(concepts.map(c => [c.conceptId, c]));
+    // Readable concept labels for zone reasons, built once from the concepts
+    // already loaded above (no per-concept lookups).
+    const namesById = conceptNameMap(concepts);
 
     // Compute psychometric adjustments
     const psychometricAdjustments = this.adjustForPsychometrics(profile);
@@ -963,7 +971,8 @@ export class EducationGraphDB {
         concept,
         stateMap,
         psychometricAdjustments,
-        prereqsOf.get(concept.conceptId) ?? []
+        prereqsOf.get(concept.conceptId) ?? [],
+        namesById
       )
     );
 
@@ -1023,7 +1032,8 @@ export class EducationGraphDB {
     concept: ConceptNode,
     stateMap: Map<string, KnowledgeState>,
     adjustments: PsychometricAdjustments,
-    prereqs: PrerequisiteEdge[]
+    prereqs: PrerequisiteEdge[],
+    namesById: ReadonlyMap<string, string>
   ): ZonedConcept {
     const state = stateMap.get(concept.conceptId);
     const currentMastery = state?.mastery ?? 0;
@@ -1066,7 +1076,10 @@ export class EducationGraphDB {
     } else if (prerequisitesMet < 0.7) {
       // Missing too many prerequisites
       zone = 'too_hard';
-      reason = `Missing ${missingPrerequisites.length} prerequisite(s): ${missingPrerequisites.slice(0, 3).join(', ')}${missingPrerequisites.length > 3 ? '...' : ''}`;
+      reason = missingPrereqReason(
+        missingPrerequisites.length,
+        conceptNames(missingPrerequisites, namesById)
+      );
     } else if (readiness >= 0.5) {
       // Ready to learn
       zone = 'zpd';
