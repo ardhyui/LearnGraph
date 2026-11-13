@@ -1,63 +1,72 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-13 (siklus 9: kerangka aplikasi saat workspace disiapkan; berikutnya: ekspor seluruh workspace)
+Terakhir diperbarui: 2026-11-13 (siklus 10: ekspor seluruh workspace selesai; berikutnya: segarkan tanggal data contoh)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` baris 65 (P0 #6): ekspor seluruh workspace untuk
-guru/admin — semua learner milik akun beserta profil, subjek, progres, dan
-konsep/prasyarat buatan sendiri — sebagai satu file JSON dari halaman Manage
-data.
+Backlog `docs/ROADMAP.md` baris 16 (P0 #2, data demo): tombol **segarkan
+tanggal data contoh** — workspace yang di-seed sebelum putaran #17 masih
+memakai tanggal 2024, jadi semua konsep contoh langsung jatuh tempo review;
+ roadmap menyarankan tombol yang menghitung ulang tanggal contoh **atas
+permintaan pengguna**.
 
-Masalah: My Profile hanya bisa mengunduh data **satu learner aktif**
-(`learner-export` v1, `src/lib/export.ts`). Guru/admin yang ingin mencadangkan
-atau memindahkan seluruh workspace harus membuka tiap learner satu per satu,
-dan konsep/prasyarat yang mereka buat tidak ikut terekspor sama sekali.
+Masalah: `seedDemoDataIfEmpty` (`src/lib/graph/seed.ts`) sejak putaran #17
+memakai `shiftDemoDate` (`src/lib/demo-data.ts`) — tanggal contoh digeser
+relatif terhadap `DEMO_DATA_AS_OF` → waktu seed — tapi hanya saat workspace
+masih kosong. Workspace yang sudah di-seed sebelumnya sengaja tidak disentuh
+agar data yang ada tidak ditulis ulang diam-diam; pemiliknya tidak punya
+jalur lain selain menghapus dan menambah ulang pelajar contoh.
 
-Perilaku yang diinginkan: dari halaman Admin → Learners (kelompok Manage data)
-ada satu tombol **Download workspace (JSON)** yang membuat satu file di
-perangkat (tanpa unggah, tanpa server function baru) berisi:
-
-- `format: "learngraph.workspace-export"`, `version: 1`, tanggal ekspor;
-- semua learner akun itu (profil lengkap, tag/subjek, skor psikometrik, dan
-  knowledge state masing-masing, termasuk state konsep yang sudah dihapus);
-- semua konsep dan edge prasyarat workspace (termasuk buatan sendiri).
-
-Nama file ASCII bertanggal (`learngraph-workspace-YYYY-MM-DD.json`), isi
-mengikuti aturan aman ekspor yang ada (tidak pernah memuat rahasia/API key;
-state learner lain tidak ikut). Bila akun tanpa learner/konsep, file tetap
-sah dan tombol menjelaskan bahwa workspace kosong atau tetap mengunduh file
-kosong yang valid.
+Perilaku yang diinginkan: dari halaman admin yang mengelola data (kelompok
+tombol Admin → Learners, dekat tombol unduhan/impor workspace) ada satu
+tombol **Refresh example data** yang menggeser tanggal `firstSeen`,
+`lastReviewed`, dan `nextReview` milik state pelajar contoh akun sendiri
+menjadi relatif terhadap sekarang (aturan yang sama dengan seed: `shiftDemoDate`,
+tak pernah menghasilkan tanggal masa depan), **tanpa** mengubah mastery,
+reviewCount, masterySource, misconceptions, atau interactions. Hanya state
+pelajar contoh yang disentuh — pelajar yang dibuat sendiri tidak pernah.
+Id pelajar contoh di DB adalah `demo-alice`, `demo-bob`, `demo-carol`
+(lihat `demoLearners`/`demoKnowledgeStates` di `src/lib/demo-data.ts` dan
+komentar di `seed.ts`; jangan hardcode ulang daftarnya bila bisa mengambil
+dari konstanta yang ada).
 
 Rencana implementasi:
 
-1. Tambah builder murni (di `src/lib/export.ts` atau modul baru
-   `src/lib/workspace-export.ts`): terima data yang sudah dimuat lewat RPC baca
-   yang ada (`listLearnerProfiles`, `listConcepts`, `listEdges`,
-   `getLearnerKnowledgeStates` per learner — semuanya terikat akun), kembalikan
-   objek + nama file. Muat data sekali per learner; jangan menambah
-   RPC/server function/migrasi.
-2. UI: tombol di header Admin → Learners dengan status `role="status"` dan
-   galat `role="alert"`, keadaan sibuk, target sentuh ≥40 px, teks bahasa
-   Inggris (D2); unduhan lewat Blob seperti ekspor CSV/JSON yang ada. Jangan
-   memakai `window.confirm` (tidak ada operasi merusak).
-3. Test: unit builder (bentuk file, semua learner/state/konsep/edge ikut, hanya
-   data yang diberikan, tanpa rahasia, nama file aman, workspace kosong) +
-   penjaga statis halaman memakai builder dan tidak memanggil server function
-   baru. Smoke: buka Admin → Learners, klik unduhan setelah terhidrasi, baca
-   file JSON-nya, dan pastikan learner/konsep/prasyarat smoke ada serta tanpa
-   error halaman. Jangan mengklik sebelum hidrasi.
-4. Tanpa perubahan skema/RPC/migrasi. Bila terbukti terlalu besar, kerjakan
-   dulu builder + test unitnya, lalu simpan UI sebagai "Tugas berikutnya".
+1. Helper murni (mis. `demoRefreshPlan` di `src/lib/demo-data.ts` atau modul
+   baru): terima `states` + `now`, kembalikan daftar patch
+   `{ userId, conceptId, firstSeen?, lastReviewed, nextReview? }` hanya untuk
+   `userId` pelajar contoh; tanggal mentah 2024 digeser dengan `shiftDemoDate`,
+   tanggal yang sudah segar (≤ beberapa hari dari `now`) boleh dilewati agar
+   tombol idempoten dan tidak menulis tanpa perlu. Tanpa I/O; unit test
+   langsung.
+2. Penerapan patch lewat RPC tulis yang ada (`setKnowledgeState`) sekali per
+   state — tanpa server function/skema/migrasi baru. Pelajari dulu
+   `repairDemoKnowledgeStates` di `seed.ts` sebagai pola iterasi state contoh.
+3. UI: tombol berbahasa Inggris (D2) dengan status `role="status"` dan galat
+   `role="alert"`, keadaan sibuk, target sentuh ≥40 px, konfirmasi ringkas di
+   dalam halaman (bukan `window.confirm`) karena ini menulis ulang tanggal;
+   setelah selesai jelaskan berapa state yang digeser. Tombol hanya tampil
+   bila ada state contoh bertanggal tua (mis. >90 hari) — hindari tombol mati.
+4. Test: unit helper (patch hanya untuk pelajar contoh, tanggal digeser benar,
+   tidak menyentuh field lain, idempoten, tanggal rusak ditangani) + penjaga
+   statis halaman (memakai helper + `setKnowledgeState`, tanpa server function
+   baru, tanpa `window.confirm`). Smoke: seed manual state contoh bertanggal
+   2024 lewat RPC yang ada (atau akun yang di-seed lalu tanggalnya
+   dimanipulasi lewat `setKnowledgeState`), klik tombol setelah terhidrasi,
+   pastikan tanggal state berubah dan tanpa error halaman.
+5. Tanpa perubahan skema/RPC/migrasi. Bila terbukti terlalu besar, kerjakan
+   dulu helper + test unitnya, lalu simpan UI sebagai "Tugas berikutnya".
 
 Perilaku yang dikunci:
 
-- Satu file JSON berisi seluruh workspace akun yang sedang masuk; tidak ada
-  data akun lain dan tidak ada rahasia.
-- Semua state learner (termasuk konsep terhapus) dan semua edge ikut; format
-  dan versi eksplisit sehingga impor nanti bisa memvalidasinya.
-- Unduhan dibuat di perangkat; tidak ada unggahan/perubahan data.
-- Status/galat terbaca pembaca layar dan tombol bisa dipakai di ponsel.
+- Hanya state pelajar contoh (`demo-alice`/`demo-bob`/`demo-carol`) milik akun
+  yang masuk yang boleh diubah; pelajar lain tidak tersentuh sama sekali.
+- Hanya tanggal (firstSeen/lastReviewed/nextReview) yang berubah; mastery dan
+  riwayat lain tetap.
+- Aturan penggeseran sama persis dengan seed baru (`shiftDemoDate`, tidak ada
+  tanggal masa depan); tombol idempoten (dipakai dua kali → hasil sama).
+- Tidak ada penulisan diam-diam: tombol eksplisit + konfirmasi ringkas +
+  laporan hasil.
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
 berbahasa Indonesia, pola `feat:`. Setelah merge, tulis "Tugas berikutnya"
@@ -65,6 +74,21 @@ untuk sesi setelahnya.
 
 ## Riwayat
 
+- 2026-11-13: PR #49 — feat: ekspor seluruh workspace (backlog P0 #6). Tombol
+  **Download workspace (JSON)** di Admin → Learners membuat satu file
+  `learngraph.workspace-export` v1 di perangkat: semua learner akun itu
+  (profil, subjek, seluruh knowledge state termasuk konsep terhapus) plus
+  semua konsep dan edge prasyarat workspace. Builder murni
+  `buildWorkspaceExport`/`workspaceExportFileName`
+  (`src/lib/workspace-export.ts`) defensif (state yatim tidak ikut, tiap
+  learner hanya menerima state miliknya) dan hanya memuat data yang
+  diberikannya RPC baca terikat akun — tanpa server function/skema/migrasi
+  baru. Status `role="status"`, galat `role="alert"`, `aria-busy`, target
+  sentuh 40 px, bahasa Inggris; workspace kosong tetap mengunduh file sah
+  dengan pesan "this workspace is empty". Test unit 8
+  (`tests/workspace-export.test.ts`, termasuk penjaga statis halaman) + cek
+  smoke akun utama dan akun kosong. `npm run ci` hijau (install, typecheck,
+  lint 0/0, unit, build, CSP, smoke).
 - 2026-11-13: PR #47 — Kerangka aplikasi (sidebar + bar atas/laci + placeholder)
   tampil sejak paint pertama selagi workspace disiapkan, menggantikan layar
   penuh tanpa sidebar di 16 halaman (`WorkspaceLoading`). Pesan status lama
