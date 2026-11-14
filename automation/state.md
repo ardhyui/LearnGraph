@@ -1,50 +1,72 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 19: test langsung fokus setelah hapus baris `src/lib/focus-after-delete.ts`, PR #58; berikutnya: test langsung jebakan Tab `src/lib/focus-trap.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 20: test langsung jebakan Tab `src/lib/focus-trap.ts`, PR #59; berikutnya: test langsung skor & registri penilaian `src/lib/assessments.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung untuk `src/lib/focus-trap.ts` (`trapTabKey`)
-— jalur jebakan Tab di dialog kuis/My Profile. Fungsi ini hanya diuji tidak
-langsung oleh smoke dialog kuis, belum punya test langsung; regresi membuat
-Tab bisa keluar ke belakang dialog atau Shift+Tab melewati elemen pertama.
+Penguatan tes: test unit langsung untuk `src/lib/assessments.ts` — registri 39
+domain (quick + full) dan perhitungan skor yang dipakai kuis psikometrik.
+`tests/quiz.test.ts` hanya memakai daftar pertanyaan/label tombol, belum ada
+test langsung untuk `calculateScore`/`interpretation`; regresi skor diam-diam
+mengubah nilai yang tersimpan.
 
-Lokasi: `src/lib/focus-trap.ts` — **jangan ubah perilakunya**; tugas ini test
-saja. Bila test menemukan bug nyata, catat di "Blokiran"/riwayat dan hanya
-perbaiki bila sepele dan ikut teruji. Test baru `tests/focus-trap.test.ts`
-(node:test murni, **tanpa jsdom/dependensi baru**): pakai objek DOM tiruan
-minimal yang mewarisi kelas `FakeNode`, stub `globalThis.Node` dan
-`globalThis.document`, lalu pulihkan keduanya di hook `after`.
+Lokasi: `src/lib/assessments.ts` — **jangan ubah data/perilakunya**; tugas ini
+test saja. Test baru `tests/assessments.test.ts` (node:test murni, tanpa
+dependensi baru). Bila test menemukan bug nyata, catat di "Blokiran"/riwayat
+dan hanya perbaiki bila sepele dan ikut teruji.
 
 Perilaku yang dikunci:
 
-- `e.key` selain `'Tab'` (mis. `'Escape'`, `'Enter'`, `'a'`), atau
-  `container === null` → tidak memanggil `preventDefault()`, tidak memfokuskan
-  apa pun.
-- Kandidat diambil dari `container.querySelectorAll(...)` dengan selector
-  persis konstanta `FOCUSABLE` modul (`a[href], button:not([disabled]), …`),
-  lalu hanya elemen yang `getClientRects().length > 0`; urutan DOM
-  dipertahankan dan elemen tersembunyi tidak pernah menjadi target.
-- Tanpa kandidat terlihat: Tab maupun Shift+Tab → `preventDefault()` lalu
-  `container.focus()`.
-- Tab tanpa Shift: fokus di luar container **atau** tepat di kandidat terakhir
-  → `preventDefault()` + fokus kandidat pertama; fokus di kandidat tengah →
-  tidak mencegah dan tidak memindahkan fokus.
-- Shift+Tab: fokus di luar container, tepat di kandidat pertama, atau tepat di
-  container → `preventDefault()` + fokus kandidat terakhir; fokus di kandidat
-  tengah → tidak mencegah dan tidak memindahkan fokus.
-- Elemen aktif yang bukan `instanceof Node` dianggap di luar container;
-  `container.contains(active)` dipakai untuk menentukan "di dalam". Fokus di
-  dalam container tetapi bukan kandidat (mis. wrapper) tidak dipindahkan,
-  kecuali tepat di container pada Shift+Tab → kandidat terakhir — kunci apa
-  adanya sesuai kode saat ini.
+- `ALL_ASSESSMENTS` berisi tepat 39 domain; setiap kunci sama dengan
+  `quick.domainId` dan `full.domainId`; `getQuickAssessments()` /
+  `getFullAssessments()` mengembalikan 39 objek dengan urutan registry yang
+  sama; `getAssessment(kunci, 'quick'|'full')` mengembalikan objek yang identik
+  dan `undefined` untuk domain tak dikenal.
+- Setiap kuis (78 objek): minimal satu pertanyaan; id pertanyaan unik di dalam
+  kuis; teks tidak kosong; `subscale` (bila ada) tidak kosong;
+  `name`/`shortName`/`description`/`source` tidak kosong.
+- Skala: `min`/`max` bilangan bulat dengan `min < max`; `labels` berisi
+  `max - min + 1` label (skala penuh) atau tepat 2 label ujung; semua label
+  tidak kosong.
+- `calculateScore` untuk setiap kuis dengan jawaban semua `min`, semua `max`,
+  dan `{}` (kosong) selalu mengembalikan bilangan bulat 0–100.
+- Item `reverseScored` di semua kuis **kecuali** `attachment_style.full`:
+  dengan jawaban lain tetap di tengah skala, menaikkan jawaban item itu tidak
+  pernah menaikkan skor. `attachment_style.full` sengaja membalik skor akhir
+  (`100 - raw`), jadi arahnya sebaliknya: jawaban semua `min` = 83 dan semua
+  `max` = 17 (kunci nilai persis ini).
+- `interpretation(0)`, `interpretation(50)`, `interpretation(100)`
+  mengembalikan string tidak kosong untuk setiap kuis; `interpretation(50)`
+  tanpa argumen jawaban tidak melempar; `attachment_style.full` dengan jawaban
+  menghasilkan salah satu dari empat gaya ("Secure", "Anxious-Preoccupied",
+  "Dismissive-Avoidant", "Fearful-Avoidant") beserta "Anxiety=" dan
+  "Avoidance=".
+- `ASSESSMENT_CATEGORIES`: 39 domain unik, setiap kunci registry muncul tepat
+  sekali, tidak ada domain tak dikenal, `id`/`name` kategori tidak kosong.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
-Indonesia pola `test:`. Tanpa dependensi baru dan tanpa perubahan kode
-aplikasi. Setelah merge, tulis "Tugas berikutnya" berikutnya.
+Indonesia pola `test:`. Tanpa perubahan kode aplikasi/dependensi. Setelah
+merge, tulis "Tugas berikutnya" berikutnya.
 
 ## Riwayat
 
+- 2026-11-15: PR #59 — test: test unit langsung jebakan Tab dialog
+  `src/lib/focus-trap.ts` (`trapTabKey`, 20 test di
+  `tests/focus-trap.test.ts`, node:test murni), modul tidak diubah. Fake DOM
+  minimal mewarisi `FakeNode`; `globalThis.Node` dan `globalThis.document`
+  distub lalu dipulihkan di `after`. Dikunci: key selain `Tab` dan
+  `container === null` → tanpa `preventDefault()`/fokus; kandidat dari
+  `querySelectorAll` dengan selector persis `FOCUSABLE`, disaring
+  `getClientRects().length > 0`, urutan DOM dipertahankan, elemen tersembunyi
+  tak pernah difokuskan; tanpa kandidat terlihat → `preventDefault()` +
+  `container.focus()` (Tab & Shift+Tab, container kosong); Tab dari luar/di
+  kandidat terakhir → kandidat pertama, kandidat tengah/pertama/container/
+  wrapper di dalam tidak dicegat; Shift+Tab dari luar/di kandidat pertama/di
+  container → kandidat terakhir, kandidat tengah/terakhir/wrapper tidak
+  dicegat; elemen aktif bukan `instanceof Node` dianggap di luar; kandidat
+  tunggal membungkus ke dirinya sendiri. Tanpa perubahan
+  perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (486/486 unit,
+  177 cek smoke; cek "Tab stays inside the quiz dialog" tetap).
 - 2026-11-15: PR #58 — test: test unit langsung fokus setelah hapus baris
   admin `src/lib/focus-after-delete.ts` (`rememberRowFocus`/`restoreRowFocus`,
   19 test di `tests/focus-after-delete.test.ts`, node:test murni), modul tidak
