@@ -1,60 +1,92 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 24: test langsung penerap migrasi PGlite `src/lib/migrations.ts`, PR #63; berikutnya: test langsung allowlist metode RPC browser `src/lib/graph/methods.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 25: test langsung allowlist metode RPC browser `src/lib/graph/methods.ts`, PR #64; berikutnya: test langsung modul scaffolding `src/lib/graph/scaffolding.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes/keamanan: test unit langsung untuk **daftar metode graph yang
-boleh dipanggil browser** `src/lib/graph/methods.ts` (`REMOTE_GRAPH_METHODS` +
-tipe `RemoteGraphDB`). Daftar ini adalah batas keamanan: `src/server/graph.functions.ts`
-memvalidasi `method` dengan `z.enum(REMOTE_GRAPH_METHODS)` lalu menjalankan
-`EducationGraphDB` milik akun pemanggil. Saat ini hanya kelengkapan skema Zod
-yang diuji (`tests/graph-rpc-schemas.test.ts`); daftar persisnya sendiri belum
-dikunci, jadi metode baru/berbahaya bisa ikut terekspos tanpa ada test yang
-gagal. **Modul tidak diubah** — test saja.
+Penguatan tes: test unit langsung untuk modul murni **scaffolding psikometrik**
+`src/lib/graph/scaffolding.ts`. Ekspor `adjustForPsychometrics` dan
+`selectScaffoldingStrategies` saat ini hanya disentuh test label `source`
+(`tests/scaffolding-source.test.ts`, PR #45) — tabel keputusan keduanya belum
+dikunci — dan `calculatePsychometricMatch` (dipakai engine ZPD menilai
+kecocokan konsep dengan profil) sama sekali belum punya test. **Modul tidak
+diubah — test saja.**
 
-Test baru `tests/graph-methods.test.ts` (node:test murni, tanpa dependensi
-baru) mengimpor `REMOTE_GRAPH_METHODS` dan mengunci:
+Test baru `tests/scaffolding.test.ts` (node:test murni, tanpa dependensi
+baru; helper kecil pembuat `LearnerProfile` dari `{ scores, learningStyle,
+cognitiveProfile }`) mengunci:
 
-- tepat **46** nama, semuanya string unik (tanpa duplikat), dan daftar persis
-  dalam urutan sumber saat ini (salinan eksplisit di test; perubahan daftar
-  harus disengaja dan terlihat di diff). Nama-nama itu adalah 46 method graph
-  yang sudah ada: `addConcept`, `addEdge`, `addMisconception`,
-  `addRelatedEdge`, `adjustForPsychometrics`, `clear`,
-  `computeAndStoreCognitiveProfile`, `computeAndStoreDerivedProfiles`,
-  `computeAndStoreLearningStyle`, `computeZPD`, `deleteConcept`, `deleteEdge`,
-  `deleteKnowledgeState`, `deleteLearnerProfile`, `deleteRelatedEdge`,
-  `detectGaps`, `generateLearningPath`, `generateRemediationPlan`,
-  `getConcept`, `getDependentChain`, `getDependents`, `getEdge`,
-  `getKnowledgeState`, `getLearnerKnowledgeStates`, `getLearnerProfile`,
-  `getPrerequisiteChain`, `getPrerequisites`, `getPsychometricScores`,
-  `getRelatedEdges`, `getReviewQueue`, `getStats`, `listConcepts`,
-  `listConceptsByBloomLevel`, `listConceptsByDifficulty`,
-  `listConceptsByDomain`, `listEdges`, `listLearnerProfiles`,
-  `listRelatedEdges`, `predictDecay`, `scheduleNextReview`, `searchConcepts`,
-  `selectScaffoldingStrategies`, `setKnowledgeState`, `setLearnerProfile`,
-  `updatePsychometricScore`, `updatePsychometricScores`.
-- Metode **tidak boleh** ada di daftar: `open`, `close` (siklus hidup store
-  lokal), `batch` (operasi mentah tanpa skema Zod), dan `addConceptsAndEdges`
-  (jalur server-only yang dipakai fitur lain) — dikunci eksplisit agar tidak
-  terekspos tanpa review.
-- Nama selalu sama dengan method `EducationGraphDB` (penjaga statis: setiap nama
-  muncul sebagai deklarasi method `(<async>)? <nama>(` di
-  `src/lib/graph/education-graph-db.ts`, async maupun tidak — mis.
-  `predictDecay`/`scheduleNextReview` sinkron; tanpa nama yang tidak ada di
-  sana).
-- Penjaga statis wiring: `src/server/graph.functions.ts` memakai
-  `z.enum(REMOTE_GRAPH_METHODS)` (bukan `z.string()`) dan mengambil graph lewat
-  `graphForOwner`; `src/lib/DBContext.tsx` (`createRemoteGraphDB`) membangun
-  proxy dengan mengiterasi `REMOTE_GRAPH_METHODS` (tidak ada nama method
-  hardcoded) dan meneruskan `{ method, args }` hasil `JSON.parse(JSON.stringify(args ?? []))`;
-  `src/lib/graph/methods.ts` bebas impor runtime (hanya `import type`) supaya
-  aman di bundle browser.
+- `adjustForPsychometrics` tabel keputusan: profil kosong → semua default
+  (`difficultyModifier: 0`, `paceRecommendation: 'normal'`,
+  `attentionConsiderations: []`, `presentationStyle: 'mixed'`); openness > 70
+  → +0.2 dan < 30 → −0.1; conscientiousness > 70 → `faster` dan < 30 →
+  `slower` + consideration struktur; neuroticism > 70 → −0.2 + consideration
+  encouragement; extraversion > 70 → consideration kolaboratif dan < 30 →
+  solo (teks consideration persis seperti sumber); `presentationStyle`
+  mengikuti `learningStyle.primary` (visual → `visual`, auditory → `verbal`,
+  kinesthetic → `hands_on`, tanpa learningStyle → `mixed`); `difficultyModifier`
+  di-cap [−0.5, 0.5] di sumber, tapi kombinasi yang tercapai hari ini maksimal
+  −0.3/+0.2 — kunci cap hanya lewat penjaga statis (baris `Math.max(-0.5`
+  masih ada), jangan mengubah modul untuk mengejar cabang yang tak terjangkau;
+  `scaffoldingStrategies` dalam hasil identik `selectScaffoldingStrategies`
+  dengan profil yang sama.
+- `selectScaffoldingStrategies`: profil kosong → tepat satu `worked_example`
+  (`priority: 8`, `source: 'general'`); tiap kondisi menambah strateginya
+  (visual → `visual_aids` 9; neuroticism > 60 → `guided_practice` 8 + `hints`
+  7; `workingMemoryCapacity: 'low'` → `chunking` 9; extraversion > 70 →
+  `peer_discussion` 6; openness < 40 → `analogy` 7; `attentionSpan: 'short'`
+  → `repetition` 7; kinesthetic → `guided_practice` 9); hasil selalu terurut
+  `priority` menurun; ambang diuji tepat di batas (neuroticism 60 tidak / 61
+  ya; extraversion 70 tidak / 71 ya; openness 40 tidak / 39 ya); skor dibaca
+  lewat `traitScore` — hanya entri `{ score }` angka finite 0–100 yang dihitung
+  (angka telanjang legacy 0–1 dan entri tanpa skor diabaikan; id kanonis
+  `big_five_*` maupun alias lama seperti `openness_to_experience` dua-duanya
+  terbaca).
+- `calculatePsychometricMatch`: basis 0.5; konsep abstrak
+  (`difficulty.abstractness > 0.7`) dengan openness > 60 → +0.2, openness <
+  40 → −0.2, openness 50 → netral; `difficulty.cognitiveLoad > 0.7` dengan
+  `workingMemoryCapacity` 'high' → +0.15 / 'low' → −0.15 / tanpa
+  cognitiveProfile → netral; `adjustedDifficulty = absolute +
+  difficultyModifier × 10` dalam [4, 7] → +0.1 (mis. absolute 5 + modifier
+  +0.2 → 7 → ya; absolute 8 → tidak); nilai maksimum yang tercapai 0.95 dan
+  minimum 0.15; integrasi kecil: modifier dari `adjustForPsychometrics`
+  dipakai langsung sebagai argumen ketiga.
+- Penjaga statis ringan: `src/lib/graph/education-graph-db.ts` tetap
+  mendelegasikan ketiga nama fungsi ini dari modul `scaffolding.ts` (method
+  engine yang sama namanya memanggil modul ini), dan cap
+  `Math.max(-0.5, Math.min(0.5, …))` masih ada di `adjustForPsychometrics`.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
+Test lama `tests/scaffolding-source.test.ts` tetap utuh dan hijau.
 
 ## Riwayat
+
+- 2026-11-15: PR #64 — test: test unit langsung allowlist metode graph yang
+  boleh dipanggil browser `src/lib/graph/methods.ts` (`REMOTE_GRAPH_METHODS`,
+  7 test di `tests/graph-methods.test.ts`, node:test murni), modul tidak
+  diubah. Dikunci: tepat 46 nama dalam urutan sumber saat ini (salinan
+  eksplisit di test — perubahan daftar harus disengaja dan terlihat di diff),
+  semuanya string unik non-kosong tanpa duplikat; `open`/`close` (siklus
+  hidup store lokal), `batch` (operasi mentah tanpa skema Zod), dan
+  `addConceptsAndEdges` (jalur server-only) tidak boleh ada di daftar —
+  keempatnya juga dipastikan tetap ada sebagai deklarasi method engine supaya
+  lock tetap bermakna; setiap nama muncul sebagai deklarasi method
+  `(<async>)? <nama>(` di `src/lib/graph/education-graph-db.ts` (async maupun
+  sinkron — `predictDecay`/`scheduleNextReview`/`adjustForPsychometrics`/
+  `selectScaffoldingStrategies` dikunci eksplisit tanpa async). Penjaga statis
+  wiring: `methods.ts` bebas impor runtime (hanya `import type`, aman di
+  bundle browser); `graph.functions.ts` memakai `method:
+  z.enum(REMOTE_GRAPH_METHODS)` (bukan `z.string()`) dan mengambil graph
+  lewat `graphForOwner(context.userId)`; `createRemoteGraphDB` di
+  `DBContext.tsx` membangun proxy dengan mengiterasi `REMOTE_GRAPH_METHODS`
+  (tidak ada nama method hardcoded, termasuk yang terlarang) dan meneruskan
+  `{ method, args }` hasil `JSON.parse(JSON.stringify(args ?? []))`. Catatan
+  proses: typecheck menolak `methods.includes(name)` karena salinan terinfer
+  array union literal — diperbaiki dengan mengetik salinan `string[]`
+  (commit kedua), lalu CI penuh hijau. Tanpa perubahan
+  perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (547/547 unit,
+  184 cek smoke).
 
 - 2026-11-15: PR #63 — test: test unit langsung penerap migrasi PGlite
   `src/lib/migrations.ts` (`applyMigrations` + `pgliteMigratable`, 11 test di
