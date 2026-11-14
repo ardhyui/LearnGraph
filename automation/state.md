@@ -1,55 +1,77 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 20: test langsung jebakan Tab `src/lib/focus-trap.ts`, PR #59; berikutnya: test langsung skor & registri penilaian `src/lib/assessments.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 21: test langsung registri & skor `src/lib/assessments.ts`, PR #60; berikutnya: fix subskala bernilai 0 yang dibaca sebagai 50 di `interpretation`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung untuk `src/lib/assessments.ts` — registri 39
-domain (quick + full) dan perhitungan skor yang dipakai kuis psikometrik.
-`tests/quiz.test.ts` hanya memakai daftar pertanyaan/label tombol, belum ada
-test langsung untuk `calculateScore`/`interpretation`; regresi skor diam-diam
-mengubah nilai yang tersimpan.
+Fix bug nyata yang ditemukan test PR #60: `interpretation` di
+`src/lib/assessments.ts` memakai `subscales[x] || 50`, jadi subskala yang
+nilainya **sah 0** diperlakukan seperti "tidak ada" dan diganti 50. Terbukti
+pada `attachment_style.full`: jawaban semua `min` menghasilkan skor 83
+(secure), tetapi teksnya berkata "Anxious-Preoccupied ... Anxiety=50" —
+seharusnya "Secure ... Anxiety=0, Avoidance=33". Perbaikan: pakai nilai 0 bila
+kuncinya ada; fallback 50 hanya bila subskala benar-benar tidak ada
+(`?? 50` / cek `Object.hasOwn`). Skor (`calculateScore`) dan data kuis tidak
+berubah.
 
-Lokasi: `src/lib/assessments.ts` — **jangan ubah data/perilakunya**; tugas ini
-test saja. Test baru `tests/assessments.test.ts` (node:test murni, tanpa
-dependensi baru). Bila test menemukan bug nyata, catat di "Blokiran"/riwayat
-dan hanya perbaiki bila sepele dan ikut teruji.
+Lokasi fallback yang harus diperbaiki (semua di `src/lib/assessments.ts`):
 
-Perilaku yang dikunci:
+- `attachment_style.full` — `anxiety`/`avoidance` (sekitar baris 622–623);
+- `information_processing.full` — `analytical`/`holistic` (sekitar 1819–1820);
+- `metacognition.full` — `knowledge`/`regulation` (sekitar 1888–1889);
+- `political_ideology.full` — `care`/`fairness`/`loyalty`/`authority`/`purity`
+  (sekitar 2095–2096);
+- `cultural_values.full` — `collectivism`/`individualism`/`power_distance`/
+  `uncertainty` (sekitar 2171–2174).
 
-- `ALL_ASSESSMENTS` berisi tepat 39 domain; setiap kunci sama dengan
-  `quick.domainId` dan `full.domainId`; `getQuickAssessments()` /
-  `getFullAssessments()` mengembalikan 39 objek dengan urutan registry yang
-  sama; `getAssessment(kunci, 'quick'|'full')` mengembalikan objek yang identik
-  dan `undefined` untuk domain tak dikenal.
-- Setiap kuis (78 objek): minimal satu pertanyaan; id pertanyaan unik di dalam
-  kuis; teks tidak kosong; `subscale` (bila ada) tidak kosong;
-  `name`/`shortName`/`description`/`source` tidak kosong.
-- Skala: `min`/`max` bilangan bulat dengan `min < max`; `labels` berisi
-  `max - min + 1` label (skala penuh) atau tepat 2 label ujung; semua label
-  tidak kosong.
-- `calculateScore` untuk setiap kuis dengan jawaban semua `min`, semua `max`,
-  dan `{}` (kosong) selalu mengembalikan bilangan bulat 0–100.
-- Item `reverseScored` di semua kuis **kecuali** `attachment_style.full`:
-  dengan jawaban lain tetap di tengah skala, menaikkan jawaban item itu tidak
-  pernah menaikkan skor. `attachment_style.full` sengaja membalik skor akhir
-  (`100 - raw`), jadi arahnya sebaliknya: jawaban semua `min` = 83 dan semua
-  `max` = 17 (kunci nilai persis ini).
-- `interpretation(0)`, `interpretation(50)`, `interpretation(100)`
-  mengembalikan string tidak kosong untuk setiap kuis; `interpretation(50)`
-  tanpa argumen jawaban tidak melempar; `attachment_style.full` dengan jawaban
-  menghasilkan salah satu dari empat gaya ("Secure", "Anxious-Preoccupied",
-  "Dismissive-Avoidant", "Fearful-Avoidant") beserta "Anxiety=" dan
-  "Avoidance=".
-- `ASSESSMENT_CATEGORIES`: 39 domain unik, setiap kunci registry muncul tepat
-  sekali, tidak ada domain tak dikenal, `id`/`name` kategori tidak kosong.
+Perilaku yang dikunci (tambahkan ke `tests/assessments.test.ts` yang sudah ada;
+jangan buat file test baru):
+
+- `attachment_style.full` dengan jawaban semua `min` → skor tetap 83 dan teks
+  persis diawali `Secure attachment (Anxiety=0, Avoidance=33).`; jawaban semua
+  `max` → skor 17 dan tetap salah satu dari empat gaya dengan `Anxiety=` dan
+  `Avoidance=` (bukan nilai 50 palsu).
+- Setiap kuis lain di daftar: saat satu subskala dijawab semua `min` (0) dan
+  subskala lain di tengah skala, teks memuat subskala itu `=0` dan klasifikasi
+  mengikuti nilai 0 — mis. `information_processing` menjadi
+  `Holistic/Global` dengan `Analytical/Sequential=0`; `metacognition` memilih
+  `Regulation of Cognition` dengan `Knowledge of Cognition=0`;
+  `political_ideology` dengan care/fairness 0 dan binding tengah menyebut
+  orientasi binding; `cultural_values` dengan `power_distance`/`uncertainty` 0
+  menyebut egalitarian dan nyaman dengan ambiguitas.
+- Fallback 50 tetap bekerja bila kunci subskala memang tidak ada (uji unit
+  helper/teks dengan jawaban `{}` pada kuis ber-subskala tidak melempar dan
+  tetap menghasilkan teks tidak kosong; jangan mengubah bentuk API).
+- Tanpa perubahan `calculateScore`, registry, label, 39 domain, skema, RPC,
+  migrasi, atau dependensi. UI tetap bahasa Inggris (D2).
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
-Indonesia pola `test:`. Tanpa perubahan kode aplikasi/dependensi. Setelah
-merge, tulis "Tugas berikutnya" berikutnya.
+Indonesia pola `fix:`. Setelah merge, tulis "Tugas berikutnya" berikutnya.
 
 ## Riwayat
 
+- 2026-11-15: PR #60 — test: test unit langsung registri & skor psikometrik
+  `src/lib/assessments.ts` (19 test di `tests/assessments.test.ts`, node:test
+  murni), modul tidak diubah. Dikunci: 39 domain dalam urutan tetap dengan
+  kunci = `quick.domainId` = `full.domainId`; `getQuickAssessments()` /
+  `getFullAssessments()` 39 objek berurutan dan identik; `getAssessment`
+  identik / `undefined` untuk domain tak dikenal; 78 kuis (minimal satu
+  pertanyaan, id unik, teks/subscale/metadata tidak kosong); skala bulat
+  `min < max`, label satu per nilai atau dua ujung, dan dua skala berlabel
+  titik (`dark_triad_narcissism.quick` indeks 0/6,
+  `life_satisfaction.quick` indeks 0/5/10) dikunci eksplisit agar kuis lain
+  tidak memakai posisi label kosong; `calculateScore` semua `min`/semua
+  `max`/`{}` bilangan bulat 0–100; item `reverseScored` tidak pernah
+  menaikkan skor; `attachment_style.full` semua `min` = 83, semua `max` = 17,
+  dan keempat gaya attachment terjangkau dengan `Anxiety=`/`Avoidance=`;
+  `interpretation` 0/50/100 tanpa jawaban selalu tidak kosong dan tidak
+  melempar; 8 kategori mencakup 39 domain tepat sekali. Temuan (tidak
+  diperbaiki di PR test ini, dicatat sebagai tugas berikutnya):
+  `subscales[x] || 50` membuat subskala sah 0 tampil/terklasifikasi sebagai 50
+  (attachment semua `min`: skor 83 tetapi teks "Anxious-Preoccupied ...
+  Anxiety=50"). Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
+  `npm run ci` hijau (505/505 unit, 184 cek smoke; cek kuis dan fokus Tab
+  tetap).
 - 2026-11-15: PR #59 — test: test unit langsung jebakan Tab dialog
   `src/lib/focus-trap.ts` (`trapTabKey`, 20 test di
   `tests/focus-trap.test.ts`, node:test murni), modul tidak diubah. Fake DOM
