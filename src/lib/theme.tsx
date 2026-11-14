@@ -1,78 +1,20 @@
 /**
- * Minimal class-based theme provider (replaces `next-themes`).
- * Stores 'light' | 'dark' | 'system' in localStorage and toggles `.dark` on <html>.
+ * Theme hook and the inline no-flash script.
+ *
+ * Provider components live in `ThemeProvider.tsx` so this module exports only a
+ * hook and constants, keeping `react-refresh/only-export-components` enabled.
  */
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { THEME_STORAGE_KEY as STORAGE_KEY } from './theme-script';
+import { useContext } from 'react';
+import { ThemeContext, type ThemeContextValue } from './theme-context';
+import { NO_FLASH_SCRIPT as NO_FLASH_SCRIPT_SOURCE } from './theme-script';
 
-export { NO_FLASH_SCRIPT } from './theme-script';
-
-export type Theme = 'light' | 'dark' | 'system';
-
-interface ThemeContextValue {
-  theme: Theme;
-  resolvedTheme: 'light' | 'dark';
-  setTheme: (theme: Theme) => void;
-}
-
-const ThemeContext = createContext<ThemeContextValue>({
-  theme: 'system',
-  resolvedTheme: 'light',
-  setTheme: () => {},
-});
-
-function systemPrefersDark(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
-}
-
-function apply(theme: Theme): 'light' | 'dark' {
-  const dark = theme === 'dark' || (theme === 'system' && systemPrefersDark());
-  const root = document.documentElement;
-  root.classList.toggle('dark', dark);
-  root.style.colorScheme = dark ? 'dark' : 'light';
-  return dark ? 'dark' : 'light';
-}
-
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('system');
-  const [resolvedTheme, setResolved] = useState<'light' | 'dark'>('light');
-
-  useEffect(() => {
-    let saved: Theme = 'system';
-    try {
-      const v = localStorage.getItem(STORAGE_KEY);
-      if (v === 'light' || v === 'dark' || v === 'system') saved = v;
-    } catch {
-      /* storage unavailable */
-    }
-    setThemeState(saved);
-    setResolved(apply(saved));
-  }, []);
-
-  useEffect(() => {
-    if (theme !== 'system') return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = () => setResolved(apply('system'));
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, [theme]);
-
-  const setTheme = useCallback((next: Theme) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      /* storage unavailable */
-    }
-    setThemeState(next);
-    setResolved(apply(next));
-  }, []);
-
-  return (
-    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
-}
+/**
+ * Exported as a local constant (not an `export … from`) so the fast-refresh
+ * rule sees a constant; the script text and its CSP hash stay defined only in
+ * `theme-script.ts`.
+ */
+export const NO_FLASH_SCRIPT = `${NO_FLASH_SCRIPT_SOURCE}`;
+export type { Theme } from './theme-context';
 
 export function useTheme(): ThemeContextValue {
   return useContext(ThemeContext);
