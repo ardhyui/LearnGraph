@@ -12,6 +12,7 @@ import { uuidv4 } from '@/lib/uuid';
 import { rememberRowFocus, restoreRowFocus } from '@/lib/focus-after-delete';
 import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 import { DownloadWorkspace } from '@/components/DownloadWorkspace';
+import { RefreshExampleData } from '@/components/RefreshExampleData';
 
 export const Route = createFileRoute('/admin/learners')({
   head: () => pageHead('/admin/learners'),
@@ -225,6 +226,9 @@ function LearnersPage() {
             {/* Roadmap P0 #6: one JSON file with every learner (profile + states)
                 and the workspace's own concepts and prerequisites. */}
             <DownloadWorkspace />
+            {/* Roadmap P0 #2: example progress seeded before round #17 can be
+                moved to "as of now" on request (dates only, demo learners only). */}
+            <RefreshExampleData />
           </motion.div>
           <p role="status" aria-live="polite" className={importNotice ? 'mb-6 text-sm text-emerald-700 dark:text-emerald-400' : 'sr-only'} data-testid="import-notice">
             {importNotice}

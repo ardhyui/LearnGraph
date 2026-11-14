@@ -57,6 +57,19 @@ export const seedDemoData = createServerFn({ method: 'POST' })
     return { seeded };
   });
 
+/**
+ * "Refresh example data" (Roadmap P0 #2): move this account's example progress
+ * to "as of now". No arguments and no client-supplied ids or dates; only the
+ * demo learners' dates change (see refreshDemoStateDates in seed.ts).
+ */
+export const refreshExampleData = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { graphForOwner } = await import('@/lib/graph/server');
+    const { refreshDemoStateDates } = await import('@/lib/graph/seed');
+    return refreshDemoStateDates(await graphForOwner(context.userId));
+  });
+
 /** "Start with an empty workspace": remove the example data for good (Roadmap M3). */
 export const removeExampleData = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
