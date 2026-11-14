@@ -8,7 +8,8 @@
  */
 import { sql, type ColumnType, type Generated, type Kysely } from 'kysely';
 import type { EducationGraphDB } from '../graph/education-graph-db.ts';
-import type { ConceptNode, KnowledgeState } from '../graph/types.ts';
+import { MAX_INTERACTIONS, sanitizeInteractions } from '../graph/interactions.ts';
+import type { ConceptNode, KnowledgeState, LearningInteraction } from '../graph/types.ts';
 import {
   applyReviewOutcome,
   applySnooze,
@@ -501,7 +502,9 @@ const SELF_REPORT_KIND: Record<SelfReportOutcome, LearningEventKind> = {
  * Save a learner's own report about a concept. Reports that change mastery
  * ("I've got it", "Still learning", "I remembered it", "I forgot") are only
  * accepted for concepts without quiz evidence (decision D5); postponing a
- * review is always allowed.
+ * review is always allowed. A report that changes mastery also appends one
+ * interaction (a lesson or a review, without a duration), while older entries
+ * are kept when they are still valid.
  */
 export async function recordSelfReport(
   db: AnyDb,
@@ -521,9 +524,19 @@ export async function recordSelfReport(
   let patch: Partial<KnowledgeState>;
   if (outcome === 'snooze') patch = applySnooze(now);
   else if (outcome === 'unsnooze') patch = applyUnsnooze(prior, now);
-  else if (outcome === 'remembered' || outcome === 'forgot')
-    patch = { ...applyReviewOutcome(prior, outcome, now), masterySource: 'self_report' };
-  else patch = { ...applyStudyOutcome(prior, outcome, now), masterySource: 'self_report' };
+  else {
+    const isReview = outcome === 'remembered' || outcome === 'forgot';
+    const interaction: LearningInteraction = {
+      timestamp: now.toISOString(),
+      type: isReview ? 'review' : 'lesson',
+      duration: 0,
+    };
+    patch = {
+      ...(isReview ? applyReviewOutcome(prior, outcome, now) : applyStudyOutcome(prior, outcome, now)),
+      masterySource: 'self_report',
+      interactions: [...sanitizeInteractions(prior?.interactions), interaction].slice(-MAX_INTERACTIONS),
+    };
+  }
   const state = await graph.setKnowledgeState(input.learnerId, input.conceptId, patch);
   await appendEvent(db, owner, {
     learnerId: input.learnerId,

@@ -1,52 +1,59 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-14 (siklus 13: provider/hook dipisah agar fast refresh aktif; berikutnya: catat riwayat interaksi dari laporan diri dengan sanitasi data lama)
+Terakhir diperbarui: 2026-11-14 (siklus 14: riwayat interaksi dari laporan diri dengan sanitasi data lama; berikutnya: batas percobaan masuk per akun di samping per IP)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` P0 #1 baris "riwayat interaksi (`interactions`)
-belum dicatat dari panel Today; butuh sanitasi data lama sebelum ditulis
-ulang": semua tombol laporan diri (panel Today "I've got it"/"Still
-learning"/"I remembered it"/"I forgot", halaman pelajaran, Gap Analysis,
-onboarding) memanggil `recordStudyOutcome` → `recordSelfReport`, tetapi state
-pengetahuan tidak pernah mendapat entri `interactions`. Catat riwayat itu
-dengan aman untuk data lama.
+Backlog `docs/ROADMAP.md` P1 #7 "Pantau batas rate limit untuk sekolah di
+balik satu IP (NAT); pertimbangkan batas per akun selain per IP": endpoint
+masuk baru dibatasi per IP, jadi satu sekolah di balik satu NAT berbagi jatah
+10 percobaan/menit, sementara penyerang yang mencoba banyak akun dari satu IP
+tetap lolos bila tiap akun hanya dicoba beberapa kali.
 
-Lokasi: `src/lib/evidence/service.ts` (`recordSelfReport`),
-`src/lib/graph/types.ts` (`LearningInteraction`), helper murni baru mis.
-`src/lib/graph/interactions.ts`, test `tests/study.test.ts` atau file baru.
+Lokasi: `src/lib/auth/rate-limit.ts`, modul baru
+`src/lib/auth/account-rate-limit.ts`, handler `src/routes/api/auth/$.ts`
+(pakai `request.clone()` agar body asli tetap diteruskan ke `auth.handler`),
+test `tests/auth-rate-limit.test.ts` atau file baru.
 
 Perilaku yang diinginkan:
 
-- Helper murni `sanitizeInteractions(value: unknown): LearningInteraction[]`
-  menerima hanya objek dengan `timestamp` string ISO yang bisa diparse,
-  `type` ∈ {`lesson`, `quiz`, `practice`, `review`}, dan `duration` angka
-  finite ≥ 0; `score` bila ada harus angka finite 0–100, `bloomLevel` bila ada
-  harus 1–6, `notes` bila ada string (dipotong wajar, mis. 500 karakter).
-  Entri rusak dibuang tanpa melempar; urutan dipertahankan dan maksimal 1000
-  entri terakhir dipertahankan (batas yang sama dengan skema RPC).
-- `recordSelfReport` menambahkan **satu** entri untuk outcome yang mengubah
-  penguasaan: `got-it`/`started` → `type: 'lesson'`, `remembered`/`forgot` →
-  `type: 'review'`, dengan `timestamp: now.toISOString()` dan `duration: 0`
-  (laporan diri tidak punya durasi). `snooze`/`unsnooze` tidak menambah
-  interaksi.
-- Entri valid lama dipertahankan (setelah sanitasi); entri rusak lama tidak
-  menggagalkan penyimpanan. Tulis lewat `graph.setKnowledgeState` seperti
-  sekarang, di patch yang sama dengan mastery/jadwal — tanpa server function,
-  method RPC, skema, atau migrasi baru.
-- Tidak ada perubahan pada guard D5, event log, `masterySource`, bentuk
-  respons `{ mastery }`, atau UI (tanpa teks baru).
-- Test: helper (valid, bukan array/absen, tiap field rusak, urutan, batas
-  1000); service PGlite (`got-it` dan `remembered` masing-masing menambah satu
-  entri dengan tipe benar, `snooze`/`unsnooze` tidak, entri valid lama utuh,
-  entri rusak dibuang, mastery/jadwal/guard D5 tetap seperti sebelumnya).
+- Tambah batas **per akun** khusus percobaan masuk (POST `/sign-in/email`),
+  berjalan bersamaan dengan batas per IP yang sudah ada. Batas per akun:
+  20 percobaan / 15 menit per email (dinormalisasi trim + huruf kecil, panjang
+  wajar; email kosong/rusak tidak dihitung). Bila terlampaui, balas 429 dengan
+  `rateLimitMessage` yang sudah ada dan `X-Retry-After` > 0 tanpa memanggil
+  Better Auth (jangan sampai membuat sesi).
+- Penghitung disimpan di tabel `rateLimit` yang sudah ada (tanpa tabel/kolom/
+  migrasi baru), memakai kunci dari hash SHA-256 email (jangan simpan email
+  mentah) dan satu operasi atomik agar tetap benar di beberapa instance.
+- Jangan mengunci akun yang berhasil masuk: respons sukses menghapus baris
+  penghitung akun itu; kegagalan biasa (401) menambah hitungan. Path lain
+  (sign-up, reset password, get-session) tidak berubah, dan batas per IP tetap
+  berlaku persis seperti sekarang.
+- Kegagalan membaca/menulis tabel penghitung tidak boleh menggagalkan login
+  (degradasi ke batas IP saja), dan jangan pernah mencatat email mentah ke log.
+- Test: helper normalisasi/kunci (trim, kapital, email kosong/terlalu panjang),
+  batas akun memblokir percobaan ke-21 dari IP berbeda, keberhasilan mereset
+  hitungan, email berbeda tidak saling memblokir, path lain tak tersentuh, dan
+  test IP lama tetap hijau.
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `feat:`. Setelah merge, tulis "Tugas berikutnya"
-untuk sesi setelahnya.
+berbahasa Indonesia, pola `fix:`/`feat:`. Setelah merge, tulis "Tugas
+berikutnya" untuk sesi setelahnya.
 
 ## Riwayat
 
+- 2026-11-14: PR #53 — feat: laporan diri yang mengubah penguasaan (`got-it`/
+  `started` → `lesson`, `remembered`/`forgot` → `review`) kini menambah satu
+  entri `interactions` di patch `setKnowledgeState` yang sama (`duration: 0`,
+  `timestamp` server); `snooze`/`unsnooze` tidak. Helper murni
+  `sanitizeInteractions` (`src/lib/graph/interactions.ts`) hanya menerima
+  timestamp ISO, tipe sah, durasi finite ≥ 0, skor 0–100, Bloom 1–6, catatan
+  ≤ 500 karakter, membuang entri rusak, mempertahankan urutan, dan menyimpan
+  1000 entri terakhir. Guard D5/event log/`masterySource`/respons `{ mastery }`
+  dan UI tidak berubah; tanpa RPC/skema/migrasi. Test baru
+  `tests/interactions.test.ts` (10). `npm run ci` hijau (392/392 unit, 177 cek
+  smoke). Baris backlog P0 #1 "riwayat interaksi" dicoret.
 - 2026-11-14: PR #52 — chore: `DBProvider`/`ThemeProvider` dipisah ke modul
   komponen sendiri (`src/lib/DBProvider.tsx`,
   `src/lib/ThemeProvider.tsx`), context murni ke `src/lib/db-context.ts`/
