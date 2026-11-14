@@ -611,8 +611,9 @@ LearnGraph/
 │   │   ├── session.ts           # today's session plan (reviews, lessons, breaks)
 │   │   ├── japanese/            # Japanese curriculum, questions, evidence rules
 │   │   ├── db.ts                # Kysely: pg (DATABASE_URL) or PGlite
-│   │   ├── DBContext.tsx        # React hooks (proxy to graphCall)
-│   │   └── assessments.ts, demo-data.ts, theme.tsx, utils.ts
+│   │   ├── DBContext.tsx        # React data hooks (proxy to graphCall)
+│   │   ├── DBProvider.tsx       # data provider component (fast refresh)
+│   │   └── assessments.ts, demo-data.ts, theme.tsx, ThemeProvider.tsx, utils.ts
 │   ├── components/              # Sidebar, AdminLayout, ui/*
 │   └── styles.css               # Tailwind 4 theme + components
 ├── tests/                       # node --test suites (PGlite-backed)

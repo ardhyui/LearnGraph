@@ -7,8 +7,9 @@ import {
   useRouterState,
 } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
-import { ThemeProvider, NO_FLASH_SCRIPT } from '@/lib/theme';
-import { DBProvider } from '@/lib/DBContext';
+import { NO_FLASH_SCRIPT } from '@/lib/theme';
+import { ThemeProvider } from '@/lib/ThemeProvider';
+import { DBProvider } from '@/lib/DBProvider';
 import { ErrorPage, NotFoundPage } from '@/components/ErrorPages';
 import { getCurrentUser } from '@/server/session.functions';
 import { RouteAnnouncer } from '@/components/RouteAnnouncer';
