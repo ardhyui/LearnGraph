@@ -65,7 +65,7 @@ untuk sesi setelahnya.
 
 ## Riwayat
 
-- 2026-11-14: PR #<n> — feat: tombol **Refresh example data** di Admin →
+- 2026-11-14: PR #50 — feat: tombol **Refresh example data** di Admin →
   Learners untuk workspace yang di-seed sebelum putaran #17 (backlog P0 #2).
   Tombol hanya muncul bila ada state contoh bertanggal pra-#17
   (`lastReviewed` ≤ `DEMO_DATA_AS_OF`), meminta konfirmasi di halaman, lalu
