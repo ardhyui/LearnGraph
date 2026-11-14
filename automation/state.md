@@ -1,47 +1,73 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 15: batas percobaan masuk per akun di samping batas per IP, PR #54; berikutnya: test langsung untuk API publik baca-saja /api/v1)
+Terakhir diperbarui: 2026-11-15 (siklus 16: test langsung untuk handler API publik baca-saja M4, PR #55; berikutnya: ekstraksi + test langsung keputusan isolasi lintas situs `assertSameSiteRequest`)
 
 ## Tugas berikutnya
 
-Penguhan tes: handler API publik baca-saja M4 (`src/lib/api/v1.ts` — `apiLearners`
-untuk `GET /api/v1/learners` dan `apiContext` untuk `GET /api/v1/context`) belum
-punya test unit langsung — hanya cek smoke happy-path (`scripts/smoke.mjs`
-±1817: key valid, tanpa key 401, key dicabut 401). Permukaan publik ini layak
-dikunci lebih rapat, terutama isolasi antar akun.
+Penguatan tes keamanan: keputusan isolasi request lintas situs — `assertSameSiteRequest`
+di `src/lib/auth/isolation.server.ts`, chokepoint yang dipanggil `authMiddleware`
+(`src/lib/auth/middleware.ts`) sebelum `requireUserId` — belum punya test langsung
+karena fungsinya membaca request dari `getRequest()` TanStack (AsyncLocalStorage),
+yang tidak bisa disiapkan dari test unit Node. Padahal ini menutup permukaan
+serangan tenant-saudara (aplikasi lain di `*.vercel.app` mengendarai cookie
+sesi `SameSite=Lax` dengan request ter-skrip).
 
-Lokasi: modul `src/lib/api/v1.ts` (jangan ubah perilakunya — tugas ini test
-saja; bila test menemukan bug nyata, perbaiki secukupnya dan catat), helper
-key `src/lib/api-keys.ts` (sudah dites `tests/api-keys.test.ts`), pola harness
-PGlite `tests/support/graph-db.ts` + `tests/onboarding.test.ts`. Handler memakai
-`getDb()` bersama (PGlite saat `DATABASE_URL` kosong) dan `graphForOwner`, jadi
-test bisa men-seed workspace + key lewat instance yang sama.
+Lokasi: `src/lib/auth/isolation.server.ts` (jangan ubah tabel keputusannya —
+tugas ini ekstraksi + test). Ekstrak logika murninya ke modul baru tanpa impor
+framework, mis. `src/lib/auth/same-site.ts` dengan
+`sameSiteAllowed(site: string | null, dest: string | null, mode: string | null, method: string): boolean`.
+`isolation.server.ts` tetap memegang `getRequest()` dan melempar
+`CrossSiteRequestError` (nama class harus tetap sama — dicocokkan sebagai string
+di `EXPECTED_NAMES` `src/lib/errors.ts` dan diuji `tests/errors.test.ts`), lalu
+memanggil helper itu; `middleware.ts` tak berubah. Jangan pindahkan impor
+`@tanstack/react-start/server` ke file non-`.server` (catatan di kepala file itu
+menjelaskan app mati dengan `AsyncLocalStorage is not a constructor`).
 
-Perilaku yang dikunci:
+Perilaku yang dikunci (test unit helper murni):
 
-- 401 tanpa/malformed `Authorization` (body JSON berisi `error`, header
-  `www-authenticate: Bearer`, `cache-control: no-store`); 401 key yang dicabut.
-- Isolasi akun: key akun A hanya melihat learner/konsep akun A — learner akun B
-  tidak pernah muncul di `learners` maupun `context` (dua workspace di satu
-  database PGlite, seperti `owner-isolation.test.ts`).
-- `learners`: bentuk respons `{ learners: [{ id, name, example }] }`, `example`
-  true hanya untuk id `demo-*`, nama jatuh ke id bila profil tanpa nama.
-- `context`: learner default = learner non-`demo-*` pertama milik akun (bukan
-  pelajar contoh); `learner`/`concept` boleh id ATAU nama konsep
-  (case-insensitive); 404 bila akun tanpa learner / konsep tak dikenal /
-  learner tak dikenal; 400 bila `learner` > 128 atau `concept` > 200 karakter;
-  `q` dipotong 1000 karakter; respons 200 memuat `learner`, `concept`,
-  `queryType`, `tokens`, `context`; handler baca-saja (jumlah baris tabel graph
-  tak berubah setelah panggilan).
-- Batas 60 permintaan/menit per key (`allowApiRequest`): permintaan ke-61 → 429
-  (lihat `tests/api-keys.test.ts` untuk pola `now` sintetis bila perlu).
+- Diizinkan: tanpa `sec-fetch-site` (klien non-browser: SSR/server-ke-server),
+  `same-origin`, `same-none` (alamat langsung/bookmark).
+- Ditolak: `same-site` ter-skrip (aplikasi saudara di domain induk bersama,
+  method apa pun tanpa mode navigate) dan `cross-site` ter-skrip.
+- Diizinkan: navigasi GET top-level (`sec-fetch-mode: navigate` + method `GET`)
+  walau `cross-site`/`same-site` — jalur callback OAuth & muat halaman biasa.
+- Ditolak: navigate GET dengan `sec-fetch-dest: object`/`embed` (halaman
+  di-frame), navigate dengan method bukan GET (form POST lintas situs),
+  GET tanpa mode navigate (fetch/XHR lintas situs).
+- Penjaga statis: `isolation.server.ts` tetap berekstensi `.server.ts` dan
+  satu-satunya pengimpor `@tanstack/react-start/server` di area itu;
+  `authMiddleware` tetap memanggil `assertSameSiteRequest()` sebelum
+  `requireUserId()`; tabel keputusan tak berubah (keputusan lama vs baru sama
+  untuk semua kombinasi header di test).
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `test:`/`fix:`. Tanpa perubahan skema/RPC/migrasi.
-Setelah merge, tulis "Tugas berikutnya" untuk sesi setelahnya.
+berbahasa Indonesia, pola `test:`/`refactor:`. Tanpa perubahan skema/RPC/migrasi,
+tanpa dependensi baru. Setelah merge, tulis "Tugas berikutnya" untuk sesi
+sesudahnya. (Pola injeksi PGlite + `registerHooks` untuk modul server kini ada
+contohnya di `tests/api-v1.test.ts` bila kelak perlu.)
 
 ## Riwayat
 
+- 2026-11-15: PR #55 — test: handler API publik baca-saja M4
+  (`apiLearners`/`apiContext`, `src/lib/api/v1.ts`) kini punya test unit
+  langsung `tests/api-v1.test.ts` (13) sebagai handler sungguhan di atas satu
+  PGlite yang disuntikkan ke global `__learngraphPglite__` yang di-memoize
+  `getDb()` (key, workspace, dan permintaan berbagi satu database persis
+  seperti server berjalan); resolve hook `registerHooks` di file test memetakan
+  impor dinamis ekstensi-less ala Vite (`import('../db')`) ke `.ts` untuk Node
+  murni, tanpa menyentuh kode aplikasi. Dikunci: 401 tanpa/malformed
+  `Authorization` (header `www-authenticate: Bearer`, `cache-control:
+  no-store`) + 401 key dicabut; isolasi antar-akun di `learners` dan `context`
+  (404 lintas akun, isi brief tak menyebut akun lain); bentuk `learners`
+  persis `{ learners: [{ id, name, example }] }` (`example` hanya `demo-*`,
+  nama jatuh ke id); default learner = non-`demo-*` pertama (fallback pelajar
+  contoh, 404 akun kosong); konsep by id/nama case-insensitive + "Builds on";
+  404 tak dikenal; 400 setelah batas 128/200 (tepat di batas tetap 404);
+  `q` dipotong 1000 (kata kunci di luar → `general`); respons memuat
+  `learner/concept/queryType/tokens/context`; jumlah baris 6 tabel graph tak
+  berubah; 60 req/menit per key → ke-61 429, key lain tak terdampak, kedua
+  endpoint berbagi. Tanpa perubahan perilaku/skema/RPC/migrasi. `npm run ci`
+  hijau (415/415 unit, smoke tetap).
 - 2026-11-15: PR #54 — feat: batas percobaan masuk **per akun** (20/15 menit
   per email, kunci `account-sign-in:<sha256(email)>` di tabel `rateLimit` yang
   sudah ada) berjalan bersama batas per IP; upsert atomik per percobaan dengan
