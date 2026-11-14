@@ -63,6 +63,16 @@ function isSeedCall(url) {
 
 const seedUrl = (url) => url.pathname.startsWith('/_serverFn/') && isSeedCall(url.href);
 
+/** Whether a /_serverFn/ URL is the server function called `name`. */
+function isServerFnCall(url, name) {
+  const id = new URL(url).pathname.split('/_serverFn/')[1] ?? '';
+  try {
+    return Buffer.from(id, 'base64url').toString().includes(name);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Wait until React owns `locator`'s element. On a busy machine `networkidle`
  * comes before hydration. Text typed into a form before that shows on screen
@@ -445,13 +455,77 @@ try {
       if (!prefilled) await page.waitForTimeout(250);
     }
     check(shown && todayHidden && prefilled === 'Smoke Tester', 'onboarding: a new account is welcomed with a setup step', `name "${prefilled}"`);
+    const savedByServer = page
+      .waitForResponse(
+        (r) => r.request().method() === 'POST' && isServerFnCall(r.url(), 'setOnboardingSkipped'),
+        { timeout: 15000 },
+      )
+      .catch(() => null);
     await onboarding.getByRole('button', { name: 'Explore the example learners first' }).click();
+    const saved = (await savedByServer)?.status() === 200;
     const skipped = await page.getByTestId('study-today').waitFor({ timeout: 15000 }).then(() => true, () => false);
     await page.reload({ waitUntil: 'networkidle' });
     const staysSkipped = await page.getByTestId('study-today').waitFor({ timeout: 30000 }).then(() => true, () => false);
-    check(skipped && staysSkipped && (await onboarding.count()) === 0, 'onboarding: can be skipped to explore the example learners');
+    // The account copy, not just this browser: drop the local flag, reload, and
+    // the setup step must stay gone.
+    await page.evaluate(() => {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('learngraph.onboardingSkipped.')) localStorage.removeItem(key);
+      }
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    const skippedFromAccount = await page.getByTestId('study-today').waitFor({ timeout: 30000 }).then(() => true, () => false);
+    check(
+      saved && skipped && staysSkipped && skippedFromAccount && (await onboarding.count()) === 0,
+      'onboarding: can be skipped, and the account remembers it without the browser copy',
+      `saved ${saved}, skipped ${skipped}, after reload ${staysSkipped}, without local flag ${skippedFromAccount}`,
+    );
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'onboarding has no page errors', newErrors.join(' | '));
+  }
+
+  // The choice follows the account to a browser that never made it (no local
+  // copy) and does not leak to another account signing up in the same browser.
+  {
+    const ctxSkip = await browser.newContext();
+    const pSkip = await ctxSkip.newPage();
+    pSkip.setDefaultNavigationTimeout(60000);
+    const skipErrors = [];
+    pSkip.on('pageerror', (e) => skipErrors.push(`pageerror: ${e.message}`));
+    pSkip.on('console', (m) => {
+      if (m.type() === 'error') skipErrors.push(`console: ${m.text()}`);
+    });
+    await pSkip.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
+    await untilHydrated(pSkip.getByRole('button', { name: 'Sign in' }), 60000);
+    await pSkip.fill('#email', email);
+    await pSkip.fill('#password', password);
+    await pSkip.getByRole('button', { name: 'Sign in' }).click();
+    await pSkip.waitForURL((u) => u.pathname === '/', { timeout: 30000 });
+    const accountRemembers = await pSkip
+      .getByTestId('study-today')
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    // Same browser, another account: the setup step is still offered.
+    await pSkip.getByRole('button', { name: 'Sign out' }).click();
+    await pSkip.waitForURL(/\/sign-in/, { timeout: 15000 });
+    await clickWhenHydrated(pSkip.getByRole('button', { name: 'Create one' }), pSkip.locator('#name'));
+    await pSkip.fill('#name', 'Other Tester');
+    await pSkip.fill('#email', `smoke-other-${Date.now()}@example.test`);
+    await pSkip.fill('#password', password);
+    await pSkip.getByRole('button', { name: 'Create account' }).click();
+    await pSkip.waitForURL((u) => u.pathname === '/', { timeout: 30000 }).catch(() => {});
+    const otherSeesSetup = await pSkip
+      .getByTestId('onboarding')
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    check(
+      accountRemembers && otherSeesSetup,
+      'onboarding: the skip choice follows the account without leaking to another one',
+      `same account in a new browser ${accountRemembers}, other account sees setup ${otherSeesSetup}`,
+    );
+    check(skipErrors.length === 0, 'onboarding account check has no page errors', skipErrors.join(' | '));
+    await ctxSkip.close();
   }
 
   // Dashboard "Today": the core study loop with quiz evidence (Roadmap M1).

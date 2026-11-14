@@ -9,6 +9,12 @@ import type { ConceptNode, LearnerProfile, PrerequisiteEdge } from './graph/type
 
 /** Demo learners seeded into every new workspace use this id prefix. */
 export const DEMO_LEARNER_PREFIX = 'demo-';
+/**
+ * Graph meta key (inside the account's own workspace) that remembers the
+ * "explore the example learners instead" choice, so it follows the account to
+ * every device. Not an RPC method: only server functions read/write it.
+ */
+export const ONBOARDING_SKIPPED_META = 'ui:onboarding-skipped';
 /** Tag prefix that stores a learner's chosen subjects (`focus:mathematics`). */
 export const FOCUS_TAG_PREFIX = 'focus:';
 /** Server limit for one tag (rpc-schemas `tags`). */
@@ -22,6 +28,25 @@ export function isDemoLearner(learner: Pick<LearnerProfile, 'userId'>): boolean 
 /** Onboarding is offered while the workspace has no learner of the user's own. */
 export function needsOnboarding(learners: Pick<LearnerProfile, 'userId'>[]): boolean {
   return !learners.some((l) => !isDemoLearner(l));
+}
+
+/**
+ * Read the account's stored "skip onboarding" choice. Only an explicit
+ * `{ skipped: true }` counts: absent, `false` or a damaged value means "not
+ * skipped", so a partial or failed write never hides the setup step.
+ */
+export function readOnboardingSkipped(meta: unknown): boolean {
+  return (
+    typeof meta === 'object' && meta !== null && (meta as { skipped?: unknown }).skipped === true
+  );
+}
+
+/** What the server stores for that choice (with a timestamp for auditability). */
+export function onboardingSkippedMeta(
+  skipped: boolean,
+  at = new Date().toISOString(),
+): { skipped: boolean; at: string } {
+  return { skipped, at };
 }
 
 /** Trim and collapse whitespace; `null` if nothing usable is left. */
@@ -55,7 +80,9 @@ export function makeLearnerId(name: string, existingIds: Iterable<string>): stri
 }
 
 /** Distinct concept domains, sorted, with how many concepts each has. */
-export function listDomains(concepts: Pick<ConceptNode, 'domain'>[]): { domain: string; count: number }[] {
+export function listDomains(
+  concepts: Pick<ConceptNode, 'domain'>[],
+): { domain: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const c of concepts) {
     if (!c.domain) continue;
@@ -94,7 +121,11 @@ export function focusDomains(learner: Pick<LearnerProfile, 'tags'> | null | unde
  * domain was renamed) — the plan is never empty just because of a stale tag.
  * Returns the same array instance when it falls back (callers may check that).
  */
-export function inFocus<T>(items: T[], focus: string[], domainOf: (item: T) => string | undefined): T[] {
+export function inFocus<T>(
+  items: T[],
+  focus: string[],
+  domainOf: (item: T) => string | undefined,
+): T[] {
   if (focus.length === 0) return items;
   const wanted = new Set(focus);
   const kept = items.filter((item) => {
