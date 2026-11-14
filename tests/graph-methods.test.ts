@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import { REMOTE_GRAPH_METHODS } from '../src/lib/graph/methods.ts';
 
-const methods = [...REMOTE_GRAPH_METHODS];
+const methods: string[] = [...REMOTE_GRAPH_METHODS];
 
 /**
  * Explicit frozen copy of the list (2026-11-15, in source order). Exposing,
