@@ -48,6 +48,19 @@ untuk sesi setelahnya.
 
 ## Riwayat
 
+- 2026-11-14: PR #51 — feat: pilihan **Explore the example learners first** kini
+  disimpan per akun di meta graph (`ui:onboarding-skipped`) lewat
+  `getOnboardingSkipped`/`setOnboardingSkipped`
+  (`src/server/onboarding.functions.ts`, `authMiddleware` +
+  `graphForOwner`), jadi onboarding tidak muncul lagi di perangkat lain.
+  `localStorage` tetap jalur cepat; salinan lokal yang belum ada di server
+  dimigrasikan sekali; server `true` menang saat lokal kosong; pembaca murni
+  `readOnboardingSkipped` hanya menerima `{ skipped: true }`; tanpa sesi tak
+  ada panggilan/tulisan; `learners.length === 0` tetap tidak bisa dilewati.
+  Tanpa tabel/kolom/RPC/migrasi. Test onboarding 13 → 18 (helper, isolasi akun
+  di satu database PGlite, penjaga statis) + smoke tanpa salinan lokal dan
+  akun lain di browser yang sama. `npm run ci` hijau (377/377 unit, 180 cek
+  smoke). Baris backlog P0 #2 "lewati" dicoret.
 - 2026-11-14: PR #50 — feat: tombol **Refresh example data** di Admin →
   Learners untuk workspace yang di-seed sebelum putaran #17 (backlog P0 #2).
   Tombol hanya muncul bila ada state contoh bertanggal pra-#17
