@@ -1,46 +1,79 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 23: test langsung dialect PGlite `src/lib/pglite-dialect.ts`, PR #62; berikutnya: test langsung `src/lib/migrations.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 24: test langsung penerap migrasi PGlite `src/lib/migrations.ts`, PR #63; berikutnya: test langsung allowlist metode RPC browser `src/lib/graph/methods.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung untuk penerap migrasi PGlite/preview
-`src/lib/migrations.ts` (`applyMigrations` + `pgliteMigratable`), dipakai
-`src/lib/db.ts` saat `DATABASE_URL` kosong dan oleh seluruh test PGlite. Saat
-ini modul hanya terpakai tidak langsung; urutan penerapan, bookkeeping
-`_migrations`, dan pembungkusan transaksi belum pernah dikunci. **Modul tidak
-diubah** — test saja.
+Penguatan tes/keamanan: test unit langsung untuk **daftar metode graph yang
+boleh dipanggil browser** `src/lib/graph/methods.ts` (`REMOTE_GRAPH_METHODS` +
+tipe `RemoteGraphDB`). Daftar ini adalah batas keamanan: `src/server/graph.functions.ts`
+memvalidasi `method` dengan `z.enum(REMOTE_GRAPH_METHODS)` lalu menjalankan
+`EducationGraphDB` milik akun pemanggil. Saat ini hanya kelengkapan skema Zod
+yang diuji (`tests/graph-rpc-schemas.test.ts`); daftar persisnya sendiri belum
+dikunci, jadi metode baru/berbahaya bisa ikut terekspos tanpa ada test yang
+gagal. **Modul tidak diubah** — test saja.
 
-Test baru `tests/migrations.test.ts` (node:test murni, tanpa dependensi baru)
-memakai `MigratableDb` palsu yang mencatat `exec`/`query`/`transaction` (dengan
-SQL, parameter, dan penanda transaksi aktif) serta objek mirip PGlite untuk
-`pgliteMigratable`. Dikunci:
+Test baru `tests/graph-methods.test.ts` (node:test murni, tanpa dependensi
+baru) mengimpor `REMOTE_GRAPH_METHODS` dan mengunci:
 
-- `applyMigrations(db, files)` pertama-tama `exec` persis
-  `create table if not exists _migrations (name text primary key, applied_at
-  timestamptz not null default now())`, lalu `query` persis
-  `select name from _migrations`; `files` kosong hanya melakukan kedua hal itu.
-- Hanya berkas `.sql` yang diterapkan; nama = basename sehingga
-  `migrations/auth/0001_auth.sql` cocok dengan baris `_migrations` bernama
-  `0001_auth.sql`; entri non-`.sql` (mis. folder) diabaikan.
-- Urutan deterministik menurut basename (`localeCompare`); migrasi yang sudah
-  ada di `_migrations` dilewati. Tiap migrasi berjalan di transaksi sendiri:
-  `tx.exec(<isi berkas>)` lalu `tx.query('insert into _migrations (name)
-  values ($1)', [name])` — tidak ada tulisan bookkeeping untuk migrasi yang
-  dilewati.
-- Bila `tx.exec`/insert melempar, galat diteruskan dan migrasi berikutnya tidak
-  dicoba (rollback tetap tanggung jawab `db.transaction`; `applyMigrations`
-  tidak menelan galat).
-- `pgliteMigratable(pg)`: `exec(text)` meneruskan teks apa adanya; `query(text,
-  params)` meneruskan keduanya dan mengembalikan hanya `{ rows }` (bukan objek
-  hasil PGlite lengkap); `transaction(fn)` memanggil `pg.transaction` tepat
-  sekali dan meneruskan nilai kembalian `fn`; di dalam callback, `exec`/`query`
-  memakai objek transaksi (bukan `pg` luar).
+- tepat **46** nama, semuanya string unik (tanpa duplikat), dan daftar persis
+  dalam urutan sumber saat ini (salinan eksplisit di test; perubahan daftar
+  harus disengaja dan terlihat di diff). Nama-nama itu adalah 46 method graph
+  yang sudah ada: `addConcept`, `addEdge`, `addMisconception`,
+  `addRelatedEdge`, `adjustForPsychometrics`, `clear`,
+  `computeAndStoreCognitiveProfile`, `computeAndStoreDerivedProfiles`,
+  `computeAndStoreLearningStyle`, `computeZPD`, `deleteConcept`, `deleteEdge`,
+  `deleteKnowledgeState`, `deleteLearnerProfile`, `deleteRelatedEdge`,
+  `detectGaps`, `generateLearningPath`, `generateRemediationPlan`,
+  `getConcept`, `getDependentChain`, `getDependents`, `getEdge`,
+  `getKnowledgeState`, `getLearnerKnowledgeStates`, `getLearnerProfile`,
+  `getPrerequisiteChain`, `getPrerequisites`, `getPsychometricScores`,
+  `getRelatedEdges`, `getReviewQueue`, `getStats`, `listConcepts`,
+  `listConceptsByBloomLevel`, `listConceptsByDifficulty`,
+  `listConceptsByDomain`, `listEdges`, `listLearnerProfiles`,
+  `listRelatedEdges`, `predictDecay`, `scheduleNextReview`, `searchConcepts`,
+  `selectScaffoldingStrategies`, `setKnowledgeState`, `setLearnerProfile`,
+  `updatePsychometricScore`, `updatePsychometricScores`.
+- Metode **tidak boleh** ada di daftar: `open`, `close` (siklus hidup store
+  lokal), `batch` (operasi mentah tanpa skema Zod), dan `addConceptsAndEdges`
+  (jalur server-only yang dipakai fitur lain) — dikunci eksplisit agar tidak
+  terekspos tanpa review.
+- Nama selalu sama dengan method `EducationGraphDB` (penjaga statis: setiap nama
+  muncul sebagai deklarasi method `(<async>)? <nama>(` di
+  `src/lib/graph/education-graph-db.ts`, async maupun tidak — mis.
+  `predictDecay`/`scheduleNextReview` sinkron; tanpa nama yang tidak ada di
+  sana).
+- Penjaga statis wiring: `src/server/graph.functions.ts` memakai
+  `z.enum(REMOTE_GRAPH_METHODS)` (bukan `z.string()`) dan mengambil graph lewat
+  `graphForOwner`; `src/lib/DBContext.tsx` (`createRemoteGraphDB`) membangun
+  proxy dengan mengiterasi `REMOTE_GRAPH_METHODS` (tidak ada nama method
+  hardcoded) dan meneruskan `{ method, args }` hasil `JSON.parse(JSON.stringify(args ?? []))`;
+  `src/lib/graph/methods.ts` bebas impor runtime (hanya `import type`) supaya
+  aman di bundle browser.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #63 — test: test unit langsung penerap migrasi PGlite
+  `src/lib/migrations.ts` (`applyMigrations` + `pgliteMigratable`, 11 test di
+  `tests/migrations.test.ts`, node:test murni), modul tidak diubah.
+  `MigratableDb` palsu mencatat `exec`/`query`/`transaction` (SQL, parameter,
+  penanda transaksi) dan memberi satu objek tx per migrasi; objek mirip PGlite
+  untuk adapter. Dikunci: `exec` tabel `_migrations` persis lalu `query`
+  `select name from _migrations` (files kosong = hanya dua panggilan itu);
+  hanya `.sql`, nama = basename (`migrations/auth/0001_auth.sql` cocok dengan
+  baris `0001_auth.sql`), entri non-`.sql` diabaikan; urutan deterministik
+  menurut basename (`localeCompare`, termasuk beda huruf besar/kecil), migrasi
+  yang sudah tercatat dilewati tanpa tulisan bookkeeping; tiap migrasi satu
+  transaksi `tx.exec(<isi berkas>)` + `insert into _migrations (name) values
+  ($1)`; galat `exec` maupun insert diteruskan dan migrasi berikutnya tidak
+  dicoba; `pgliteMigratable` meneruskan teks/parameter apa adanya, `query` hanya
+  mengembalikan `{ rows }`, `transaction` memanggil `pg.transaction` sekali dan
+  meneruskan nilai kembalian, callback memakai objek transaksi (bukan `pg`
+  luar). Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi. `npm run ci`
+  hijau (540/540 unit, smoke 177 cek).
 
 - 2026-11-15: PR #62 — test: test unit langsung dialect PGlite
   `src/lib/pglite-dialect.ts` (17 test di `tests/pglite-dialect.test.ts`,
