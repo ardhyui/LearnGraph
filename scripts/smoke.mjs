@@ -1571,6 +1571,117 @@ try {
     check(newErrors.length === 0, 'workspace download has no page errors', newErrors.join(' | '));
   }
 
+  // Roadmap P0 #2: "Refresh example data" moves a workspace's old example
+  // progress to "as of now" — dates only, demo learners only. A second account
+  // is used so the main workspace keeps its quiz questions for the checks below.
+  {
+    const ctxE = await browser.newContext();
+    const pe = await ctxE.newPage();
+    pe.setDefaultNavigationTimeout(60000);
+    const errorsE = [];
+    pe.on('pageerror', (e) => errorsE.push(`pageerror: ${e.message}`));
+    pe.on('console', (m) => {
+      if (m.type() === 'error') errorsE.push(`console: ${m.text()}`);
+    });
+    pe.on('dialog', (d) => d.accept());
+    const emailE = `smoke-example-${Date.now()}@example.test`;
+    const passwordE = `smoke-${Math.random().toString(36).slice(2)}-pw`;
+    await pe.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
+    await clickWhenHydrated(pe.getByRole('button', { name: 'Create one' }), pe.locator('#name'));
+    await pe.fill('#name', 'Example Tester');
+    await pe.fill('#email', emailE);
+    await pe.fill('#password', passwordE);
+    await pe.getByRole('button', { name: 'Create account' }).click();
+    await pe.waitForURL((u) => u.pathname === '/', { timeout: 30000 }).catch(() => {});
+    await pe.getByText('Fractions', { exact: false }).first().waitFor({ timeout: 30000 }).catch(() => {});
+
+    // Demo concepts are quiz-checked, so the normal RPC rightly refuses date
+    // writes (D5). Make one concept self-reported for this account, then put
+    // its example state back to a pre-#17 (2024) date through that same RPC.
+    await pe.goto(`${BASE}/admin/questions`, { waitUntil: 'networkidle' });
+    const conceptSelect = pe.getByLabel('Concept');
+    await conceptSelect.waitFor({ timeout: 30000 }).catch(() => {});
+    await untilHydrated(conceptSelect, 60000);
+    await conceptSelect.selectOption('fractions').catch(() => {});
+    await pe
+      .getByRole('list', { name: 'Questions for Fractions' })
+      .waitFor({ timeout: 20000 })
+      .catch(() => {});
+    for (let left = 4; left > 0; left--) {
+      const del = pe.getByRole('button', { name: `Delete question ${left}` });
+      await del.waitFor({ timeout: 20000 }).catch(() => {});
+      await del.click().catch(() => {});
+      await pe
+        .waitForFunction((n) => document.querySelectorAll('[aria-label^="Delete question "]').length === n, left - 1, {
+          timeout: 20000,
+        })
+        .catch(() => {});
+    }
+    await pe.getByText('Self-reported (no questions yet)').waitFor({ timeout: 20000 }).catch(() => {});
+    const madeOld = await pe
+      .evaluate(async () => {
+        const { createRemoteGraphDB } = await import('/src/lib/DBContext.tsx');
+        const db = createRemoteGraphDB();
+        await db.setKnowledgeState('demo-alice', 'fractions', {
+          firstSeen: '2024-03-01T00:00:00.000Z',
+          lastReviewed: '2024-11-15T00:00:00.000Z',
+        });
+        return true;
+      })
+      .catch(() => false);
+
+    await pe.goto(`${BASE}/admin/learners`, { waitUntil: 'networkidle' });
+    const refresh = pe.getByTestId('refresh-example-dates');
+    await refresh.waitFor({ timeout: 30000 }).catch(() => {});
+    const offered = await refresh.isVisible().catch(() => false);
+    await untilHydrated(refresh, 60000);
+    const download = async () => {
+      const btn = pe.getByTestId('download-workspace');
+      await untilHydrated(btn, 60000);
+      const [dl] = await Promise.all([
+        pe.waitForEvent('download', { timeout: 60000 }).catch(() => null),
+        btn.click(),
+      ]);
+      try {
+        return JSON.parse(dl ? await readDownload(dl) : '');
+      } catch {
+        return null;
+      }
+    };
+    const before = await download();
+    const aliceBefore = before?.learners
+      ?.find((l) => l.id === 'demo-alice')
+      ?.knowledgeStates?.find((s) => s.conceptId === 'fractions');
+
+    await refresh.click().catch(() => {});
+    const confirm = pe.getByRole('button', { name: 'Refresh dates' });
+    const asked = await confirm.waitFor({ timeout: 15000 }).then(() => true, () => false);
+    await confirm.click().catch(() => {});
+    const status = await pe
+      .getByTestId('refresh-example-dates-status')
+      .getByText(/Moved \d+ example progress record/, { exact: false })
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    const after = await download();
+    const aliceAfter = after?.learners
+      ?.find((l) => l.id === 'demo-alice')
+      ?.knowledgeStates?.find((s) => s.conceptId === 'fractions');
+    const hiddenAgain = await refresh.waitFor({ state: 'detached', timeout: 20000 }).then(() => true, () => false);
+    check(
+      madeOld && offered && asked && status && hiddenAgain &&
+        aliceBefore?.lastReviewed === '2024-11-15T00:00:00.000Z' &&
+        aliceAfter?.lastReviewed !== aliceBefore?.lastReviewed &&
+        aliceAfter?.firstSeen !== aliceBefore?.firstSeen &&
+        aliceAfter?.mastery === aliceBefore.mastery &&
+        aliceAfter?.reviewCount === aliceBefore.reviewCount &&
+        Date.parse(aliceAfter?.lastReviewed ?? '') <= Date.now(),
+      'example data: only a stale demo progress date moves to today, mastery and review count stay',
+      `old ${aliceBefore?.lastReviewed} -> ${aliceAfter?.lastReviewed}, mastery ${aliceAfter?.mastery}, offered ${offered}, asked ${asked}, hidden ${hiddenAgain}`,
+    );
+    check(errorsE.length === 0, 'example data refresh has no page errors', errorsE.join(' | '));
+    await ctxE.close();
+  }
+
   // Roadmap M5: AI drafts are off until the account turns them on; then the
   // curriculum and question drafting forms appear, use the person's own key
   // (a malformed key is refused before anything is sent), and nothing is

@@ -1,72 +1,63 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-13 (siklus 10: ekspor seluruh workspace selesai; berikutnya: segarkan tanggal data contoh)
+Terakhir diperbarui: 2026-11-14 (siklus 11: segarkan tanggal data contoh selesai; berikutnya: simpan lewati onboarding di server)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` baris 16 (P0 #2, data demo): tombol **segarkan
-tanggal data contoh** — workspace yang di-seed sebelum putaran #17 masih
-memakai tanggal 2024, jadi semua konsep contoh langsung jatuh tempo review;
- roadmap menyarankan tombol yang menghitung ulang tanggal contoh **atas
-permintaan pengguna**.
+Backlog `docs/ROADMAP.md` P0 #2 baris "pilihan 'lewati' disimpan di browser
+(`localStorage`, per akun), jadi di perangkat lain onboarding muncul lagi;
+pindahkan ke server bila mengganggu": tombol **Explore the example learners
+first** di `src/components/StudyToday.tsx` (`skipOnboarding`, kunci
+`learngraph.onboardingSkipped.<userId>`) hanya menyimpan pilihan di perangkat,
+jadi akun yang sudah memilih melewati onboarding tetap disodori langkah
+**Let’s set up your learning plan** di browser/perangkat lain.
 
-Masalah: `seedDemoDataIfEmpty` (`src/lib/graph/seed.ts`) sejak putaran #17
-memakai `shiftDemoDate` (`src/lib/demo-data.ts`) — tanggal contoh digeser
-relatif terhadap `DEMO_DATA_AS_OF` → waktu seed — tapi hanya saat workspace
-masih kosong. Workspace yang sudah di-seed sebelumnya sengaja tidak disentuh
-agar data yang ada tidak ditulis ulang diam-diam; pemiliknya tidak punya
-jalur lain selain menghapus dan menambah ulang pelajar contoh.
-
-Perilaku yang diinginkan: dari halaman admin yang mengelola data (kelompok
-tombol Admin → Learners, dekat tombol unduhan/impor workspace) ada satu
-tombol **Refresh example data** yang menggeser tanggal `firstSeen`,
-`lastReviewed`, dan `nextReview` milik state pelajar contoh akun sendiri
-menjadi relatif terhadap sekarang (aturan yang sama dengan seed: `shiftDemoDate`,
-tak pernah menghasilkan tanggal masa depan), **tanpa** mengubah mastery,
-reviewCount, masterySource, misconceptions, atau interactions. Hanya state
-pelajar contoh yang disentuh — pelajar yang dibuat sendiri tidak pernah.
-Id pelajar contoh di DB adalah `demo-alice`, `demo-bob`, `demo-carol`
-(lihat `demoLearners`/`demoKnowledgeStates` di `src/lib/demo-data.ts` dan
-komentar di `seed.ts`; jangan hardcode ulang daftarnya bila bisa mengambil
-dari konstanta yang ada).
+Perilaku yang diinginkan: pilihan itu tersimpan **per akun di server** dan
+terbaca di perangkat mana pun, tanpa menambah tabel/kolom/migrasi dan tanpa
+method RPC baru. Penyimpanan yang ada cukup: meta graph per akun
+(`graph.getMeta`/`graph.setMeta`, sudah ada di engine dan terikat
+`graphForOwner`). Kunci tetap, mis. `ui:onboarding-skipped`. Isi meta
+divalidasi/dibaca lewat helper murni (hanya `true` yang dianggap ya; bentuk
+rusak/`false`/absen = belum). `localStorage` tetap dipakai sebagai jalur cepat
+agar onboarding tidak berkedip sebelum server menjawab; bila lokal sudah
+`true` dan server belum, migrasikan sekali ke server (tanpa menghapus kunci
+lokal). Bila server `true`, anggap sudah dilewati walau lokal kosong. Tanpa
+sesi/akun, jangan memanggil server dan jangan menulis apa pun.
 
 Rencana implementasi:
 
-1. Helper murni (mis. `demoRefreshPlan` di `src/lib/demo-data.ts` atau modul
-   baru): terima `states` + `now`, kembalikan daftar patch
-   `{ userId, conceptId, firstSeen?, lastReviewed, nextReview? }` hanya untuk
-   `userId` pelajar contoh; tanggal mentah 2024 digeser dengan `shiftDemoDate`,
-   tanggal yang sudah segar (≤ beberapa hari dari `now`) boleh dilewati agar
-   tombol idempoten dan tidak menulis tanpa perlu. Tanpa I/O; unit test
-   langsung.
-2. Penerapan patch lewat RPC tulis yang ada (`setKnowledgeState`) sekali per
-   state — tanpa server function/skema/migrasi baru. Pelajari dulu
-   `repairDemoKnowledgeStates` di `seed.ts` sebagai pola iterasi state contoh.
-3. UI: tombol berbahasa Inggris (D2) dengan status `role="status"` dan galat
-   `role="alert"`, keadaan sibuk, target sentuh ≥40 px, konfirmasi ringkas di
-   dalam halaman (bukan `window.confirm`) karena ini menulis ulang tanggal;
-   setelah selesai jelaskan berapa state yang digeser. Tombol hanya tampil
-   bila ada state contoh bertanggal tua (mis. >90 hari) — hindari tombol mati.
-4. Test: unit helper (patch hanya untuk pelajar contoh, tanggal digeser benar,
-   tidak menyentuh field lain, idempoten, tanggal rusak ditangani) + penjaga
-   statis halaman (memakai helper + `setKnowledgeState`, tanpa server function
-   baru, tanpa `window.confirm`). Smoke: seed manual state contoh bertanggal
-   2024 lewat RPC yang ada (atau akun yang di-seed lalu tanggalnya
-   dimanipulasi lewat `setKnowledgeState`), klik tombol setelah terhidrasi,
-   pastikan tanggal state berubah dan tanpa error halaman.
-5. Tanpa perubahan skema/RPC/migrasi. Bila terbukti terlalu besar, kerjakan
-   dulu helper + test unitnya, lalu simpan UI sebagai "Tugas berikutnya".
+1. Server function baru kecil, mis. `src/server/onboarding.functions.ts`:
+   `getOnboardingSkipped` (tanpa argumen) dan `setOnboardingSkipped`
+   (`{ skipped: boolean }`, Zod), keduanya `authMiddleware`, memakai
+   `graphForOwner(context.userId)` dan kunci meta tetap. Bukan method RPC,
+   jadi `rpc-schemas.ts`/`REMOTE_GRAPH_METHODS` tidak perlu diubah.
+2. `StudyToday`: setelah `isReady`/sesi ada, baca meta server; gabungkan
+   dengan pembacaan `localStorage` yang sudah ada. `skipOnboarding` menulis
+   lokal lalu server (kegagalan server tidak memunculkan onboarding lagi;
+   lokal tetap menang untuk sesi ini). Jangan mengubah alur
+   `learners.length === 0` (tidak bisa dilewati) atau tombol di
+   `Onboarding`.
+3. Test: unit helper murni pembaca meta (true/false/rusak/absen, kunci stabil)
+   + penjaga statis halaman (memakai server function, tanpa RPC/migrasi baru,
+   tanpa `window.confirm`); test engine/PGlite bahwa meta per akun terpisah
+   (akun lain tidak melihat `true`) bila memungkinkan. Smoke: akun baru
+   menekan **Explore the example learners first**, hapus kunci
+   `localStorage` akun itu, muat ulang, dan pastikan onboarding **tidak**
+   muncul lagi; akun lain di browser yang sama tetap melihat onboarding.
+4. Tanpa perubahan skema/RPC/migrasi. Bila ternyata membaca meta butuh
+   membuka method RPC, hentikan dan tandai `blocked` (lebih baik daripada
+   melonggarkan daftar method tanpa review).
 
 Perilaku yang dikunci:
 
-- Hanya state pelajar contoh (`demo-alice`/`demo-bob`/`demo-carol`) milik akun
-  yang masuk yang boleh diubah; pelajar lain tidak tersentuh sama sekali.
-- Hanya tanggal (firstSeen/lastReviewed/nextReview) yang berubah; mastery dan
-  riwayat lain tetap.
-- Aturan penggeseran sama persis dengan seed baru (`shiftDemoDate`, tidak ada
-  tanggal masa depan); tombol idempoten (dipakai dua kali → hasil sama).
-- Tidak ada penulisan diam-diam: tombol eksplisit + konfirmasi ringkas +
-  laporan hasil.
+- Pilihan "lewati onboarding" berlaku per akun, bukan per browser, dan tidak
+  bocor ke akun lain di perangkat yang sama.
+- Akun tanpa learner sendiri tetap tidak bisa melewati langkah setup.
+- Tidak ada kedipan onboarding bagi akun yang sudah melewatinya (jalur cepat
+  `localStorage` dipertahankan); server hanya menambah daya tahan antar
+  perangkat.
+- Tanpa tabel/kolom/migrasi dan tanpa method RPC baru; data tetap di balik
+  `graphForOwner`.
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
 berbahasa Indonesia, pola `feat:`. Setelah merge, tulis "Tugas berikutnya"
@@ -74,6 +65,26 @@ untuk sesi setelahnya.
 
 ## Riwayat
 
+- 2026-11-14: PR #<n> — feat: tombol **Refresh example data** di Admin →
+  Learners untuk workspace yang di-seed sebelum putaran #17 (backlog P0 #2).
+  Tombol hanya muncul bila ada state contoh bertanggal pra-#17
+  (`lastReviewed` ≤ `DEMO_DATA_AS_OF`), meminta konfirmasi di halaman, lalu
+  menggeser `firstSeen`/`lastReviewed`/`nextReview` pelajar `demo-*` relatif
+  ke sekarang dengan `shiftDemoDate`; mastery, `reviewCount`,
+  `masterySource`, miskonsepsi, dan interaksi tidak berubah, dan pelajar
+  buatan pengguna tidak pernah disentuh. Idempoten: setelah sekali jalan
+  tanggal melewati cutoff sehingga tombol hilang dan jalan kedua menulis 0.
+  Rencana awal `setKnowledgeState` ternyata benar ditolak guard D5 karena
+  semua konsep contoh bersoal; jalan amannya satu server function tanpa
+  argumen (`refreshExampleData`) + helper murni `demoRefreshPlan`
+  (`src/lib/demo-refresh.ts`) dan `refreshDemoStateDates`
+  (`src/lib/graph/seed.ts`), tanpa method RPC/skema/migrasi baru. UI Inggris
+  (D2), `role="status"`/`role="alert"`, `aria-busy`, target 40 px, fokus ke
+  pesan hasil. Test baru `tests/demo-refresh.test.ts` 12 (helper + engine
+  PGlite + penjaga statis) dan cek smoke akun terpisah (state 2024 → tombol →
+  konfirmasi → tanggal berubah, mastery/reviewCount tetap, tombol hilang,
+  tanpa error). `npm run ci` hijau (install, typecheck, lint 0/0, 371/371
+  unit, build, CSP build produksi, smoke lulus).
 - 2026-11-13: PR #49 — feat: ekspor seluruh workspace (backlog P0 #6). Tombol
   **Download workspace (JSON)** di Admin → Learners membuat satu file
   `learngraph.workspace-export` v1 di perangkat: semua learner akun itu

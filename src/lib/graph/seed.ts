@@ -3,7 +3,9 @@
  * Runs once per account, when its workspace is empty (same rule as before).
  */
 import type { EducationGraphDB } from './education-graph-db.ts';
+import type { KnowledgeState } from './types.ts';
 import { demoLearners, demoConcepts, demoEdges, demoKnowledgeStates, shiftDemoDate } from '../demo-data.ts';
+import { demoRefreshPlan } from '../demo-refresh.ts';
 
 /**
  * Seed the demo dataset if the workspace has no learners and no concepts.
@@ -131,6 +133,31 @@ export async function repairDemoKnowledgeStates(db: EducationGraphDB): Promise<n
   }
   await db.setMeta(DEMO_STATES_REPAIR_FLAG, { at: new Date().toISOString(), copied });
   return copied;
+}
+
+/**
+ * "Refresh example data" (Roadmap P0 #2): move the example learners' progress
+ * dates to be relative to `now`, without touching mastery, review counts,
+ * sources, misconceptions or interactions, and without touching a learner the
+ * account made itself. Trusted server code (the user cannot name a learner or
+ * a value): demo concepts are quiz-checked, so the normal `setKnowledgeState`
+ * RPC deliberately refuses date writes on them (D5). Returns how many example
+ * progress records moved.
+ */
+export async function refreshDemoStateDates(
+  db: EducationGraphDB,
+  now: Date = new Date(),
+): Promise<{ moved: number }> {
+  const states: KnowledgeState[] = [];
+  for (const learner of demoLearners) {
+    states.push(...(await db.getLearnerKnowledgeStates(learner.userId)));
+  }
+  const patches = demoRefreshPlan(states, now);
+  for (const patch of patches) {
+    const { userId, conceptId, firstSeen, lastReviewed, nextReview } = patch;
+    await db.setKnowledgeState(userId, conceptId, { firstSeen, lastReviewed, nextReview });
+  }
+  return { moved: patches.length };
 }
 
 /** Meta flag: this workspace chose to start without the example data (never seed it again). */
