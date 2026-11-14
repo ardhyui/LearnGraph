@@ -1,49 +1,69 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 17: ekstraksi + test langsung keputusan isolasi lintas situs `assertSameSiteRequest`, PR #56; berikutnya: test langsung modul email `src/lib/email.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 18: test langsung modul email `src/lib/email.ts`, PR #57; berikutnya: test langsung fokus setelah hapus baris `src/lib/focus-after-delete.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung untuk modul email — `src/lib/email.ts`,
-satu-satunya modul di `src/lib` yang belum punya test langsung. Reset kata
-sandi dan verifikasi email (M3) bergantung padanya, tapi perilakunya saat ini
-hanya terkunci lewat smoke happy-path.
+Penguatan tes: test unit langsung untuk `src/lib/focus-after-delete.ts`
+(`rememberRowFocus`/`restoreRowFocus`) — jalur fokus keyboard setelah baris
+admin dihapus. Dipakai enam halaman admin (concepts, content, learners,
+prerequisites, questions, states) tetapi belum punya test langsung; regresi
+membuat fokus jatuh ke `<body>` tanpa terlihat.
 
-Lokasi: `src/lib/email.ts` — **jangan ubah perilakunya**; tugas ini test saja.
-Bila test menemukan bug nyata, catat di "Blokiran"/riwayat dan hanya perbaiki
-bila sepele dan ikut teruji. Test baru `tests/email.test.ts` (node:test murni):
-stub `globalThis.fetch` per test, simpan/pulihkan potongan `process.env` yang
-disentuh (`RESEND_API_KEY`, `EMAIL_FROM`, `NODE_ENV`, `DEV_EMAIL_OUTBOX`) di
-hook `after`, file outbox sementara di `os.tmpdir()` (jangan sentuh `.env`).
+Lokasi: `src/lib/focus-after-delete.ts` — **jangan ubah perilakunya**; tugas
+ini test saja. Bila test menemukan bug nyata, catat di "Blokiran"/riwayat dan
+hanya perbaiki bila sepele dan ikut teruji. Test baru
+`tests/focus-after-delete.test.ts` (node:test murni, **tanpa jsdom/dependensi
+baru**): pakai objek DOM tiruan minimal dan stub `globalThis.window`,
+`globalThis.document`, serta `globalThis.requestAnimationFrame` (antre manual
+lebih baik daripada sinkron, agar bisa menghitung frame); pulihkan semuanya di
+hook `after`. `performance.now()` asli cukup.
 
 Perilaku yang dikunci:
 
-- `emailConfigured()`: `true` hanya bila `RESEND_API_KEY` **dan** `EMAIL_FROM`
-  keduanya terisi; whitespace-only dianggap kosong (nilai di-trim).
-- `passwordResetAvailable()`: `true` bila email terkonfigurasi **atau**
-  `NODE_ENV !== 'production'` (dev server tetap menawarkan reset walau tanpa
-  provider); `false` di produksi tanpa konfigurasi.
-- `sendEmail` terkonfigurasi: satu POST ke `https://api.resend.com/emails`
-  dengan header `authorization: Bearer <key>` dan `content-type:
-  application/json`, body `{ from: EMAIL_FROM, to: [penerima], subject, text }`;
-  respons OK → resolve; respons non-OK → galat "Email provider refused the
-  message (HTTP <status>)." (status terbaca di pesan).
-- `sendEmail` tanpa konfigurasi di non-produksi: resolve **tanpa** memanggil
-  fetch (stub fetch yang melempar bila dipanggil); bila `DEV_EMAIL_OUTBOX`
-  diset, tepat satu baris JSON `{to, subject, text, at}` di-append ke file itu.
-- `sendEmail` tanpa konfigurasi di produksi: menolak dengan
-  "Email is not configured on this server.".
-- `passwordResetEmail`/`verificationEmail`: bentuk `{to, subject, text}` bahasa
-  Inggris, `text` memuat URL yang diberikan, tanpa rahasia selain URL itu.
+- `rememberRowFocus(button)`: `null`/`undefined` → `null`; tombol tanpa leluhur
+  `tr, li, [data-row]` → `null`; baris tanpa `parentElement` → `null`. Selain
+  itu memo `{ row, list, rowIndex, buttonIndex }` dengan `rowIndex` = indeks
+  baris di `Array.from(list.children)` dan `buttonIndex` = indeks tombol di
+  `row.querySelectorAll('button')` (termasuk tombol disabled — penyaringan
+  disabled terjadi saat restore).
+- `restoreRowFocus(null)` dan `restoreRowFocus(memo)` saat `typeof window ===
+  'undefined'` → langsung kembali, tanpa menjadwalkan frame.
+- Selama `memo.row.isConnected` dan belum lewat ~2 detik, frame dijadwalkan
+  ulang (tidak memfokuskan apa pun, tidak mencuri fokus).
+- Setelah baris pergi: baris pengganti = `rows[min(rowIndex, rows.length - 1)]`
+  dari `list.children` tanpa `memo.row`; target = tombol
+  `button:not([disabled])` ke-`min(max(0, buttonIndex), buttons.length - 1)`,
+  lalu `focus()` dipanggil pada target itu.
+- `list` yang sudah tidak terhubung diperlakukan seperti daftar kosong; daftar
+  kosong (atau baris tanpa tombol aktif) → fokus ke `main h1`, menambahkan
+  `tabindex="-1"` hanya bila belum ada (tabindex lama dipertahankan).
+- Tidak mencuri fokus bila `document.activeElement` bukan `document.body` dan
+  masih `isConnected` (pengguna sudah pindah sendiri).
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
-Indonesia pola `test:`. Tanpa dependensi baru, tanpa akun/rahasia sungguhan
-(D7 soal ganti provider tetap keputusan pemilik — jangan ubah provider). Catat
-`console.info` dev sebagai perilaku yang dibiarkan (bukan warning lint —
-periksa `eslint` tetap 0). Setelah merge, tulis "Tugas berikutnya" berikutnya.
+Indonesia pola `test:`. Tanpa dependensi baru dan tanpa perubahan kode
+aplikasi. Setelah merge, tulis "Tugas berikutnya" berikutnya.
 
 ## Riwayat
 
+- 2026-11-15: PR #57 — test: test unit langsung modul email
+  `src/lib/email.ts` (17 di `tests/email.test.ts`, node:test murni), modul
+  tidak diubah. Dikunci: `emailConfigured()` (kedua variabel wajib, trim,
+  whitespace-only = kosong); `passwordResetAvailable()` (terkonfigurasi atau
+  `NODE_ENV` bukan persis `production`); `sendEmail` terkonfigurasi = tepat
+  satu POST ke `https://api.resend.com/emails` dengan `authorization: Bearer
+  <key>`, `content-type: application/json`, body `{from, to: [penerima],
+  subject, text}` ter-trim, resolve pada OK, galat `Email provider refused the
+  message (HTTP <status>).` tanpa retry; jalur dev tanpa konfigurasi resolve
+  tanpa memanggil fetch (stub melempar), log dev, outbox `DEV_EMAIL_OUTBOX`
+  satu baris JSON `{to, subject, text, at}` ISO yang di-append (tidak menimpa),
+  tanpa file bila variabel kosong; produksi tanpa konfigurasi menolak `Email
+  is not configured on this server.`; builder reset/verifikasi berbahasa
+  Inggris, memuat URL, tanpa rahasia server lain. `fetch`/env distub dan
+  dipulihkan, outbox di `os.tmpdir()`. Tanpa perubahan
+  perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (447/447 unit,
+  smoke tetap).
 - 2026-11-15: PR #56 — refactor: keputusan isolasi lintas situs
   `assertSameSiteRequest` diekstrak ke helper murni
   `sameSiteAllowed(site, dest, mode, method): boolean`
