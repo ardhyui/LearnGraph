@@ -84,7 +84,7 @@ untuk sesi setelahnya.
   PGlite + penjaga statis) dan cek smoke akun terpisah (state 2024 → tombol →
   konfirmasi → tanggal berubah, mastery/reviewCount tetap, tombol hilang,
   tanpa error). `npm run ci` hijau (install, typecheck, lint 0/0, 371/371
-  unit, build, CSP build produksi, smoke lulus).
+  unit, build, CSP build produksi, 178 cek smoke).
 - 2026-11-13: PR #49 — feat: ekspor seluruh workspace (backlog P0 #6). Tombol
   **Download workspace (JSON)** di Admin → Learners membuat satu file
   `learngraph.workspace-export` v1 di perangkat: semua learner akun itu
