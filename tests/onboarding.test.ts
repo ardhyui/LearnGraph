@@ -11,6 +11,7 @@ import * as path from 'node:path';
 import type { EducationGraphDB } from '../src/lib/graph/education-graph-db.ts';
 import { parseGraphArgs, writeId } from '../src/lib/graph/rpc-schemas.ts';
 import {
+  ONBOARDING_SKIPPED_META,
   basicConcepts,
   cleanName,
   domainLabel,
@@ -21,11 +22,13 @@ import {
   listDomains,
   makeLearnerId,
   needsOnboarding,
+  onboardingSkippedMeta,
+  readOnboardingSkipped,
   sameSubjects,
   withFocus,
 } from '../src/lib/onboarding.ts';
 import { applyStudyOutcome } from '../src/lib/study.ts';
-import { openTestGraphDB } from './support/graph-db.ts';
+import { openTestGraphDB, openTestWorkspaces } from './support/graph-db.ts';
 
 describe('needsOnboarding', () => {
   it('is true until the workspace has a learner that is not a demo learner', () => {
@@ -33,6 +36,31 @@ describe('needsOnboarding', () => {
     assert.equal(needsOnboarding([{ userId: 'demo-alice' }, { userId: 'demo-bob' }]), true);
     assert.equal(needsOnboarding([{ userId: 'demo-alice' }, { userId: 'me-sari' }]), false);
     assert.equal(isDemoLearner({ userId: 'demolition' }), false);
+  });
+});
+
+describe('onboarding skip flag (account copy)', () => {
+  it('only an explicit true means skipped', () => {
+    assert.equal(readOnboardingSkipped({ skipped: true }), true);
+    assert.equal(readOnboardingSkipped({ skipped: false }), false);
+    assert.equal(readOnboardingSkipped({ skipped: 'true' }), false);
+    assert.equal(readOnboardingSkipped({ skipped: 1 }), false);
+    assert.equal(readOnboardingSkipped({}), false);
+    assert.equal(readOnboardingSkipped(null), false);
+    assert.equal(readOnboardingSkipped(undefined), false);
+    assert.equal(readOnboardingSkipped('true'), false);
+    assert.equal(readOnboardingSkipped([]), false);
+  });
+
+  it('keeps a stable meta key and round-trips what the server writes', () => {
+    assert.equal(ONBOARDING_SKIPPED_META, 'ui:onboarding-skipped');
+    const meta = onboardingSkippedMeta(true, '2026-11-14T10:00:00.000Z');
+    assert.deepEqual(meta, { skipped: true, at: '2026-11-14T10:00:00.000Z' });
+    assert.equal(readOnboardingSkipped(meta), true);
+    assert.equal(
+      readOnboardingSkipped(onboardingSkippedMeta(false, '2026-11-14T10:00:00.000Z')),
+      false,
+    );
   });
 });
 
@@ -84,7 +112,10 @@ describe('domains & focus', () => {
 
   it('filters by focus, falling back to everything when the focus matches nothing', () => {
     const d = (c: { domain: string }) => c.domain;
-    assert.deepEqual(inFocus(concepts, ['mathematics'], d).map((c) => c.conceptId), ['a', 'b']);
+    assert.deepEqual(
+      inFocus(concepts, ['mathematics'], d).map((c) => c.conceptId),
+      ['a', 'b'],
+    );
     assert.equal(inFocus(concepts, [], d).length, 4);
     assert.strictEqual(inFocus(concepts, [], d), concepts); // same instance = no focus applied
     assert.strictEqual(inFocus(concepts, ['history'], d), concepts);
@@ -157,8 +188,32 @@ describe('onboarding through the server schema and the engine', () => {
     }
 
     const zpd = await db.computeZPD(id, { limit: 10 });
-    const next = inFocus(zpd.recommendations, ['math'], (r) => r.concept.domain).map((r) => r.concept.conceptId);
+    const next = inFocus(zpd.recommendations, ['math'], (r) => r.concept.domain).map(
+      (r) => r.concept.conceptId,
+    );
     assert.deepEqual(next, ['add']);
+  });
+
+  it('the skip flag is per account (same database, different workspaces)', async () => {
+    const workspaces = await openTestWorkspaces(`${DIR}-accounts`, ['me-a', 'me-b']);
+    try {
+      const [a, b] = await Promise.all([workspaces.graphFor('me-a'), workspaces.graphFor('me-b')]);
+      await a.setMeta(
+        ONBOARDING_SKIPPED_META,
+        onboardingSkippedMeta(true, '2026-11-14T10:00:00.000Z'),
+      );
+      assert.equal(readOnboardingSkipped(await a.getMeta(ONBOARDING_SKIPPED_META)), true);
+      // Same key, same database, other account: the choice never leaks.
+      assert.equal(readOnboardingSkipped(await b.getMeta(ONBOARDING_SKIPPED_META)), false);
+      await b.setMeta(
+        ONBOARDING_SKIPPED_META,
+        onboardingSkippedMeta(false, '2026-11-14T10:00:00.000Z'),
+      );
+      assert.equal(readOnboardingSkipped(await a.getMeta(ONBOARDING_SKIPPED_META)), true);
+    } finally {
+      await workspaces.close();
+      fs.rmSync(`${DIR}-accounts`, { recursive: true, force: true });
+    }
   });
 
   it('changing subjects keeps other tags and the plan follows the new subject', async () => {
@@ -175,7 +230,51 @@ describe('onboarding through the server schema and the engine', () => {
     assert.deepEqual(after?.tags, ['class-7a', 'focus:cs']);
     assert.deepEqual(focusDomains(after), ['cs']);
     const zpd = await db.computeZPD(id, { limit: 10 });
-    const next = inFocus(zpd.recommendations, focusDomains(after), (r) => r.concept.domain).map((r) => r.concept.conceptId);
+    const next = inFocus(zpd.recommendations, focusDomains(after), (r) => r.concept.domain).map(
+      (r) => r.concept.conceptId,
+    );
     assert.deepEqual(next, ['vars']);
+  });
+});
+
+// Static guards: the Today panel asks two small account-scoped server functions;
+// it never grows a graph RPC method, table, column or migration.
+const todayComponent = fs.readFileSync(
+  new URL('../src/components/StudyToday.tsx', import.meta.url),
+  'utf8',
+);
+const onboardingServer = fs.readFileSync(
+  new URL('../src/server/onboarding.functions.ts', import.meta.url),
+  'utf8',
+);
+
+describe('server-side onboarding skip wiring (static)', () => {
+  it('Today reads and saves the choice through the server, keeping the local fast path', () => {
+    assert.ok(todayComponent.includes("from '@/server/onboarding.functions'"));
+    assert.ok(todayComponent.includes('getOnboardingSkipped()'));
+    assert.ok(todayComponent.includes('saveOnboardingSkipped({ data: { skipped: true } })'));
+    assert.ok(todayComponent.includes('readStored(skippedKey)'));
+    assert.ok(todayComponent.includes("store(skippedKey, '1')"));
+    assert.equal(/window\.confirm|confirm\(/.test(todayComponent), false);
+    assert.equal(/createServerFn|graphCall/.test(todayComponent), false);
+  });
+
+  it('the server scopes the flag to the signed-in account and validates the write', () => {
+    assert.match(onboardingServer, /export const getOnboardingSkipped = createServerFn/);
+    assert.match(onboardingServer, /export const setOnboardingSkipped = createServerFn/);
+    assert.ok(onboardingServer.includes('authMiddleware'));
+    assert.ok(onboardingServer.includes('graphForOwner'));
+    assert.ok(onboardingServer.includes('context.userId'));
+    assert.ok(onboardingServer.includes('ONBOARDING_SKIPPED_META'));
+    assert.match(onboardingServer, /validator\(z\.object\(\{ skipped: z\.boolean\(\) \}\)\)/);
+  });
+
+  it('needs no RPC method, table, column or migration', () => {
+    assert.equal(
+      /REMOTE_GRAPH_METHODS|rpc-schemas|db\.(insert|update)|insert into|create table/i.test(
+        onboardingServer,
+      ),
+      false,
+    );
   });
 });

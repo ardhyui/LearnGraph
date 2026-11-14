@@ -25,6 +25,10 @@ import {
 import { evidenceMode, quizResultNotice } from '@/lib/evidence/labels';
 import { getQuizOverview, recordStudyOutcome } from '@/server/evidence.functions';
 import { getContentOverview } from '@/server/content.functions';
+import {
+  getOnboardingSkipped,
+  setOnboardingSkipped as saveOnboardingSkipped,
+} from '@/server/onboarding.functions';
 import { buildSessionPlan, SESSION_LENGTHS, REVIEW_MINUTES } from '@/lib/session';
 import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
@@ -137,9 +141,40 @@ export function StudyToday() {
   const headingRefs = useRef<Record<TodayList, HTMLHeadingElement | null>>({ reviews: null, next: null });
   const pendingFocus = useRef<PendingFocus | null>(null);
 
+  // The browser copy is the fast path (no onboarding flash on this device); the
+  // account copy stored on the server makes the choice follow the person.
   useEffect(() => {
-    setOnboardingSkipped(readStored(skippedKey) === '1');
-  }, [skippedKey]);
+    const local = readStored(skippedKey) === '1';
+    const userId = user?.id;
+    if (local) {
+      setOnboardingSkipped(true);
+    } else if (!userId) {
+      setOnboardingSkipped(false);
+      return;
+    } else {
+      // Nothing local yet: ask the account before deciding, so a choice made on
+      // another device does not flash the setup step here.
+      setOnboardingSkipped(null);
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const stored = await getOnboardingSkipped();
+        if (cancelled) return;
+        setOnboardingSkipped(stored.skipped || local);
+        // Chosen on this device before the account copy existed: migrate once.
+        if (local && !stored.skipped) await saveOnboardingSkipped({ data: { skipped: true } });
+      } catch (err) {
+        if (cancelled) return;
+        // Offline or server unavailable: the browser copy still counts here.
+        console.error('Could not read the onboarding choice from your account:', err);
+        setOnboardingSkipped(local);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [skippedKey, user?.id]);
 
   useEffect(() => {
     const saved = Number(readStored(SESSION_MINUTES_KEY));
@@ -270,6 +305,12 @@ export function StudyToday() {
     store(skippedKey, '1');
     setOnboardingSkipped(true);
     setOnboardingOpen(false);
+    // The local copy above is the fast path; the account copy is best-effort so
+    // a network failure never brings the setup step back on this device.
+    if (!user?.id) return;
+    void saveOnboardingSkipped({ data: { skipped: true } }).catch((err) => {
+      console.error('Could not save the onboarding choice to your account:', err);
+    });
   };
 
   // After an answer reloads the lists, put keyboard focus back where the

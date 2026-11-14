@@ -1,70 +1,66 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-14 (siklus 11: segarkan tanggal data contoh selesai; berikutnya: simpan lewati onboarding di server)
+Terakhir diperbarui: 2026-11-14 (siklus 12: lewati onboarding tersimpan per akun di server; berikutnya: pecah provider/hook agar pengecualian react-refresh dihapus)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` P0 #2 baris "pilihan 'lewati' disimpan di browser
-(`localStorage`, per akun), jadi di perangkat lain onboarding muncul lagi;
-pindahkan ke server bila mengganggu": tombol **Explore the example learners
-first** di `src/components/StudyToday.tsx` (`skipOnboarding`, kunci
-`learngraph.onboardingSkipped.<userId>`) hanya menyimpan pilihan di perangkat,
-jadi akun yang sudah memilih melewati onboarding tetap disodori langkah
-**Let’s set up your learning plan** di browser/perangkat lain.
+Backlog `docs/ROADMAP.md` P1 #6 baris "`DBContext.tsx`/`theme.tsx`
+dikecualikan dari `react-refresh/only-export-components` (provider + hook
+dalam satu file); pecah jika fast refresh di file itu dibutuhkan": dua file itu
+mencampur komponen provider dengan hook/nilai lain dalam satu modul, dan
+`eslint.config.mjs` memberi pengecualian khusus untuk keduanya. Pecah agar
+pengecualian itu bisa dihapus tanpa mengubah perilaku.
 
-Perilaku yang diinginkan: pilihan itu tersimpan **per akun di server** dan
-terbaca di perangkat mana pun, tanpa menambah tabel/kolom/migrasi dan tanpa
-method RPC baru. Penyimpanan yang ada cukup: meta graph per akun
-(`graph.getMeta`/`graph.setMeta`, sudah ada di engine dan terikat
-`graphForOwner`). Kunci tetap, mis. `ui:onboarding-skipped`. Isi meta
-divalidasi/dibaca lewat helper murni (hanya `true` yang dianggap ya; bentuk
-rusak/`false`/absen = belum). `localStorage` tetap dipakai sebagai jalur cepat
-agar onboarding tidak berkedip sebelum server menjawab; bila lokal sudah
-`true` dan server belum, migrasikan sekali ke server (tanpa menghapus kunci
-lokal). Bila server `true`, anggap sudah dilewati walau lokal kosong. Tanpa
-sesi/akun, jangan memanggil server dan jangan menulis apa pun.
+Lokasi: `src/lib/DBContext.tsx` (mengekspor `DBProvider` + `useDB`/
+`useLearners`/`useConcepts`/`useEdges`/`useKnowledgeStates` +
+`createRemoteGraphDB`), `src/lib/theme.tsx` (mengekspor `ThemeProvider` +
+`useTheme` + `NO_FLASH_SCRIPT`), `src/routes/__root.tsx` (memakai kedua
+provider), `eslint.config.mjs` (blok `files: ["src/lib/DBContext.tsx",
+"src/lib/theme.tsx"]`).
 
-Rencana implementasi:
+Perilaku yang diinginkan:
 
-1. Server function baru kecil, mis. `src/server/onboarding.functions.ts`:
-   `getOnboardingSkipped` (tanpa argumen) dan `setOnboardingSkipped`
-   (`{ skipped: boolean }`, Zod), keduanya `authMiddleware`, memakai
-   `graphForOwner(context.userId)` dan kunci meta tetap. Bukan method RPC,
-   jadi `rpc-schemas.ts`/`REMOTE_GRAPH_METHODS` tidak perlu diubah.
-2. `StudyToday`: setelah `isReady`/sesi ada, baca meta server; gabungkan
-   dengan pembacaan `localStorage` yang sudah ada. `skipOnboarding` menulis
-   lokal lalu server (kegagalan server tidak memunculkan onboarding lagi;
-   lokal tetap menang untuk sesi ini). Jangan mengubah alur
-   `learners.length === 0` (tidak bisa dilewati) atau tombol di
-   `Onboarding`.
-3. Test: unit helper murni pembaca meta (true/false/rusak/absen, kunci stabil)
-   + penjaga statis halaman (memakai server function, tanpa RPC/migrasi baru,
-   tanpa `window.confirm`); test engine/PGlite bahwa meta per akun terpisah
-   (akun lain tidak melihat `true`) bila memungkinkan. Smoke: akun baru
-   menekan **Explore the example learners first**, hapus kunci
-   `localStorage` akun itu, muat ulang, dan pastikan onboarding **tidak**
-   muncul lagi; akun lain di browser yang sama tetap melihat onboarding.
-4. Tanpa perubahan skema/RPC/migrasi. Bila ternyata membaca meta butuh
-   membuka method RPC, hentikan dan tandai `blocked` (lebih baik daripada
-   melonggarkan daftar method tanpa review).
-
-Perilaku yang dikunci:
-
-- Pilihan "lewati onboarding" berlaku per akun, bukan per browser, dan tidak
-  bocor ke akun lain di perangkat yang sama.
-- Akun tanpa learner sendiri tetap tidak bisa melewati langkah setup.
-- Tidak ada kedipan onboarding bagi akun yang sudah melewatinya (jalur cepat
-  `localStorage` dipertahankan); server hanya menambah daya tahan antar
-  perangkat.
-- Tanpa tabel/kolom/migrasi dan tanpa method RPC baru; data tetap di balik
-  `graphForOwner`.
+- `src/lib/DBContext.tsx` tetap menjadi jalur impor hook yang sudah ada
+  (25 file tidak perlu diubah), tetapi tidak lagi mengekspor komponen React;
+  `DBProvider` pindah ke modul komponen sendiri (mis.
+  `src/lib/DBProvider.tsx`) yang mengekspor hanya komponen/tipe. Context boleh
+  tetap di `DBContext.tsx` atau file murni `db-context.ts`, asal tidak ada
+  impor melingkar.
+- `src/lib/theme.tsx` tetap mengekspor `useTheme` + `NO_FLASH_SCRIPT`
+  (dipakai `__root.tsx` untuk skrip anti-kedip); `ThemeProvider` pindah ke
+  modul komponen sendiri (mis. `src/lib/ThemeProvider.tsx`). Perbarui
+  `__root.tsx` saja; pemakai `useTheme` tidak berubah.
+- Tidak ada perubahan perilaku: provider yang sama, API hook sama,
+  `NO_FLASH_SCRIPT` dan urutan mount sama; tanpa `localStorage`/server call
+  baru; SSR/hidrasi tetap sepakat.
+- Hapus pengecualian `files: [...]` itu di `eslint.config.mjs`; `npm run lint`
+  harus tetap 0 warning tanpa pengecualian tersebut. Bila aturan masih menyala
+  karena ekspor lain, pindahkan penyebabnya — jangan melonggarkan aturan
+  global.
+- Test: penjaga statis bahwa `DBContext.tsx`/`theme.tsx` tidak mengekspor
+  komponen (`function/const .*Provider`), modul provider baru mengekspor
+  provider yang dipakai `__root.tsx`, dan `eslint.config.mjs` tidak lagi
+  mencantumkan kedua file itu di pengecualian. Unit + smoke lain tetap hijau.
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `feat:`. Setelah merge, tulis "Tugas berikutnya"
+berbahasa Indonesia, pola `chore:`. Setelah merge, tulis "Tugas berikutnya"
 untuk sesi setelahnya.
 
 ## Riwayat
 
+- 2026-11-14: PR #51 — feat: pilihan **Explore the example learners first** kini
+  disimpan per akun di meta graph (`ui:onboarding-skipped`) lewat
+  `getOnboardingSkipped`/`setOnboardingSkipped`
+  (`src/server/onboarding.functions.ts`, `authMiddleware` +
+  `graphForOwner`), jadi onboarding tidak muncul lagi di perangkat lain.
+  `localStorage` tetap jalur cepat; salinan lokal yang belum ada di server
+  dimigrasikan sekali; server `true` menang saat lokal kosong; pembaca murni
+  `readOnboardingSkipped` hanya menerima `{ skipped: true }`; tanpa sesi tak
+  ada panggilan/tulisan; `learners.length === 0` tetap tidak bisa dilewati.
+  Tanpa tabel/kolom/RPC/migrasi. Test onboarding 13 → 18 (helper, isolasi akun
+  di satu database PGlite, penjaga statis) + smoke tanpa salinan lokal dan
+  akun lain di browser yang sama. `npm run ci` hijau (377/377 unit, 180 cek
+  smoke). Baris backlog P0 #2 "lewati" dicoret.
 - 2026-11-14: PR #50 — feat: tombol **Refresh example data** di Admin →
   Learners untuk workspace yang di-seed sebelum putaran #17 (backlog P0 #2).
   Tombol hanya muncul bila ada state contoh bertanggal pra-#17
