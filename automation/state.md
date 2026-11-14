@@ -1,49 +1,65 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 22: fix subskala bernilai 0 yang dibaca sebagai 50 di `interpretation`, PR #61; berikutnya: test langsung dialect PGlite `src/lib/pglite-dialect.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 23: test langsung dialect PGlite `src/lib/pglite-dialect.ts`, PR #62; berikutnya: test langsung `src/lib/migrations.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung untuk dialect PGlite
-`src/lib/pglite-dialect.ts` (`pgliteDialect` + driver/koneksi internal), jalur
-database yang dipakai `src/lib/db.ts` saat `DATABASE_URL` kosong (dev lokal dan
-seluruh test PGlite). Saat ini modul hanya dipakai tidak langsung lewat
-`pgliteDialect` di test lain; perilaku lazy-init, antrean satu koneksi, dan
-transaksi belum pernah dikunci. **Modul tidak diubah** — test saja.
+Penguatan tes: test unit langsung untuk penerap migrasi PGlite/preview
+`src/lib/migrations.ts` (`applyMigrations` + `pgliteMigratable`), dipakai
+`src/lib/db.ts` saat `DATABASE_URL` kosong dan oleh seluruh test PGlite. Saat
+ini modul hanya terpakai tidak langsung; urutan penerapan, bookkeeping
+`_migrations`, dan pembungkusan transaksi belum pernah dikunci. **Modul tidak
+diubah** — test saja.
 
-Test baru `tests/pglite-dialect.test.ts` (node:test murni, tanpa dependensi
-baru) memakai klien palsu `{ query }` (bukan PGlite sungguhan) yang mencatat
-SQL/parameter dan mengembalikan `{ rows, affectedRows }` yang bisa diatur;
-`CompiledQuery` diambil dari `kysely`. Dikunci:
+Test baru `tests/migrations.test.ts` (node:test murni, tanpa dependensi baru)
+memakai `MigratableDb` palsu yang mencatat `exec`/`query`/`transaction` (dengan
+SQL, parameter, dan penanda transaksi aktif) serta objek mirip PGlite untuk
+`pgliteMigratable`. Dikunci:
 
-- `pgliteDialect(getClient)` membuat adapter/compiler/introspector Postgres dan
-  driver lazy; `getClient` tidak dipanggil saat dialect dibuat.
-- `init()` memanggil `getClient` sekali dan menyimpan hasilnya;
-  `acquireConnection()` sebelum `init()` juga memanggilnya sekali, dan acquire
-  berikutnya tidak memanggil lagi.
-- Hanya satu koneksi pada satu waktu: acquire kedua saat koneksi pertama masih
-  dipegang mengembalikan Promise yang belum selesai; `releaseConnection`
-  menyerahkannya ke penunggu FIFO (koneksi yang sama, bukan baru); setelah
-  antrean kosong acquire berikutnya membuat koneksi baru; melepas koneksi yang
-  bukan milik driver melempar `Invalid connection`.
-- `beginTransaction` mengirim `begin`, atau persis
-  `start transaction isolation level <level>` bila `isolationLevel` diisi;
-  `commitTransaction`/`rollbackTransaction` mengirim `commit`/`rollback`; query
-  kontrol ini dikirim tanpa parameter.
-- `executeQuery` meneruskan SQL + parameter ke `client.query` apa adanya dan
-  mengembalikan `{ rows }`; `numAffectedRows: BigInt(n)` hanya ditambahkan bila
-  `affectedRows` truthy (0/undefined tidak menambah field).
-- `streamQuery` menolak `chunkSize` bukan bilangan bulat positif dengan
-  `chunkSize must be a positive integer` **tanpa** memanggil klien; memecah
-  baris menjadi potongan berurutan sebesar `chunkSize`; baris kosong
-  menghasilkan nol yield.
-- `destroy()` tidak memanggil `client.close()` (klien PGlite bersama) dan
-  melepas handle sehingga acquire berikutnya memakai `getClient` lagi.
+- `applyMigrations(db, files)` pertama-tama `exec` persis
+  `create table if not exists _migrations (name text primary key, applied_at
+  timestamptz not null default now())`, lalu `query` persis
+  `select name from _migrations`; `files` kosong hanya melakukan kedua hal itu.
+- Hanya berkas `.sql` yang diterapkan; nama = basename sehingga
+  `migrations/auth/0001_auth.sql` cocok dengan baris `_migrations` bernama
+  `0001_auth.sql`; entri non-`.sql` (mis. folder) diabaikan.
+- Urutan deterministik menurut basename (`localeCompare`); migrasi yang sudah
+  ada di `_migrations` dilewati. Tiap migrasi berjalan di transaksi sendiri:
+  `tx.exec(<isi berkas>)` lalu `tx.query('insert into _migrations (name)
+  values ($1)', [name])` — tidak ada tulisan bookkeeping untuk migrasi yang
+  dilewati.
+- Bila `tx.exec`/insert melempar, galat diteruskan dan migrasi berikutnya tidak
+  dicoba (rollback tetap tanggung jawab `db.transaction`; `applyMigrations`
+  tidak menelan galat).
+- `pgliteMigratable(pg)`: `exec(text)` meneruskan teks apa adanya; `query(text,
+  params)` meneruskan keduanya dan mengembalikan hanya `{ rows }` (bukan objek
+  hasil PGlite lengkap); `transaction(fn)` memanggil `pg.transaction` tepat
+  sekali dan meneruskan nilai kembalian `fn`; di dalam callback, `exec`/`query`
+  memakai objek transaksi (bukan `pg` luar).
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #62 — test: test unit langsung dialect PGlite
+  `src/lib/pglite-dialect.ts` (17 test di `tests/pglite-dialect.test.ts`,
+  node:test murni), modul tidak diubah. Klien palsu `{ query }` mencatat
+  SQL/parameter dan mengembalikan `{ rows, affectedRows }` yang bisa diatur;
+  `CompiledQuery` dari `kysely`. Dikunci: adapter/compiler/introspector
+  Postgres + driver lazy (factory belum dipanggil saat dialect dibuat); `init()`
+  dan acquire pertama memanggil `getClient` sekali, acquire berikutnya tidak;
+  satu koneksi pada satu waktu dengan penunggu FIFO menerima koneksi yang sama,
+  koneksi baru setelah antrean kosong, dan `Invalid connection` untuk koneksi
+  asing; `begin` / `start transaction isolation level <level>` / `commit` /
+  `rollback` tanpa parameter; `executeQuery` meneruskan SQL+parameter apa
+  adanya dan menambah `numAffectedRows: BigInt(n)` hanya bila `affectedRows`
+  truthy (0/undefined tidak); `streamQuery` menolak `chunkSize` tidak sah
+  dengan `chunkSize must be a positive integer` tanpa memanggil klien, memecah
+  baris berurutan, dan nol yield untuk hasil kosong; `destroy()` tidak memanggil
+  `client.close()` dan acquire berikutnya memakai `getClient` lagi. Tanpa
+  perubahan perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (529/529
+  unit, 177 cek smoke).
 
 - 2026-11-15: PR #61 — fix: `interpretation` di `src/lib/assessments.ts` tidak
   lagi memakai `subscales[x] || 50` (nilai sah 0 dianggap "tidak ada" → 50),
