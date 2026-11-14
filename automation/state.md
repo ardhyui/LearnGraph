@@ -1,45 +1,43 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 18: test langsung modul email `src/lib/email.ts`, PR #57; berikutnya: test langsung fokus setelah hapus baris `src/lib/focus-after-delete.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 19: test langsung fokus setelah hapus baris `src/lib/focus-after-delete.ts`, PR #58; berikutnya: test langsung jebakan Tab `src/lib/focus-trap.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung untuk `src/lib/focus-after-delete.ts`
-(`rememberRowFocus`/`restoreRowFocus`) — jalur fokus keyboard setelah baris
-admin dihapus. Dipakai enam halaman admin (concepts, content, learners,
-prerequisites, questions, states) tetapi belum punya test langsung; regresi
-membuat fokus jatuh ke `<body>` tanpa terlihat.
+Penguatan tes: test unit langsung untuk `src/lib/focus-trap.ts` (`trapTabKey`)
+— jalur jebakan Tab di dialog kuis/My Profile. Fungsi ini hanya diuji tidak
+langsung oleh smoke dialog kuis, belum punya test langsung; regresi membuat
+Tab bisa keluar ke belakang dialog atau Shift+Tab melewati elemen pertama.
 
-Lokasi: `src/lib/focus-after-delete.ts` — **jangan ubah perilakunya**; tugas
-ini test saja. Bila test menemukan bug nyata, catat di "Blokiran"/riwayat dan
-hanya perbaiki bila sepele dan ikut teruji. Test baru
-`tests/focus-after-delete.test.ts` (node:test murni, **tanpa jsdom/dependensi
-baru**): pakai objek DOM tiruan minimal dan stub `globalThis.window`,
-`globalThis.document`, serta `globalThis.requestAnimationFrame` (antre manual
-lebih baik daripada sinkron, agar bisa menghitung frame); pulihkan semuanya di
-hook `after`. `performance.now()` asli cukup.
+Lokasi: `src/lib/focus-trap.ts` — **jangan ubah perilakunya**; tugas ini test
+saja. Bila test menemukan bug nyata, catat di "Blokiran"/riwayat dan hanya
+perbaiki bila sepele dan ikut teruji. Test baru `tests/focus-trap.test.ts`
+(node:test murni, **tanpa jsdom/dependensi baru**): pakai objek DOM tiruan
+minimal yang mewarisi kelas `FakeNode`, stub `globalThis.Node` dan
+`globalThis.document`, lalu pulihkan keduanya di hook `after`.
 
 Perilaku yang dikunci:
 
-- `rememberRowFocus(button)`: `null`/`undefined` → `null`; tombol tanpa leluhur
-  `tr, li, [data-row]` → `null`; baris tanpa `parentElement` → `null`. Selain
-  itu memo `{ row, list, rowIndex, buttonIndex }` dengan `rowIndex` = indeks
-  baris di `Array.from(list.children)` dan `buttonIndex` = indeks tombol di
-  `row.querySelectorAll('button')` (termasuk tombol disabled — penyaringan
-  disabled terjadi saat restore).
-- `restoreRowFocus(null)` dan `restoreRowFocus(memo)` saat `typeof window ===
-  'undefined'` → langsung kembali, tanpa menjadwalkan frame.
-- Selama `memo.row.isConnected` dan belum lewat ~2 detik, frame dijadwalkan
-  ulang (tidak memfokuskan apa pun, tidak mencuri fokus).
-- Setelah baris pergi: baris pengganti = `rows[min(rowIndex, rows.length - 1)]`
-  dari `list.children` tanpa `memo.row`; target = tombol
-  `button:not([disabled])` ke-`min(max(0, buttonIndex), buttons.length - 1)`,
-  lalu `focus()` dipanggil pada target itu.
-- `list` yang sudah tidak terhubung diperlakukan seperti daftar kosong; daftar
-  kosong (atau baris tanpa tombol aktif) → fokus ke `main h1`, menambahkan
-  `tabindex="-1"` hanya bila belum ada (tabindex lama dipertahankan).
-- Tidak mencuri fokus bila `document.activeElement` bukan `document.body` dan
-  masih `isConnected` (pengguna sudah pindah sendiri).
+- `e.key` selain `'Tab'` (mis. `'Escape'`, `'Enter'`, `'a'`), atau
+  `container === null` → tidak memanggil `preventDefault()`, tidak memfokuskan
+  apa pun.
+- Kandidat diambil dari `container.querySelectorAll(...)` dengan selector
+  persis konstanta `FOCUSABLE` modul (`a[href], button:not([disabled]), …`),
+  lalu hanya elemen yang `getClientRects().length > 0`; urutan DOM
+  dipertahankan dan elemen tersembunyi tidak pernah menjadi target.
+- Tanpa kandidat terlihat: Tab maupun Shift+Tab → `preventDefault()` lalu
+  `container.focus()`.
+- Tab tanpa Shift: fokus di luar container **atau** tepat di kandidat terakhir
+  → `preventDefault()` + fokus kandidat pertama; fokus di kandidat tengah →
+  tidak mencegah dan tidak memindahkan fokus.
+- Shift+Tab: fokus di luar container, tepat di kandidat pertama, atau tepat di
+  container → `preventDefault()` + fokus kandidat terakhir; fokus di kandidat
+  tengah → tidak mencegah dan tidak memindahkan fokus.
+- Elemen aktif yang bukan `instanceof Node` dianggap di luar container;
+  `container.contains(active)` dipakai untuk menentukan "di dalam". Fokus di
+  dalam container tetapi bukan kandidat (mis. wrapper) tidak dipindahkan,
+  kecuali tepat di container pada Shift+Tab → kandidat terakhir — kunci apa
+  adanya sesuai kode saat ini.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa dependensi baru dan tanpa perubahan kode
@@ -47,6 +45,21 @@ aplikasi. Setelah merge, tulis "Tugas berikutnya" berikutnya.
 
 ## Riwayat
 
+- 2026-11-15: PR #58 — test: test unit langsung fokus setelah hapus baris
+  admin `src/lib/focus-after-delete.ts` (`rememberRowFocus`/`restoreRowFocus`,
+  19 test di `tests/focus-after-delete.test.ts`, node:test murni), modul tidak
+  diubah. Fake DOM minimal + stub `window`/`document`/`requestAnimationFrame`
+  (antre frame manual) yang dipulihkan di `after`. Dikunci: memo
+  `{ row, list, rowIndex, buttonIndex }` (indeks tombol termasuk disabled;
+  leluhur `tr`/`li`/`[data-row]`; tanpa baris/daftar → `null`); `null` atau
+  tanpa `window` → tanpa frame; selama baris masih terhubung frame dijadwalkan
+  ulang tanpa mencuri fokus; baris pengganti `rows[min(rowIndex, rows.length -
+  1)]` dan tombol aktif ke-`min(max(0, buttonIndex), buttons.length - 1)`;
+  daftar/baris kosong atau daftar tak terhubung → fokus `main h1` dengan
+  `tabindex="-1"` hanya bila belum ada; tidak mencuri fokus bila pengguna sudah
+  pindah, tetapi tetap memulihkan bila elemen terfokus ikut terputus. Tanpa
+  perubahan perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau
+  (466/466 unit, 177 cek smoke; cek a11y fokus setelah hapus baris tetap).
 - 2026-11-15: PR #57 — test: test unit langsung modul email
   `src/lib/email.ts` (17 di `tests/email.test.ts`, node:test murni), modul
   tidak diubah. Dikunci: `emailConfigured()` (kedua variabel wajib, trim,
