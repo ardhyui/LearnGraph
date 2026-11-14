@@ -1,53 +1,68 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 16: test langsung untuk handler API publik baca-saja M4, PR #55; berikutnya: ekstraksi + test langsung keputusan isolasi lintas situs `assertSameSiteRequest`)
+Terakhir diperbarui: 2026-11-15 (siklus 17: ekstraksi + test langsung keputusan isolasi lintas situs `assertSameSiteRequest`, PR #56; berikutnya: test langsung modul email `src/lib/email.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes keamanan: keputusan isolasi request lintas situs — `assertSameSiteRequest`
-di `src/lib/auth/isolation.server.ts`, chokepoint yang dipanggil `authMiddleware`
-(`src/lib/auth/middleware.ts`) sebelum `requireUserId` — belum punya test langsung
-karena fungsinya membaca request dari `getRequest()` TanStack (AsyncLocalStorage),
-yang tidak bisa disiapkan dari test unit Node. Padahal ini menutup permukaan
-serangan tenant-saudara (aplikasi lain di `*.vercel.app` mengendarai cookie
-sesi `SameSite=Lax` dengan request ter-skrip).
+Penguatan tes: test unit langsung untuk modul email — `src/lib/email.ts`,
+satu-satunya modul di `src/lib` yang belum punya test langsung. Reset kata
+sandi dan verifikasi email (M3) bergantung padanya, tapi perilakunya saat ini
+hanya terkunci lewat smoke happy-path.
 
-Lokasi: `src/lib/auth/isolation.server.ts` (jangan ubah tabel keputusannya —
-tugas ini ekstraksi + test). Ekstrak logika murninya ke modul baru tanpa impor
-framework, mis. `src/lib/auth/same-site.ts` dengan
-`sameSiteAllowed(site: string | null, dest: string | null, mode: string | null, method: string): boolean`.
-`isolation.server.ts` tetap memegang `getRequest()` dan melempar
-`CrossSiteRequestError` (nama class harus tetap sama — dicocokkan sebagai string
-di `EXPECTED_NAMES` `src/lib/errors.ts` dan diuji `tests/errors.test.ts`), lalu
-memanggil helper itu; `middleware.ts` tak berubah. Jangan pindahkan impor
-`@tanstack/react-start/server` ke file non-`.server` (catatan di kepala file itu
-menjelaskan app mati dengan `AsyncLocalStorage is not a constructor`).
+Lokasi: `src/lib/email.ts` — **jangan ubah perilakunya**; tugas ini test saja.
+Bila test menemukan bug nyata, catat di "Blokiran"/riwayat dan hanya perbaiki
+bila sepele dan ikut teruji. Test baru `tests/email.test.ts` (node:test murni):
+stub `globalThis.fetch` per test, simpan/pulihkan potongan `process.env` yang
+disentuh (`RESEND_API_KEY`, `EMAIL_FROM`, `NODE_ENV`, `DEV_EMAIL_OUTBOX`) di
+hook `after`, file outbox sementara di `os.tmpdir()` (jangan sentuh `.env`).
 
-Perilaku yang dikunci (test unit helper murni):
+Perilaku yang dikunci:
 
-- Diizinkan: tanpa `sec-fetch-site` (klien non-browser: SSR/server-ke-server),
-  `same-origin`, `same-none` (alamat langsung/bookmark).
-- Ditolak: `same-site` ter-skrip (aplikasi saudara di domain induk bersama,
-  method apa pun tanpa mode navigate) dan `cross-site` ter-skrip.
-- Diizinkan: navigasi GET top-level (`sec-fetch-mode: navigate` + method `GET`)
-  walau `cross-site`/`same-site` — jalur callback OAuth & muat halaman biasa.
-- Ditolak: navigate GET dengan `sec-fetch-dest: object`/`embed` (halaman
-  di-frame), navigate dengan method bukan GET (form POST lintas situs),
-  GET tanpa mode navigate (fetch/XHR lintas situs).
-- Penjaga statis: `isolation.server.ts` tetap berekstensi `.server.ts` dan
-  satu-satunya pengimpor `@tanstack/react-start/server` di area itu;
-  `authMiddleware` tetap memanggil `assertSameSiteRequest()` sebelum
-  `requireUserId()`; tabel keputusan tak berubah (keputusan lama vs baru sama
-  untuk semua kombinasi header di test).
+- `emailConfigured()`: `true` hanya bila `RESEND_API_KEY` **dan** `EMAIL_FROM`
+  keduanya terisi; whitespace-only dianggap kosong (nilai di-trim).
+- `passwordResetAvailable()`: `true` bila email terkonfigurasi **atau**
+  `NODE_ENV !== 'production'` (dev server tetap menawarkan reset walau tanpa
+  provider); `false` di produksi tanpa konfigurasi.
+- `sendEmail` terkonfigurasi: satu POST ke `https://api.resend.com/emails`
+  dengan header `authorization: Bearer <key>` dan `content-type:
+  application/json`, body `{ from: EMAIL_FROM, to: [penerima], subject, text }`;
+  respons OK → resolve; respons non-OK → galat "Email provider refused the
+  message (HTTP <status>)." (status terbaca di pesan).
+- `sendEmail` tanpa konfigurasi di non-produksi: resolve **tanpa** memanggil
+  fetch (stub fetch yang melempar bila dipanggil); bila `DEV_EMAIL_OUTBOX`
+  diset, tepat satu baris JSON `{to, subject, text, at}` di-append ke file itu.
+- `sendEmail` tanpa konfigurasi di produksi: menolak dengan
+  "Email is not configured on this server.".
+- `passwordResetEmail`/`verificationEmail`: bentuk `{to, subject, text}` bahasa
+  Inggris, `text` memuat URL yang diberikan, tanpa rahasia selain URL itu.
 
-Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `test:`/`refactor:`. Tanpa perubahan skema/RPC/migrasi,
-tanpa dependensi baru. Setelah merge, tulis "Tugas berikutnya" untuk sesi
-sesudahnya. (Pola injeksi PGlite + `registerHooks` untuk modul server kini ada
-contohnya di `tests/api-v1.test.ts` bila kelak perlu.)
+Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
+Indonesia pola `test:`. Tanpa dependensi baru, tanpa akun/rahasia sungguhan
+(D7 soal ganti provider tetap keputusan pemilik — jangan ubah provider). Catat
+`console.info` dev sebagai perilaku yang dibiarkan (bukan warning lint —
+periksa `eslint` tetap 0). Setelah merge, tulis "Tugas berikutnya" berikutnya.
 
 ## Riwayat
 
+- 2026-11-15: PR #56 — refactor: keputusan isolasi lintas situs
+  `assertSameSiteRequest` diekstrak ke helper murni
+  `sameSiteAllowed(site, dest, mode, method): boolean`
+  (`src/lib/auth/same-site.ts`, tanpa impor apa pun) agar teruji langsung dari
+  Node; `isolation.server.ts` tetap file `.server.ts` pengimpor
+  `@tanstack/react-start/server`, tetap melempar `CrossSiteRequestError`
+  (nama class tak berubah, tetap di `EXPECTED_NAMES` `src/lib/errors.ts`),
+  `middleware.ts` tak berubah. Test baru `tests/same-site.test.ts` (15):
+  tabel keputusan (diizinkan: tanpa `sec-fetch-site` klien non-browser,
+  `same-origin`, `same-none`, navigasi GET top-level walau lintas situs —
+  callback OAuth; ditolak: ter-skrip `same-site`/`cross-site` termasuk form
+  POST, navigate GET `object`/`embed`, navigate non-GET, GET tanpa navigate,
+  nilai header tak dikenal), ekuivalensi dengan snapshot beku keputusan
+  pra-ekstraksi untuk seluruh 1512 kombinasi site×dest×mode×method, dan
+  penjaga statis (helper bebas impor; hanya `.server.ts` di `src/lib/auth/`
+  boleh mengimpor `@tanstack/react-start/server`; `authMiddleware` tetap
+  memanggil `assertSameSiteRequest()` sebelum `requireUserId()`). Tanpa
+  perubahan perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau
+  (430/430 unit, smoke tetap).
 - 2026-11-15: PR #55 — test: handler API publik baca-saja M4
   (`apiLearners`/`apiContext`, `src/lib/api/v1.ts`) kini punya test unit
   langsung `tests/api-v1.test.ts` (13) sebagai handler sungguhan di atas satu
