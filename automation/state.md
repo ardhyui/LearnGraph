@@ -43,6 +43,17 @@ berikutnya" untuk sesi setelahnya.
 
 ## Riwayat
 
+- 2026-11-14: PR #53 — feat: laporan diri yang mengubah penguasaan (`got-it`/
+  `started` → `lesson`, `remembered`/`forgot` → `review`) kini menambah satu
+  entri `interactions` di patch `setKnowledgeState` yang sama (`duration: 0`,
+  `timestamp` server); `snooze`/`unsnooze` tidak. Helper murni
+  `sanitizeInteractions` (`src/lib/graph/interactions.ts`) hanya menerima
+  timestamp ISO, tipe sah, durasi finite ≥ 0, skor 0–100, Bloom 1–6, catatan
+  ≤ 500 karakter, membuang entri rusak, mempertahankan urutan, dan menyimpan
+  1000 entri terakhir. Guard D5/event log/`masterySource`/respons `{ mastery }`
+  dan UI tidak berubah; tanpa RPC/skema/migrasi. Test baru
+  `tests/interactions.test.ts` (10). `npm run ci` hijau (392/392 unit, 177 cek
+  smoke). Baris backlog P0 #1 "riwayat interaksi" dicoret.
 - 2026-11-14: PR #52 — chore: `DBProvider`/`ThemeProvider` dipisah ke modul
   komponen sendiri (`src/lib/DBProvider.tsx`,
   `src/lib/ThemeProvider.tsx`), context murni ke `src/lib/db-context.ts`/
