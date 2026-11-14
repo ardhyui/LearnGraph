@@ -291,6 +291,106 @@ describe('attachment_style full quiz', () => {
   });
 });
 
+describe('subscale scores of exactly zero', () => {
+  /** Answers named subscales with `values`, every other question at mid-scale. */
+  function subscaleAnswers(
+    quiz: Assessment,
+    values: Record<string, number>,
+  ): Record<string, number> {
+    // The answer whose normalised subscale score is 50.
+    const middle = Math.round((quiz.scale.min + quiz.scale.max) / 2);
+    return Object.fromEntries(
+      quiz.questions.map((question) => [
+        question.id,
+        question.subscale !== undefined && Object.hasOwn(values, question.subscale)
+          ? values[question.subscale]
+          : middle,
+      ]),
+    );
+  }
+
+  it('keeps a real zero for both attachment dimensions (all min = secure)', () => {
+    const quiz = ALL_ASSESSMENTS.attachment_style.full;
+    const answers = answersFor(quiz, quiz.scale.min);
+    const text = quiz.interpretation(quiz.calculateScore(answers), answers);
+    assert.equal(quiz.calculateScore(answers), 83);
+    assert.ok(
+      text.startsWith('Secure attachment (Anxiety=0, Avoidance=33).'),
+      `unexpected text: ${text}`,
+    );
+  });
+
+  it('keeps the real attachment dimension scores at the top of the scale', () => {
+    const quiz = ALL_ASSESSMENTS.attachment_style.full;
+    const answers = answersFor(quiz, quiz.scale.max);
+    const text = quiz.interpretation(quiz.calculateScore(answers), answers);
+    assert.equal(quiz.calculateScore(answers), 17);
+    assert.ok(
+      text.startsWith('Fearful-Avoidant attachment (Anxiety=100, Avoidance=67).'),
+      `unexpected text: ${text}`,
+    );
+  });
+
+  it('classifies information processing from a zero analytical score', () => {
+    const quiz = ALL_ASSESSMENTS.information_processing.full;
+    const answers = subscaleAnswers(quiz, { analytical: quiz.scale.min });
+    const text = quiz.interpretation(quiz.calculateScore(answers), answers);
+    assert.match(text, /^Processing Style: Holistic\/Global\./);
+    assert.match(text, /Analytical\/Sequential=0/);
+    assert.match(text, /Holistic\/Global=50/);
+  });
+
+  it('classifies metacognition from a zero knowledge score', () => {
+    const quiz = ALL_ASSESSMENTS.metacognition.full;
+    const answers = subscaleAnswers(quiz, { knowledge: quiz.scale.min });
+    const text = quiz.interpretation(quiz.calculateScore(answers), answers);
+    assert.match(text, /Metacognition: Regulation of Cognition\./);
+    assert.match(text, /Knowledge of Cognition=0/);
+    assert.match(text, /Regulation of Cognition=50/);
+  });
+
+  it('reads a zero care/fairness score as individualizing-free, not as 50', () => {
+    const quiz = ALL_ASSESSMENTS.political_ideology.full;
+    // This scale starts at 0; an answer of 1 is the first position, which the
+    // module normalises to a subscale score of 0.
+    const answers = subscaleAnswers(quiz, { care: 1, fairness: 1 });
+    const text = quiz.interpretation(quiz.calculateScore(answers), answers);
+    assert.match(text, /Care\/Harm=0 Fairness\/Cheating=0/);
+    assert.match(text, /Loyalty\/Betrayal=50/);
+    assert.match(text, /You emphasize binding foundations/);
+  });
+
+  it('reads zero power distance and uncertainty avoidance as low, not as 50', () => {
+    const quiz = ALL_ASSESSMENTS.cultural_values.full;
+    const answers = subscaleAnswers(quiz, {
+      power_distance: quiz.scale.min,
+      uncertainty: quiz.scale.min,
+    });
+    const text = quiz.interpretation(quiz.calculateScore(answers), answers);
+    assert.match(text, /Power Distance=0/);
+    assert.match(text, /Uncertainty Avoidance=0/);
+    assert.match(text, /You prefer egalitarian relationships\./);
+    assert.match(text, /You are comfortable with ambiguity\./);
+  });
+
+  it('still returns non-empty subscale text when no answers are supplied', () => {
+    const quizzesWithSubscales = [
+      ALL_ASSESSMENTS.attachment_style.full,
+      ALL_ASSESSMENTS.information_processing.full,
+      ALL_ASSESSMENTS.metacognition.full,
+      ALL_ASSESSMENTS.political_ideology.full,
+      ALL_ASSESSMENTS.cultural_values.full,
+    ];
+    for (const quiz of quizzesWithSubscales) {
+      let text = '';
+      assert.doesNotThrow(() => {
+        text = quiz.interpretation(quiz.calculateScore({}), {});
+      }, `${quiz.domainId} threw on empty answers`);
+      assert.ok(text.trim() !== '', `${quiz.domainId} produced empty text`);
+    }
+  });
+});
+
 describe('interpretation', () => {
   it('returns readable text for 0, 50 and 100 without answers', () => {
     for (const { key, quiz } of quizzes) {

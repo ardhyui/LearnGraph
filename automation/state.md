@@ -1,54 +1,65 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 21: test langsung registri & skor `src/lib/assessments.ts`, PR #60; berikutnya: fix subskala bernilai 0 yang dibaca sebagai 50 di `interpretation`)
+Terakhir diperbarui: 2026-11-15 (siklus 22: fix subskala bernilai 0 yang dibaca sebagai 50 di `interpretation`, PR #61; berikutnya: test langsung dialect PGlite `src/lib/pglite-dialect.ts`)
 
 ## Tugas berikutnya
 
-Fix bug nyata yang ditemukan test PR #60: `interpretation` di
-`src/lib/assessments.ts` memakai `subscales[x] || 50`, jadi subskala yang
-nilainya **sah 0** diperlakukan seperti "tidak ada" dan diganti 50. Terbukti
-pada `attachment_style.full`: jawaban semua `min` menghasilkan skor 83
-(secure), tetapi teksnya berkata "Anxious-Preoccupied ... Anxiety=50" —
-seharusnya "Secure ... Anxiety=0, Avoidance=33". Perbaikan: pakai nilai 0 bila
-kuncinya ada; fallback 50 hanya bila subskala benar-benar tidak ada
-(`?? 50` / cek `Object.hasOwn`). Skor (`calculateScore`) dan data kuis tidak
-berubah.
+Penguatan tes: test unit langsung untuk dialect PGlite
+`src/lib/pglite-dialect.ts` (`pgliteDialect` + driver/koneksi internal), jalur
+database yang dipakai `src/lib/db.ts` saat `DATABASE_URL` kosong (dev lokal dan
+seluruh test PGlite). Saat ini modul hanya dipakai tidak langsung lewat
+`pgliteDialect` di test lain; perilaku lazy-init, antrean satu koneksi, dan
+transaksi belum pernah dikunci. **Modul tidak diubah** — test saja.
 
-Lokasi fallback yang harus diperbaiki (semua di `src/lib/assessments.ts`):
+Test baru `tests/pglite-dialect.test.ts` (node:test murni, tanpa dependensi
+baru) memakai klien palsu `{ query }` (bukan PGlite sungguhan) yang mencatat
+SQL/parameter dan mengembalikan `{ rows, affectedRows }` yang bisa diatur;
+`CompiledQuery` diambil dari `kysely`. Dikunci:
 
-- `attachment_style.full` — `anxiety`/`avoidance` (sekitar baris 622–623);
-- `information_processing.full` — `analytical`/`holistic` (sekitar 1819–1820);
-- `metacognition.full` — `knowledge`/`regulation` (sekitar 1888–1889);
-- `political_ideology.full` — `care`/`fairness`/`loyalty`/`authority`/`purity`
-  (sekitar 2095–2096);
-- `cultural_values.full` — `collectivism`/`individualism`/`power_distance`/
-  `uncertainty` (sekitar 2171–2174).
-
-Perilaku yang dikunci (tambahkan ke `tests/assessments.test.ts` yang sudah ada;
-jangan buat file test baru):
-
-- `attachment_style.full` dengan jawaban semua `min` → skor tetap 83 dan teks
-  persis diawali `Secure attachment (Anxiety=0, Avoidance=33).`; jawaban semua
-  `max` → skor 17 dan tetap salah satu dari empat gaya dengan `Anxiety=` dan
-  `Avoidance=` (bukan nilai 50 palsu).
-- Setiap kuis lain di daftar: saat satu subskala dijawab semua `min` (0) dan
-  subskala lain di tengah skala, teks memuat subskala itu `=0` dan klasifikasi
-  mengikuti nilai 0 — mis. `information_processing` menjadi
-  `Holistic/Global` dengan `Analytical/Sequential=0`; `metacognition` memilih
-  `Regulation of Cognition` dengan `Knowledge of Cognition=0`;
-  `political_ideology` dengan care/fairness 0 dan binding tengah menyebut
-  orientasi binding; `cultural_values` dengan `power_distance`/`uncertainty` 0
-  menyebut egalitarian dan nyaman dengan ambiguitas.
-- Fallback 50 tetap bekerja bila kunci subskala memang tidak ada (uji unit
-  helper/teks dengan jawaban `{}` pada kuis ber-subskala tidak melempar dan
-  tetap menghasilkan teks tidak kosong; jangan mengubah bentuk API).
-- Tanpa perubahan `calculateScore`, registry, label, 39 domain, skema, RPC,
-  migrasi, atau dependensi. UI tetap bahasa Inggris (D2).
+- `pgliteDialect(getClient)` membuat adapter/compiler/introspector Postgres dan
+  driver lazy; `getClient` tidak dipanggil saat dialect dibuat.
+- `init()` memanggil `getClient` sekali dan menyimpan hasilnya;
+  `acquireConnection()` sebelum `init()` juga memanggilnya sekali, dan acquire
+  berikutnya tidak memanggil lagi.
+- Hanya satu koneksi pada satu waktu: acquire kedua saat koneksi pertama masih
+  dipegang mengembalikan Promise yang belum selesai; `releaseConnection`
+  menyerahkannya ke penunggu FIFO (koneksi yang sama, bukan baru); setelah
+  antrean kosong acquire berikutnya membuat koneksi baru; melepas koneksi yang
+  bukan milik driver melempar `Invalid connection`.
+- `beginTransaction` mengirim `begin`, atau persis
+  `start transaction isolation level <level>` bila `isolationLevel` diisi;
+  `commitTransaction`/`rollbackTransaction` mengirim `commit`/`rollback`; query
+  kontrol ini dikirim tanpa parameter.
+- `executeQuery` meneruskan SQL + parameter ke `client.query` apa adanya dan
+  mengembalikan `{ rows }`; `numAffectedRows: BigInt(n)` hanya ditambahkan bila
+  `affectedRows` truthy (0/undefined tidak menambah field).
+- `streamQuery` menolak `chunkSize` bukan bilangan bulat positif dengan
+  `chunkSize must be a positive integer` **tanpa** memanggil klien; memecah
+  baris menjadi potongan berurutan sebesar `chunkSize`; baris kosong
+  menghasilkan nol yield.
+- `destroy()` tidak memanggil `client.close()` (klien PGlite bersama) dan
+  melepas handle sehingga acquire berikutnya memakai `getClient` lagi.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
-Indonesia pola `fix:`. Setelah merge, tulis "Tugas berikutnya" berikutnya.
+Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #61 — fix: `interpretation` di `src/lib/assessments.ts` tidak
+  lagi memakai `subscales[x] || 50` (nilai sah 0 dianggap "tidak ada" → 50),
+  melainkan `?? 50` di kelima kuis ber-subskala (`attachment_style.full`,
+  `information_processing.full`, `metacognition.full`, `political_ideology.full`,
+  `cultural_values.full`). Dikunci di `tests/assessments.test.ts` (19 → 26):
+  attachment semua `min` = 83 dengan teks persis `Secure attachment
+  (Anxiety=0, Avoidance=33).`, semua `max` = 17 dengan `Anxiety=100,
+  Avoidance=67`; information processing analytical 0 → `Holistic/Global` +
+  `Analytical/Sequential=0`; metacognition knowledge 0 → `Regulation of
+  Cognition` + `Knowledge of Cognition=0`; political care/fairness 0 dengan
+  binding tengah menyebut orientasi binding; cultural power distance/uncertainty
+  0 menyebut egalitarian dan nyaman dengan ambiguitas; jawaban `{}` pada kelima
+  kuis tetap tidak melempar dan menghasilkan teks tidak kosong. Tanpa perubahan
+  `calculateScore`, registry, label, skema, RPC, migrasi, atau dependensi.
+  `npm run ci` hijau (512/512 unit, 177 cek smoke).
 
 - 2026-11-15: PR #60 — test: test unit langsung registri & skor psikometrik
   `src/lib/assessments.ts` (19 test di `tests/assessments.test.ts`, node:test
