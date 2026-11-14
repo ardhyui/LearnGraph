@@ -1,53 +1,64 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-14 (siklus 12: lewati onboarding tersimpan per akun di server; berikutnya: pecah provider/hook agar pengecualian react-refresh dihapus)
+Terakhir diperbarui: 2026-11-14 (siklus 13: provider/hook dipisah agar fast refresh aktif; berikutnya: catat riwayat interaksi dari laporan diri dengan sanitasi data lama)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` P1 #6 baris "`DBContext.tsx`/`theme.tsx`
-dikecualikan dari `react-refresh/only-export-components` (provider + hook
-dalam satu file); pecah jika fast refresh di file itu dibutuhkan": dua file itu
-mencampur komponen provider dengan hook/nilai lain dalam satu modul, dan
-`eslint.config.mjs` memberi pengecualian khusus untuk keduanya. Pecah agar
-pengecualian itu bisa dihapus tanpa mengubah perilaku.
+Backlog `docs/ROADMAP.md` P0 #1 baris "riwayat interaksi (`interactions`)
+belum dicatat dari panel Today; butuh sanitasi data lama sebelum ditulis
+ulang": semua tombol laporan diri (panel Today "I've got it"/"Still
+learning"/"I remembered it"/"I forgot", halaman pelajaran, Gap Analysis,
+onboarding) memanggil `recordStudyOutcome` → `recordSelfReport`, tetapi state
+pengetahuan tidak pernah mendapat entri `interactions`. Catat riwayat itu
+dengan aman untuk data lama.
 
-Lokasi: `src/lib/DBContext.tsx` (mengekspor `DBProvider` + `useDB`/
-`useLearners`/`useConcepts`/`useEdges`/`useKnowledgeStates` +
-`createRemoteGraphDB`), `src/lib/theme.tsx` (mengekspor `ThemeProvider` +
-`useTheme` + `NO_FLASH_SCRIPT`), `src/routes/__root.tsx` (memakai kedua
-provider), `eslint.config.mjs` (blok `files: ["src/lib/DBContext.tsx",
-"src/lib/theme.tsx"]`).
+Lokasi: `src/lib/evidence/service.ts` (`recordSelfReport`),
+`src/lib/graph/types.ts` (`LearningInteraction`), helper murni baru mis.
+`src/lib/graph/interactions.ts`, test `tests/study.test.ts` atau file baru.
 
 Perilaku yang diinginkan:
 
-- `src/lib/DBContext.tsx` tetap menjadi jalur impor hook yang sudah ada
-  (25 file tidak perlu diubah), tetapi tidak lagi mengekspor komponen React;
-  `DBProvider` pindah ke modul komponen sendiri (mis.
-  `src/lib/DBProvider.tsx`) yang mengekspor hanya komponen/tipe. Context boleh
-  tetap di `DBContext.tsx` atau file murni `db-context.ts`, asal tidak ada
-  impor melingkar.
-- `src/lib/theme.tsx` tetap mengekspor `useTheme` + `NO_FLASH_SCRIPT`
-  (dipakai `__root.tsx` untuk skrip anti-kedip); `ThemeProvider` pindah ke
-  modul komponen sendiri (mis. `src/lib/ThemeProvider.tsx`). Perbarui
-  `__root.tsx` saja; pemakai `useTheme` tidak berubah.
-- Tidak ada perubahan perilaku: provider yang sama, API hook sama,
-  `NO_FLASH_SCRIPT` dan urutan mount sama; tanpa `localStorage`/server call
-  baru; SSR/hidrasi tetap sepakat.
-- Hapus pengecualian `files: [...]` itu di `eslint.config.mjs`; `npm run lint`
-  harus tetap 0 warning tanpa pengecualian tersebut. Bila aturan masih menyala
-  karena ekspor lain, pindahkan penyebabnya — jangan melonggarkan aturan
-  global.
-- Test: penjaga statis bahwa `DBContext.tsx`/`theme.tsx` tidak mengekspor
-  komponen (`function/const .*Provider`), modul provider baru mengekspor
-  provider yang dipakai `__root.tsx`, dan `eslint.config.mjs` tidak lagi
-  mencantumkan kedua file itu di pengecualian. Unit + smoke lain tetap hijau.
+- Helper murni `sanitizeInteractions(value: unknown): LearningInteraction[]`
+  menerima hanya objek dengan `timestamp` string ISO yang bisa diparse,
+  `type` ∈ {`lesson`, `quiz`, `practice`, `review`}, dan `duration` angka
+  finite ≥ 0; `score` bila ada harus angka finite 0–100, `bloomLevel` bila ada
+  harus 1–6, `notes` bila ada string (dipotong wajar, mis. 500 karakter).
+  Entri rusak dibuang tanpa melempar; urutan dipertahankan dan maksimal 1000
+  entri terakhir dipertahankan (batas yang sama dengan skema RPC).
+- `recordSelfReport` menambahkan **satu** entri untuk outcome yang mengubah
+  penguasaan: `got-it`/`started` → `type: 'lesson'`, `remembered`/`forgot` →
+  `type: 'review'`, dengan `timestamp: now.toISOString()` dan `duration: 0`
+  (laporan diri tidak punya durasi). `snooze`/`unsnooze` tidak menambah
+  interaksi.
+- Entri valid lama dipertahankan (setelah sanitasi); entri rusak lama tidak
+  menggagalkan penyimpanan. Tulis lewat `graph.setKnowledgeState` seperti
+  sekarang, di patch yang sama dengan mastery/jadwal — tanpa server function,
+  method RPC, skema, atau migrasi baru.
+- Tidak ada perubahan pada guard D5, event log, `masterySource`, bentuk
+  respons `{ mastery }`, atau UI (tanpa teks baru).
+- Test: helper (valid, bukan array/absen, tiap field rusak, urutan, batas
+  1000); service PGlite (`got-it` dan `remembered` masing-masing menambah satu
+  entri dengan tipe benar, `snooze`/`unsnooze` tidak, entri valid lama utuh,
+  entri rusak dibuang, mastery/jadwal/guard D5 tetap seperti sebelumnya).
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `chore:`. Setelah merge, tulis "Tugas berikutnya"
+berbahasa Indonesia, pola `feat:`. Setelah merge, tulis "Tugas berikutnya"
 untuk sesi setelahnya.
 
 ## Riwayat
 
+- 2026-11-14: PR #52 — chore: `DBProvider`/`ThemeProvider` dipisah ke modul
+  komponen sendiri (`src/lib/DBProvider.tsx`,
+  `src/lib/ThemeProvider.tsx`), context murni ke `src/lib/db-context.ts`/
+  `src/lib/theme-context.ts`. `DBContext.tsx` tetap jalur impor hook (25
+  pemanggil tak berubah) + `createRemoteGraphDB`; `theme.tsx` tetap
+  `useTheme` + `NO_FLASH_SCRIPT` (konstanta lokal menyalin teks dari
+  `theme-script.ts` agar hash CSP tetap satu sumber). `__root.tsx` memakai
+  modul provider baru dengan urutan mount dan key per akun yang sama.
+  Pengecualian `files: [...]` di `eslint.config.mjs` dihapus; lint tetap
+  0 warning. Test baru `tests/provider-split.test.ts` (5 penjaga statis).
+  Tanpa perubahan perilaku/skema/RPC/migrasi. `npm run ci` hijau (382/382
+  unit, 180 cek smoke). Baris backlog P1 #6 dicoret.
 - 2026-11-14: PR #51 — feat: pilihan **Explore the example learners first** kini
   disimpan per akun di meta graph (`ui:onboarding-skipped`) lewat
   `getOnboardingSkipped`/`setOnboardingSkipped`
