@@ -1,48 +1,59 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-14 (siklus 14: riwayat interaksi dari laporan diri dengan sanitasi data lama; berikutnya: batas percobaan masuk per akun di samping per IP)
+Terakhir diperbarui: 2026-11-15 (siklus 15: batas percobaan masuk per akun di samping batas per IP, PR #54; berikutnya: test langsung untuk API publik baca-saja /api/v1)
 
 ## Tugas berikutnya
 
-Backlog `docs/ROADMAP.md` P1 #7 "Pantau batas rate limit untuk sekolah di
-balik satu IP (NAT); pertimbangkan batas per akun selain per IP": endpoint
-masuk baru dibatasi per IP, jadi satu sekolah di balik satu NAT berbagi jatah
-10 percobaan/menit, sementara penyerang yang mencoba banyak akun dari satu IP
-tetap lolos bila tiap akun hanya dicoba beberapa kali.
+Penguhan tes: handler API publik baca-saja M4 (`src/lib/api/v1.ts` — `apiLearners`
+untuk `GET /api/v1/learners` dan `apiContext` untuk `GET /api/v1/context`) belum
+punya test unit langsung — hanya cek smoke happy-path (`scripts/smoke.mjs`
+±1817: key valid, tanpa key 401, key dicabut 401). Permukaan publik ini layak
+dikunci lebih rapat, terutama isolasi antar akun.
 
-Lokasi: `src/lib/auth/rate-limit.ts`, modul baru
-`src/lib/auth/account-rate-limit.ts`, handler `src/routes/api/auth/$.ts`
-(pakai `request.clone()` agar body asli tetap diteruskan ke `auth.handler`),
-test `tests/auth-rate-limit.test.ts` atau file baru.
+Lokasi: modul `src/lib/api/v1.ts` (jangan ubah perilakunya — tugas ini test
+saja; bila test menemukan bug nyata, perbaiki secukupnya dan catat), helper
+key `src/lib/api-keys.ts` (sudah dites `tests/api-keys.test.ts`), pola harness
+PGlite `tests/support/graph-db.ts` + `tests/onboarding.test.ts`. Handler memakai
+`getDb()` bersama (PGlite saat `DATABASE_URL` kosong) dan `graphForOwner`, jadi
+test bisa men-seed workspace + key lewat instance yang sama.
 
-Perilaku yang diinginkan:
+Perilaku yang dikunci:
 
-- Tambah batas **per akun** khusus percobaan masuk (POST `/sign-in/email`),
-  berjalan bersamaan dengan batas per IP yang sudah ada. Batas per akun:
-  20 percobaan / 15 menit per email (dinormalisasi trim + huruf kecil, panjang
-  wajar; email kosong/rusak tidak dihitung). Bila terlampaui, balas 429 dengan
-  `rateLimitMessage` yang sudah ada dan `X-Retry-After` > 0 tanpa memanggil
-  Better Auth (jangan sampai membuat sesi).
-- Penghitung disimpan di tabel `rateLimit` yang sudah ada (tanpa tabel/kolom/
-  migrasi baru), memakai kunci dari hash SHA-256 email (jangan simpan email
-  mentah) dan satu operasi atomik agar tetap benar di beberapa instance.
-- Jangan mengunci akun yang berhasil masuk: respons sukses menghapus baris
-  penghitung akun itu; kegagalan biasa (401) menambah hitungan. Path lain
-  (sign-up, reset password, get-session) tidak berubah, dan batas per IP tetap
-  berlaku persis seperti sekarang.
-- Kegagalan membaca/menulis tabel penghitung tidak boleh menggagalkan login
-  (degradasi ke batas IP saja), dan jangan pernah mencatat email mentah ke log.
-- Test: helper normalisasi/kunci (trim, kapital, email kosong/terlalu panjang),
-  batas akun memblokir percobaan ke-21 dari IP berbeda, keberhasilan mereset
-  hitungan, email berbeda tidak saling memblokir, path lain tak tersentuh, dan
-  test IP lama tetap hijau.
+- 401 tanpa/malformed `Authorization` (body JSON berisi `error`, header
+  `www-authenticate: Bearer`, `cache-control: no-store`); 401 key yang dicabut.
+- Isolasi akun: key akun A hanya melihat learner/konsep akun A — learner akun B
+  tidak pernah muncul di `learners` maupun `context` (dua workspace di satu
+  database PGlite, seperti `owner-isolation.test.ts`).
+- `learners`: bentuk respons `{ learners: [{ id, name, example }] }`, `example`
+  true hanya untuk id `demo-*`, nama jatuh ke id bila profil tanpa nama.
+- `context`: learner default = learner non-`demo-*` pertama milik akun (bukan
+  pelajar contoh); `learner`/`concept` boleh id ATAU nama konsep
+  (case-insensitive); 404 bila akun tanpa learner / konsep tak dikenal /
+  learner tak dikenal; 400 bila `learner` > 128 atau `concept` > 200 karakter;
+  `q` dipotong 1000 karakter; respons 200 memuat `learner`, `concept`,
+  `queryType`, `tokens`, `context`; handler baca-saja (jumlah baris tabel graph
+  tak berubah setelah panggilan).
+- Batas 60 permintaan/menit per key (`allowApiRequest`): permintaan ke-61 → 429
+  (lihat `tests/api-keys.test.ts` untuk pola `now` sintetis bila perlu).
 
 Gerbang: `npm run ci` utuh (±25 menit) harus hijau sebelum PR. Commit
-berbahasa Indonesia, pola `fix:`/`feat:`. Setelah merge, tulis "Tugas
-berikutnya" untuk sesi setelahnya.
+berbahasa Indonesia, pola `test:`/`fix:`. Tanpa perubahan skema/RPC/migrasi.
+Setelah merge, tulis "Tugas berikutnya" untuk sesi setelahnya.
 
 ## Riwayat
 
+- 2026-11-15: PR #54 — feat: batas percobaan masuk **per akun** (20/15 menit
+  per email, kunci `account-sign-in:<sha256(email)>` di tabel `rateLimit` yang
+  sudah ada) berjalan bersama batas per IP; upsert atomik per percobaan dengan
+  jendela tetap 15 menit (penolakan tidak memperpanjang jendela), 429 +
+  `x-retry-after` sebelum Better Auth dipanggil, sukses masuk menghapus
+  penghitung, email dinormalkan (trim/lowercase/≤254/rusak tak dihitung), body
+  via `request.clone()`, degradasi senyap ke batas IP saat tabel gagal, modul
+  tanpa `console`. Modul `src/lib/auth/account-rate-limit.ts`, gate
+  `withAccountSignInLimit` di `src/routes/api/auth/$.ts`. Test baru
+  `tests/account-rate-limit.test.ts` (10); test IP lama tetap hijau.
+  `npm run ci` hijau (402/402 unit, 177 cek smoke). Baris backlog P1 #7
+  dicoret.
 - 2026-11-14: PR #53 — feat: laporan diri yang mengubah penguasaan (`got-it`/
   `started` → `lesson`, `remembered`/`forgot` → `review`) kini menambah satu
   entri `interactions` di patch `setKnowledgeState` yang sama (`duration: 0`,
