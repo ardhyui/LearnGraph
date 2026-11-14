@@ -619,8 +619,8 @@ export const attachmentStyle: { quick: Assessment; full: Assessment } = {
     interpretation: (score, answers) => {
       if (!answers) return score >= 70 ? 'Secure' : score >= 40 ? 'Some insecurity' : 'Insecure';
       const subscales = calculateSubscales(answers, attachmentStyle.full.questions, 7);
-      const anxiety = subscales['anxiety'] || 50;
-      const avoidance = subscales['avoidance'] || 50;
+      const anxiety = subscales['anxiety'] ?? 50;
+      const avoidance = subscales['avoidance'] ?? 50;
 
       // Determine attachment style based on Bartholomew's 4-category model
       let style: string;
@@ -1816,8 +1816,8 @@ export const informationProcessing: { quick: Assessment; full: Assessment } = {
         'holistic': 'Holistic/Global'
       };
       const scoreStr = formatSubscaleScores(subscales, labels);
-      const analytical = subscales['analytical'] || 50;
-      const holistic = subscales['holistic'] || 50;
+      const analytical = subscales['analytical'] ?? 50;
+      const holistic = subscales['holistic'] ?? 50;
 
       let style: string;
       let desc: string;
@@ -1885,8 +1885,8 @@ export const metacognition: { quick: Assessment; full: Assessment } = {
         'regulation': 'Regulation of Cognition'
       };
       const scoreStr = formatSubscaleScores(subscales, labels);
-      const knowledge = subscales['knowledge'] || 50;
-      const regulation = subscales['regulation'] || 50;
+      const knowledge = subscales['knowledge'] ?? 50;
+      const regulation = subscales['regulation'] ?? 50;
 
       let strength: string;
       let desc: string;
@@ -2092,8 +2092,8 @@ export const politicalIdeology: { quick: Assessment; full: Assessment } = {
       const dominantDescs = dominant.map(d => descriptions[d]).join('; ');
 
       // Individualizing (care, fairness) vs Binding (loyalty, authority, purity) foundations
-      const individualizing = ((subscales['care'] || 50) + (subscales['fairness'] || 50)) / 2;
-      const binding = ((subscales['loyalty'] || 50) + (subscales['authority'] || 50) + (subscales['purity'] || 50)) / 3;
+      const individualizing = ((subscales['care'] ?? 50) + (subscales['fairness'] ?? 50)) / 2;
+      const binding = ((subscales['loyalty'] ?? 50) + (subscales['authority'] ?? 50) + (subscales['purity'] ?? 50)) / 3;
 
       let orientation: string;
       if (individualizing > binding + 10) {
@@ -2168,10 +2168,10 @@ export const culturalValues: { quick: Assessment; full: Assessment } = {
       const dominant = sorted.slice(0, 2).map(([key]) => labels[key] || key);
 
       // Key cultural dimension interpretations
-      const coll = subscales['collectivism'] || 50;
-      const indiv = subscales['individualism'] || 50;
-      const pd = subscales['power_distance'] || 50;
-      const ua = subscales['uncertainty'] || 50;
+      const coll = subscales['collectivism'] ?? 50;
+      const indiv = subscales['individualism'] ?? 50;
+      const pd = subscales['power_distance'] ?? 50;
+      const ua = subscales['uncertainty'] ?? 50;
 
       let orientation: string;
       if (coll > indiv + 15) {
