@@ -1,58 +1,118 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 43: test unit langsung bank soal demo `src/lib/evidence/demo-questions.ts`, PR #82; berikutnya: test langsung bank soal evidence — `saveQuestion`/`deleteQuestion`/`listQuestions`/`questionCounts` di `src/lib/evidence/service.ts`)
+Terakhir diperbarui: 2026-11-16 (siklus 44: test unit langsung bank soal evidence `src/lib/evidence/service.ts`, PR #83; berikutnya: test langsung sesi kuis evidence — `startQuiz`/`submitQuiz` di `src/lib/evidence/service.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung bank soal evidence — simpan/hapus/daftar**
-`src/lib/evidence/service.ts`: `saveQuestion`, `deleteQuestion`,
-`listQuestions`, `questionCounts`. File baru `tests/evidence-questions.test.ts`
-(node:test + satu PGlite on-disk, pola `tests/content-service.test.ts` PR #81):
-`openTestWorkspaces` dari `tests/support/graph-db.ts` dengan baris `"user"` per
-owner karena `owner_id` ber-FK, dan **owner terpisah per test** supaya urutan
-test tidak saling mengunci. Modul **tidak diubah**. `seedDemoQuestions` tidak
-diuji ulang (sudah dikunci di `tests/learning-evidence.test.ts`; dataset bank
-demo di PR #82). Kunci:
+Penguatan tes: **test unit langsung sesi kuis evidence — mulai & nilai**
+`src/lib/evidence/service.ts`: `startQuiz`, `submitQuiz`. File baru
+`tests/evidence-quiz-sessions.test.ts` (node:test + satu PGlite on-disk, pola
+`tests/evidence-questions.test.ts` PR #83): `openTestWorkspaces` dengan baris
+`"user"` per owner karena `owner_id` ber-FK, dan **owner terpisah per test**
+supaya urutan test tidak saling mengunci. Modul **tidak diubah**.
+`pickQuestions`/`gradeQuiz`/`quizStatePatch` tidak diuji ulang (sudah dikunci di
+`tests/learning-evidence.test.ts` dan `tests/quiz.test.ts`); di sini lapisan DB
+dan orkestrasinya. Kunci (probe dulu, kunci perilaku aktual):
 
-1. `saveQuestion` — konsep tidak ada → `EvidenceError` persis
-   `'That concept no longer exists.'`, tanpa baris, `newId` tidak dipanggil.
-   Tanpa `input.id` → `newId()` tepat sekali dan id itu dipakai; baris tersimpan
-   dengan concept_id/prompt/options/answer/explanation (`explanation`
-   `undefined` → `''`). Dengan `input.id` baru → id apa adanya, `newId` tidak
-   dipanggil. Id yang sudah ada → mengganti baris di tempat (jumlah tetap 1,
-   isi baru menang, `newId` tidak dipanggil); mengganti sambil mengubah
-   `conceptId` memindahkan soal ke bank konsep itu (dicek lewat
-   `questionCounts` + `listQuestions`). Cap 50 hanya di jalur baru: 49 lalu 1
-   sah = 50, soal ke-51 → `EvidenceError` "at most 50" tanpa baris; **tetapi**
-   mengganti id yang sudah ada saat konsep tujuan sudah 50 tetap boleh (rough
-   edge — probe dulu, kunci perilaku aktualnya). `newId()` mengembalikan id
-   yang sudah ada → `EvidenceError`
-   `'Could not create the question, please try again.'` tanpa menimpa baris
-   lama. Nilai balik = objek yang tersimpan (id, conceptId, prompt, options,
-   answer, explanation). Isolasi: id sama milik owner lain tidak tersentuh.
-2. `deleteQuestion` — menghapus tepat satu baris owner itu; id sama di owner
-   lain utuh; id absen tidak melempar. Setelah dihapus, `questionCounts` tidak
-   lagi memuat konsep itu.
-3. `listQuestions` — urut `concept_id` → `created_at` → `id` (kunci dengan
-   beberapa konsep + id eksplisit; `created_at` dikendalikan lewat insert SQL
-   mentah bila perlu), filter konsep hanya konsep itu, tanpa filter = seluruh
-   workspace, owner lain tak terlihat, `options` dari jsonb selalu array
-   string dan `explanation` selalu string.
-4. `questionCounts` — hanya konsep yang punya soal muncul, nilainya jumlah per
-   konsep, workspace kosong → `{}`, owner lain terpisah.
-
-Penjaga statis: `listQuestions` memfilter `owner_id` dan mengurutkan
-`concept_id`/`created_at`/`id`; `saveQuestion` memeriksa konsep sebelum cap,
-cap hanya di cabang `!existing`, upsert `onConflict ... doUpdateSet` dengan
-`updated_at` diisi `now()` SQL; `deleteQuestion` memfilter `owner_id` + `id`;
-asersi lama di `tests/learning-evidence.test.ts` ("example questions are seeded
-once…", "a concept with questions requires evidence…") tetap utuh.
+1. `startQuiz` — learner hilang → `EvidenceError` persis
+   `'That learner no longer exists.'`; konsep hilang → persis
+   `'That concept no longer exists.'`; konsep tanpa soal → persis
+   `“<name>” has no quiz questions yet.` (kutip melengkung); ketiganya
+   tidak menulis baris `quiz_sessions`. Soal hanya dari bank konsep itu dan
+   milik owner itu; undian `QUIZ_LENGTH` = 3 (bank < 3 → semua), respons
+   `{sessionId, conceptId, conceptName, questions}` dengan tiap soal hanya
+   `{id, prompt, options}` — tanpa `answer`/`explanation` — sedangkan snapshot
+   tersimpan (`select *` mentah) memuat
+   `{id,prompt,options,answer,explanation}`, `answers: null`, `correct: null`,
+   `completed_at: null`, `total` = jumlah soal, `learner_id`/`concept_id`/
+   `owner_id` benar; `random.uuid` tepat sekali untuk id sesi. Sesi selesai
+   sebelumnya membuat undian berikutnya mendahulukan id yang belum pernah
+   keluar (bank 6 dengan 3 id pernah keluar → 3 id baru tanpa id lama; bank 5 →
+   dua baru + satu lama); opsi diacak salinan, bukan referensi baris bank.
+2. Sesi tak dikenal dan sesi milik owner lain → `submitQuiz` persis
+   `'This quiz was not found. Start a new one.'`; submit kedua → persis
+   `'This quiz is already graded. Start a new one.'`; jawaban tidak lengkap /
+   bukan salah satu opsi → `QuizAnswerError` persis
+   `'Answer every question first.'` dan sesi tetap belum dinilai
+   (`completed_at`/`answers` null, state dan event tidak berubah).
+3. Lulus 3/3: kembalian persis `{conceptId, conceptName, correct: 3, total: 3,
+   passed: true, wasDue: false, masteryBefore: 0, mastery: 85, feedback}` dengan
+   tiap item feedback `{questionId, picked, correct, prompt, answer,
+   explanation}`; sesi ter-update `answers` (jsonb), `correct`, dan
+   `completed_at` = argumen `now`; state memakai `quizStatePatch` —
+   `masterySource: 'quiz'`, `mastery: 85`, `retentionStrength: 0.8`,
+   `lastReviewed`/`lastAssessed`/`nextReview` dari `now`, `reviewCount: 0`; satu
+   baris `learning_events` kind `quiz`, outcome `passed`, correct/total,
+   `masteryBefore` 0 / `masteryAfter` 85, `detail.sessionId` +
+   `detail.answers`, source `app`, `wasDue` false. Gagal (< 80%) → outcome
+   `failed`, mastery `Math.round(accuracy*70)` (2/3 → 47, 1/3 → 23, 0/3 → 0),
+   `reviewCount: 0`, `nextReview` = `now`. Rough edge: `createdAt` event berasal
+   dari default DB, bukan argumen `now` — cukup dicek ISO.
+4. `wasDue`: state yang sudah lewat jadwal (mastery ≥ `REVIEWABLE_MASTERY`,
+   `lastReviewed` lama, difficulty konsep) → `wasDue: true` dan `reviewCount`
+   naik 1 saat lulus; tanpa state / belum due → false.
+5. Konsep dihapus setelah sesi dimulai tetap bisa dinilai: `conceptName` jatuh
+   ke `conceptId`, state tetap dibuat, event tetap ditulis (perilaku aktual —
+   probe dulu).
+6. Penjaga statis: `startQuiz` memanggil `requireLearnerAndConcept` sebelum
+   `listQuestions`, memakai `QUIZ_LENGTH`/`random.int`/`random.uuid`, menyimpan
+   `questions: jsonb(questions)` dan mengembalikan view `({ id, prompt,
+   options })` (tanpa answer); `submitQuiz` memfilter `owner_id` + `id`,
+   menolak `completed_at` terisi sebelum `gradeQuiz`, update dengan guard
+   `completed_at is null` + `returning('id')`, memanggil `quizStatePatch` lalu
+   `appendEvent`; asersi lama di `tests/learning-evidence.test.ts` — 'a quiz
+   never sends the answer key, and only a passed quiz makes the concept
+   mastered', 'a quiz is graded once, and only in its own workspace', 'every
+   answer and review is an event bound to its account' — tetap utuh.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10–14). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
 UI tetap bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-16: PR #83 — test: test unit langsung bank soal evidence
+  `src/lib/evidence/service.ts` — `saveQuestion`/`deleteQuestion`/
+  `listQuestions`/`questionCounts` (12 test di
+  `tests/evidence-questions.test.ts`, node:test; satu PGlite on-disk + migrasi
+  asli via `openTestWorkspaces`, baris `user` per owner karena `owner_id`
+  ber-FK; 14 owner terpisah agar urutan test tidak saling mengunci), modul
+  tidak diubah. Dikunci: `saveQuestion` — konsep hilang → `EvidenceError`
+  persis `'That concept no longer exists.'` tanpa baris dan tanpa `newId`;
+  tanpa `input.id` → `newId()` tepat sekali (id dipakai, `explanation`
+  `undefined` → `''`, nilai balik = baris tersimpan); `input.id` baru dipakai
+  apa adanya tanpa `newId`; id lama diganti di tempat (jumlah tetap 1, isi baru
+  menang) dan mengganti sambil mengubah `conceptId` memindahkan baris
+  (`questionCounts` + `listQuestions`); cap 50 hanya jalur baru — 49 + 1
+  generated = 50, ke-51 (generated maupun id eksplisit baru) → `EvidenceError`
+  `'A concept can have at most 50 questions.'` tanpa baris, sedangkan
+  mengganti id lama saat konsep tujuan penuh tetap boleh (rough edge);
+  `newId()` mengembalikan id yang sudah ada → persis
+  `'Could not create the question, please try again.'` tanpa menimpa baris
+  lama. `deleteQuestion` — tepat satu baris owner itu, salinan id sama milik
+  owner lain utuh, id absen tidak melempar, dan konsep yang tinggal kosong
+  hilang dari `questionCounts`. `listQuestions` — urut `concept_id` →
+  `created_at` → `id` (`created_at` dikendalikan lewat UPDATE SQL mentah; seri
+  → urut id), filter konsep, tanpa filter = seluruh workspace, owner lain tak
+  terlihat, `options` jsonb selalu array string (`[2,true]` → `['2','true']`,
+  objek → `[]`) dan `explanation` selalu string. `questionCounts` — hanya
+  konsep bersoal, nilai number, konsep kosong absen, workspace kosong `{}`,
+  owner lain terpisah. Rough edge tambahan dikunci: memindahkan soal lama ke
+  konsep yang sudah 50 menghasilkan 51 baris karena cap hanya di cabang
+  `!existing`. Penjaga statis: `listQuestions` memfilter `owner_id` + urutan
+  ketiga kolom; `saveQuestion` cek konsep sebelum `newId`, kedua sebutan
+  `MAX_QUESTIONS_PER_CONCEPT` di dalam cabang `!existing`,
+  ``onConflict ... doUpdateSet({ ...values, updated_at: sql`now()` })``, satu
+  `insertInto('quiz_questions')`, tanpa `updateTable`; `deleteQuestion` filter
+  `owner_id` + `id`; dua judul lama di `tests/learning-evidence.test.ts` tetap
+  utuh. Catatan proses: dua asersi draf awal salah terhadap kode
+  (`MAX_QUESTIONS_PER_CONCEPT` muncul dua kali di `saveQuestion` — perbandingan
+  dan pesan; typecheck menolak `counts.cc` pada tipe hasil ter-infer
+  `{ca,cb}`) dan diperbaiki sebelum gerbang; probe awal mengonfirmasi seluruh
+  perilaku cap/move. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/
+  dependensi. `npm run ci` hijau (install, typecheck, lint 0/0, 864/864 unit =
+  852 + 12, build, anggaran bundel, CSP build produksi, 185 cek smoke
+  Playwright + PGlite).
 
 - 2026-11-15: PR #82 — test: test unit langsung bank soal demo
   `src/lib/evidence/demo-questions.ts` (7 test di `tests/demo-questions.test.ts`,
