@@ -1,51 +1,88 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 40: test unit langsung modul konten pelajaran `src/lib/content/content.ts`, PR #79; berikutnya: test langsung dataset konten demo `src/lib/content/demo-content.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 41: test unit langsung dataset konten demo `src/lib/content/demo-content.ts`, PR #80; berikutnya: test langsung layanan konten `src/lib/content/service.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung dataset konten pelajaran demo**
-`src/lib/content/demo-content.ts` (244 baris). `DEMO_CONTENT` dibangun dari
-peta `MATH`: per konsep tiga item (text/example/exercise) yang diberi
-`id: demo-<conceptId>-<kind>`, `url: null`, `language: 'en'`, `source:
-'LearnGraph example content'`, `position` indeks array. Cakupannya kini
-hanya ± 8 asersi dalam `tests/learn-in-app.test.ts` (tiap konsep matematika
-punya text/example/exercise, semua lolos `contentInput`, exercise punya
-solusi, id unik, aritmetika non-exercise ≤ 5 menit).
+Penguatan tes: **test unit langsung layanan konten server**
+`src/lib/content/service.ts` (225 baris; `listContent`/`contentCounts`/
+`contentMinutes`/`saveContent`/`deleteContent`/`seedDemoContent`/
+`recordLessonOpened`). Satu PGlite in-memory + migrasi asli via pola
+`tests/learn-in-app.test.ts` (`openTestWorkspaces` dari `tests/support/`,
+baris `user` per owner karena `owner_id` ber-FK; lihat juga
+`tests/graph-store.test.ts`), modul **tidak diubah**. Empat test lama di
+`tests/learn-in-app.test.ts` (seed 18 sekali per workspace, save + isolasi +
+konsep hilang, recordLessonOpened, hapus konsep → konten ikut terhapus) tetap
+utuh. Kunci sisanya:
 
-1. File baru `tests/demo-content.test.ts` (node:test murni, impor
-   `../src/lib/content/demo-content.ts` langsung, tanpa PGlite/DOM). Modul
-   **tidak diubah**; jalankan dulu modulnya untuk mengunci perilaku aktual
-   (terukur: 18 item, menit 2..4). Kunci:
-   - `DEMO_CONTENT` tepat 18 item = 6 konsep × 3; id persis
-     `demo-<conceptId>-<kind>` dan unik; enam `conceptId` sama persis dengan
-     id matematika `demoConcepts` dari `src/lib/demo-data.ts` (`concept:`
-     di-strip) — salinan eksplisit.
-   - per konsep: kind persis `['text','example','exercise']` sesuai urutan
-     dengan `position` 0/1/2; `title` dan `body` tak kosong untuk semua.
-   - semua item: `minutes` bulat 1..10, `url === null`, `language === 'en'`
-     (UI pelajar bahasa Inggris, D2), `source === 'LearnGraph example
-     content'`, `solution` tak kosong hanya untuk `exercise` (text/example
-     `''`).
-   - semua item lolos `contentInput.safeParse` (validator editor yang sama);
-     `orderContent` tiap preferensi mengembalikan tepat 3 item per konsep
-     tanpa menduplikasi.
-   - tiap `body` dan `solution` di-parse `parseRichText` → ≥ 1 blok, tanpa
-     bagian `{ text: '' }`; karakter tipografi Unicode (−, ×, ÷, ², ✓) utuh
-     sebagai teks.
-   - `lessonMinutes` per konsep = jumlah `minutes` eksplisitnya (nilai
-     eksplisit per konsep dikunci sebagai salinan).
-2. Penjaga statis: `src/lib/content/service.ts` tetap satu-satunya pemakai
-   `DEMO_CONTENT` untuk seeding; `demo-content.ts` hanya `import type` dari
-   `./content.ts`; asersi lama "ships a complete example subject..." di
-   `tests/learn-in-app.test.ts` tetap utuh.
+1. File baru `tests/content-service.test.ts`. Jalankan dulu fungsi-funginya
+   untuk mengunci perilaku aktual. Kunci:
+   - `seedDemoContent` kondisi lewati: konsep demo dihapus / domainnya diubah
+     editor / konsep sudah punya konten sendiri → konsep itu dilewati tanpa
+     menulis baris (verifikasi `contentCounts`), konsep lain tetap masuk;
+     flag meta `seed:demo-content` tetap ditulis sehingga panggilan kedua
+     mengembalikan 0 walau ada konsep yang dilewati; nilai balik = jumlah
+     baris yang benar-benar masuk (`onConflict ... doNothing`).
+   - `saveContent`: `input.id` yang sama mengganti item yang lama (update,
+     bukan duplikat; jumlah baris tetap); normalisasi per kind — `solution`
+     dipaksa `''` untuk non-exercise dan `url` dipaksa `null` untuk
+     non-link/video walau input menyediakan nilai; batas
+     `MAX_CONTENT_PER_CONCEPT = 50` per konsep: item ke-50 sah, ke-51
+     melempar `EvidenceError` berteks `at most 50`, tetapi mengganti id yang
+     sudah ada tetap boleh di angka 50.
+   - `deleteContent` menghapus tepat satu item milik owner itu; id sama pada
+     owner lain tetap utuh (isolasi).
+   - `listContent` diurut `concept_id` → `position` → `id` dan filter
+     `conceptId` hanya melihat konsep itu; `contentMinutes` menjumlah menit
+     eksplisit dengan fallback item tanpa menit = 2 dan link = 0.
+   - `recordLessonOpened` melempar `EvidenceError` ("no longer exists") saat
+     learner atau konsep hilang, tanpa menulis event.
+2. Penjaga statis: `service.ts` tetap satu-satunya pemakai `DEMO_CONTENT`
+   (test `tests/demo-content.test.ts` sudah menjaganya — cukup rujuk, jangan
+   duplikasi); `saveContent` tetap menulis `solution`/`url` ternormalisasi
+   lewat objek `values` tunggal (bukan cabang SQL terpisah).
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10). Commit pola
-`test: ...` (mis. `test: kunci dataset konten demo dengan test langsung`).
-Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. UI tetap
-bahasa Inggris (D2).
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 8–10). Commit pola
+`test: ...` (mis. `test: kunci layanan konten dengan test langsung`). Tanpa
+perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. UI tetap bahasa
+Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-15: PR #80 — test: test unit langsung dataset konten pelajaran demo
+  `src/lib/content/demo-content.ts` (12 test di `tests/demo-content.test.ts`,
+  node:test murni, impor dataset langsung, tanpa PGlite/DOM), modul tidak
+  diubah. Dikunci: `DEMO_CONTENT` tepat 18 item dengan urutan id persis
+  (salinan eksplisit 18 id `demo-<conceptId>-<kind>` berurutan) dan unik; enam
+  `conceptId` = id matematika `demoConcepts` (`concept:` di-strip) dalam
+  urutan sama (salinan eksplisit); per konsep kind persis
+  `['text','example','exercise']` dengan `position` 0/1/2 dan title/body tak
+  kosong; metadata seragam — `url: null`, `language: 'en'` (UI pelajar bahasa
+  Inggris, D2), `source: 'LearnGraph example content'`, menit bulat 1..10
+  (aktual 2..4); `solution` tak kosong hanya untuk exercise, `''` untuk
+  text/example; semua item lolos `contentInput.safeParse` dengan menit dan id
+  diteruskan apa adanya; `orderContent` tiap preferensi per konsep → tepat 3
+  item tanpa duplikat dengan urutan kind dikunci (explain-first
+  text/example/exercise, example-first example/text/exercise, practice-first
+  exercise/example/text); tiap body & solusi `parseRichText` → ≥ 1 blok tanpa
+  bagian teks kosong dan body tidak blank; tipografi Unicode utuh sebagai
+  teks setelah parse (−, ×, ÷ di teks & solusi aritmetika, ² di teks
+  kuadratik, ✓ di tiga contoh aljabar); `lessonMinutes` per konsep = jumlah
+  menit eksplisit (salinan eksplisit: empat konsep pertama 8, dua terakhir
+  11). Penjaga statis: scan seluruh `src/` (`ts`/`tsx` kecuali modul itu dan
+  `service.ts`) tanpa `demo-content`/`DEMO_CONTENT` lain; `service.ts` tetap
+  mengimpor dataset dan seeding memfilter `DEMO_CONTENT` per konsep;
+  `demo-content.ts` hanya `import type { ContentItem }` dari `./content.ts`
+  tanpa impor runtime; asersi lama "ships a complete example subject..." dan
+  "accepts lesson items and only https links" di `tests/learn-in-app.test.ts`
+  tetap utuh. Catatan proses: probe modul sebelum menulis test menyisihkan
+  satu draf asersi yang tak cocok dengan data (✓ hanya di tiga contoh
+  aljabar, bukan semua contoh) dan typecheck pra-gerbang menolak perbandingan
+  `c.minutes >= 1` tanpa penyempitan (`Number.isInteger` bukan type guard —
+  dikejar dengan cek `typeof`), lalu prettier merapikan format. Tanpa
+  perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. `npm run ci`
+  hijau (install, typecheck, lint 0/0, 834/834 unit = 822 + 12, build,
+  anggaran bundel, CSP build produksi, smoke Playwright + PGlite).
 
 - 2026-11-15: PR #79 — test: test unit langsung modul konten pelajaran
   `src/lib/content/content.ts` (32 test di `tests/content.test.ts`,
