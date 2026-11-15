@@ -124,6 +124,7 @@ const steps = [
   ['lint (0 errors, 0 warnings)', () => run('npm', ['run', 'lint'])],
   ['tests', () => run('npm', ['test'])],
   ['build', () => run('npm', ['run', 'build'])],
+  ['bundle budget on the production build', () => run('node', ['scripts/check-bundle.mjs'])],
   ['CSP on the production build', productionCsp],
   ['smoke (Playwright + PGlite)', smoke],
 ];
