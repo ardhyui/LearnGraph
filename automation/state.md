@@ -1,94 +1,111 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 39: test unit langsung skor bukti belajar `src/lib/evidence/scoring.ts`, PR #78; berikutnya: test langsung modul konten pelajaran `src/lib/content/content.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 40: test unit langsung modul konten pelajaran `src/lib/content/content.ts`, PR #79; berikutnya: test langsung dataset konten demo `src/lib/content/demo-content.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung modul konten pelajaran**
-`src/lib/content/content.ts` (225 baris). Header modul mengklaim "pure helpers
-(no I/O), unit-tested", tetapi belum punya file test sendiri; cakupannya kini
-hanya ~10 asersi di `tests/learn-in-app.test.ts` (impor yang sama untuk fitur
-M2): `contentInput` dasar, `determinePresentationStrategy` dua kasus,
-`orderContent` dua kasus, `parseRichText` dua kasus, `lessonMinutes` satu
-kasus. Sebagian besar aturan skema, matriks skor format, tie-breaker urutan,
-dan detail parser belum pernah diperiksa.
+Penguatan tes: **test unit langsung dataset konten pelajaran demo**
+`src/lib/content/demo-content.ts` (244 baris). `DEMO_CONTENT` dibangun dari
+peta `MATH`: per konsep tiga item (text/example/exercise) yang diberi
+`id: demo-<conceptId>-<kind>`, `url: null`, `language: 'en'`, `source:
+'LearnGraph example content'`, `position` indeks array. Cakupannya kini
+hanya ± 8 asersi dalam `tests/learn-in-app.test.ts` (tiap konsep matematika
+punya text/example/exercise, semua lolos `contentInput`, exercise punya
+solusi, id unik, aritmetika non-exercise ≤ 5 menit).
 
-1. File baru `tests/content.test.ts` (node:test murni, impor
-   `../src/lib/content/content.ts` langsung, tanpa PGlite/DOM/fetch). Modul
-   **tidak diubah**; jalankan dulu modulnya untuk mengunci perilaku aktual.
-   Kunci:
-   - konstanta: `CONTENT_KINDS` salinan eksplisit
-     `['text','example','exercise','link','video']`; `CONTENT_KIND_LABELS`
-     satu label untuk tiap kind; `MAX_CONTENT_PER_CONCEPT = 50`;
-     `FORMAT_PREFERENCES` `['explain-first','example-first','practice-first']`;
-     `FORMAT_LABELS` satu label per preferensi; `FORMAT_TAG_PREFIX = 'format:'`.
-   - `contentInput` (Zod): minimal `{conceptId, kind:'text', title, body}` sah
-     dengan default `{solution:'', url:null, minutes:null, language:'en',
-     source:'', position:0}` dan kunci tak dikenal dibuang; `title` di-trim
-     lalu 1..200 (kosong/spasi/201 gagal); `body` dan `solution` ≤ 20.000
-     karakter tanpa trim (20.001 gagal); `url` `''` diproses jadi null dan
-     hanya `https://` yang sah (http/ftp/relatif/rusak gagal), link & video
-     wajib url tetapi bodynya boleh kosong, sedangkan text/example/exercise
-     wajib body tak kosong setelah trim dan boleh tanpa url; `minutes`
-     int 1..600 atau null (0, 601, 1.5 gagal); `language` cocok
-     `^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$` (`en`/`id`/`eng`/`en-US` lolos; `EN`,
-     `e`, `english`, `en-US-x` gagal); `position` int 0..10.000 (-1/10.001/1.5
-     gagal); `id` opsional `^[A-Za-z0-9_-]{1,64}$`; `conceptId` lewat
-     `writeId` (kosong, >128, atau mengandung `:` gagal); `kind` di luar lima
-     nilai gagal.
-   - `determinePresentationStrategy`: tag `format:<pref>` sah menang dengan
-     `source:'chosen'` walau `learningStyle` menunjuk lain; tag **pertama**
-     berawalan `format:` menentukan, jadi tag pertama tak sah (mis.
-     `format:nonsense`) membuat seluruh tag format diabaikan lalu jatuh ke
-     `learningStyle` (rough edge); tanpa tag sah — kinesthetic →
-     `practice-first`/`suggested`, visual → `example-first`/`suggested`,
-     reading/auditory → `explain-first`/`suggested`, primary lain/absen atau
-     learner null/undefined → `explain-first`/`default`; tag non-format
-     diabaikan.
-   - `withFormatPreference`: membuang semua tag `format:` lama, urutan tag
-     lain dipertahankan, tag baru ditambahkan di akhir; `null` hanya membuang;
-     `tags` undefined → `[]` atau satu tag; `.slice(0, 50)` hanya berlaku saat
-     menambah, jadi 50 tag lain + pilihan baru membuang tag baru (hasil 50),
-     sedangkan jalur `null` tidak memotong daftar >50 (rough edge).
-   - `scoreContentMatch`: matriks 15 nilai persis — explain-first
-     text 4/video 3/example 2/exercise 1/link 0; example-first
-     example 4/video 3/text 2/exercise 1/link 0; practice-first
-     exercise 4/example 3/text 2/video 1/link 0.
-   - `orderContent`: skor menurun, lalu `position` menaik, lalu id
-     `localeCompare`; masukan tidak dimutasi; skor tinggi tetap lebih dulu
-     walau posisinya besar; skor+posisi sama diselesaikan id.
-   - `lessonMinutes`: menjumlah `minutes` eksplisit (termasuk 0), `null`/
-     absen → 2 menit kecuali link → 0; daftar kosong → 0; nilai desimal
-     dijumlah apa adanya.
-   - `parseInline`: `**bold**` dan `` `code` `` menjadi span bertanda; teks di
-     antaranya utuh; penanda kosong (`****`, dua backtick) dan penanda tak
-     berpasangan tetap teks; beberapa span berurutan; string kosong → `[]`;
-     tanpa escape/HTML.
-   - `parseRichText`: `\r\n`/`\r` dinormalkan ke `\n`; blok dipisah baris
-     kosong (`/\n\s*\n/`); baris di-trimEnd dan baris kosong dibuang; paragraf
-     = baris berurutan digabung satu spasi setelah trim; baris `- ` atau `* `
-     (wajib diikuti minimal satu spasi) memulai `ul` dengan tiap item
-     `parseInline`; daftar memutus paragraf dan sebaliknya; `-`/`- ` tanpa isi
-     setelah trimEnd bukan bullet (jadi paragraf `-`) (rough edge); body
-     kosong/spasi → `[]`; `<b>`/`<script>` tetap teks biasa (tidak
-     diinterpretasi sebagai HTML).
-2. Penjaga statis: `content.ts` tetap satu sumber aturan — `src/server/
-   content.functions.ts` memakai `contentInput` + `CONTENT_KINDS` +
-   `FORMAT_PREFERENCES` sebagai validator server dan mengimpor
-   `determinePresentationStrategy`/`orderContent`; `src/routes/
-   learn.$conceptId.tsx` memakai `withFormatPreference`/`orderContent`;
-   `src/components/RichText.tsx` memakai `parseRichText` (tidak ada salinan
-   parser/HTML); `src/lib/tutor/service.ts` memakai
-   `determinePresentationStrategy`; tidak ada salinan matriks `KIND_SCORES`,
-   regex `format:` baru, atau parser markup di berkas lain. Asersi lama di
+1. File baru `tests/demo-content.test.ts` (node:test murni, impor
+   `../src/lib/content/demo-content.ts` langsung, tanpa PGlite/DOM). Modul
+   **tidak diubah**; jalankan dulu modulnya untuk mengunci perilaku aktual
+   (terukur: 18 item, menit 2..4). Kunci:
+   - `DEMO_CONTENT` tepat 18 item = 6 konsep × 3; id persis
+     `demo-<conceptId>-<kind>` dan unik; enam `conceptId` sama persis dengan
+     id matematika `demoConcepts` dari `src/lib/demo-data.ts` (`concept:`
+     di-strip) — salinan eksplisit.
+   - per konsep: kind persis `['text','example','exercise']` sesuai urutan
+     dengan `position` 0/1/2; `title` dan `body` tak kosong untuk semua.
+   - semua item: `minutes` bulat 1..10, `url === null`, `language === 'en'`
+     (UI pelajar bahasa Inggris, D2), `source === 'LearnGraph example
+     content'`, `solution` tak kosong hanya untuk `exercise` (text/example
+     `''`).
+   - semua item lolos `contentInput.safeParse` (validator editor yang sama);
+     `orderContent` tiap preferensi mengembalikan tepat 3 item per konsep
+     tanpa menduplikasi.
+   - tiap `body` dan `solution` di-parse `parseRichText` → ≥ 1 blok, tanpa
+     bagian `{ text: '' }`; karakter tipografi Unicode (−, ×, ÷, ², ✓) utuh
+     sebagai teks.
+   - `lessonMinutes` per konsep = jumlah `minutes` eksplisitnya (nilai
+     eksplisit per konsep dikunci sebagai salinan).
+2. Penjaga statis: `src/lib/content/service.ts` tetap satu-satunya pemakai
+   `DEMO_CONTENT` untuk seeding; `demo-content.ts` hanya `import type` dari
+   `./content.ts`; asersi lama "ships a complete example subject..." di
    `tests/learn-in-app.test.ts` tetap utuh.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 25). Commit pola
-`test: ...` (mis. `test: kunci konten pelajaran dengan test langsung`).
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10). Commit pola
+`test: ...` (mis. `test: kunci dataset konten demo dengan test langsung`).
 Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. UI tetap
 bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-15: PR #79 — test: test unit langsung modul konten pelajaran
+  `src/lib/content/content.ts` (32 test di `tests/content.test.ts`,
+  node:test murni, impor modul langsung, tanpa PGlite/DOM), modul tidak
+  diubah. Dikunci: konstanta `CONTENT_KINDS`/`FORMAT_PREFERENCES` salinan
+  eksplisit + satu label per nilai + `MAX_CONTENT_PER_CONCEPT = 50` +
+  `FORMAT_TAG_PREFIX = 'format:'`; `contentInput` — minimal `{conceptId,
+  kind, title, body}` sah dengan default `{solution:'', url:null,
+  minutes:null, language:'en', source:'', position:0}`, kunci asing
+  dibuang, title di-trim lalu 1..200 (200 sah/201 gagal), body/solution
+  ≤ 20.000 tanpa trim, url `''` → null (sah untuk kind teks, tetap ditolak
+  untuk link), hanya `https://` sah (http/ftp/relatif/rusak gagal) dan
+  di-trim, link/video wajib url + body boleh kosong sedangkan text/example/
+  exercise wajib body tak kosong setelah trim, menit int 1..600 atau null
+  (0/601/1.5 gagal), bahasa `^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$` (`en`/`id`/
+  `eng`/`en-US`/`nl-BE` lolos; `EN`/`e`/`english`/`en-US-x` gagal), posisi
+  int 0..10.000, id opsional `^[A-Za-z0-9_-]{1,64}$`, `conceptId` lewat
+  `writeId` (kosong/>128/`:`/spasi/kontrol gagal), kind di luar lima gagal;
+  `determinePresentationStrategy` — tag `format:` sah menang `chosen` walau
+  learningStyle menunjuk lain, tag `format:` **pertama** menentukan sehingga
+  tag pertama tak sah menonaktifkan seluruh tag format lalu jatuh ke
+  learningStyle (rough edge dikunci dua arah), kinesthetic → practice-first/
+  suggested, visual → example-first/suggested, reading/auditory →
+  explain-first/suggested, primary tak dikenal/tanpa learningStyle/learner
+  null/undefined → explain-first/default, tag non-format diabaikan;
+  `withFormatPreference` — semua tag `format:` lama dibuang, tag lain
+  terjaga urutannya, tag baru di akhir, `null` hanya membuang, slice 50 hanya
+  saat menambah (49 tag lain + pilihan → 50 dengan pilihan terakhir; 50 tag
+  lain + pilihan → pilihan yang terbuang; jalur `null` tak memotong 51 —
+  rough edge); `scoreContentMatch` matriks 15 nilai persis; `orderContent`
+  skor menurun → posisi menaik → id localeCompare, skor tinggi tetap awal
+  walau posisi besar, masukan tak dimutasi; `lessonMinutes` menjumlah menit
+  eksplisit (termasuk 0 dan desimal), null/absen runtime → 2 kecuali link →
+  0, `[]` → 0; `parseInline` — `**bold**`/`` `code` `` span bertanda, teks
+  antar span utuh, penanda kosong (`****`, dua backtick) dan tak
+  berpasangan tetap teks, span berurutan, `''` → `[]`; `parseRichText` —
+  `\r\n`/`\r` dinormalkan, blok dipisah baris kosong (boleh berisi spasi,
+  beberapa baris kosong = satu pemisah), baris paragraf di-trim lalu digabung
+  satu spasi, `- `/`* ` (minimal satu spasi, boleh indentasi dan spasi
+  ekstra) memulai `ul` dengan tiap item `parseInline`, paragraf ↔ daftar
+  dua arah, `-`/`- `/`*` tanpa isi = paragraf marker telanjang (rough edge),
+  body kosong/spasi → `[]`, `<b>`/`<script>` tetap teks. Penjaga statis:
+  `content.functions.ts` memakai `contentInput` + `z.enum
+  (FORMAT_PREFERENCES)` + `z.enum(CONTENT_KINDS)` dan mengimpor
+  `determinePresentationStrategy`/`orderContent` dari modul; rute
+  `learn.$conceptId.tsx` memakai `withFormatPreference`/`orderContent`;
+  `tutor/service.ts` mengimpor dan memanggil
+  `determinePresentationStrategy(learner)`; `RichText.tsx` mengimpor
+  `parseRichText` tanpa `dangerouslySetInnerHTML`/`innerHTML`; scan seluruh
+  `src/` (`ts`/`tsx` kecuali modul itu) tanpa salinan `KIND_SCORES`/
+  `FORMAT_TAG_PREFIX`/regex parser markup; empat asersi lama `tests/
+  learn-in-app.test.ts` tetap utuh. Catatan proses: probe modul sebelum
+  menulis test menyisihkan dua draf asersi yang tak cocok dengan kode (url
+  `''` pada kind `link` tetap ditolak refine; hasil `parseRichText` adalah
+  array blok) dan typecheck pra-gerbang menolak helper `style` yang ter-infer
+  string lebar — diperbaiki dengan `as const` (pola PR #77) sebelum gerbang;
+  `npm run ci` lulus penuh pada percobaan pertama tanpa perubahan apa pun
+  setelahnya. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
+  `npm run ci` hijau (install, typecheck, lint 0/0, 822/822 unit = 790 + 32,
+  build, anggaran bundel, CSP build produksi, smoke Playwright + PGlite).
 
 - 2026-11-15: PR #78 — test: test unit langsung skor bukti belajar
   `src/lib/evidence/scoring.ts` (24 test di `tests/evidence-scoring.test.ts`,
