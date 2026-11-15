@@ -1,45 +1,95 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 34: test langsung `checkPage` di `scripts/check-csp.mjs` — gerbang CSP build produksi, 25 test di `tests/check-csp.test.ts`, PR #73; berikutnya: test CLI `scripts/migrate.mjs` via `spawnSync`)
+Terakhir diperbarui: 2026-11-15 (siklus 35: test CLI langsung `scripts/migrate.mjs` via `spawnSync` — 13 test di `tests/migrate-cli.test.ts`, PR #74; berikutnya: tambal keamanan dependensi runtime dalam rentang via `npm audit fix`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test CLI langsung **`scripts/migrate.mjs`** — migrator deploy
-(node-postgres) yang berjalan pada **setiap** `npm run build` via `db:migrate`,
-satu-satunya skrip `scripts/` yang tersisa tanpa test langsung. Modul memanggil
-`main()` saat impor (exit 0/1 di top level), jadi **tidak boleh diimpor** —
-uji lewat `spawnSync` child process (pola `tests/with-app-env.test.ts`), tanpa
-database nyata, modul tidak berubah. Test baru `tests/migrate-cli.test.ts`
-mengunci:
+Pemeliharaan dependensi: **tambal keamanan dalam rentang** berdasarkan
+`npm audit` (saat siklus 35: 12 temuan — 1 kritis, 1 tinggi, 8 moderat,
+2 rendah). Dua menimpa dependensi **runtime** yang terpasang saat ini dan
+diperbaiki `npm audit fix` tanpa `--force` (masih dalam rentang semver yang
+dinyatakan, hanya `package-lock.json` yang berubah):
 
-- **Tanpa `DATABASE_URL`** (env anak dibersihkan persis) → exit 0 + pesan
-  skip persis `[migrate] DATABASE_URL not set — skipping (the PGLite fallback
-  migrates itself).` — jalur CI/preview lokal.
-- **`DATABASE_URL` tak terjangkau** (`postgres://127.0.0.1:1/db`, ECONNREFUSED
-  instan) pada checkout repo (migrations pending ada) → exit 1 + baris mulai
-  `[migrate] failed:`; tidak pernah exit 0.
-- **Jalur tanpa koneksi database** (butuh salinan `migrate.mjs` +
-  `migration-plan.mjs` ke `tmp/x/scripts/` dan **symlink** `node_modules` repo
-  ke `tmp/x/node_modules` supaya impor `pg` tetap resolves; direktori
-  `migrations/` dihitung relatif lokasi salinan): direktori `migrations/`
-  tidak ada → `[migrate] no migrations/ directory — nothing to do.` exit 0;
-  direktori ada tanpa `.sql` → `[migrate] no migrations — nothing to do.`
-  exit 0 — **keduanya tetap exit 0 walau `DATABASE_URL` tak terjangkau**
-  (bukti pool tidak dibuka sebelum cek pending; urutan ini yang melindungi
-  deploy tanpa skema dari koneksi sia-sia).
-- Env anak dikendalikan penuh (`.env` repo tidak ikut); argumen CLI tidak
-  mengubah jalur.
-- Penjaga statis di sumber: skip `DATABASE_URL` (dengan `process.exit(0)`)
-  mendahului `main()`; daftar pending hanya lewat `pendingMigrations` dari
-  `./migration-plan.mjs` (tidak ada logika basename lokal); tiap migrasi
-  dibungkus `BEGIN` … `INSERT INTO _migrations` … `COMMIT` dengan `ROLLBACK`
-  di `catch`; error handler mencetak `[migrate] failed:` sebelum `exit 1`.
+- `zod@4.6.5` → ≥ 4.6.6 (**high**, GHSA-mrhx-c7xc-m3w5 — Zod bisa
+  menghabiskan memori saat memvalidasi koleksi berbatas ukuran besar; repo
+  memakai Zod untuk SEMUA validasi input server via
+  `src/lib/graph/rpc-schemas.ts` dan skema server function lain).
+- `seroval@1.6.9` (transitif di bawah `@tanstack/react-router`/`react-start`)
+  → versi tambal (**moderat**, GHSA-f86p-h4j2-7qgj injeksi kode lewat properti
+  `constructor` typed array; GHSA-9wx9-5pv9-3349 injeksi skrip lewat sumber
+  RegExp pada keluaran terserialisasi — serialisasi RPC TanStack Start).
 
-Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
-Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi;
-salinan & symlink hanya di direktori sementara yang dibersihkan di `after`.
+Bagian opsional (hanya bila mulus, satu sesi yang sama): `better-auth`
+`~1.6.30` → `1.7.25` untuk menutup GHSA-44jh-23m7-hpcf (**kritis** — rate
+limit Better Auth di PostgreSQL bisa terlampaui permintaan konkuren via
+`@better-auth/kysely-adapter`; repo memakai rate limiter bawaan Better Auth
+dengan storage Postgres). Ini minor bump 1.6 → 1.7 (bukan mayor, jadi
+diizinkan) tapi di luar tilde saat ini sehingga `package.json` ikut diedit
+(`better-auth` langsung; jalur aman: edit `"better-auth": "~1.7.25"` lalu
+`npm install`). Cek cepat dulu `npm run test` (test Better Auth:
+`tests/auth-rate-limit.test.ts`, `tests/account-rate-limit.test.ts`) sebelum
+gerbang penuh. Bila `npm run ci` gagal karena better-auth dan penyebabnya
+tidak jelas cepat, kembalikan HANYA better-auth ke `~1.6.30`
+(`git checkout origin/main -- package.json package-lock.json && npm install`),
+jalankan gerbang ulang, merge bagian `npm audit fix` saja, dan catat sisa
+better-auth di Riwayat sebagai tugas tersendiri.
+
+Aturan: **jangan pernah `npm uninstall`** (npm 12 menolak di repo ini); hanya
+`npm audit fix` / edit `package.json` + `npm install`. Tanpa upgrade mayor.
+Sisa yang TIDAK ikut: `minimatch` → `typescript-eslint` (moderat, dev-only,
+perbaikannya breaking change typescript-eslint) — biarkan, sebutkan di entri
+Riwayat sebagai diketahui-ditinggalkan. Setelah selesai, `npm audit` harus
+tidak lagi menampilkan zod/seroval (dan better-auth bila bagian opsional
+dikerjakan). Gerbang: `npm run ci` utuh hijau sebelum PR — test
+rpc-schemas/api-keys/api-v1 mengunci perilaku Zod, smoke mengunci serialisasi
+RPC + alur auth (sign-up/sign-in/reset password). Commit pola `fix:` (mis.
+`fix: tambal kerentanan audit zod/seroval dalam rentang`), bahasa Indonesia.
+Tambahkan entri log bertanggal di akhir `docs/ROADMAP.md` (pola entri
+keamanan 2026-11-11), tanpa mencoret backlog (tidak ada barisnya).
 
 ## Riwayat
+
+- 2026-11-15: PR #74 — test: test CLI langsung migrator deploy
+  `scripts/migrate.mjs` (13 test di `tests/migrate-cli.test.ts`; node:test,
+  anak via `spawnSync` karena modul memanggil `main()` saat impor — exit 0/1
+  di level atas — sehingga tidak boleh diimpor; pola
+  `tests/with-app-env.test.ts`), modul tidak berubah, tanpa database nyata
+  (`DATABASE_URL` anak `postgres://127.0.0.1:1/db` → ECONNREFUSED instan).
+  Dikunci: tanpa `DATABASE_URL` (env anak = salinan `process.env` minus
+  `DATABASE_URL` dan `NODE_OPTIONS`; string kosong sama dengan tidak diisi)
+  → exit 0 + pesan skip persis `[migrate] DATABASE_URL not set — skipping
+  (the PGLite fallback migrates itself).` dan stderr kosong; argumen CLI
+  diabaikan (skip tetap); `.env` di samping skrip tidak dibaca (salinan
+  skrip + `.env` berisi DATABASE_URL di root sementara, cwd root itu, tetap
+  skip — mengunci modul beban-tanpa-dotenv). `DATABASE_URL` tak terjangkau
+  pada checkout repo (9 migrasi pending) → exit 1 + baris mulai
+  `[migrate] failed:` + ECONNREFUSED, stdout kosong; argumen tidak
+  menyelamatkan. Jalur tanpa koneksi database (salinan `migrate.mjs` +
+  `migration-plan.mjs` ke `tmp/x/scripts/` + **symlink** `node_modules` repo
+  ke `tmp/x/node_modules` supaya impor `pg` tetap resolves; `migrations/`
+  dihitung relatif lokasi salinan): direktori tidak ada → `[migrate] no
+  migrations/ directory — nothing to do.` exit 0; direktori ada tanpa
+  `.sql` (README + subdir) → `[migrate] no migrations — nothing to do.`
+  exit 0 — keduanya tetap exit 0 walau `DATABASE_URL` tak terjangkau (bukti
+  pool tidak dibuka sebelum cek pending; urutan ini yang melindungi deploy
+  tanpa skema dari koneksi sia-sia); kontras: satu `.sql` pending → pool
+  dibuka → exit 1 (membuktikan exit-0 memang karena tak ada pending, bukan
+  karena URL diabaikan). Penjaga statis di sumber: skip (dengan
+  `process.exit(0)`) mendahului `main().catch`; `pendingMigrations(entries,
+  [])` mendahului `new pg.Pool` dan tanpa logika basename lokal (tanpa
+  `.split('/')`); tiap migrasi `BEGIN` < `INSERT INTO _migrations` <
+  `COMMIT` dengan `ROLLBACK` di catch setelah INSERT; handler galat mencetak
+  `[migrate] failed:` sebelum `process.exit(1)`. Salinan & symlink hanya di
+  direktori sementara yang dibersihkan di `after`. Tanpa perubahan
+  perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (727/727 unit =
+  714 + 13 baru, lint 0/0, build, CSP build produksi, smoke Playwright +
+  PGlite 117 cek). Catatan proses: run gerbang pertama gagal di smoke oleh
+  beban mesin bersama (suite test sesi lain berjalan, load 9 di 4 core; dev
+  server tak responsif di tengah sesi — pola flake lingkungan yang tercatat
+  di ROADMAP 2026-11-08); diulang setelah menunggu jendela load tenang dan
+  hijau penuh tanpa perubahan apa pun. Dengan ini seluruh skrip `scripts/`
+  yang punya logika (`migrate`, `check-csp`, `with-app-env`,
+  `migration-plan`, `compare-databases`) sudah punya test langsung.
 
 - 2026-11-15: PR #73 — test: test unit langsung gerbang CSP build produksi
   `scripts/check-csp.mjs` (fungsi murni `checkPage(html, csp)`, 25 test di
