@@ -1,53 +1,90 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 37: gerbang anggaran ukuran bundel klien di CI, PR #76; berikutnya: test langsung perencana "Today's session" `src/lib/session.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 38: test unit langsung perencana "Today's session" `src/lib/session.ts`, PR #77; berikutnya: test langsung skor bukti belajar `src/lib/evidence/scoring.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung perencana "Today's session"**
-`src/lib/session.ts`. Modul murni ini belum punya `tests/session.test.ts`;
-cakupan sekarang hanya 3 test tidak langsung di
-`tests/learn-in-app.test.ts` (urutan review→pelajaran, satu contoh jeda, item
-pertama selalu masuk).
+Penguatan tes: **test unit langsung skor bukti belajar**
+`src/lib/evidence/scoring.ts` (75 baris). Modul murni ini belum punya file
+test sendiri; cakupan sekarang hanya 4 asersi `evidenceMastery` + 3 asersi
+`nextQuizReview` di `tests/japanese.test.ts` (lewat re-export
+`src/lib/japanese/evidence.ts`) dan 1 asersi `evidenceMastery` di
+`tests/learning-evidence.test.ts`. `PASS_RATIO` dan `passed` belum pernah
+diperiksa langsung, begitu pula opsi `delayedRetrieval`/`distinctQuestions`.
 
-1. File baru `tests/session.test.ts` (node:test murni, impor
-   `../src/lib/session.ts` langsung, tanpa PGlite/DOM). Modul **tidak diubah**;
-   jalankan dulu modulnya untuk mengunci perilaku aktual. Kunci:
-   - konstanta: `REVIEW_MINUTES = 3`, `MIN_LESSON_MINUTES = 5`,
-     `MAX_LESSON_MINUTES = 20`, `SESSION_LENGTHS = [15, 30, 45, 60]` (urutan,
-     salinan eksplisit).
-   - `sessionPacing(attention, pace)` — `short` 15/5, `medium` 25/5, `long`
-     40/5; `undefined`/`null`/nilai tak dikenal jatuh ke medium; `intensive`
-     mengalikan fokus ×1.5 lalu dibulatkan (`short` 23, `medium` 38, `long`
-     60) dengan jeda 3; pace lain (`structured`, `self-paced`) tetap jeda 5.
-   - `lessonSitting(minutes)` — 30 dan 20 → 20, `null`/`undefined` → 10,
-     pembulatan (`7.5` → 8, `4.6` → 5), clamp 5..20 (`0`, `-5` → 5; `20.5` →
-     20), nilai bukan angka finite (`NaN`, `Infinity`, `'15'`) → 10.
-   - `buildSessionPlan` — review (selalu 3 menit) mendahului pelajaran;
-     `minutes` di-`floor` (29,9 → 29) dan negatif → 0; item pertama selalu
-     direncanakan walau melebihi anggaran, jadi `minutes: 0` tetap punya satu
-     langkah; item yang tak muat dilewati tanpa mengubah urutan dan dihitung
-     di `left.reviews`/`left.next`; jeda hanya disisipkan bila langkah
-     berikutnya melewati blok fokus (`sinceBreak > 0`), biaya jeda ikut
-     dihitung saat memutuskan muat/tidak, dan tidak pernah ada jeda di
-     awal/akhir; `plannedMinutes` = jumlah menit semua langkah termasuk jeda;
-     `focusMinutes`/`breakMinutes` diteruskan dari `sessionPacing`; array
-     masukan tidak dimutasi; `reviews`/`next` kosong → `steps: []` dan
-     `left` nol. Perilaku aktual `minutes: NaN` (semua item muat karena
-     perbandingan dengan NaN selalu false) **dikunci sebagai rough edge**,
-     bukan diperbaiki di PR test.
-2. Penjaga statis: `session.ts` hanya `import type` (aman di bundle klien),
-   `StudyToday.tsx` tetap mengimpor `buildSessionPlan` + `SESSION_LENGTHS` +
-   `REVIEW_MINUTES` dari `@/lib/session`, dan ketiga test lama di
-   `tests/learn-in-app.test.ts` tetap ada (tidak dipindah/dihapus).
+1. File baru `tests/evidence-scoring.test.ts` (node:test murni, impor
+   `../src/lib/evidence/scoring.ts` langsung, tanpa PGlite/DOM/fetch). Modul
+   **tidak diubah**; jalankan dulu modulnya untuk mengunci perilaku aktual.
+   Kunci:
+   - konstanta `PASS_RATIO = 0.8`; `passed` = `correct / Math.max(1, total) >=
+     0.8` → 4/5 true, 3/4 false, 0/0 false (penyebut 1), `correct > total`
+     (mis. 5/4) true.
+   - `evidenceMastery([])` → 0; "percobaan terakhir" ditentukan `at`
+     (`Date.parse`), bukan urutan array; masukan tidak dimutasi.
+   - gagal pada percobaan terakhir → `Math.round(accuracy * 70)` (1/4 → 18,
+     2/4 → 35, 3/4 → 53, 0/4 → 0) dan kegagalan terakhir menang atas pass
+     sebelumnya.
+   - lolos dengan default `delayedRetrieval: true`: satu pass → 70; dua pass
+     di hari yang sama → 70 walau id berbeda; pass kedua berjarak ≥ 1 hari
+     (tepat 86.400.000 ms termasuk, batas `>=`) dan gabungan id ≥ 4 → 85;
+     gabungan id < 4 → 70.
+   - `delayedRetrieval: false`: percobaan terakhir yang lolos → 85 tanpa
+     syarat jeda/jumlah id; gagal tetap `round(accuracy * 70)`.
+   - `distinctQuestions` (mis. 2): dua pass berjeda dengan gabungan 2 id → 85,
+     sedangkan default 4 → 70; opsi 0 → 85 pada pass berjeda.
+   - `nextQuizReview([])` → null; gagal pada percobaan terakhir → ISO
+     `at + 10 menit`; pass → hitung "earned" dari pass yang berjarak ≥ 1 hari
+     dari pass terhitung sebelumnya, kegagalan me-reset hitungan, interval
+     `min(30, 2 ** min(5, max(0, earned - 1)))` hari → untuk 1..7 pass berurutan
+     harian: 1, 2, 4, 8, 16, 30, 30 hari; pass di hari yang sama tidak
+     menambah; urutan array tak berpengaruh; masukan tidak dimutasi.
+2. Penjaga statis: `src/lib/japanese/evidence.ts` tetap hanya me-re-export
+   `evidenceMastery`, `nextQuizReview`, dan tipe `Attempt` dari
+   `../evidence/scoring.ts` (kebijakan Jepang = default ketat), modul scoring
+   bebas impor runtime, dan quiz generik tetap memakai modul yang sama (bukan
+   salinan aturan).
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 18–25; typecheck
-`checkJs` juga memeriksa `.mjs` yang diimpor test). Commit pola `test: ...`
-(mis. `test: kunci perencana sesi Today dengan test langsung`). Tanpa
-perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. UI tetap bahasa
-Inggris (D2).
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 15–20). Commit pola
+`test: ...` (mis. `test: kunci skor bukti belajar dengan test langsung`).
+Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. UI tetap
+bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-15: PR #77 — test: test unit langsung perencana "Today's session"
+  `src/lib/session.ts` (21 test di `tests/session.test.ts`, node:test murni,
+  impor modul langsung, tanpa PGlite/DOM), modul tidak diubah. Dikunci:
+  konstanta `REVIEW_MINUTES = 3`, `MIN_LESSON_MINUTES = 5`,
+  `MAX_LESSON_MINUTES = 20`, `SESSION_LENGTHS = [15, 30, 45, 60]` (salinan
+  eksplisit); `sessionPacing` — short/medium/long 15/25/40 dengan jeda 5,
+  `undefined`/`null`/nilai tak dikenal → medium, `intensive` → 23/38/60 dengan
+  jeda 3, `structured`/`self-paced`/pace tak dikenal tetap jeda 5;
+  `lessonSitting` — 30/20 → 20, `null`/`undefined` → 10, pembulatan (7.5 → 8,
+  4.6 → 5), clamp 5..20 (0/-5 → 5, 20.5 → 20), non-finite/non-number (NaN,
+  ±Infinity, `'15'`) → 10; `buildSessionPlan` — review (3 menit) selalu
+  mendahului pelajaran, `minutes` di-`floor` (29,9 → 29, dibuktikan dengan 10
+  review: 9 muat di 29, 10 muat di 30) dan negatif → 0, item pertama selalu
+  direncanakan walau melebihi anggaran (`minutes: 0` tetap satu langkah), item
+  yang tak muat dilewati tanpa mengubah urutan sehingga item pendek
+  berikutnya tetap muat, biaya jeda ikut dihitung saat memutuskan muat
+  (6 menit review + jeda 5 + pelajaran 20 = 31; gagal di 30, muat di 31),
+  jeda hanya di antara langkah (tidak di awal/akhir), `plannedMinutes` =
+  jumlah semua langkah termasuk jeda, `focusMinutes`/`breakMinutes`
+  diteruskan dari `sessionPacing` (intensive 38/3), `left` dihitung per jenis,
+  `reviews`/`next` kosong → `steps: []`/nol, dan masukan tidak dimutasi.
+  Rough edge dikunci sesuai perilaku aktual: `minutes: NaN` membuat semua item
+  muat (perbandingan dengan NaN selalu false) tanpa memperbaiki modul.
+  Penjaga statis: `session.ts` hanya `import type` (aman di bundle klien),
+  `StudyToday.tsx` tetap mengimpor `buildSessionPlan` + `SESSION_LENGTHS` +
+  `REVIEW_MINUTES` dari `@/lib/session` dan memakai ketiganya, serta ketiga
+  test lama di `tests/learn-in-app.test.ts` tetap ada (tidak dipindah/dihapus).
+  Catatan proses: run gerbang pertama gagal di typecheck karena array pace
+  terinfer union literal sehingga `sessionPacing('short', pace)` menolak
+  `string`; diperbaiki dengan `as const` untuk pace sah + asersi terpisah
+  untuk nilai tak dikenal, lalu gerbang penuh diulang. Tanpa perubahan
+  aplikasi/perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau
+  (install, typecheck, lint 0/0, 766/766 unit = 745 + 21, build, anggaran
+  bundel, CSP build produksi, 177 cek smoke Playwright + PGlite).
 
 - 2026-11-15: PR #76 — perf: gerbang anggaran ukuran bundel klien di CI
   (backlog P3 #4). Pengukuran build produksi preset Nitro `vercel` membuktikan
