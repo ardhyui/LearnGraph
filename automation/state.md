@@ -1,57 +1,87 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 27: test langsung store Postgres `src/lib/graph/store.ts`, PR #66; berikutnya: test langsung invarian dataset demo `src/lib/demo-data.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 28: test langsung invarian dataset demo `src/lib/demo-data.ts`, PR #67; berikutnya: test langsung registri psikometrik + `estimateCognitiveProfile` di `src/lib/graph/psychometrics.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung untuk dataset demo **`src/lib/demo-data.ts`**
-(`demoLearners`, `demoConcepts`, `demoEdges`, `demoKnowledgeStates`,
-`DEMO_DATA_AS_OF`, `isServerlessEnvironment`). Dataset ini di-seed ke setiap
-akun baru, tapi saat ini hanya dikunci lewat alur seed engine
-(`tests/demo-seed.test.ts` menguji `seedDemoDataIfEmpty`/`repairDemoKnowledgeStates`
-dan `shiftDemoDate` + tanggal state saja) — bentuk dan integritas referensial
-dataset itu sendiri belum pernah dikunci langsung, padahal salah referensi id
-akan membuat demo seeder diam-diam menjatuhkan data (konsep tak ter seeding,
-state yatim). **Modul tidak diubah — test saja.**
+Penguatan tes: test unit langsung **registri psikometrik** dan **estimasi
+profil kognitif** di `src/lib/graph/psychometrics.ts` (`PSYCHOMETRIC_DOMAINS`,
+`ALL_DOMAIN_IDS`, `DOMAIN_METADATA`, `DOMAIN_CATEGORIES`,
+`getDomainsByCategory`, `getDomainMetadata`, `estimateCognitiveProfile`,
+`getLearningStyleDescription`). Registri 39 domain ini dipakai My Profile,
+admin psikometrik, dan tutor; tes yang ada baru menyentuh potongan
+(`hasLearningStyleInputs`, `deriveLearningStyle`, beberapa id kanonis di
+`tests/profile-traits.test.ts` / `tests/admin-derived-profiles.test.ts`),
+sedangkan kelengkapan metadata, partisi kategori, dan ambang
+`estimateCognitiveProfile` belum dikunci. **Modul tidak diubah — test saja.**
 
-Test baru `tests/demo-data.test.ts` (node:test murni, tanpa PGlite — data
-adalah konstanta modul; baca `src/lib/graph/seed.ts` dulu untuk memahami
-bagaimana tiap bidang dikonversi ke tipe DB supaya invarian dikunci pada hal
-yang benar-benar dipakai) mengunci:
+Test baru `tests/psychometrics.test.ts` (node:test murni, tanpa PGlite)
+mengunci:
 
-- `demoLearners` (3): `id` unik berformat `learner:demo-*`, `userId` unik
-  `demo-*`, `name`/`email` tak kosong dengan domain `@demo.learngraph.dev`;
-  `createdAt`/`updatedAt` ISO valid dan `createdAt <= updatedAt`; tiap bidang
-  `learningStyle` dan `cognitiveProfile` hanya memuat nilai enum sah dari
-  `src/lib/graph/types.ts`; **`psychometricScores` seluruhnya angka telanjang
-  0–1** (legacy — sengaja, `traitScore` hanya membaca `{ score }` 0–100 sehingga
-  engine mengabaikannya dan demo tetap netral; angka 0–100 yang menyusup akan
-  diam-diam diabaikan juga, kunci supaya perubahan disengaja); `tags` array
-  string.
-- `demoConcepts` (11): `id` unik `concept:*`, `name`/`domain`/`description`
-  tak kosong, `difficulty` bilangan bulat 1–10, `bloomLevel` salah satu dari
-  enam level Bloom (data demo memakai string seperti `'remember'`),
-  `estimatedMinutes` > 0, `createdAt` ISO.
-- `demoEdges` (11): `id` unik, `from`/`to` merujuk `id` yang ada di
-  `demoConcepts` (integritas referensial), tidak ada edge ke dirinya sendiri,
-  `weight` 0–1, graf hasilnya asiklik (DFS kecil di test), `createdAt` ISO.
-- `demoKnowledgeStates` (18): `id` unik, `learnerId` merujuk `userId` learner
-  demo yang ada, `conceptId` merujuk konsep demo yang ada, `mastery` bilangan
-  bulat 0–100, `confidence` 0–1, `reviewCount` bilangan bulat ≥ 0,
-  `createdAt <= lastReviewed`, `lastReviewed < DEMO_DATA_AS_OF` (tanggal pra-#17
-  adalah syarat tombol Refresh example data muncul — jangan sampai tanggal baru
-  menyusup ke dataset); jumlah state per learner (alice 6, bob 3, carol 9)
-  dikunci eksplisit sebagai salinan (perubahan jumlah harus terlihat di diff).
-- `isServerlessEnvironment`: `VERCEL === '1'` → true,
-  `AWS_LAMBDA_FUNCTION_NAME` terisi → true, `DEMO_MODE === 'true'` → true,
-  semua kosong → false (stub `process.env`, pulihkan setelahnya).
-- `shiftDemoDate` SUDAH teruji langsung di `tests/demo-seed.test.ts` — jangan
-  duplikasi, cukup pastikan tidak regresi di sana.
+- Registri: tepat 39 domain; kunci `PSYCHOMETRIC_DOMAINS` unik dan nilainya
+  sama dengan kuncinya dalam huruf kecil; `ALL_DOMAIN_IDS` = urutan nilai
+  sumber; `DOMAIN_METADATA` memuat tepat satu entri untuk tiap id (tidak ada
+  kunci asing/kurang).
+- Metadata: tiap entri `id` sama dengan kuncinya, `name`/`description`/
+  `educationalRelevance` string tak kosong, `category` salah satu dari 12
+  `DOMAIN_CATEGORIES`, dan tiap dari `scoreInterpretation.low/mid/high` tak
+  kosong.
+- Kategori: tiap kategori di `DOMAIN_CATEGORIES` dipakai minimal satu domain;
+  `getDomainsByCategory` mengembalikan domain dengan kategori itu dalam urutan
+  `ALL_DOMAIN_IDS`; gabungan semua hasil = 39 tanpa duplikat; kategori tak
+  dikenal → `[]`; `getDomainMetadata` mengembalikan objek yang sama persis
+  dengan `DOMAIN_METADATA[id]`.
+- `estimateCognitiveProfile`: skor kosong → keempat bidang `medium`
+  (fallback 50); jendela inklusif — rata-rata 65 → `high`/`long`/`fast`/
+  `abstract`, 35 → `low`/`short`/`slow`/`concrete`, 64/36 → medium. Empat
+  rumus pasangan: working memory = rata-rata `executive_functions` +
+  `cognitive_abilities`, attention = `executive_functions` +
+  `big_five_conscientiousness`, speed = `cognitive_abilities` +
+  `metacognition`, abstract = `big_five_openness` +
+  `information_processing`; uji dengan set input yang menghasilkan kombinasi
+  berbeda dan hitung dampak bersama (`executive_functions` ikut attention,
+  `cognitive_abilities` ikut speed). Entri yang tidak ada atau bukan objek
+  (angka telanjang legacy 0–1, string) → fallback 50; `{ score: NaN }`
+  menghasilkan `medium` karena rata-ratanya NaN (perilaku saat ini — catat,
+  jangan klaim validasi rentang yang belum ada); bentuk hasil tepat empat
+  bidang.
+- `getLearningStyleDescription`: template persis
+  `You're a <modalitas> who <sosial> and learns best <pace>.` dengan teks
+  modalitas (`visual`/`auditory`/`kinesthetic`/`reading`), sosial
+  (`solo`/`collaborative`/`mixed`), dan pace
+  (`self-paced`/`structured`/`intensive`) dari sumber; `secondary` dan
+  `feedbackPreference` tidak memengaruhi teks (dua gaya berbeda dengan
+  keduanya menghasilkan teks sama).
+- Jangan duplikasi tes `hasLearningStyleInputs`/`deriveLearningStyle`/
+  `derivedProfilesFromScores` yang sudah ada di `tests/profile-traits.test.ts`
+  dan `tests/admin-derived-profiles.test.ts`.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #67 — test: test unit langsung dataset demo
+  `src/lib/demo-data.ts` (25 test di `tests/demo-data.test.ts`, node:test
+  murni tanpa PGlite), modul tidak diubah. Dikunci: `demoLearners` (3) — id
+  unik `learner:demo-*`, userId unik `demo-*`, nama/email domain
+  `@demo.learngraph.dev`, ISO `createdAt <= updatedAt`, enum sah di
+  `learningStyle`/`cognitiveProfile`, `psychometricScores` tetap angka telanjang
+  0–1 dan `traitScore` mengembalikan `undefined` untuk kelima trait (demo tetap
+  netral), `tags` array string; `demoConcepts` (11) — id unik `concept:*`, teks
+  wajib terisi, difficulty bulat 1–10, salah satu dari enam nama Bloom,
+  `estimatedMinutes > 0`, ISO; `demoEdges` (11) — id unik, `from`/`to` merujuk
+  konsep demo, tanpa self-edge, weight 0–1, graf asiklik (DFS), ISO;
+  `demoKnowledgeStates` (18) — id unik, pasangan (learner, concept) unik,
+  referensi ke learner/konsep demo, mastery bulat 0–100, confidence 0–1,
+  reviewCount bulat ≥ 0, `createdAt <= lastReviewed < DEMO_DATA_AS_OF`, jumlah
+  per learner alice 6 / bob 3 / carol 9 sebagai salinan eksplisit;
+  `isServerlessEnvironment` — `VERCEL === '1'`, Lambda non-kosong,
+  `DEMO_MODE === 'true'` → true, semua kosong (termasuk `'0'`/`''`/`'false'`)
+  → false, env distub lalu dipulihkan. `shiftDemoDate` tidak diduplikasi
+  (tetap di `tests/demo-seed.test.ts`). Tanpa perubahan
+  perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (606/606 unit,
+  187 cek smoke).
 
 - 2026-11-15: PR #66 — test: test unit langsung store Postgres
   `src/lib/graph/store.ts` (`PostgresGraphStore` + `tableForKey`, 11 test di
