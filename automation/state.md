@@ -1,51 +1,80 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 33: test langsung `scripts/with-app-env.mjs` — `parseDotEnv`, `projectRoot`, `readDotEnv`, `exitStatusFromChild`, CLI lewat `spawnSync`, PR #72; berikutnya: test langsung `checkPage` di `scripts/check-csp.mjs`)
+Terakhir diperbarui: 2026-11-15 (siklus 34: test langsung `checkPage` di `scripts/check-csp.mjs` — gerbang CSP build produksi, 25 test di `tests/check-csp.test.ts`, PR #73; berikutnya: test CLI `scripts/migrate.mjs` via `spawnSync`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung **`scripts/check-csp.mjs`**, khususnya fungsi
-murni `checkPage(html, csp)` yang menjadi gerbang CSP pada build produksi
-(`npm run ci` → CSP). **Modul hanya boleh diberi anotasi JSDoc/`@ts-check` bila
-`checkJs` menuntutnya — tanpa perubahan perilaku; selain itu test saja.** Test
-baru `tests/check-csp.test.ts` (`node:test` murni, impor `.mjs` langsung;
-`BASE_URL` tidak diperlukan dan `main` tidak berjalan karena dijaga
-`import.meta.url`, jadi tidak ada fetch) mengunci:
+Penguatan tes: test CLI langsung **`scripts/migrate.mjs`** — migrator deploy
+(node-postgres) yang berjalan pada **setiap** `npm run build` via `db:migrate`,
+satu-satunya skrip `scripts/` yang tersisa tanpa test langsung. Modul memanggil
+`main()` saat impor (exit 0/1 di top level), jadi **tidak boleh diimpor** —
+uji lewat `spawnSync` child process (pola `tests/with-app-env.test.ts`), tanpa
+database nyata, modul tidak berubah. Test baru `tests/migrate-cli.test.ts`
+mengunci:
 
-- **`checkPage` tanpa `<script>`** → `[]`; CSP tanpa `script-src` (string
-  kosong, hanya `default-src`) → tepat `['no script-src directive']`;
-  `script-src` kosong (`script-src ;`) juga → `['no script-src directive']`.
-- **Direktif `script-src`** ditemukan di awal maupun setelah `;`
-  (`default-src 'self'; script-src 'self'`), nilai dipisah spasi; spasi ganda
-  setelah `script-src` **tidak** dikenali (perilaku regex saat ini — kunci
-  sebagai rough edge, bukan klaim parser CSP lengkap).
-- **`'unsafe-inline'` dan `'unsafe-eval'`** masing-masing menghasilkan satu
-  problem, berurutan inline lalu eval; policy aman tanpa keduanya → `[]`.
-- **Nonce**: `'nonce-X'` diekstrak dari policy; inline `<script nonce="X">`
-  lolos; nonce berbeda **tetap lolos bila hash isinya diizinkan**; nonce
-  berbeda tanpa hash → `inline script without the nonce or an allowed hash:
-  <80 karakter pertama>`; `+` dan `/` pada nonce base64 tidak merusak
-  ekstraksi.
-- **Hash**: `'sha256-<base64>'` dihitung dari isi `<script>` persis (indentasi
-  dan baris baru ikut), satu hash mengizinkan beberapa tag berisi sama;
-  hash salah/tidak ada → problem; `<script>` tanpa atribut apa pun mengikuti
-  jalur hash.
-- **Script eksternal**: `src="https://…"` dan `src="//cdn…"` wajib
-  `nonce="<nonce policy>"`; tanpa/campur nonce → `external script without the
-  nonce: <src>`; nonce cocok → lolos. Script dengan `src` lokal
-  (`/assets/app.js`) dan `data:` **tidak diperiksa** (perilaku saat ini —
-  dikunci eksplisit), begitu pula `ftp://`.
-- **Beberapa tag**: problem dikumpulkan berurutan sesuai dokumen; tag
-  `<SCRIPT>` huruf besar, atribut tambahan (`type`, `defer`, `nonce` di depan),
-  dan isi multi-baris tetap dikenali. Penjaga statis: `checkPage` diekspor,
-  `main` hanya jalan saat `import.meta.url === file://…`, dan `PAGES` berisi
-  tiga halaman publik (`/sign-in`, `/privacy`, `/forgot-password`) supaya
-  halaman yang butuh sesi tidak ikut diperiksa.
+- **Tanpa `DATABASE_URL`** (env anak dibersihkan persis) → exit 0 + pesan
+  skip persis `[migrate] DATABASE_URL not set — skipping (the PGLite fallback
+  migrates itself).` — jalur CI/preview lokal.
+- **`DATABASE_URL` tak terjangkau** (`postgres://127.0.0.1:1/db`, ECONNREFUSED
+  instan) pada checkout repo (migrations pending ada) → exit 1 + baris mulai
+  `[migrate] failed:`; tidak pernah exit 0.
+- **Jalur tanpa koneksi database** (butuh salinan `migrate.mjs` +
+  `migration-plan.mjs` ke `tmp/x/scripts/` dan **symlink** `node_modules` repo
+  ke `tmp/x/node_modules` supaya impor `pg` tetap resolves; direktori
+  `migrations/` dihitung relatif lokasi salinan): direktori `migrations/`
+  tidak ada → `[migrate] no migrations/ directory — nothing to do.` exit 0;
+  direktori ada tanpa `.sql` → `[migrate] no migrations — nothing to do.`
+  exit 0 — **keduanya tetap exit 0 walau `DATABASE_URL` tak terjangkau**
+  (bukti pool tidak dibuka sebelum cek pending; urutan ini yang melindungi
+  deploy tanpa skema dari koneksi sia-sia).
+- Env anak dikendalikan penuh (`.env` repo tidak ikut); argumen CLI tidak
+  mengubah jalur.
+- Penjaga statis di sumber: skip `DATABASE_URL` (dengan `process.exit(0)`)
+  mendahului `main()`; daftar pending hanya lewat `pendingMigrations` dari
+  `./migration-plan.mjs` (tidak ada logika basename lokal); tiap migrasi
+  dibungkus `BEGIN` … `INSERT INTO _migrations` … `COMMIT` dengan `ROLLBACK`
+  di `catch`; error handler mencetak `[migrate] failed:` sebelum `exit 1`.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
-Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
+Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi;
+salinan & symlink hanya di direktori sementara yang dibersihkan di `after`.
 
 ## Riwayat
+
+- 2026-11-15: PR #73 — test: test unit langsung gerbang CSP build produksi
+  `scripts/check-csp.mjs` (fungsi murni `checkPage(html, csp)`, 25 test di
+  `tests/check-csp.test.ts`, node:test murni, impor `.mjs` langsung), modul
+  tidak berubah sama sekali (JSDoc yang ada sudah cukup untuk `checkJs`).
+  Dikunci: direktif `script-src` ditemukan di awal maupun setelah `;`, nilai
+  dipisah spasi dan di-trim (spasi ganda di dalam/val sekitar daftar tetap
+  terbaca), tanpa direktif (string kosong, `default-src` saja, `script-src`
+  tanpa spasi/nilai, directive di tengah policy tanpa `;`, nama direktif
+  huruf besar) → tepat `['no script-src directive']`;
+  `'unsafe-inline'`/`'unsafe-eval'` satu problem per nilai, inline selalu
+  sebelum eval terlepas urutan policy dan sebelum problem per-script; nonce —
+  cocok lolos, beda → hash, beda + hash diizinkan → lolos, nonce base64
+  (`+`/`/`/`=`) utuh, nonce pertama policy menang; hash — `sha256-` dari isi
+  persis (indentasi/baris baru ikut; hash isi ter-trim tidak cocok), satu
+  hash untuk banyak tag sama, pesan memotong isi ke tepat 80 karakter;
+  script eksternal — `https://` dan `//…` wajib `nonce="<nonce policy>"`
+  (tanpa/beda → `external script without the nonce: <src>`), `src` lokal,
+  `data:`, `ftp://` tidak diperiksa walau nonce salah; beberapa tag
+  dikumpulkan urut dokumen; tag `<SCRIPT>` huruf besar + atribut tambahan
+  (`TYPE`, `defer`, `nonce` di depan `src`) dikenali. Rough edge dikunci
+  eksplisit sesuai perilaku aktual: `''.split(/\s+/) === ['']` membuat
+  `script-src ;`/`script-src ` lolos guard "no directive" (berperilaku
+  sebagai allowlist kosong — semua inline script dilaporkan), dan script
+  eksternal tidak pernah dilaporkan bila policy tanpa nonce
+  (`undefined !== undefined`). Catatan proses: dua klaim spekk keliru
+  terhadap kode (`script-src ;` ≠ `no script-src directive`; spasi ganda
+  justru dikenali karena nilai di-trim) — ditemukan dengan menjalankan
+  modulnya dulu, test mengunci perilaku kode yang sebenarnya. Penjaga statis:
+  `checkPage` diekspor, `main` hanya jalan saat
+  `import.meta.url === file://${process.argv[1]}` (tidak ada fetch saat
+  impor, tanpa `BASE_URL`), `PAGES` tepat tiga halaman publik
+  (`/sign-in`, `/privacy`, `/forgot-password`). Tanpa perubahan
+  perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (714/714 unit,
+  lint 0/0, build, CSP build produksi, smoke Playwright + PGlite).
 
 - 2026-11-15: PR #72 — test: test unit langsung wrapper `.env`
   `scripts/with-app-env.mjs` (27 test di `tests/with-app-env.test.ts`,
