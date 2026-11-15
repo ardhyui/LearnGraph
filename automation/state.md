@@ -1,66 +1,102 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 25: test langsung allowlist metode RPC browser `src/lib/graph/methods.ts`, PR #64; berikutnya: test langsung modul scaffolding `src/lib/graph/scaffolding.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 26: test langsung tabel keputusan scaffolding psikometrik `src/lib/graph/scaffolding.ts`, PR #65; berikutnya: test langsung store Postgres `src/lib/graph/store.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung untuk modul murni **scaffolding psikometrik**
-`src/lib/graph/scaffolding.ts`. Ekspor `adjustForPsychometrics` dan
-`selectScaffoldingStrategies` saat ini hanya disentuh test label `source`
-(`tests/scaffolding-source.test.ts`, PR #45) — tabel keputusan keduanya belum
-dikunci — dan `calculatePsychometricMatch` (dipakai engine ZPD menilai
-kecocokan konsep dengan profil) sama sekali belum punya test. **Modul tidak
-diubah — test saja.**
+Penguatan tes: test unit langsung untuk store Postgres **`src/lib/graph/store.ts`**
+(`PostgresGraphStore` + `tableForKey`). Store ini adalah kontrak key-value
+terurut yang ditulis engine graph (`EducationGraphDB`), tapi saat ini hanya
+diuji tak langsung lewat engine (`tests/support/graph-db.ts`, owner-isolation,
+demo-seed, api-v1, dst.) — tabel keputusan `tableForKey`, semantik round-trip
+JSON, kolom ekstraksi per tabel, skan prefiks collate "C", serta `batch`/`clear`
+belum pernah dikunci langsung. **Modul tidak diubah — test saja.**
 
-Test baru `tests/scaffolding.test.ts` (node:test murni, tanpa dependensi
-baru; helper kecil pembuat `LearnerProfile` dari `{ scores, learningStyle,
-cognitiveProfile }`) mengunci:
+Test baru `tests/graph-store.test.ts` (node:test; satu PGlite in-memory
+`new PGlite()` + `applyMigrations(pgliteMigratable(pg), <isi .sql dari
+migrations/>)` + `new Kysely<GraphDatabase>({ dialect: pgliteDialect(() => pg) })`
+— pola `tests/support/graph-db.ts`; sisipkan baris `user` untuk tiap owner uji
+karena `owner_id` ber-FK ke `user`; tanpa dependensi baru) mengunci:
 
-- `adjustForPsychometrics` tabel keputusan: profil kosong → semua default
-  (`difficultyModifier: 0`, `paceRecommendation: 'normal'`,
-  `attentionConsiderations: []`, `presentationStyle: 'mixed'`); openness > 70
-  → +0.2 dan < 30 → −0.1; conscientiousness > 70 → `faster` dan < 30 →
-  `slower` + consideration struktur; neuroticism > 70 → −0.2 + consideration
-  encouragement; extraversion > 70 → consideration kolaboratif dan < 30 →
-  solo (teks consideration persis seperti sumber); `presentationStyle`
-  mengikuti `learningStyle.primary` (visual → `visual`, auditory → `verbal`,
-  kinesthetic → `hands_on`, tanpa learningStyle → `mixed`); `difficultyModifier`
-  di-cap [−0.5, 0.5] di sumber, tapi kombinasi yang tercapai hari ini maksimal
-  −0.3/+0.2 — kunci cap hanya lewat penjaga statis (baris `Math.max(-0.5`
-  masih ada), jangan mengubah modul untuk mengejar cabang yang tak terjangkau;
-  `scaffoldingStrategies` dalam hasil identik `selectScaffoldingStrategies`
-  dengan profil yang sama.
-- `selectScaffoldingStrategies`: profil kosong → tepat satu `worked_example`
-  (`priority: 8`, `source: 'general'`); tiap kondisi menambah strateginya
-  (visual → `visual_aids` 9; neuroticism > 60 → `guided_practice` 8 + `hints`
-  7; `workingMemoryCapacity: 'low'` → `chunking` 9; extraversion > 70 →
-  `peer_discussion` 6; openness < 40 → `analogy` 7; `attentionSpan: 'short'`
-  → `repetition` 7; kinesthetic → `guided_practice` 9); hasil selalu terurut
-  `priority` menurun; ambang diuji tepat di batas (neuroticism 60 tidak / 61
-  ya; extraversion 70 tidak / 71 ya; openness 40 tidak / 39 ya); skor dibaca
-  lewat `traitScore` — hanya entri `{ score }` angka finite 0–100 yang dihitung
-  (angka telanjang legacy 0–1 dan entri tanpa skor diabaikan; id kanonis
-  `big_five_*` maupun alias lama seperti `openness_to_experience` dua-duanya
-  terbaca).
-- `calculatePsychometricMatch`: basis 0.5; konsep abstrak
-  (`difficulty.abstractness > 0.7`) dengan openness > 60 → +0.2, openness <
-  40 → −0.2, openness 50 → netral; `difficulty.cognitiveLoad > 0.7` dengan
-  `workingMemoryCapacity` 'high' → +0.15 / 'low' → −0.15 / tanpa
-  cognitiveProfile → netral; `adjustedDifficulty = absolute +
-  difficultyModifier × 10` dalam [4, 7] → +0.1 (mis. absolute 5 + modifier
-  +0.2 → 7 → ya; absolute 8 → tidak); nilai maksimum yang tercapai 0.95 dan
-  minimum 0.15; integrasi kecil: modifier dari `adjustForPsychometrics`
-  dipakai langsung sebagai argumen ketiga.
-- Penjaga statis ringan: `src/lib/graph/education-graph-db.ts` tetap
-  mendelegasikan ketiga nama fungsi ini dari modul `scaffolding.ts` (method
-  engine yang sama namanya memanggil modul ini), dan cap
-  `Math.max(-0.5, Math.min(0.5, …))` masih ada di `adjustForPsychometrics`.
+- `tableForKey` persis: `learner:`→`learners`, `concept:`→`concepts`,
+  `edge:prereq:`→`prerequisite_edges`, `edge:related:`→`related_edges`,
+  `state:`→`knowledge_states`, `index:`→`graph_indexes`; prefiks tak dikenal
+  (`bogus:x`, string kosong) melempar `Unknown LearnGraph key prefix: <key>`;
+  `GRAPH_TABLES` tepat keenam tabel itu.
+- Konstruktor `PostgresGraphStore` menolak ownerId kosong (`PostgresGraphStore
+  requires an ownerId`).
+- `put`/`get`/`del`/`exists`: get kunci absen → `null`; put baru lalu get
+  mengembalikan nilai sama; round-trip JSON semantik LevelDB (properti bernilai
+  `undefined` hilang, `Date` jadi string ISO — uji lewat kunci `index:` agar
+  bebas kolom ekstra); put menimpa nilai lama (on conflict `(owner_id, key)`)
+  dan get mengembalikan nilai baru; del menghapus (get null, exists false) dan
+  del kunci absen tidak melempar; exists cukup keberadaan baris.
+- Kolom ekstraksi diverifikasi lewat query SQL langsung ke tabel (bukan lewat
+  engine): `learner:{id}` → `user_id`; `concept:{id}` → `concept_id` + `domain`
+  dari nilai (domain non-string → null); `edge:prereq:...` → `from_concept`/
+  `to_concept` dari `value.from/to` (hilang → null); `state:...` →
+  `learner_id`/`concept_id` dari `value.userId/conceptId`; `edge:related:{id}`
+  → `edge_id`; `index:` tanpa kolom ekstra.
+- Skan prefiks `listKeys`/`listEntries`: hanya kunci berprefiks itu (range
+  `>= prefix` dan `< prefix + '\xFF'`), urutan byte collate "C" menaik
+  (`concept:a` < `concept:a:1` < `concept:ab` karena ':' < 'b'), `reverse`
+  menurun, `limit` memotong; dua owner dengan kunci identik saling tak terlihat
+  dan put owner B tidak menimpa baris owner A (isolasi di level store, bukan
+  engine).
+- `batch`: array kosong tanpa efek; put dan del diterapkan berurutan dalam satu
+  transaksi; op `put` dengan `value === undefined` dilewati (tidak menulis dan
+  tidak menghapus); bila satu op melempar (prefiks tak dikenal), seluruh
+  transaksi digulung balik — tidak ada yang tertulis.
+- `clear` menghapus baris owner itu di keenam tabel saja (owner lain utuh);
+  `close` memanggil `options.onClose` tepat sekali.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
-Test lama `tests/scaffolding-source.test.ts` tetap utuh dan hijau.
 
 ## Riwayat
+
+- 2026-11-15: PR #65 — test: test unit langsung modul scaffolding psikometrik
+  `src/lib/graph/scaffolding.ts` (23 test di `tests/scaffolding.test.ts`,
+  node:test murni; helper kecil pembuat `LearnerProfile` dari `{ scores,
+  learningStyle, cognitiveProfile }`), modul tidak diubah. Dikunci:
+  `adjustForPsychometrics` — profil kosong semua default (0 / `normal` / `[]` /
+  `mixed`); openness >70 +0.2 dan <30 −0.1 (30/50/70 netral);
+  conscientiousness >70 `faster`, <30 `slower` + consideration struktur;
+  neuroticism >70 −0.2 + consideration encouragement (70 tidak); extraversion
+  >70 kolaboratif dan <30 solo — teks consideration persis dari sumber dan
+  urutan push conscientiousness→neuroticism→extraversion dikunci lewat
+  kombinasi semua trait; `presentationStyle` mengikuti `learningStyle.primary`
+  (visual/auditory/kinesthetic; `reading` dan tanpa gaya → `mixed`); ekstrem
+  tercapai −0.3/+0.2 (clamp [−0.5, 0.5] tidak terjangkau → dijaga statis);
+  `scaffoldingStrategies` identik `selectScaffoldingStrategies` untuk profil
+  sama; skor dibaca lewat `traitScore` — id kanonis dan alias lama
+  (`openness_to_experience`, `neuroticism`) terbaca, angka telanjang 0–1
+  legacy dan entri tanpa skor diabaikan, kanonis menang atas alias.
+  `selectScaffoldingStrategies` — profil kosong tepat satu `worked_example`
+  (8, `general`); tiap kondisi menambah strateginya (visual_aids 9,
+  guided_practice 8 + hints 7, chunking 9, peer_discussion 6, analogy 7,
+  repetition 7, guided_practice 9 kinestetik) dengan `source: 'profile'`;
+  profil yang mengenai semua kondisi terurut priority menurun dengan sort
+  stabil (chunking, guided_practice kinestetik, worked_example,
+  guided_practice neuroticism, hints, analogy, repetition, peer_discussion);
+  ambang ketat di batas: neuroticism 60/61, extraversion 70/71, openness
+  40/39. `calculatePsychometricMatch` — basis 0.5; abstrak (abstractness >0.7,
+  batas ketat) × openness >60 +0.2 / <40 −0.2 / 50 netral, konsep konkret
+  netral; cognitiveLoad >0.7 (batas ketat) × workingMemory `high` +0.15 /
+  `low` −0.15 / medium & tanpa cognitiveProfile netral; jendela [4,7]
+  inklusif pada `adjustedDifficulty = absolute + modifier×10` (4 dan 7
+  termasuk; 5+0.2×10=7 ya; 8 dan 5−0.2×10=3 tidak); maksimum tercapai 0.95
+  dan minimum 0.15; hasil `adjustForPsychometrics` dipakai langsung sebagai
+  argumen ketiga (modifier −0.2 mengeluarkan konsep absolute 5 dari jendela).
+  Penjaga statis: baris `Math.max(-0.5, Math.min(0.5, difficultyModifier));`
+  masih ada; `scaffolding.ts` mengimpor `traitScore` dari `trait-scores.ts`;
+  `education-graph-db.ts` tetap `import * as scaffolding` dan mendelegasikan
+  ketiga nama fungsi. Catatan proses: ekspektasi urutan awal keliru karena
+  sort stabil menempatkan `worked_example` (disisipkan pertama) sebelum
+  `guided_practice` pada priority sama; perbandingan angka float memakai
+  epsilon (0.1+0.2 ≠ 0.3 persis di IEEE754). Tanpa perubahan
+  perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (570/570 unit,
+  187 cek smoke; `tests/scaffolding-source.test.ts` tetap utuh).
 
 - 2026-11-15: PR #64 — test: test unit langsung allowlist metode graph yang
   boleh dipanggil browser `src/lib/graph/methods.ts` (`REMOTE_GRAPH_METHODS`,
