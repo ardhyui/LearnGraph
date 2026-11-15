@@ -1,59 +1,96 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 26: test langsung tabel keputusan scaffolding psikometrik `src/lib/graph/scaffolding.ts`, PR #65; berikutnya: test langsung store Postgres `src/lib/graph/store.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 27: test langsung store Postgres `src/lib/graph/store.ts`, PR #66; berikutnya: test langsung invarian dataset demo `src/lib/demo-data.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung untuk store Postgres **`src/lib/graph/store.ts`**
-(`PostgresGraphStore` + `tableForKey`). Store ini adalah kontrak key-value
-terurut yang ditulis engine graph (`EducationGraphDB`), tapi saat ini hanya
-diuji tak langsung lewat engine (`tests/support/graph-db.ts`, owner-isolation,
-demo-seed, api-v1, dst.) — tabel keputusan `tableForKey`, semantik round-trip
-JSON, kolom ekstraksi per tabel, skan prefiks collate "C", serta `batch`/`clear`
-belum pernah dikunci langsung. **Modul tidak diubah — test saja.**
+Penguatan tes: test unit langsung untuk dataset demo **`src/lib/demo-data.ts`**
+(`demoLearners`, `demoConcepts`, `demoEdges`, `demoKnowledgeStates`,
+`DEMO_DATA_AS_OF`, `isServerlessEnvironment`). Dataset ini di-seed ke setiap
+akun baru, tapi saat ini hanya dikunci lewat alur seed engine
+(`tests/demo-seed.test.ts` menguji `seedDemoDataIfEmpty`/`repairDemoKnowledgeStates`
+dan `shiftDemoDate` + tanggal state saja) — bentuk dan integritas referensial
+dataset itu sendiri belum pernah dikunci langsung, padahal salah referensi id
+akan membuat demo seeder diam-diam menjatuhkan data (konsep tak ter seeding,
+state yatim). **Modul tidak diubah — test saja.**
 
-Test baru `tests/graph-store.test.ts` (node:test; satu PGlite in-memory
-`new PGlite()` + `applyMigrations(pgliteMigratable(pg), <isi .sql dari
-migrations/>)` + `new Kysely<GraphDatabase>({ dialect: pgliteDialect(() => pg) })`
-— pola `tests/support/graph-db.ts`; sisipkan baris `user` untuk tiap owner uji
-karena `owner_id` ber-FK ke `user`; tanpa dependensi baru) mengunci:
+Test baru `tests/demo-data.test.ts` (node:test murni, tanpa PGlite — data
+adalah konstanta modul; baca `src/lib/graph/seed.ts` dulu untuk memahami
+bagaimana tiap bidang dikonversi ke tipe DB supaya invarian dikunci pada hal
+yang benar-benar dipakai) mengunci:
 
-- `tableForKey` persis: `learner:`→`learners`, `concept:`→`concepts`,
-  `edge:prereq:`→`prerequisite_edges`, `edge:related:`→`related_edges`,
-  `state:`→`knowledge_states`, `index:`→`graph_indexes`; prefiks tak dikenal
-  (`bogus:x`, string kosong) melempar `Unknown LearnGraph key prefix: <key>`;
-  `GRAPH_TABLES` tepat keenam tabel itu.
-- Konstruktor `PostgresGraphStore` menolak ownerId kosong (`PostgresGraphStore
-  requires an ownerId`).
-- `put`/`get`/`del`/`exists`: get kunci absen → `null`; put baru lalu get
-  mengembalikan nilai sama; round-trip JSON semantik LevelDB (properti bernilai
-  `undefined` hilang, `Date` jadi string ISO — uji lewat kunci `index:` agar
-  bebas kolom ekstra); put menimpa nilai lama (on conflict `(owner_id, key)`)
-  dan get mengembalikan nilai baru; del menghapus (get null, exists false) dan
-  del kunci absen tidak melempar; exists cukup keberadaan baris.
-- Kolom ekstraksi diverifikasi lewat query SQL langsung ke tabel (bukan lewat
-  engine): `learner:{id}` → `user_id`; `concept:{id}` → `concept_id` + `domain`
-  dari nilai (domain non-string → null); `edge:prereq:...` → `from_concept`/
-  `to_concept` dari `value.from/to` (hilang → null); `state:...` →
-  `learner_id`/`concept_id` dari `value.userId/conceptId`; `edge:related:{id}`
-  → `edge_id`; `index:` tanpa kolom ekstra.
-- Skan prefiks `listKeys`/`listEntries`: hanya kunci berprefiks itu (range
-  `>= prefix` dan `< prefix + '\xFF'`), urutan byte collate "C" menaik
-  (`concept:a` < `concept:a:1` < `concept:ab` karena ':' < 'b'), `reverse`
-  menurun, `limit` memotong; dua owner dengan kunci identik saling tak terlihat
-  dan put owner B tidak menimpa baris owner A (isolasi di level store, bukan
-  engine).
-- `batch`: array kosong tanpa efek; put dan del diterapkan berurutan dalam satu
-  transaksi; op `put` dengan `value === undefined` dilewati (tidak menulis dan
-  tidak menghapus); bila satu op melempar (prefiks tak dikenal), seluruh
-  transaksi digulung balik — tidak ada yang tertulis.
-- `clear` menghapus baris owner itu di keenam tabel saja (owner lain utuh);
-  `close` memanggil `options.onClose` tepat sekali.
+- `demoLearners` (3): `id` unik berformat `learner:demo-*`, `userId` unik
+  `demo-*`, `name`/`email` tak kosong dengan domain `@demo.learngraph.dev`;
+  `createdAt`/`updatedAt` ISO valid dan `createdAt <= updatedAt`; tiap bidang
+  `learningStyle` dan `cognitiveProfile` hanya memuat nilai enum sah dari
+  `src/lib/graph/types.ts`; **`psychometricScores` seluruhnya angka telanjang
+  0–1** (legacy — sengaja, `traitScore` hanya membaca `{ score }` 0–100 sehingga
+  engine mengabaikannya dan demo tetap netral; angka 0–100 yang menyusup akan
+  diam-diam diabaikan juga, kunci supaya perubahan disengaja); `tags` array
+  string.
+- `demoConcepts` (11): `id` unik `concept:*`, `name`/`domain`/`description`
+  tak kosong, `difficulty` bilangan bulat 1–10, `bloomLevel` salah satu dari
+  enam level Bloom (data demo memakai string seperti `'remember'`),
+  `estimatedMinutes` > 0, `createdAt` ISO.
+- `demoEdges` (11): `id` unik, `from`/`to` merujuk `id` yang ada di
+  `demoConcepts` (integritas referensial), tidak ada edge ke dirinya sendiri,
+  `weight` 0–1, graf hasilnya asiklik (DFS kecil di test), `createdAt` ISO.
+- `demoKnowledgeStates` (18): `id` unik, `learnerId` merujuk `userId` learner
+  demo yang ada, `conceptId` merujuk konsep demo yang ada, `mastery` bilangan
+  bulat 0–100, `confidence` 0–1, `reviewCount` bilangan bulat ≥ 0,
+  `createdAt <= lastReviewed`, `lastReviewed < DEMO_DATA_AS_OF` (tanggal pra-#17
+  adalah syarat tombol Refresh example data muncul — jangan sampai tanggal baru
+  menyusup ke dataset); jumlah state per learner (alice 6, bob 3, carol 9)
+  dikunci eksplisit sebagai salinan (perubahan jumlah harus terlihat di diff).
+- `isServerlessEnvironment`: `VERCEL === '1'` → true,
+  `AWS_LAMBDA_FUNCTION_NAME` terisi → true, `DEMO_MODE === 'true'` → true,
+  semua kosong → false (stub `process.env`, pulihkan setelahnya).
+- `shiftDemoDate` SUDAH teruji langsung di `tests/demo-seed.test.ts` — jangan
+  duplikasi, cukup pastikan tidak regresi di sana.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #66 — test: test unit langsung store Postgres
+  `src/lib/graph/store.ts` (`PostgresGraphStore` + `tableForKey`, 11 test di
+  `tests/graph-store.test.ts`, node:test; satu PGlite in-memory + isi
+  `migrations/*.sql` asli via `applyMigrations(pgliteMigratable(pg), ...)` +
+  `Kysely<GraphDatabase>` dengan `pgliteDialect`; baris `user` disisipkan untuk
+  tiap owner uji karena `owner_id` ber-FK), modul tidak diubah. Dikunci:
+  `tableForKey` — keenam prefiks → tabel persis (`learner:`/`concept:`/
+  `edge:prereq:`/`edge:related:`/`state:`/`index:`), prefiks telanjang (yang
+  dipakai scan) juga dirutekan, prefiks tak dikenal (`bogus:x`, string kosong,
+  `edge:`, `edge:other:x`, `learners`) melempar `Unknown LearnGraph key
+  prefix: <key>` persis; `GRAPH_TABLES` tepat enam tabel dalam urutan itu.
+  Konstruktor menolak ownerId kosong. `get`/`put`/`del`/`exists` — kunci absen →
+  null/false, round-trip nilai, overwrite via konflik `(owner_id, key)`
+  (nilai baru menang), del kunci absen tanpa galat. Semantik JSON LevelDB —
+  properti bernilai `undefined` hilang (bukan `undefined` sebagai nilai) dan
+  `Date` menjadi string ISO, diuji lewat kunci `index:`. Kolom ekstraksi
+  diverifikasi dengan SQL mentah ke tabel (bukan lewat engine): `learner:` →
+  `user_id`; `concept:` → `concept_id` + `domain` dari nilai (hilang/non-string
+  → kolom null, JSON tetap utuh); `edge:prereq:` → `from_concept`/`to_concept`
+  dari `value.from/to` (hilang → null, ikut diperbarui saat overwrite);
+  `edge:related:` → `edge_id`; `state:` → `learner_id`/`concept_id` dari
+  `value.userId/conceptId` (hilang → null); `index:` tanpa kolom ekstraksi
+  (`select *` → tepat `owner_id`/`key`/`data`). Skan prefiks — hanya rentang
+  `>= prefix` dan `< prefix+'\xFF'`, urutan byte collate "C" (`concept:a` <
+  `concept:a:1` < `concept:ab` karena ':' < 'b'; kasus-sensitif `concept:A`
+  terpisah; `'1' < '10' < '2'` byte-wise bukan numeric sort), `reverse`
+  menurun, `limit` memotong, `listEntries` mengembalikan pasangan kunci-nilai.
+  Isolasi di level store (bukan engine) — kunci identik pada dua owner menjadi
+  dua baris (count SQL = 2), get/scan masing-masing hanya melihat miliknya,
+  del satu pihak tak menyentuh pihak lain. `batch` — array kosong tanpa efek,
+  put/del diterapkan berurutan dalam satu transaksi (put lalu del → hilang, del
+  lalu put → nilai baru), op put dengan `value === undefined` dilewati (tidak
+  menulis dan tidak menghapus), satu op melempar (prefiks tak dikenal) →
+  seluruh transaksi digulung balik. `clear` menghapus baris owner itu di keenam
+  tabel saja (owner lain utuh, diverifikasi per tabel); `close` memanggil
+  `options.onClose` tepat sekali. Tanpa perubahan
+  perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (581/581 unit,
+  187 cek smoke).
 
 - 2026-11-15: PR #65 — test: test unit langsung modul scaffolding psikometrik
   `src/lib/graph/scaffolding.ts` (23 test di `tests/scaffolding.test.ts`,
