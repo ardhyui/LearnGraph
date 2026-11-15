@@ -1,52 +1,69 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 30: test langsung `cn` di `src/lib/utils.ts` + `uuidv4` di `src/lib/uuid.ts`, PR #69; berikutnya: test langsung `src/lib/db.ts` — `dbSource`, `getDb`, `ensureDbReady`, `dumpLocalJapaneseDatabase`)
+Terakhir diperbarui: 2026-11-15 (siklus 31: test langsung `src/lib/db.ts` — `dbSource`, `getDb`, `ensureDbReady`, `dumpLocalJapaneseDatabase`, PR #70; berikutnya: test langsung `scripts/migration-plan.mjs` — `migrationName`, `isMigrationFile`, `pendingMigrations`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung **`src/lib/db.ts`**, modul inti server yang
-belum punya test langsung (`dbSource`, `getDb`, `ensureDbReady`,
-`dumpLocalJapaneseDatabase`). **Modul tidak diubah — test saja.** Tidak perlu
-database sungguhan: cukup satu PGlite palsu yang disuntikkan lewat global.
-Test baru `tests/db.test.ts` (`node:test` murni) mengunci:
+Penguatan tes: test unit langsung **`scripts/migration-plan.mjs`**, helper
+bookkeeping migrasi yang dipakai bersama `scripts/migrate.mjs` (deploy) dan
+`src/lib/migrations.ts` (jalur PGlite). **Modul tidak diubah — test saja.**
+Test baru `tests/migration-plan.test.ts` (`node:test` murni, impor `.mjs`
+langsung, tanpa database) mengunci:
 
-- **Bootstrap palsu:** sebelum `await import('../src/lib/db.ts')` (impor
-  dinamis, jangan statis di bagian atas file), isi
-  `globalThis.__learngraphPglite__` dengan `Promise.resolve(fakePglite)` agar
-  bootstrap otomatis di akhir modul meng-`await` objek palsu dan tidak
-  menjalankan WASM. `fakePglite` mencatat panggilan `dumpDataDir` dan
-  mengembalikan `Blob` berisi byte gzip tiruan. Hapus
-  `__learngraphKysely__`/`__learngraphPglite__` sebelum/sesudah tiap test dan
-  pulihkan `window`/env di `after`/`finally`.
-- **`dbSource`** — dengan `DATABASE_URL` kosong (seperti CI) bernilai
-  `'pglite'`. Pemilihan `'postgres'` dikunci lewat **child process** (`node
-  --experimental-strip-types --input-type=module -e "…"` dengan
-  `DATABASE_URL=postgres://…`): cetak `dbSource`, harus `'postgres'`, tanpa
-  menghubungi jaringan (impor saja tidak membuat pool; jangan memanggil
-  `getDb()` di child). Bila child process terlalu rapuh di lingkungan CI,
-  cukup kunci jalur `'pglite'` dan tambahkan penjaga statis bahwa `dbSource`
-  diturunkan dari `DATABASE_URL` yang di-trim.
-- **`getDb()`** — memakai `window`: bila `globalThis.window` didefinisikan,
-  melempar persis `'@/lib/db is server-only — use it from a server function.'`
-  dan **tidak** membuat/menyimpan instance (`__learngraphKysely__` tetap
-  kosong); tanpa `window`, dua panggilan mengembalikan objek Kysely yang sama
-  dan menyimpannya di `globalThis.__learngraphKysely__` (memoization, satu
-  instance). Tidak perlu query SQL.
-- **`ensureDbReady()`** — pada `dbSource === 'pglite'` menunggu promise PGlite
-  palsu yang sama (bootstrap tidak membuat PGlite kedua); resolve tanpa galat.
-- **`dumpLocalJapaneseDatabase()`** — tanpa `JAPANESE_LOCAL_ORIGIN` menolak
-  persis `'Local backup is disabled.'` tanpa memanggil `dumpDataDir`; dengan
-  env terisi memanggil `dumpDataDir('gzip')` tepat sekali dan mengembalikan
-  `Uint8Array` berisi byte yang sama dengan `Blob` palsu (bukan objek `Blob`).
-  Env dipulihkan setelah test.
-- Penjaga statis: `db.ts` tetap diawali docblock server-only; bootstrap
-  otomatis hanya berjalan bila `typeof window === 'undefined'` **dan**
-  `dbSource === 'pglite'`; `getDb` memeriksa `window` sebelum memoization.
+- **`migrationName`** — basename POSIX: `migrations/0001_users.sql` →
+  `0001_users.sql`, `migrations/auth/0002_auth.sql` → `0002_auth.sql`; nama
+  tanpa folder dikembalikan apa adanya; path kosong dan `'migrations/'` →
+  `''` (perilaku `split('/').pop() ?? path` saat ini); backslash **tidak**
+  dianggap pemisah (`migrations\\0003_x.sql` tetap utuh — dikunci sebagai
+  perilaku saat ini, bukan klaim dukungan Windows).
+- **`isMigrationFile`** — hanya akhiran persis `.sql`: `a.sql` dan `.sql`
+  true; `a.SQL`, `a.sql.bak`, `a.sqlite`, `migrations/auth` (direktori), dan
+  `README.md` false.
+- **`pendingMigrations`** — menerima iterable (array, `Set`, generator) tanpa
+  memutasi masukan; entri non-`.sql` dibuang; hasil `{ name, path }`
+  mempertahankan path asli (basename hanya untuk `name`); urutan menurut
+  `localeCompare` nama, bukan urutan masukan; hanya nama yang ada di
+  `applied` yang dilewati dan entri `applied` asing diabaikan; kunci selalu
+  basename — `migrations/auth/0001_auth.sql` dilewati bila `applied` berisi
+  `0001_auth.sql` (salinan auth ke `migrations/` tidak dijalankan ulang),
+  sedangkan `applied` berisi `auth/0001_auth.sql` **tidak** mencocokkan; dua
+  path dengan basename sama keduanya dikembalikan (perilaku saat ini);
+  masukan kosong → `[]`; filter `applied` terjadi setelah sort sehingga
+  urutan hasil tetap deterministik.
+- Penjaga statis: `scripts/migrate.mjs` dan `src/lib/migrations.ts` sama-sama
+  mengimpor `pendingMigrations` dari `scripts/migration-plan.mjs` (satu
+  sumber aturan, tidak ada salinan logika basename di pemanggil).
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #70 — test: test unit langsung modul akses database
+  server-only `src/lib/db.ts` (13 test di `tests/db.test.ts`, node:test
+  murni), modul tidak diubah. PGlite palsu disuntikkan lewat
+  `globalThis.__learngraphPglite__` sebelum impor dinamis, jadi bootstrap
+  otomatis meng-`await` objek palsu (tanpa WASM atau `import.meta.glob`).
+  Dikunci: `dbSource` — `'pglite'` saat `DATABASE_URL` kosong (seperti CI)
+  dan saat hanya whitespace (nilai di-trim), `'postgres'` saat terisi lewat
+  child process yang hanya mencetak `dbSource` tanpa memanggil `getDb()`
+  atau membuka koneksi; `getDb()` — dengan `globalThis.window` terdefinisi
+  melempar persis `'@/lib/db is server-only — use it from a server function.'`
+  tanpa membuat/menyimpan instance dan tanpa menyentuh database, tanpa
+  `window` dua panggilan mengembalikan objek Kysely yang sama dan
+  menyimpannya di `__learngraphKysely__`; `ensureDbReady()` — menunggu
+  promise PGlite yang sudah di-memoize (belum selesai sebelum promise
+  dilepas, identitas promise tak berubah, tidak membuat instance Kysely);
+  `dumpLocalJapaneseDatabase()` — tanpa `JAPANESE_LOCAL_ORIGIN` menolak
+  persis `'Local backup is disabled.'` tanpa memanggil `dumpDataDir`, dengan
+  env memanggil `dumpDataDir('gzip')` tepat sekali dan mengembalikan
+  `Uint8Array` berisi byte yang sama (bukan `Blob`); env dan global
+  dipulihkan. Penjaga statis: docblock server-only di awal modul, `dbSource`
+  diturunkan dari `DATABASE_URL` ter-trim, bootstrap otomatis hanya bila
+  `typeof window === 'undefined' && dbSource === 'pglite'`, cek `window`
+  mendahului memoization, guard backup mendahului `dumpDataDir`. Tanpa
+  perubahan perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau
+  (645/645 unit, smoke Playwright + PGlite tetap hijau).
 
 - 2026-11-15: PR #69 — test: test unit langsung dua modul util kecil,
   `src/lib/utils.ts` (`cn`, 8 test di `tests/utils.test.ts`) dan
