@@ -1,51 +1,98 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 47: test unit langsung penjaga evidence `requiresEvidence`/`guardGraphCall`/`seedDemoQuestions` `src/lib/evidence/service.ts`, PR #86; berikutnya: test unit langsung modul ukuran log bukti `src/lib/evidence/events.ts` — `dueReviewRetention`/`tutorPreference`)
+Terakhir diperbarui: 2026-11-16 (siklus 48: test unit langsung ukuran log bukti `src/lib/evidence/events.ts`, PR #87; berikutnya: test unit langsung label evidence `src/lib/evidence/labels.ts` — `masterySourceLabel`/`evidenceMode`/`quizResultNotice`/`retentionLine`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung modul ukuran log bukti
-`src/lib/evidence/events.ts` — `dueReviewRetention` dan `tutorPreference`**.
-File baru `tests/evidence-events.test.ts` (node:test murni, impor modul
+Penguatan tes: **test unit langsung label evidence
+`src/lib/evidence/labels.ts` — `masterySourceLabel`, `evidenceMode`,
+`quizResultNotice`, `retentionLine`**.
+File baru `tests/evidence-labels.test.ts` (node:test murni, impor modul
 langsung, tanpa PGlite/DOM). Modul **tidak diubah**. Probe dulu, kunci
 perilaku aktual:
 
-1. `dueReviewRetention(events)` → `{quiz: {answered, correct, rate},
-   selfReport: {...}}`: hanya `wasDue === true` yang dihitung (`false`,
-   `null`, `undefined`, field absen tidak); kind `quiz` menambah
-   `quiz.answered` dan hanya `outcome === 'passed'` yang menambah
-   `quiz.correct` (`failed`/outcome lain tidak); kind `review` menambah
-   `selfReport.answered` dan hanya `'remembered'` yang correct (`forgot`
-   tidak); kind lain (`study`/`snooze`/`unsnooze`/`practice`/`lesson`/
-   `tutor`) diabaikan; `rate = correct / answered` (semua benar 1, semua
-   salah 0, 2/4 → 0.5, pembulatan tidak dilakukan), `null` bila bucket itu
-   `answered === 0`; dua bucket independen (satu `null`, yang lain terisi);
-   `[]` → kedua bucket `{answered: 0, correct: 0, rate: null}`; masukan
-   tidak dimutasi; urutan tidak berpengaruh.
-2. `tutorPreference(events)` → `{compared, preferContext, preferPlain,
-   same}`: hanya `kind === 'tutor'` dengan `outcome.startsWith('prefer-')`
-   yang masuk `compared`; `prefer-context`/`prefer-plain`/`prefer-same`
-   masing-masing dihitung ke bucketnya (`same` = `prefer-same`); outcome
-   `prefer-*` tak dikenal (mis. `prefer-other`) masuk `compared` tetapi
-   tidak ke bucket mana pun (rough edge dikunci: jumlah tiga bucket bisa
-   lebih kecil dari `compared`); event non-tutor ber-outcome `prefer-*` dan
-   event tutor ber-outcome lain (mis. `asked`) diabaikan; tanpa event →
-   semua 0; masukan tidak dimutasi.
-3. Penjaga statis: `events.ts` tanpa impor apa pun; mengekspor kedua fungsi
-   (dan tipe `LearningEvent`/`RetentionStat`); `src/lib/evidence/measures.ts`
-   tetap mengimpor `dueReviewRetention`+`tutorPreference` dari `./events.ts`
-   tanpa menyalin perhitungannya; `src/server/evidence.functions.ts` tetap
-   mengimpor `dueReviewRetention` dari `@/lib/evidence/events`; test lama
-   tetap utuh: `tests/learning-evidence.test.ts` 'retention at review time
-   counts due quiz reviews and due self-reports separately' (0.5/1 + `[]`
-   rate null) dan `tests/learning-measures.test.ts` rate 0.5/0.75 serta
-   "preferred in 2 of 3 comparisons".
+1. `masterySourceLabel(source)`: `'quiz'` → `'From quizzes'`, `'self_report'`
+   → `'Self-reported'`, `'manual'` → `'Set by hand'`, `'practice'` →
+   `'From practice notes'`, `'sync'` → `'Synced from Michi'`; `null`,
+   `undefined`, dan string tak dikenal (cast) → `'Not quiz-checked'`.
+2. `evidenceMode(concept, questionCounts)`: count > 0 → `'quiz'` walau
+   `evidenceRequired` true/false; count 0 atau id absen → `'elsewhere'` bila
+   `evidenceRequired === true`, selain itu (`false`/`undefined`/absen)
+   `'self-report'`; jumlah milik conceptId lain diabaikan; count negatif
+   (rough edge) tidak > 0 → jatuh ke cabang `evidenceRequired`.
+3. `quizResultNotice(r)` → string persis: gagal (`passed: false`) selalu
+   `${correct} of ${total} correct — not passed yet. “${conceptName}” stays in
+   your plan: read the explanations and try again later.` walau `wasDue`
+   true/masteryBefore tinggi; lulus + `wasDue: true` → `... — passed!
+   “name” will come back after a longer break.` (menang atas cabang
+   masteryBefore); lulus + tidak due + `masteryBefore >= 80` (uji tepat 80
+   dan 85) → `... keeps its review date.`; lulus + tidak due +
+   `masteryBefore < 80` (0, 79, 79.9) → `... is mastered. A short review
+   quiz comes back tomorrow.` Kutip lengkung `“”` dan angka `correct of
+   total` apa adanya.
+4. `retentionLine(stat)` → `${correct} of ${answered} ${noun} answered
+   correctly (${Math.round(rate * 100)}%)` dengan noun `due review` saat
+   `answered === 1` dan `due reviews` selain itu; `answered === 0` → `null`
+   (walau rate 0), `rate === null` → `null`; pembulatan persis (2/3 → 67%,
+   1/3 → 33%, 3/4 → 75%, 0/2 → 0%); rough edge rate di luar 0..1 tidak
+   dijepit (1.5 → 150%, −0.1 → −10%).
+5. Penjaga statis: `labels.ts` hanya impor `type` (`ConceptNode`/
+   `MasterySource` dari `../graph/types.ts`, `RetentionStat` dari
+   `./events.ts`) tanpa impor runtime; pemakai tetap:
+   `StudyToday.tsx` (`evidenceMode`+`quizResultNotice`),
+   `learn.$conceptId.tsx` (`masterySourceLabel`+`quizResultNotice`),
+   `gaps.tsx` (`masterySourceLabel`+`retentionLine`), `Onboarding.tsx`
+   (`evidenceMode`), `graph.tsx` (`masterySourceLabel`); bunyi label tidak
+   disalin di jalur lain; asersi lama di `tests/learning-evidence.test.ts`
+   (tiga `masterySourceLabel`, tiga `evidenceMode`, tiga `quizResultNotice`,
+   dua `retentionLine`) tetap utuh.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 8–12). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
 UI tetap bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-16: PR #87 — test: test unit langsung ukuran log bukti
+  `src/lib/evidence/events.ts` — `dueReviewRetention`/`tutorPreference`
+  (17 test di `tests/evidence-events.test.ts`, node:test murni, impor modul
+  langsung, tanpa PGlite/DOM), modul tidak diubah. Dikunci:
+  `dueReviewRetention` — hanya `wasDue === true` dihitung (`false`, `null`,
+  `undefined`, field absen tidak); kind `quiz` menambah `answered` dan hanya
+  `outcome === 'passed'` yang `correct` (`failed`/`remembered`/`passed-ish`
+  tidak); kind `review` menambah `answered` dan hanya `'remembered'` yang
+  `correct` (`forgot`/`passed` tidak); `study`/`snooze`/`unsnooze`/
+  `practice`/`lesson`/`tutor` diabaikan walau due; `rate = correct /
+  answered` tanpa pembulatan (4/4 → 1, 0/4 → 0, 2/4 → 0.5, 3/4 → 0.75,
+  1/3 → 0.333…, 2/3 → 0.666…), `null` saat bucket kosong; dua bucket
+  independen (satu kosong, yang lain terisi); `[]` → kedua bucket
+  `{answered: 0, correct: 0, rate: null}`; masukan dibekukan dan snapshot
+  utuh, hasil sama untuk urutan terbalik. `tutorPreference` —
+  `prefer-context`/`prefer-plain`/`prefer-same` dihitung ke bucketnya
+  (`same` = `prefer-same`) dan `compared` = jumlah event tutor ber-outcome
+  `prefer-*`; rough edge dikunci: `prefer-other` masuk `compared` tetapi
+  tidak ke bucket mana pun sehingga tiga bucket bisa < `compared`; event
+  non-tutor ber-outcome `prefer-*` dan event tutor ber-outcome `asked`
+  diabaikan; `[]` → semua 0; masukan tidak dimutasi, urutan tak
+  berpengaruh. Penjaga statis: `events.ts` tanpa impor/`require` dan
+  mengekspor tepat `LearningEventKind`, `LearningEventSource`,
+  `LearningEventInput`, `LearningEvent`, `RetentionStat`,
+  `dueReviewRetention`, `tutorPreference`; `measures.ts` mengimpor kedua
+  fungsi dari `./events.ts` tanpa salinan (`wasDue !== true`/
+  `answered ? correct / answered`/`startsWith('prefer-')`);
+  `evidence.functions.ts` tetap `const { dueReviewRetention } = await
+  import('@/lib/evidence/events')`; asersi lama
+  `tests/learning-evidence.test.ts` (judul retention) dan
+  `tests/learning-measures.test.ts` (rate 0.5/0.75 + "preferred in 2 of 3
+  comparisons") tetap utuh. Catatan proses: run gerbang pertama gagal di
+  langkah unit oleh `/tmp` penuh (tmpfs 4,9 G terisi 3,9 G; errno 28
+  ENOSPC dan -122 pada `tests/with-app-env.test.ts` +
+  `tests/zpd-edges.test.ts`, keduanya tak terkait) — dihapus
+  `/tmp/node-compile-cache` (3,5 G, cache yang bisa dibuat ulang) lalu
+  `npm run ci` utuh diulang tanpa perubahan kode dan hijau penuh. Tanpa
+  perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
+  `npm run ci` hijau (install, typecheck, lint 0/0, 913/913 unit = 896 + 17,
+  build, anggaran bundel, CSP build produksi, smoke Playwright + PGlite).
 
 - 2026-11-16: PR #86 — test: test unit langsung penjaga evidence
   `src/lib/evidence/service.ts` — `requiresEvidence`, `guardGraphCall`,
