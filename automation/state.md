@@ -1,50 +1,77 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 32: test langsung `scripts/migration-plan.mjs` — `migrationName`, `isMigrationFile`, `pendingMigrations`, PR #71; berikutnya: test langsung `scripts/with-app-env.mjs` — `parseDotEnv`, `readDotEnv`, `projectRoot`, `exitStatusFromChild`)
+Terakhir diperbarui: 2026-11-15 (siklus 33: test langsung `scripts/with-app-env.mjs` — `parseDotEnv`, `projectRoot`, `readDotEnv`, `exitStatusFromChild`, CLI lewat `spawnSync`, PR #72; berikutnya: test langsung `checkPage` di `scripts/check-csp.mjs`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung **`scripts/with-app-env.mjs`**, wrapper yang
-dipakai `dev`, `build`, `preview`, dan `db:migrate` untuk menggabungkan `.env`
-ke environment anak. **Modul tidak diubah — test saja.** Test baru
-`tests/with-app-env.test.ts` (`node:test` murni, impor `.mjs` langsung; empat
-helper diekspor, `main`/`isMainModule` privat sehingga CLI diuji lewat
-`spawnSync`) mengunci:
+Penguatan tes: test unit langsung **`scripts/check-csp.mjs`**, khususnya fungsi
+murni `checkPage(html, csp)` yang menjadi gerbang CSP pada build produksi
+(`npm run ci` → CSP). **Modul hanya boleh diberi anotasi JSDoc/`@ts-check` bila
+`checkJs` menuntutnya — tanpa perubahan perilaku; selain itu test saja.** Test
+baru `tests/check-csp.test.ts` (`node:test` murni, impor `.mjs` langsung;
+`BASE_URL` tidak diperlukan dan `main` tidak berjalan karena dijaga
+`import.meta.url`, jadi tidak ada fetch) mengunci:
 
-- **`parseDotEnv`** — LF dan CRLF; baris kosong dan baris berawalan `#`
-  dibuang; spasi di kunci dan nilai di-trim; `KEY=value`; pemisah adalah `=`
-  pertama sehingga nilai boleh memuat `=` (`E=a=b` → `'a=b'`); baris tanpa
-  `=` atau dengan kunci kosong (`=bad`) dilewati; prefiks `export ` (harus
-  `export` + whitespace) dibuang dari kunci (`export I=9` → `I`, `exportJ=10`
-  tetap `exportJ`); tanda kutip tunggal/ganda di kedua ujung dibuang
-  (`"quoted value"` / `'single'` → tanpa kutip), kutip tak berpasangan
-  (`"mixed'`) dipertahankan apa adanya, nilai satu kutip (`"`) menjadi `''`;
-  `#` setelah `=` adalah bagian nilai, bukan komentar; nilai kosong → `''`;
-  kunci duplikat → nilai terakhir menang; tidak ada interpolasi/escape.
-- **`projectRoot()`** — direktori induk `scripts/`, yaitu root repo
-  (`import.meta.dirname` test + `..`).
-- **`readDotEnv(root)`** — `.env` tidak ada → `{}`; direktori sementara
-  (`mkdtemp` di `os.tmpdir()`, dibersihkan di `after`) berisi `.env` → hasil
-  `parseDotEnv`; fungsi ini **tidak** menggabungkan `process.env` (penggabungan
-  terjadi di `main`).
-- **`exitStatusFromChild(code, signal)`** — `signal` menang atas `code` dan
-  menjadi `128 + os.constants.signals[signal]` (`SIGINT` 130, `SIGTERM` 143,
-  `SIGHUP` 129, `SIGKILL` 137); sinyal tak dikenal → 129 (128+1); tanpa sinyal
-  memakai `code ?? 1` sehingga `0` tetap `0`, kode nonnol diteruskan, dan
-  `null`/`undefined` → 1.
-- **CLI lewat `spawnSync(process.execPath, [scripts/with-app-env.mjs, ...])`** —
-  tanpa argumen → status 2, stderr memuat
-  `usage: node scripts/with-app-env.mjs <command> [args…]`; perintah sukses →
-  status 0 dan stdout anak tampil; kode keluar nonnol diteruskan; argumen
-  diteruskan apa adanya (anak mencetak `process.argv.slice(1)`); perintah tak
-  ada → status 127 dan stderr memuat `[with-app-env] failed to run`; variabel
-  `process.env` eksplisit menang atas `.env` (uji dengan env override yang
-  dicetak anak; jangan membuat/mengubah `.env` repo).
+- **`checkPage` tanpa `<script>`** → `[]`; CSP tanpa `script-src` (string
+  kosong, hanya `default-src`) → tepat `['no script-src directive']`;
+  `script-src` kosong (`script-src ;`) juga → `['no script-src directive']`.
+- **Direktif `script-src`** ditemukan di awal maupun setelah `;`
+  (`default-src 'self'; script-src 'self'`), nilai dipisah spasi; spasi ganda
+  setelah `script-src` **tidak** dikenali (perilaku regex saat ini — kunci
+  sebagai rough edge, bukan klaim parser CSP lengkap).
+- **`'unsafe-inline'` dan `'unsafe-eval'`** masing-masing menghasilkan satu
+  problem, berurutan inline lalu eval; policy aman tanpa keduanya → `[]`.
+- **Nonce**: `'nonce-X'` diekstrak dari policy; inline `<script nonce="X">`
+  lolos; nonce berbeda **tetap lolos bila hash isinya diizinkan**; nonce
+  berbeda tanpa hash → `inline script without the nonce or an allowed hash:
+  <80 karakter pertama>`; `+` dan `/` pada nonce base64 tidak merusak
+  ekstraksi.
+- **Hash**: `'sha256-<base64>'` dihitung dari isi `<script>` persis (indentasi
+  dan baris baru ikut), satu hash mengizinkan beberapa tag berisi sama;
+  hash salah/tidak ada → problem; `<script>` tanpa atribut apa pun mengikuti
+  jalur hash.
+- **Script eksternal**: `src="https://…"` dan `src="//cdn…"` wajib
+  `nonce="<nonce policy>"`; tanpa/campur nonce → `external script without the
+  nonce: <src>`; nonce cocok → lolos. Script dengan `src` lokal
+  (`/assets/app.js`) dan `data:` **tidak diperiksa** (perilaku saat ini —
+  dikunci eksplisit), begitu pula `ftp://`.
+- **Beberapa tag**: problem dikumpulkan berurutan sesuai dokumen; tag
+  `<SCRIPT>` huruf besar, atribut tambahan (`type`, `defer`, `nonce` di depan),
+  dan isi multi-baris tetap dikenali. Penjaga statis: `checkPage` diekspor,
+  `main` hanya jalan saat `import.meta.url === file://…`, dan `PAGES` berisi
+  tiga halaman publik (`/sign-in`, `/privacy`, `/forgot-password`) supaya
+  halaman yang butuh sesi tidak ikut diperiksa.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #72 — test: test unit langsung wrapper `.env`
+  `scripts/with-app-env.mjs` (27 test di `tests/with-app-env.test.ts`,
+  node:test murni, impor `.mjs` langsung, tanpa database), modul tidak berubah
+  perilaku. Dikunci: `parseDotEnv` — LF/CRLF, baris kosong/komentar penuh
+  dibuang, kunci dan nilai di-trim, pemisah `=` pertama (`E=a=b` → `'a=b'`),
+  baris tanpa `=` dan kunci kosong (`=bad`) dilewati, prefiks `export ` hanya
+  bila diikuti whitespace (`export I=9` → `I`, `exportJ=10` tetap), kutip
+  tunggal/ganda yang berpasangan dibuang, kutip tak berpasangan dipertahankan,
+  satu kutip menjadi `''`, `#` setelah `=` bagian nilai, nilai kosong → `''`,
+  duplikat nilai terakhir menang, tanpa interpolasi/escape; `projectRoot` =
+  root repo (induk `scripts/`); `readDotEnv` — `.env` tidak ada → `{}`,
+  direktori sementara berisi `.env` → hasil parse, tidak menggabungkan
+  `process.env`; `exitStatusFromChild` — `0`/kode nonnol diteruskan,
+  `null`/`undefined` → 1, sinyal menang atas kode (`SIGINT` 130, `SIGTERM` 143,
+  `SIGHUP` 129, `SIGKILL` 137), sinyal tak dikenal → 129; CLI lewat
+  `spawnSync` — tanpa argumen → 2 + usage, sukses → 0 + stdout anak, kode
+  nonnol diteruskan, argumen verbatim tanpa interpretasi shell, perintah hilang
+  → 127 + `[with-app-env] failed to run`, `.env` dibaca dari root wrapper
+  (bukan cwd), dan `process.env` menang atas `.env` (wrapper disalin ke
+  direktori sementara; `.env` repo tidak dibaca/ditulis). Catatan proses: CI
+  pertama gagal di typecheck karena `tsconfig` `checkJs` kini memeriksa `.mjs`
+  yang diimpor test (implicit `any`); modul hanya diberi anotasi JSDoc +
+  `@ts-check` (tanpa perubahan runtime) lalu gerbang penuh dijalankan ulang.
+  Tanpa perubahan skema/RPC/migrasi/dependensi. `npm run ci` hijau (689/689
+  unit, lint 0/0, build, CSP build produksi, smoke Playwright + PGlite).
 
 - 2026-11-15: PR #71 — test: test unit langsung helper bookkeeping migrasi
   `scripts/migration-plan.mjs` (17 test di `tests/migration-plan.test.ts`,
