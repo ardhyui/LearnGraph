@@ -1,57 +1,89 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 48: test unit langsung ukuran log bukti `src/lib/evidence/events.ts`, PR #87; berikutnya: test unit langsung label evidence `src/lib/evidence/labels.ts` — `masterySourceLabel`/`evidenceMode`/`quizResultNotice`/`retentionLine`)
+Terakhir diperbarui: 2026-11-16 (siklus 49: test unit langsung label evidence `src/lib/evidence/labels.ts`, PR #88; berikutnya: test unit langsung skrip tema tanpa kedip `src/lib/theme-script.ts` — `NO_FLASH_SCRIPT`/`THEME_STORAGE_KEY`, dieksekusi di `node:vm`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung label evidence
-`src/lib/evidence/labels.ts` — `masterySourceLabel`, `evidenceMode`,
-`quizResultNotice`, `retentionLine`**.
-File baru `tests/evidence-labels.test.ts` (node:test murni, impor modul
-langsung, tanpa PGlite/DOM). Modul **tidak diubah**. Probe dulu, kunci
-perilaku aktual:
+Penguatan tes: **test unit langsung skrip tema tanpa kedip
+`src/lib/theme-script.ts` — `NO_FLASH_SCRIPT`, `THEME_STORAGE_KEY`**.
+File baru `tests/theme-script.test.ts` (node:test, impor modul langsung +
+`node:vm`, tanpa PGlite/DOM/Playwright). Modul **tidak diubah**. Probe dulu
+dengan `vm.runInContext`, kunci perilaku aktual:
 
-1. `masterySourceLabel(source)`: `'quiz'` → `'From quizzes'`, `'self_report'`
-   → `'Self-reported'`, `'manual'` → `'Set by hand'`, `'practice'` →
-   `'From practice notes'`, `'sync'` → `'Synced from Michi'`; `null`,
-   `undefined`, dan string tak dikenal (cast) → `'Not quiz-checked'`.
-2. `evidenceMode(concept, questionCounts)`: count > 0 → `'quiz'` walau
-   `evidenceRequired` true/false; count 0 atau id absen → `'elsewhere'` bila
-   `evidenceRequired === true`, selain itu (`false`/`undefined`/absen)
-   `'self-report'`; jumlah milik conceptId lain diabaikan; count negatif
-   (rough edge) tidak > 0 → jatuh ke cabang `evidenceRequired`.
-3. `quizResultNotice(r)` → string persis: gagal (`passed: false`) selalu
-   `${correct} of ${total} correct — not passed yet. “${conceptName}” stays in
-   your plan: read the explanations and try again later.` walau `wasDue`
-   true/masteryBefore tinggi; lulus + `wasDue: true` → `... — passed!
-   “name” will come back after a longer break.` (menang atas cabang
-   masteryBefore); lulus + tidak due + `masteryBefore >= 80` (uji tepat 80
-   dan 85) → `... keeps its review date.`; lulus + tidak due +
-   `masteryBefore < 80` (0, 79, 79.9) → `... is mastered. A short review
-   quiz comes back tomorrow.` Kutip lengkung `“”` dan angka `correct of
-   total` apa adanya.
-4. `retentionLine(stat)` → `${correct} of ${answered} ${noun} answered
-   correctly (${Math.round(rate * 100)}%)` dengan noun `due review` saat
-   `answered === 1` dan `due reviews` selain itu; `answered === 0` → `null`
-   (walau rate 0), `rate === null` → `null`; pembulatan persis (2/3 → 67%,
-   1/3 → 33%, 3/4 → 75%, 0/2 → 0%); rough edge rate di luar 0..1 tidak
-   dijepit (1.5 → 150%, −0.1 → −10%).
-5. Penjaga statis: `labels.ts` hanya impor `type` (`ConceptNode`/
-   `MasterySource` dari `../graph/types.ts`, `RetentionStat` dari
-   `./events.ts`) tanpa impor runtime; pemakai tetap:
-   `StudyToday.tsx` (`evidenceMode`+`quizResultNotice`),
-   `learn.$conceptId.tsx` (`masterySourceLabel`+`quizResultNotice`),
-   `gaps.tsx` (`masterySourceLabel`+`retentionLine`), `Onboarding.tsx`
-   (`evidenceMode`), `graph.tsx` (`masterySourceLabel`); bunyi label tidak
-   disalin di jalur lain; asersi lama di `tests/learning-evidence.test.ts`
-   (tiga `masterySourceLabel`, tiga `evidenceMode`, tiga `quizResultNotice`,
-   dua `retentionLine`) tetap utuh.
+1. `THEME_STORAGE_KEY === 'theme'`; `NO_FLASH_SCRIPT` satu baris (tanpa
+   baris baru), berbentuk IIFE `(function(){try{ ... }catch(e){}})();`,
+   memuat `localStorage.getItem('theme')||'system'`, hanya memakai
+   `localStorage`/`window.matchMedia('(prefers-color-scheme: dark)')`/
+   `document.documentElement`, dan **tanpa** `eval`, `new Function`,
+   `import(`, atau `fetch` (aman CSP tanpa `'unsafe-eval'`).
+2. Dieksekusi di `node:vm` dengan mock `localStorage.getItem`,
+   `window.matchMedia` → `{ matches }`, dan `document.documentElement`
+   (`classList.add`/`remove` di atas `Set`, `style` objek):
+   - tersimpan `'dark'` → kelas `dark` ada, `colorScheme` `'dark'`, abaikan
+     media (matches true/false sama);
+   - `'light'` → tanpa kelas `dark`, `colorScheme` `'light'`, abaikan media;
+   - `'system'` atau kunci absen (`null`) → ikut media: matches true →
+     kelas `dark` + `'dark'`, false → tanpa kelas + `'light'`;
+   - nilai tak dikenal `'blue'` → diperlakukan seperti terang (hanya
+     `'dark'` persis atau `system`+media yang menggelapkan);
+   - kelas `dark` yang sudah ada dihapus saat tema terang;
+   - `localStorage.getItem` melempar → ditelan `catch`, tanpa kelas,
+     `colorScheme` tak tersentuh, tidak ada exception keluar;
+   - rough edge: `document.documentElement.style` absen → kelas `dark`
+     sempat ditambahkan lalu assignment `colorScheme` melempar dan
+     ditelan (kelas tetap ada, `colorScheme` `undefined`).
+3. Penjaga statis: `theme.tsx` tetap mengimpor `NO_FLASH_SCRIPT` sebagai
+   `NO_FLASH_SCRIPT_SOURCE` dari `./theme-script` dan mengekspor ulang
+   `NO_FLASH_SCRIPT` tanpa mengubah isinya; `ThemeProvider.tsx` memakai
+   `THEME_STORAGE_KEY as STORAGE_KEY` dan menyimpan/membaca tema dengan
+   kunci yang sama; `__root.tsx` merender `NO_FLASH_SCRIPT` lewat
+   `<script dangerouslySetInnerHTML>`; `tests/security-headers.test.ts`
+   tetap mengunci SHA-256 `NO_FLASH_SCRIPT_SHA256` (dirujuk, bukan
+   diduplikasi); asersi lama `tests/provider-split.test.ts` (`export const
+   NO_FLASH_SCRIPT =` dan impor di `__root.tsx`) tetap utuh.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 8–12). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
 UI tetap bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-16: PR #88 — test: test unit langsung label evidence
+  `src/lib/evidence/labels.ts` — `masterySourceLabel`/`evidenceMode`/
+  `quizResultNotice`/`retentionLine` (16 test di
+  `tests/evidence-labels.test.ts`, node:test murni, impor modul langsung,
+  tanpa PGlite/DOM), modul tidak diubah. Dikunci: `masterySourceLabel` —
+  `quiz`/`self_report`/`manual`/`practice`/`sync` ke label persisnya; `null`,
+  `undefined`, dan nilai tak dikenal (cast) → `Not quiz-checked`.
+  `evidenceMode` — count > 0 selalu `quiz` (flag required true/false/absen);
+  count 0 atau id absen → `elsewhere` hanya bila `evidenceRequired === true`,
+  selain itu `self-report`; hitungan milik konsep lain diabaikan; count
+  negatif (rough edge) tidak > 0 sehingga jatuh ke cabang `evidenceRequired`.
+  `quizResultNotice` — string persis: gagal selalu `... not passed yet.
+  “name” stays in your plan ...` walau `wasDue` true/`masteryBefore` 95;
+  lulus + `wasDue` → `... passed! “name” will come back after a longer
+  break.` (menang atas `masteryBefore` 90); lulus + tidak due +
+  `masteryBefore` 80/85/100 → `... keeps its review date.`; `masteryBefore`
+  0/79/79.9 → `... is mastered. A short review quiz comes back tomorrow.`;
+  kutip lengkung dan skor `correct of total` disalin apa adanya.
+  `retentionLine` — noun `due review` saat answered 1 dan `due reviews`
+  selain itu; `answered === 0` (walau rate 0) atau `rate === null` → `null`;
+  pembulatan 2/3 → 67%, 1/3 → 33%, 3/4 → 75%, 0/2 → 0%; rough edge tidak
+  dijepit (1.5 → 150%, −0.1 → −10%). Penjaga statis: `labels.ts` hanya
+  `import type` (`ConceptNode`/`MasterySource` dari `../graph/types.ts`,
+  `RetentionStat` dari `./events.ts`) tanpa `require`; lima pemakai tetap
+  mengimpor helper bersama (`StudyToday.tsx` evidenceMode+quizResultNotice,
+  `learn.$conceptId.tsx` masterySourceLabel+quizResultNotice, `gaps.tsx`
+  masterySourceLabel+retentionLine, `Onboarding.tsx` evidenceMode,
+  `graph.tsx` masterySourceLabel); bunyi lima label tidak disalin sebagai
+  literal di `src/` lain; asersi lama `tests/learning-evidence.test.ts`
+  (3 `masterySourceLabel`, 3 `evidenceMode`, 3 `quizResultNotice`, 2
+  `retentionLine`) tetap utuh. Catatan proses: probe awal mengonfirmasi
+  seluruh perilaku sebelum menulis test dan gerbang penuh lulus pada
+  percobaan pertama. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/
+  dependensi. `npm run ci` hijau (install, typecheck, lint 0/0, 929/929 unit
+  = 913 + 16, build, anggaran bundel, CSP build produksi, smoke Playwright +
+  PGlite).
 
 - 2026-11-16: PR #87 — test: test unit langsung ukuran log bukti
   `src/lib/evidence/events.ts` — `dueReviewRetention`/`tutorPreference`
