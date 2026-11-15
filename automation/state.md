@@ -1,43 +1,72 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 31: test langsung `src/lib/db.ts` — `dbSource`, `getDb`, `ensureDbReady`, `dumpLocalJapaneseDatabase`, PR #70; berikutnya: test langsung `scripts/migration-plan.mjs` — `migrationName`, `isMigrationFile`, `pendingMigrations`)
+Terakhir diperbarui: 2026-11-15 (siklus 32: test langsung `scripts/migration-plan.mjs` — `migrationName`, `isMigrationFile`, `pendingMigrations`, PR #71; berikutnya: test langsung `scripts/with-app-env.mjs` — `parseDotEnv`, `readDotEnv`, `projectRoot`, `exitStatusFromChild`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung **`scripts/migration-plan.mjs`**, helper
-bookkeeping migrasi yang dipakai bersama `scripts/migrate.mjs` (deploy) dan
-`src/lib/migrations.ts` (jalur PGlite). **Modul tidak diubah — test saja.**
-Test baru `tests/migration-plan.test.ts` (`node:test` murni, impor `.mjs`
-langsung, tanpa database) mengunci:
+Penguatan tes: test unit langsung **`scripts/with-app-env.mjs`**, wrapper yang
+dipakai `dev`, `build`, `preview`, dan `db:migrate` untuk menggabungkan `.env`
+ke environment anak. **Modul tidak diubah — test saja.** Test baru
+`tests/with-app-env.test.ts` (`node:test` murni, impor `.mjs` langsung; empat
+helper diekspor, `main`/`isMainModule` privat sehingga CLI diuji lewat
+`spawnSync`) mengunci:
 
-- **`migrationName`** — basename POSIX: `migrations/0001_users.sql` →
-  `0001_users.sql`, `migrations/auth/0002_auth.sql` → `0002_auth.sql`; nama
-  tanpa folder dikembalikan apa adanya; path kosong dan `'migrations/'` →
-  `''` (perilaku `split('/').pop() ?? path` saat ini); backslash **tidak**
-  dianggap pemisah (`migrations\\0003_x.sql` tetap utuh — dikunci sebagai
-  perilaku saat ini, bukan klaim dukungan Windows).
-- **`isMigrationFile`** — hanya akhiran persis `.sql`: `a.sql` dan `.sql`
-  true; `a.SQL`, `a.sql.bak`, `a.sqlite`, `migrations/auth` (direktori), dan
-  `README.md` false.
-- **`pendingMigrations`** — menerima iterable (array, `Set`, generator) tanpa
-  memutasi masukan; entri non-`.sql` dibuang; hasil `{ name, path }`
-  mempertahankan path asli (basename hanya untuk `name`); urutan menurut
-  `localeCompare` nama, bukan urutan masukan; hanya nama yang ada di
-  `applied` yang dilewati dan entri `applied` asing diabaikan; kunci selalu
-  basename — `migrations/auth/0001_auth.sql` dilewati bila `applied` berisi
-  `0001_auth.sql` (salinan auth ke `migrations/` tidak dijalankan ulang),
-  sedangkan `applied` berisi `auth/0001_auth.sql` **tidak** mencocokkan; dua
-  path dengan basename sama keduanya dikembalikan (perilaku saat ini);
-  masukan kosong → `[]`; filter `applied` terjadi setelah sort sehingga
-  urutan hasil tetap deterministik.
-- Penjaga statis: `scripts/migrate.mjs` dan `src/lib/migrations.ts` sama-sama
-  mengimpor `pendingMigrations` dari `scripts/migration-plan.mjs` (satu
-  sumber aturan, tidak ada salinan logika basename di pemanggil).
+- **`parseDotEnv`** — LF dan CRLF; baris kosong dan baris berawalan `#`
+  dibuang; spasi di kunci dan nilai di-trim; `KEY=value`; pemisah adalah `=`
+  pertama sehingga nilai boleh memuat `=` (`E=a=b` → `'a=b'`); baris tanpa
+  `=` atau dengan kunci kosong (`=bad`) dilewati; prefiks `export ` (harus
+  `export` + whitespace) dibuang dari kunci (`export I=9` → `I`, `exportJ=10`
+  tetap `exportJ`); tanda kutip tunggal/ganda di kedua ujung dibuang
+  (`"quoted value"` / `'single'` → tanpa kutip), kutip tak berpasangan
+  (`"mixed'`) dipertahankan apa adanya, nilai satu kutip (`"`) menjadi `''`;
+  `#` setelah `=` adalah bagian nilai, bukan komentar; nilai kosong → `''`;
+  kunci duplikat → nilai terakhir menang; tidak ada interpolasi/escape.
+- **`projectRoot()`** — direktori induk `scripts/`, yaitu root repo
+  (`import.meta.dirname` test + `..`).
+- **`readDotEnv(root)`** — `.env` tidak ada → `{}`; direktori sementara
+  (`mkdtemp` di `os.tmpdir()`, dibersihkan di `after`) berisi `.env` → hasil
+  `parseDotEnv`; fungsi ini **tidak** menggabungkan `process.env` (penggabungan
+  terjadi di `main`).
+- **`exitStatusFromChild(code, signal)`** — `signal` menang atas `code` dan
+  menjadi `128 + os.constants.signals[signal]` (`SIGINT` 130, `SIGTERM` 143,
+  `SIGHUP` 129, `SIGKILL` 137); sinyal tak dikenal → 129 (128+1); tanpa sinyal
+  memakai `code ?? 1` sehingga `0` tetap `0`, kode nonnol diteruskan, dan
+  `null`/`undefined` → 1.
+- **CLI lewat `spawnSync(process.execPath, [scripts/with-app-env.mjs, ...])`** —
+  tanpa argumen → status 2, stderr memuat
+  `usage: node scripts/with-app-env.mjs <command> [args…]`; perintah sukses →
+  status 0 dan stdout anak tampil; kode keluar nonnol diteruskan; argumen
+  diteruskan apa adanya (anak mencetak `process.argv.slice(1)`); perintah tak
+  ada → status 127 dan stderr memuat `[with-app-env] failed to run`; variabel
+  `process.env` eksplisit menang atas `.env` (uji dengan env override yang
+  dicetak anak; jangan membuat/mengubah `.env` repo).
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #71 — test: test unit langsung helper bookkeeping migrasi
+  `scripts/migration-plan.mjs` (17 test di `tests/migration-plan.test.ts`,
+  node:test murni, impor `.mjs` langsung, tanpa database), modul tidak diubah.
+  Dikunci: `migrationName` — basename POSIX (`migrations/0001_users.sql` →
+  `0001_users.sql`, `migrations/auth/0002_auth.sql` → `0002_auth.sql`), nama
+  tanpa folder apa adanya, path kosong/`migrations/`/`/` → `''` (bukan
+  fallback `?? path`), backslash bukan pemisah (perilaku saat ini);
+  `isMigrationFile` — hanya akhiran persis `.sql` (`a.sql` dan `.sql` true;
+  `a.SQL`, `a.sql.bak`, `a.sqlite`, `migrations/auth`, `README.md`, `''`
+  false); `pendingMigrations` — iterable (array/`Set`/generator) tanpa
+  memutasi masukan, entri non-`.sql` dibuang, hasil `{ name, path }`
+  mempertahankan path asli, urut `localeCompare` basename bukan urutan
+  masukan, hanya nama di `applied` yang dilewati dan entri asing diabaikan,
+  kunci selalu basename (`0001_auth.sql` melewati salinan di
+  `migrations/auth/`, tetapi `auth/0001_auth.sql` tidak mencocokkan), dua path
+  basename sama keduanya dikembalikan, masukan kosong → `[]`, filter
+  `applied` setelah sort (urutan deterministik). Penjaga statis: kedua
+  applier mengimpor `pendingMigrations` dari modul yang sama, tidak ada
+  salinan `.split('/').pop()` di pemanggil, dan modul bebas impor. Tanpa
+  perubahan perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau
+  (662/662 unit, smoke Playwright + PGlite tetap hijau).
 
 - 2026-11-15: PR #70 — test: test unit langsung modul akses database
   server-only `src/lib/db.ts` (13 test di `tests/db.test.ts`, node:test
