@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Run a command with `.env` (if present) merged into its environment.
  *
@@ -14,7 +15,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Parse a dotenv document (KEY=value, `#` comments, optional quotes). */
+/**
+ * @param {string} text
+ * @returns {Record<string, string>}
+ */
 export function parseDotEnv(text) {
+  /** @type {Record<string, string>} */
   const env = {};
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
@@ -34,24 +40,37 @@ export function parseDotEnv(text) {
   return env;
 }
 
+/** @returns {string} */
 export function projectRoot() {
   return dirname(dirname(fileURLToPath(import.meta.url)));
 }
 
+/**
+ * @param {string} root
+ * @returns {Record<string, string>}
+ */
 export function readDotEnv(root) {
   const file = join(root, ".env");
   if (!existsSync(file)) return {};
   return parseDotEnv(readFileSync(file, "utf8"));
 }
 
+/**
+ * @param {number | null | undefined} code
+ * @param {string | null | undefined} signal
+ * @returns {number}
+ */
 export function exitStatusFromChild(code, signal) {
   if (signal) {
-    const signo = osConstants.signals[signal];
+    /** @type {Record<string, number>} */
+    const signals = osConstants.signals;
+    const signo = signals[signal];
     return 128 + (typeof signo === "number" ? signo : 1);
   }
   return code ?? 1;
 }
 
+/** @param {string} moduleUrl */
 function isMainModule(moduleUrl) {
   const entry = process.argv[1];
   if (!entry) return false;
@@ -62,6 +81,7 @@ function isMainModule(moduleUrl) {
   }
 }
 
+/** @param {string[]} argv */
 function main(argv) {
   const [command, ...args] = argv;
   if (!command) {
@@ -70,7 +90,7 @@ function main(argv) {
   }
   const env = { ...readDotEnv(projectRoot()), ...process.env };
   const child = spawn(command, args, { stdio: "inherit", env });
-  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  for (const signal of /** @type {NodeJS.Signals[]} */ (["SIGINT", "SIGTERM", "SIGHUP"])) {
     process.on(signal, () => child.kill(signal));
   }
   child.on("error", (err) => {
