@@ -1,71 +1,109 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 46: test unit langsung laporan mandiri evidence `recordSelfReport` `src/lib/evidence/service.ts`, PR #85; berikutnya: test langsung sisa fungsi service evidence — `requiresEvidence`/`guardGraphCall`/`seedDemoQuestions`)
+Terakhir diperbarui: 2026-11-16 (siklus 47: test unit langsung penjaga evidence `requiresEvidence`/`guardGraphCall`/`seedDemoQuestions` `src/lib/evidence/service.ts`, PR #86; berikutnya: test unit langsung modul ukuran log bukti `src/lib/evidence/events.ts` — `dueReviewRetention`/`tutorPreference`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung sisa fungsi `src/lib/evidence/service.ts` —
-`requiresEvidence`, `guardGraphCall`, `seedDemoQuestions`**. File baru
-`tests/evidence-guards.test.ts` (node:test + satu PGlite on-disk, pola
-`tests/evidence-self-reports.test.ts` PR #85): `openTestWorkspaces` dengan
-baris `user` per owner karena `owner_id` ber-FK, dan **owner terpisah per
-test**. Modul **tidak diubah**. Probe dulu, kunci perilaku aktual:
+Penguatan tes: **test unit langsung modul ukuran log bukti
+`src/lib/evidence/events.ts` — `dueReviewRetention` dan `tutorPreference`**.
+File baru `tests/evidence-events.test.ts` (node:test murni, impor modul
+langsung, tanpa PGlite/DOM). Modul **tidak diubah**. Probe dulu, kunci
+perilaku aktual:
 
-1. `requiresEvidence` → `{required, concept, questions}`: konsep tanpa soal &
-   tanpa flag → `{required: false, questions: 0}` dengan `concept` = node;
-   konsep ber-soal → `required: true` + `questions` = jumlah; konsep
-   `evidenceRequired: true` tanpa soal → `required: true, questions: 0`;
-   konsep hilang → `{required: false, concept: null, questions: 0}`;
-   isolasi owner (soal owner lain pada id konsep sama tidak terlihat).
-2. `guardGraphCall(db, graph, owner, method, args)`: method selain
-   `setKnowledgeState` → args diteruskan apa adanya (identitas array);
-   patch yang semua fieldnya (selain bernilai `undefined`) ada di
-   `NON_EVIDENCE_FIELDS` (`nextReview`, `misconceptions`) → lolos walau
-   konsep ber-soal, args tanpa perubahan; patch `{}`/semua `undefined`
-   → lolos (rough edge: `{mastery: undefined}` diizinkan tanpa stempel);
-   patch ber-field bukti (`mastery`, `reviewCount`, `lastReviewed`, …) di
-   konsep ber-soal → `EvidenceRequiredError` persis (varian `its quiz` dan
-   `the Japanese page` untuk konsep ber-flag domain japanese); konsep tanpa
-   soal: patch tanpa `mastery` → args sama, patch dengan `mastery` → elemen
-   ketiga ditambah `masterySource: 'manual'` yang menimpa nilai palsu
-   (`'quiz'`).
-3. `seedDemoQuestions`: flag `seed:demo-questions` sudah ada → 0 tanpa
-   menulis; hanya konsep demo yang masih demo (id sama — ingat id
-   `demoConcepts` berprefiks `concept:`, domain harus sama — probe dulu
-   domain aktual `demoConcepts` di `src/lib/demo-data.ts`) dan tanpa soal
-   sendiri yang diisi (`DEMO_QUESTIONS` 44 soal = 4 per konsep, diekspor
-   `src/lib/evidence/demo-questions.ts`); konsep demo yang domainnya
-   diubah editor / sudah punya soal sendiri / konsep non-demo dilewati;
-   nilai balik = jumlah benar-benar masuk; `questionCounts` sesudahnya;
-   `onConflict (owner_id, id) doNothing` — id demo yang sudah dipakai baris
-   milik konsep LAIN tetap menghalangi insert id itu (hitungan berkurang,
-   baris lama utuh) sedangkan baris pada konsep yang sama membuat konsep
-   itu dilewati total; flag ditulis `{at ISO wall-clock, added}` sehingga
-   panggilan kedua 0; isolasi owner.
-4. Penjaga statis: `seedDemoQuestions` — cek `getMeta(DEMO_QUESTIONS_FLAG)`
-   paling awal, `questionCounts` sebelum loop, per-demo `getConcept` +
-   cek domain + `counts[conceptId]` (`continue`),
-   `DEMO_QUESTIONS.filter((q) => q.conceptId === conceptId)`,
-   `onConflict ... doNothing` + `returning('id')`, `added += inserted.length`,
-   `setMeta(DEMO_QUESTIONS_FLAG, ...)` setelah loop; `guardGraphCall` —
-   `method !== 'setKnowledgeState'` duluan, filter field `undefined`,
-   `NON_EVIDENCE_FIELDS` tepat `nextReview`+`misconceptions`,
-   `requiresEvidence` lalu lempar, cabang akhir
-   `patch.mastery === undefined ? args : [...patch, masterySource 'manual']`;
-   `requiresEvidence` memfilter `owner_id`+`concept_id`;
-   `concept?.evidenceRequired === true || questions > 0`; empat judul lama
-   `tests/learning-evidence.test.ts` tetap utuh: 'a concept with questions
-   requires evidence; one without does not', 'a direct graphCall cannot
-   make a quiz-checked concept mastered, but may postpone its review',
-   'a flagged concept (Japanese) requires evidence without questions in
-   the bank', 'example questions are seeded once, only onto example
-   concepts without a bank'.
+1. `dueReviewRetention(events)` → `{quiz: {answered, correct, rate},
+   selfReport: {...}}`: hanya `wasDue === true` yang dihitung (`false`,
+   `null`, `undefined`, field absen tidak); kind `quiz` menambah
+   `quiz.answered` dan hanya `outcome === 'passed'` yang menambah
+   `quiz.correct` (`failed`/outcome lain tidak); kind `review` menambah
+   `selfReport.answered` dan hanya `'remembered'` yang correct (`forgot`
+   tidak); kind lain (`study`/`snooze`/`unsnooze`/`practice`/`lesson`/
+   `tutor`) diabaikan; `rate = correct / answered` (semua benar 1, semua
+   salah 0, 2/4 → 0.5, pembulatan tidak dilakukan), `null` bila bucket itu
+   `answered === 0`; dua bucket independen (satu `null`, yang lain terisi);
+   `[]` → kedua bucket `{answered: 0, correct: 0, rate: null}`; masukan
+   tidak dimutasi; urutan tidak berpengaruh.
+2. `tutorPreference(events)` → `{compared, preferContext, preferPlain,
+   same}`: hanya `kind === 'tutor'` dengan `outcome.startsWith('prefer-')`
+   yang masuk `compared`; `prefer-context`/`prefer-plain`/`prefer-same`
+   masing-masing dihitung ke bucketnya (`same` = `prefer-same`); outcome
+   `prefer-*` tak dikenal (mis. `prefer-other`) masuk `compared` tetapi
+   tidak ke bucket mana pun (rough edge dikunci: jumlah tiga bucket bisa
+   lebih kecil dari `compared`); event non-tutor ber-outcome `prefer-*` dan
+   event tutor ber-outcome lain (mis. `asked`) diabaikan; tanpa event →
+   semua 0; masukan tidak dimutasi.
+3. Penjaga statis: `events.ts` tanpa impor apa pun; mengekspor kedua fungsi
+   (dan tipe `LearningEvent`/`RetentionStat`); `src/lib/evidence/measures.ts`
+   tetap mengimpor `dueReviewRetention`+`tutorPreference` dari `./events.ts`
+   tanpa menyalin perhitungannya; `src/server/evidence.functions.ts` tetap
+   mengimpor `dueReviewRetention` dari `@/lib/evidence/events`; test lama
+   tetap utuh: `tests/learning-evidence.test.ts` 'retention at review time
+   counts due quiz reviews and due self-reports separately' (0.5/1 + `[]`
+   rate null) dan `tests/learning-measures.test.ts` rate 0.5/0.75 serta
+   "preferred in 2 of 3 comparisons".
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10–14). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 8–12). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
 UI tetap bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-16: PR #86 — test: test unit langsung penjaga evidence
+  `src/lib/evidence/service.ts` — `requiresEvidence`, `guardGraphCall`,
+  `seedDemoQuestions` (10 test di `tests/evidence-guards.test.ts`, node:test;
+  satu PGlite on-disk + migrasi asli via `openTestWorkspaces`, baris `user`
+  per owner karena `owner_id` ber-FK; 11 owner terpisah agar urutan test tidak
+  saling mengunci), modul tidak diubah. Dikunci: `requiresEvidence` — konsep
+  polos → `{required: false, concept: node, questions: 0}`; bank sendiri →
+  `required: true` + jumlah; flag `evidenceRequired` tanpa soal →
+  `required: true, questions: 0`; konsep hilang → `{required: false,
+  concept: null, questions: 0}`; soal owner lain pada id konsep sama tidak
+  terlihat (tiap owner melihat konsepnya sendiri: 'Mine' vs 'Theirs').
+  `guardGraphCall` — method selain `setKnowledgeState` (`addConcept`/
+  `deleteConcept`/`setLearnerProfile`) diteruskan dengan identitas array;
+  patch hanya `nextReview`, hanya `misconceptions`, atau keduanya lolos utuh
+  walau konsep ber-soal; patch `{}`/`{mastery: undefined}`/`null` lolos
+  (rough edge: `patch ?? {}` sehingga `null` diperlakukan seperti kosong);
+  patch ber-field bukti (`mastery`, `reviewCount`+`lastReviewed`,
+  `retentionStrength`, `lastAssessed`, `interactions`) →
+  `EvidenceRequiredError` persis varian `its quiz`; konsep japanese ber-flag
+  → varian `the Japanese page`; konsep japanese ber-soal tanpa flag juga
+  memakai varian Japanese (wording ikut domain, bukan alasan quiz-checked);
+  konsep tanpa soal: patch tanpa `mastery` → args identitas, patch dengan
+  `mastery` → elemen ketiga `{...patch, masterySource: 'manual'}` (menimpa
+  `'quiz'` palsu, `reviewCount` dipertahankan, patch pemanggil tidak
+  dimutasi); konsep hilang tetap lolos penjaga dan tetap distempel `manual`
+  bila ber-`mastery` (rough edge; penulisan state gagal belakangan).
+  `seedDemoQuestions` — flag `seed:demo-questions` sudah ada → 0 tanpa
+  menulis dan flag lama utuh; workspace 11 konsep demo → 44 (4 per konsep;
+  bank `arithmetic` sama persis dengan `DEMO_QUESTIONS` ber-urutan id), flag
+  `{at ISO wall-clock ≥ startedAt, added}` → panggilan kedua 0; skip: konsep
+  demo domain diubah editor (`arithmetic` → `my-course`), konsep demo sudah
+  punya bank sendiri (`fractions` 1 soal), konsep demo hilang, konsep
+  non-demo (8 masuk dari `pre-algebra`+`linear-equations`); isolasi owner
+  (seed owner lain tidak mengisi workspace ini; masing-masing bisa menabung
+  44); konflik id lintas konsep → 43, `arithmetic` hanya dapat 3 soal
+  (`demo-arithmetic-2..4`), baris penghalang tetap di konsepnya dengan
+  prompt asli. Penjaga statis: urutan `requiresEvidence` (getConcept →
+  filter `owner_id` → `concept_id` → `Number(row?.n ?? 0)` →
+  `concept?.evidenceRequired === true || questions > 0`); urutan
+  `seedDemoQuestions` (flag → counts → loop → per-demo
+  `replace('concept:', '')`/`getConcept`/cek domain+bank `continue` →
+  `DEMO_QUESTIONS.filter` → `onConflict ... doNothing`+`returning('id')` →
+  `added += inserted.length` → `setMeta(..., { at, added })`), tanpa
+  `doUpdateSet`/`updateTable`; urutan `guardGraphCall` (method duluan,
+  filter `undefined`, `NON_EVIDENCE_FIELDS` tepat `nextReview`+
+  `misconceptions`, `requiresEvidence`, lempar, cabang
+  `mastery === undefined ? args : [...patch, masterySource 'manual']`);
+  empat judul lama `tests/learning-evidence.test.ts` tetap utuh. Catatan
+  proses: sesi otomasi sebelumnya terputus setelah push + `gh pr create`
+  (#86) dan baru mengubah baris header `state.md` tanpa commit; sesi ini
+  mengambil alih branch `test/evidence-guards` lewat branch lokal
+  `test/evidence-guards-takeover` (tanpa mengubah file test), menjalankan
+  ulang `npm run ci` utuh untuk verifikasi, lalu melengkapi state dan merge.
+  Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
+  `npm run ci` hijau (install, typecheck, lint 0/0, 896/896 unit = 886 + 10,
+  build, anggaran bundel, CSP build produksi, 110 cek smoke Playwright +
+  PGlite).
 
 - 2026-11-16: PR #85 — test: test unit langsung laporan mandiri evidence
   `src/lib/evidence/service.ts` — `recordSelfReport` (12 test di
