@@ -1,53 +1,80 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 41: test unit langsung dataset konten demo `src/lib/content/demo-content.ts`, PR #80; berikutnya: test langsung layanan konten `src/lib/content/service.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 42: test unit langsung layanan konten `src/lib/content/service.ts`, PR #81; berikutnya: test langsung bank soal demo `src/lib/evidence/demo-questions.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung layanan konten server**
-`src/lib/content/service.ts` (225 baris; `listContent`/`contentCounts`/
-`contentMinutes`/`saveContent`/`deleteContent`/`seedDemoContent`/
-`recordLessonOpened`). Satu PGlite in-memory + migrasi asli via pola
-`tests/learn-in-app.test.ts` (`openTestWorkspaces` dari `tests/support/`,
-baris `user` per owner karena `owner_id` ber-FK; lihat juga
-`tests/graph-store.test.ts`), modul **tidak diubah**. Empat test lama di
-`tests/learn-in-app.test.ts` (seed 18 sekali per workspace, save + isolasi +
-konsep hilang, recordLessonOpened, hapus konsep → konten ikut terhapus) tetap
-utuh. Kunci sisanya:
+Penguatan tes: **test unit langsung bank soal demo**
+`src/lib/evidence/demo-questions.ts` (81 baris; `DEMO_QUESTIONS` dibangun dari
+`BANK` 11 konsep × 4 soal). Node:test murni, impor dataset langsung, tanpa
+PGlite/DOM, modul **tidak diubah**. Pola PR #80 (`tests/demo-content.test.ts`).
+Keempat soal per konsep dipakai `seedDemoQuestions` di
+`src/lib/evidence/service.ts`; perilaku seed-nya sendiri tidak diuji di sini
+(milik tugas layanan evidence berikutnya). Asersi lama "ships at least 3 valid
+questions for each of the 11 example concepts" di
+`tests/learning-evidence.test.ts` tetap utuh dan tidak dipindah. Kunci:
 
-1. File baru `tests/content-service.test.ts`. Jalankan dulu fungsi-funginya
-   untuk mengunci perilaku aktual. Kunci:
-   - `seedDemoContent` kondisi lewati: konsep demo dihapus / domainnya diubah
-     editor / konsep sudah punya konten sendiri → konsep itu dilewati tanpa
-     menulis baris (verifikasi `contentCounts`), konsep lain tetap masuk;
-     flag meta `seed:demo-content` tetap ditulis sehingga panggilan kedua
-     mengembalikan 0 walau ada konsep yang dilewati; nilai balik = jumlah
-     baris yang benar-benar masuk (`onConflict ... doNothing`).
-   - `saveContent`: `input.id` yang sama mengganti item yang lama (update,
-     bukan duplikat; jumlah baris tetap); normalisasi per kind — `solution`
-     dipaksa `''` untuk non-exercise dan `url` dipaksa `null` untuk
-     non-link/video walau input menyediakan nilai; batas
-     `MAX_CONTENT_PER_CONCEPT = 50` per konsep: item ke-50 sah, ke-51
-     melempar `EvidenceError` berteks `at most 50`, tetapi mengganti id yang
-     sudah ada tetap boleh di angka 50.
-   - `deleteContent` menghapus tepat satu item milik owner itu; id sama pada
-     owner lain tetap utuh (isolasi).
-   - `listContent` diurut `concept_id` → `position` → `id` dan filter
-     `conceptId` hanya melihat konsep itu; `contentMinutes` menjumlah menit
-     eksplisit dengan fallback item tanpa menit = 2 dan link = 0.
-   - `recordLessonOpened` melempar `EvidenceError` ("no longer exists") saat
-     learner atau konsep hilang, tanpa menulis event.
-2. Penjaga statis: `service.ts` tetap satu-satunya pemakai `DEMO_CONTENT`
-   (test `tests/demo-content.test.ts` sudah menjaganya — cukup rujuk, jangan
-   duplikasi); `saveContent` tetap menulis `solution`/`url` ternormalisasi
-   lewat objek `values` tunggal (bukan cabang SQL terpisah).
+1. File baru `tests/demo-questions.test.ts`:
+   - tepat 44 soal; 11 `conceptId` = id `demoConcepts` (`concept:` di-strip)
+     dalam urutan yang sama, masing-masing tepat 4 soal berurutan
+     `demo-<conceptId>-1..4`; seluruh 44 id unik dan cocok
+     `^[A-Za-z0-9_-]{1,64}$`; konsep di luar `demoConcepts` tidak ada.
+   - setiap soal lolos `questionInput.safeParse` (dari `./quiz.ts`) dengan
+     `id` diteruskan apa adanya; prompt/answer/explanation terisi (tanpa
+     trim) dan dalam batas 500/200/1000; 3–4 opsi (aktual: 4, dan soal
+     "Which is larger, 3/8 or 1/2?" tepat 3 — kunci contohnya), tiap opsi
+     unik dan 1..200 karakter, answer muncul tepat satu kali di opsi.
+   - dalam satu konsep keempat prompt berbeda (tidak ada duplikat); urutan
+     grup = urutan kunci `BANK` = urutan `demoConcepts`; nomor id 1..4
+     (bukan 0-based).
+2. Penjaga statis: `demo-questions.ts` hanya `import type { QuizQuestion }`
+   dari `./quiz.ts` (tanpa impor runtime); scan seluruh `src/` (`ts`/`tsx`
+   kecuali modul itu dan `service.ts`) tanpa `DEMO_QUESTIONS`/`demo-questions`
+   lain; `service.ts` mengimpor `DEMO_QUESTIONS` dan `seedDemoQuestions`
+   memfilter per `conceptId`; asersi lama di `tests/learning-evidence.test.ts`
+   (≥3 soal sah per konsep, id unik) dan `tests/learn-in-app.test.ts` tetap
+   utuh.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 8–10). Commit pola
-`test: ...` (mis. `test: kunci layanan konten dengan test langsung`). Tanpa
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 6–8). Commit pola
+`test: ...` (mis. `test: kunci bank soal demo dengan test langsung`). Tanpa
 perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. UI tetap bahasa
 Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-15: PR #81 — test: test unit langsung layanan konten server
+  `src/lib/content/service.ts` (11 test di `tests/content-service.test.ts`,
+  node:test; satu PGlite on-disk + migrasi asli via `openTestWorkspaces`,
+  baris `user` per owner karena `owner_id` ber-FK; lima owner terpisah agar
+  urutan test tidak saling mengunci), modul tidak diubah. Dikunci:
+  `seedDemoContent` — konsep demo dihapus / domain diubah editor / sudah punya
+  konten sendiri dilewati tanpa menulis baris (diverifikasi `contentCounts`);
+  konsep lain tetap 3 item; nilai balik 9; flag `seed:demo-content` ditulis
+  `{ at ISO, added: 9 }` sehingga panggilan kedua 0; id bentrok di konsep
+  non-demo (id `demo-arithmetic-text` milik `extra`) membuat `onConflict ...
+doNothing` hanya memasukkan 17 dari 18 dan baris lama tetap utuh.
+  `saveContent` — id sama mengganti item (jumlah tetap 1, `newId` tidak
+  dipanggil untuk update); normalisasi `solution=''` untuk non-exercise dan
+  `url=null` untuk non-link/video walau input menyediakannya (teks/exercise/
+  link/video; nilai tersimpan = nilai kembali); batas 50 per konsep — 49+1
+  sah, ke-51 `EvidenceError` "at most 50" tanpa baris baru, mengganti id di
+  angka 50 tetap boleh. `deleteContent` tepat satu item owner; salinan id sama
+  pada owner lain utuh. `listContent` urut `concept_id` → `position` → `id`
+  (aa: m,a,z lalu bb: n) dan filter konsep. `contentMinutes` menjumlah menit
+  eksplisit + fallback 2 non-link / 0 link (mm = 15, aa = 6, bb = 2, konsep
+  tanpa konten absen). `recordLessonOpened` learner/konsep hilang →
+  `EvidenceError` "no longer exists" dan `listEvents` tetap kosong. Penjaga
+  statis: dalam `saveContent` tepat satu `const values`, satu `solution:`/
+  `url:`, satu `insertInto`, tiga `...values` (insert, conflict update, nilai
+  kembali), tanpa `updateTable`; empat asersi lama di
+  `tests/learn-in-app.test.ts` tetap utuh (dirujuk, bukan diduplikasi); scan
+  `DEMO_CONTENT` tetap di `tests/demo-content.test.ts`. Catatan proses: probe
+  awal menyingkap dua asersi draf keliru (urutan `listContent` dengan id UUID
+  acak, bukan urutan input — diperbaiki dengan id eksplisit; dan `...values`
+  muncul tiga kali, bukan dua) sebelum gerbang; prettier merapikan format.
+  Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
+  `npm run ci` hijau (install, typecheck, lint 0/0, 845/845 unit = 834 + 11,
+  build, anggaran bundel, CSP build produksi, smoke Playwright + PGlite).
 
 - 2026-11-15: PR #80 — test: test unit langsung dataset konten pelajaran demo
   `src/lib/content/demo-content.ts` (12 test di `tests/demo-content.test.ts`,
@@ -90,8 +117,8 @@ Inggris (D2).
   diubah. Dikunci: konstanta `CONTENT_KINDS`/`FORMAT_PREFERENCES` salinan
   eksplisit + satu label per nilai + `MAX_CONTENT_PER_CONCEPT = 50` +
   `FORMAT_TAG_PREFIX = 'format:'`; `contentInput` — minimal `{conceptId,
-  kind, title, body}` sah dengan default `{solution:'', url:null,
-  minutes:null, language:'en', source:'', position:0}`, kunci asing
+kind, title, body}` sah dengan default `{solution:'', url:null,
+minutes:null, language:'en', source:'', position:0}`, kunci asing
   dibuang, title di-trim lalu 1..200 (200 sah/201 gagal), body/solution
   ≤ 20.000 tanpa trim, url `''` → null (sah untuk kind teks, tetap ditolak
   untuk link), hanya `https://` sah (http/ftp/relatif/rusak gagal) dan
@@ -126,7 +153,7 @@ Inggris (D2).
   dua arah, `-`/`- `/`*` tanpa isi = paragraf marker telanjang (rough edge),
   body kosong/spasi → `[]`, `<b>`/`<script>` tetap teks. Penjaga statis:
   `content.functions.ts` memakai `contentInput` + `z.enum
-  (FORMAT_PREFERENCES)` + `z.enum(CONTENT_KINDS)` dan mengimpor
+(FORMAT_PREFERENCES)` + `z.enum(CONTENT_KINDS)` dan mengimpor
   `determinePresentationStrategy`/`orderContent` dari modul; rute
   `learn.$conceptId.tsx` memakai `withFormatPreference`/`orderContent`;
   `tutor/service.ts` mengimpor dan memanggil
@@ -134,7 +161,7 @@ Inggris (D2).
   `parseRichText` tanpa `dangerouslySetInnerHTML`/`innerHTML`; scan seluruh
   `src/` (`ts`/`tsx` kecuali modul itu) tanpa salinan `KIND_SCORES`/
   `FORMAT_TAG_PREFIX`/regex parser markup; empat asersi lama `tests/
-  learn-in-app.test.ts` tetap utuh. Catatan proses: probe modul sebelum
+learn-in-app.test.ts` tetap utuh. Catatan proses: probe modul sebelum
   menulis test menyisihkan dua draf asersi yang tak cocok dengan kode (url
   `''` pada kind `link` tetap ditolak refine; hasil `parseRichText` adalah
   array blok) dan typecheck pra-gerbang menolak helper `style` yang ter-infer
@@ -148,7 +175,7 @@ Inggris (D2).
   `src/lib/evidence/scoring.ts` (24 test di `tests/evidence-scoring.test.ts`,
   node:test murni, impor modul langsung, tanpa PGlite/DOM), modul tidak
   diubah. Dikunci: `PASS_RATIO = 0.8`; `passed` = `correct / max(1,total) >=
-  0.8` (4/5 true, 8/10 true, 3/4 & 7/10 false, 0/0 false, 1/0 true, 5/4 true);
+0.8` (4/5 true, 8/10 true, 3/4 & 7/10 false, 0/0 false, 1/0 true, 5/4 true);
   `evidenceMastery([])` → 0 dengan/tanpa opsi; gagal terakhir →
   `Math.round(accuracy*70)` (1/4 → 18, 2/4 → 35, 3/4 → 53, 0/4 → 0) dan
   menang atas pass sebelumnya; percobaan terakhir ditentukan `Date.parse`,
@@ -156,7 +183,7 @@ Inggris (D2).
   kedua berjarak ≥ 86.400.000 ms (tepat di batas lolos, 1 ms kurang → 70)
   dengan gabungan id unik ≥ 4 (2+2 → 85; 3 id → 70; 2 id berbagi → 5 → 85);
   satu pass / dua pass hari sama → 70 walau id berbeda; `delayedRetrieval:
-  false` → 85 tanpa syarat jeda/id, gagal tetap `round(accuracy*70)`;
+false` → 85 tanpa syarat jeda/id, gagal tetap `round(accuracy*70)`;
   `distinctQuestions` 2 → 85 untuk 2 id, 3 → 70, 0 → 85 pada pass berjeda
   (satu pass tetap 70); masukan tidak dimutasi. `nextQuizReview`: `[]` →
   null; gagal terakhir → ISO `at + 10 menit` (juga setelah dua pass); 1..7
@@ -169,7 +196,7 @@ Inggris (D2).
   `scoring.ts` tanpa impor apa pun dan mengekspor tepat enam nama
   (`Attempt`, `PASS_RATIO`, `passed`, `EvidenceOptions`, `evidenceMastery`,
   `nextQuizReview`), quiz generik mengimpor `evidenceMastery, passed, type
-  Attempt` dari `./scoring.ts` dan memakai `delayedRetrieval: false` tanpa
+Attempt` dari `./scoring.ts` dan memakai `delayedRetrieval: false` tanpa
   salinan `PASS_RATIO`/`passed`/`Math.max(1, …)` lokal, serta
   `japanese.functions.ts` tetap mengimpor dari `@/lib/japanese/evidence` dan
   tak pernah menyebut `delayedRetrieval` (kebijakan Jepang = default ketat).
@@ -286,7 +313,7 @@ Inggris (D2).
   Dikunci: tanpa `DATABASE_URL` (env anak = salinan `process.env` minus
   `DATABASE_URL` dan `NODE_OPTIONS`; string kosong sama dengan tidak diisi)
   → exit 0 + pesan skip persis `[migrate] DATABASE_URL not set — skipping
-  (the PGLite fallback migrates itself).` dan stderr kosong; argumen CLI
+(the PGLite fallback migrates itself).` dan stderr kosong; argumen CLI
   diabaikan (skip tetap); `.env` di samping skrip tidak dibaca (salinan
   skrip + `.env` berisi DATABASE_URL di root sementara, cwd root itu, tetap
   skip — mengunci modul beban-tanpa-dotenv). `DATABASE_URL` tak terjangkau
@@ -296,7 +323,7 @@ Inggris (D2).
   `migration-plan.mjs` ke `tmp/x/scripts/` + **symlink** `node_modules` repo
   ke `tmp/x/node_modules` supaya impor `pg` tetap resolves; `migrations/`
   dihitung relatif lokasi salinan): direktori tidak ada → `[migrate] no
-  migrations/ directory — nothing to do.` exit 0; direktori ada tanpa
+migrations/ directory — nothing to do.` exit 0; direktori ada tanpa
   `.sql` (README + subdir) → `[migrate] no migrations — nothing to do.`
   exit 0 — keduanya tetap exit 0 walau `DATABASE_URL` tak terjangkau (bukti
   pool tidak dibuka sebelum cek pending; urutan ini yang melindungi deploy
@@ -304,7 +331,7 @@ Inggris (D2).
   dibuka → exit 1 (membuktikan exit-0 memang karena tak ada pending, bukan
   karena URL diabaikan). Penjaga statis di sumber: skip (dengan
   `process.exit(0)`) mendahului `main().catch`; `pendingMigrations(entries,
-  [])` mendahului `new pg.Pool` dan tanpa logika basename lokal (tanpa
+[])` mendahului `new pg.Pool` dan tanpa logika basename lokal (tanpa
   `.split('/')`); tiap migrasi `BEGIN` < `INSERT INTO _migrations` <
   `COMMIT` dengan `ROLLBACK` di catch setelah INSERT; handler galat mencetak
   `[migrate] failed:` sebelum `process.exit(1)`. Salinan & symlink hanya di
@@ -502,7 +529,7 @@ Inggris (D2).
   `edge:prereq:`/`edge:related:`/`state:`/`index:`), prefiks telanjang (yang
   dipakai scan) juga dirutekan, prefiks tak dikenal (`bogus:x`, string kosong,
   `edge:`, `edge:other:x`, `learners`) melempar `Unknown LearnGraph key
-  prefix: <key>` persis; `GRAPH_TABLES` tepat enam tabel dalam urutan itu.
+prefix: <key>` persis; `GRAPH_TABLES` tepat enam tabel dalam urutan itu.
   Konstruktor menolak ownerId kosong. `get`/`put`/`del`/`exists` — kunci absen →
   null/false, round-trip nilai, overwrite via konflik `(owner_id, key)`
   (nilai baru menang), del kunci absen tanpa galat. Semantik JSON LevelDB —
@@ -534,45 +561,46 @@ Inggris (D2).
 - 2026-11-15: PR #65 — test: test unit langsung modul scaffolding psikometrik
   `src/lib/graph/scaffolding.ts` (23 test di `tests/scaffolding.test.ts`,
   node:test murni; helper kecil pembuat `LearnerProfile` dari `{ scores,
-  learningStyle, cognitiveProfile }`), modul tidak diubah. Dikunci:
+learningStyle, cognitiveProfile }`), modul tidak diubah. Dikunci:
   `adjustForPsychometrics` — profil kosong semua default (0 / `normal` / `[]` /
   `mixed`); openness >70 +0.2 dan <30 −0.1 (30/50/70 netral);
   conscientiousness >70 `faster`, <30 `slower` + consideration struktur;
   neuroticism >70 −0.2 + consideration encouragement (70 tidak); extraversion
-  >70 kolaboratif dan <30 solo — teks consideration persis dari sumber dan
-  urutan push conscientiousness→neuroticism→extraversion dikunci lewat
-  kombinasi semua trait; `presentationStyle` mengikuti `learningStyle.primary`
-  (visual/auditory/kinesthetic; `reading` dan tanpa gaya → `mixed`); ekstrem
-  tercapai −0.3/+0.2 (clamp [−0.5, 0.5] tidak terjangkau → dijaga statis);
-  `scaffoldingStrategies` identik `selectScaffoldingStrategies` untuk profil
-  sama; skor dibaca lewat `traitScore` — id kanonis dan alias lama
-  (`openness_to_experience`, `neuroticism`) terbaca, angka telanjang 0–1
-  legacy dan entri tanpa skor diabaikan, kanonis menang atas alias.
-  `selectScaffoldingStrategies` — profil kosong tepat satu `worked_example`
-  (8, `general`); tiap kondisi menambah strateginya (visual_aids 9,
-  guided_practice 8 + hints 7, chunking 9, peer_discussion 6, analogy 7,
-  repetition 7, guided_practice 9 kinestetik) dengan `source: 'profile'`;
-  profil yang mengenai semua kondisi terurut priority menurun dengan sort
-  stabil (chunking, guided_practice kinestetik, worked_example,
-  guided_practice neuroticism, hints, analogy, repetition, peer_discussion);
-  ambang ketat di batas: neuroticism 60/61, extraversion 70/71, openness
-  40/39. `calculatePsychometricMatch` — basis 0.5; abstrak (abstractness >0.7,
-  batas ketat) × openness >60 +0.2 / <40 −0.2 / 50 netral, konsep konkret
-  netral; cognitiveLoad >0.7 (batas ketat) × workingMemory `high` +0.15 /
-  `low` −0.15 / medium & tanpa cognitiveProfile netral; jendela [4,7]
-  inklusif pada `adjustedDifficulty = absolute + modifier×10` (4 dan 7
-  termasuk; 5+0.2×10=7 ya; 8 dan 5−0.2×10=3 tidak); maksimum tercapai 0.95
-  dan minimum 0.15; hasil `adjustForPsychometrics` dipakai langsung sebagai
-  argumen ketiga (modifier −0.2 mengeluarkan konsep absolute 5 dari jendela).
-  Penjaga statis: baris `Math.max(-0.5, Math.min(0.5, difficultyModifier));`
-  masih ada; `scaffolding.ts` mengimpor `traitScore` dari `trait-scores.ts`;
-  `education-graph-db.ts` tetap `import * as scaffolding` dan mendelegasikan
-  ketiga nama fungsi. Catatan proses: ekspektasi urutan awal keliru karena
-  sort stabil menempatkan `worked_example` (disisipkan pertama) sebelum
-  `guided_practice` pada priority sama; perbandingan angka float memakai
-  epsilon (0.1+0.2 ≠ 0.3 persis di IEEE754). Tanpa perubahan
-  perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (570/570 unit,
-  187 cek smoke; `tests/scaffolding-source.test.ts` tetap utuh).
+
+  > 70 kolaboratif dan <30 solo — teks consideration persis dari sumber dan
+  > urutan push conscientiousness→neuroticism→extraversion dikunci lewat
+  > kombinasi semua trait; `presentationStyle` mengikuti `learningStyle.primary`
+  > (visual/auditory/kinesthetic; `reading` dan tanpa gaya → `mixed`); ekstrem
+  > tercapai −0.3/+0.2 (clamp [−0.5, 0.5] tidak terjangkau → dijaga statis);
+  > `scaffoldingStrategies` identik `selectScaffoldingStrategies` untuk profil
+  > sama; skor dibaca lewat `traitScore` — id kanonis dan alias lama
+  > (`openness_to_experience`, `neuroticism`) terbaca, angka telanjang 0–1
+  > legacy dan entri tanpa skor diabaikan, kanonis menang atas alias.
+  > `selectScaffoldingStrategies` — profil kosong tepat satu `worked_example`
+  > (8, `general`); tiap kondisi menambah strateginya (visual_aids 9,
+  > guided_practice 8 + hints 7, chunking 9, peer_discussion 6, analogy 7,
+  > repetition 7, guided_practice 9 kinestetik) dengan `source: 'profile'`;
+  > profil yang mengenai semua kondisi terurut priority menurun dengan sort
+  > stabil (chunking, guided_practice kinestetik, worked_example,
+  > guided_practice neuroticism, hints, analogy, repetition, peer_discussion);
+  > ambang ketat di batas: neuroticism 60/61, extraversion 70/71, openness
+  > 40/39. `calculatePsychometricMatch` — basis 0.5; abstrak (abstractness >0.7,
+  > batas ketat) × openness >60 +0.2 / <40 −0.2 / 50 netral, konsep konkret
+  > netral; cognitiveLoad >0.7 (batas ketat) × workingMemory `high` +0.15 /
+  > `low` −0.15 / medium & tanpa cognitiveProfile netral; jendela [4,7]
+  > inklusif pada `adjustedDifficulty = absolute + modifier×10` (4 dan 7
+  > termasuk; 5+0.2×10=7 ya; 8 dan 5−0.2×10=3 tidak); maksimum tercapai 0.95
+  > dan minimum 0.15; hasil `adjustForPsychometrics` dipakai langsung sebagai
+  > argumen ketiga (modifier −0.2 mengeluarkan konsep absolute 5 dari jendela).
+  > Penjaga statis: baris `Math.max(-0.5, Math.min(0.5, difficultyModifier));`
+  > masih ada; `scaffolding.ts` mengimpor `traitScore` dari `trait-scores.ts`;
+  > `education-graph-db.ts` tetap `import * as scaffolding` dan mendelegasikan
+  > ketiga nama fungsi. Catatan proses: ekspektasi urutan awal keliru karena
+  > sort stabil menempatkan `worked_example` (disisipkan pertama) sebelum
+  > `guided_practice` pada priority sama; perbandingan angka float memakai
+  > epsilon (0.1+0.2 ≠ 0.3 persis di IEEE754). Tanpa perubahan
+  > perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (570/570 unit,
+  > 187 cek smoke; `tests/scaffolding-source.test.ts` tetap utuh).
 
 - 2026-11-15: PR #64 — test: test unit langsung allowlist metode graph yang
   boleh dipanggil browser `src/lib/graph/methods.ts` (`REMOTE_GRAPH_METHODS`,
@@ -589,7 +617,7 @@ Inggris (D2).
   `selectScaffoldingStrategies` dikunci eksplisit tanpa async). Penjaga statis
   wiring: `methods.ts` bebas impor runtime (hanya `import type`, aman di
   bundle browser); `graph.functions.ts` memakai `method:
-  z.enum(REMOTE_GRAPH_METHODS)` (bukan `z.string()`) dan mengambil graph
+z.enum(REMOTE_GRAPH_METHODS)` (bukan `z.string()`) dan mengambil graph
   lewat `graphForOwner(context.userId)`; `createRemoteGraphDB` di
   `DBContext.tsx` membangun proxy dengan mengiterasi `REMOTE_GRAPH_METHODS`
   (tidak ada nama method hardcoded, termasuk yang terlarang) dan meneruskan
@@ -612,7 +640,7 @@ Inggris (D2).
   menurut basename (`localeCompare`, termasuk beda huruf besar/kecil), migrasi
   yang sudah tercatat dilewati tanpa tulisan bookkeeping; tiap migrasi satu
   transaksi `tx.exec(<isi berkas>)` + `insert into _migrations (name) values
-  ($1)`; galat `exec` maupun insert diteruskan dan migrasi berikutnya tidak
+($1)`; galat `exec` maupun insert diteruskan dan migrasi berikutnya tidak
   dicoba; `pgliteMigratable` meneruskan teks/parameter apa adanya, `query` hanya
   mengembalikan `{ rows }`, `transaction` memanggil `pg.transaction` sekali dan
   meneruskan nilai kembalian, callback memakai objek transaksi (bukan `pg`
@@ -644,10 +672,10 @@ Inggris (D2).
   `information_processing.full`, `metacognition.full`, `political_ideology.full`,
   `cultural_values.full`). Dikunci di `tests/assessments.test.ts` (19 → 26):
   attachment semua `min` = 83 dengan teks persis `Secure attachment
-  (Anxiety=0, Avoidance=33).`, semua `max` = 17 dengan `Anxiety=100,
-  Avoidance=67`; information processing analytical 0 → `Holistic/Global` +
+(Anxiety=0, Avoidance=33).`, semua `max` = 17 dengan `Anxiety=100,
+Avoidance=67`; information processing analytical 0 → `Holistic/Global` +
   `Analytical/Sequential=0`; metacognition knowledge 0 → `Regulation of
-  Cognition` + `Knowledge of Cognition=0`; political care/fairness 0 dengan
+Cognition` + `Knowledge of Cognition=0`; political care/fairness 0 dengan
   binding tengah menyebut orientasi binding; cultural power distance/uncertainty
   0 menyebut egalitarian dan nyaman dengan ambiguitas; jawaban `{}` pada kelima
   kuis tetap tidak melempar dan menghasilkan teks tidak kosong. Tanpa perubahan
@@ -702,7 +730,7 @@ Inggris (D2).
   leluhur `tr`/`li`/`[data-row]`; tanpa baris/daftar → `null`); `null` atau
   tanpa `window` → tanpa frame; selama baris masih terhubung frame dijadwalkan
   ulang tanpa mencuri fokus; baris pengganti `rows[min(rowIndex, rows.length -
-  1)]` dan tombol aktif ke-`min(max(0, buttonIndex), buttons.length - 1)`;
+1)]` dan tombol aktif ke-`min(max(0, buttonIndex), buttons.length - 1)`;
   daftar/baris kosong atau daftar tak terhubung → fokus `main h1` dengan
   `tabindex="-1"` hanya bila belum ada; tidak mencuri fokus bila pengguna sudah
   pindah, tetapi tetap memulihkan bila elemen terfokus ikut terputus. Tanpa
@@ -714,13 +742,13 @@ Inggris (D2).
   whitespace-only = kosong); `passwordResetAvailable()` (terkonfigurasi atau
   `NODE_ENV` bukan persis `production`); `sendEmail` terkonfigurasi = tepat
   satu POST ke `https://api.resend.com/emails` dengan `authorization: Bearer
-  <key>`, `content-type: application/json`, body `{from, to: [penerima],
-  subject, text}` ter-trim, resolve pada OK, galat `Email provider refused the
-  message (HTTP <status>).` tanpa retry; jalur dev tanpa konfigurasi resolve
+<key>`, `content-type: application/json`, body `{from, to: [penerima],
+subject, text}` ter-trim, resolve pada OK, galat `Email provider refused the
+message (HTTP <status>).` tanpa retry; jalur dev tanpa konfigurasi resolve
   tanpa memanggil fetch (stub melempar), log dev, outbox `DEV_EMAIL_OUTBOX`
   satu baris JSON `{to, subject, text, at}` ISO yang di-append (tidak menimpa),
   tanpa file bila variabel kosong; produksi tanpa konfigurasi menolak `Email
-  is not configured on this server.`; builder reset/verifikasi berbahasa
+is not configured on this server.`; builder reset/verifikasi berbahasa
   Inggris, memuat URL, tanpa rahasia server lain. `fetch`/env distub dan
   dipulihkan, outbox di `os.tmpdir()`. Tanpa perubahan
   perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (447/447 unit,
@@ -753,7 +781,7 @@ Inggris (D2).
   impor dinamis ekstensi-less ala Vite (`import('../db')`) ke `.ts` untuk Node
   murni, tanpa menyentuh kode aplikasi. Dikunci: 401 tanpa/malformed
   `Authorization` (header `www-authenticate: Bearer`, `cache-control:
-  no-store`) + 401 key dicabut; isolasi antar-akun di `learners` dan `context`
+no-store`) + 401 key dicabut; isolasi antar-akun di `learners` dan `context`
   (404 lintas akun, isi brief tak menyebut akun lain); bentuk `learners`
   persis `{ learners: [{ id, name, example }] }` (`example` hanya `demo-*`,
   nama jatuh ke id); default learner = non-`demo-*` pertama (fallback pelajar
