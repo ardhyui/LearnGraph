@@ -1,86 +1,130 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 45: test unit langsung sesi kuis evidence `src/lib/evidence/service.ts`, PR #84; berikutnya: test langsung laporan mandiri evidence — `recordSelfReport` di `src/lib/evidence/service.ts`)
+Terakhir diperbarui: 2026-11-16 (siklus 46: test unit langsung laporan mandiri evidence `recordSelfReport` `src/lib/evidence/service.ts`, PR #85; berikutnya: test langsung sisa fungsi service evidence — `requiresEvidence`/`guardGraphCall`/`seedDemoQuestions`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung laporan mandiri evidence — semua hasil & penjaga**
-`src/lib/evidence/service.ts`: `recordSelfReport`. File baru
-`tests/evidence-self-reports.test.ts` (node:test + satu PGlite on-disk, pola
-`tests/evidence-quiz-sessions.test.ts` PR #84): `openTestWorkspaces` dengan
-baris `"user"` per owner karena `owner_id` ber-FK, dan **owner terpisah per
-test** supaya urutan test tidak saling mengunci. Modul **tidak diubah**.
-`applyStudyOutcome`/`applyReviewOutcome`/`applySnooze`/`applyUnsnooze` dan
-`reviewWasDue` tidak diuji ulang (sudah dikunci di `tests/study.test.ts`,
-`tests/snooze.test.ts`, `tests/unsnooze.test.ts`, `tests/review-priority.test.ts`);
-di sini lapisan DB, penjaga bukti, interaksi, dan orkestrasi event. Kunci
-(probe dulu, kunci perilaku aktual):
+Penguatan tes: **test unit langsung sisa fungsi `src/lib/evidence/service.ts` —
+`requiresEvidence`, `guardGraphCall`, `seedDemoQuestions`**. File baru
+`tests/evidence-guards.test.ts` (node:test + satu PGlite on-disk, pola
+`tests/evidence-self-reports.test.ts` PR #85): `openTestWorkspaces` dengan
+baris `user` per owner karena `owner_id` ber-FK, dan **owner terpisah per
+test**. Modul **tidak diubah**. Probe dulu, kunci perilaku aktual:
 
-1. Learner/konsep hilang → `EvidenceError` persis `'That learner no longer
-   exists.'` / `'That concept no longer exists.'`, tanpa state dan tanpa baris
-   `learning_events`. Konsep ber-soal atau ber-`evidenceRequired` (Jepang) →
-   `EvidenceRequiredError` persis `“<name>” is quiz-checked: its mastery only
-   changes through its quiz.` / `... through the Japanese page.` untuk keempat
-   hasil yang mengubah mastery (`got-it`, `started`, `remembered`, `forgot`),
-   tanpa menulis apa pun; konsep yang sama tanpa soal tetap boleh. `snooze` dan
-   `unsnooze` selalu lolos penjaga walau konsep ber-soal. Soal milik owner lain
-   tidak memblokir laporan owner ini (isolasi).
-2. `got-it` tanpa state → `{mastery: 85}`, state `masterySource: 'self_report'`,
-   `mastery` 85, `retentionStrength` 0.8, `reviewCount` 0,
-   `lastReviewed`/`lastAssessed`/`nextReview` = argumen `now`; state lama
-   mastery ≥ 80 mempertahankan `reviewCount` dan menaikkan mastery ke ≥ 85.
-   `started` → `clamp(max(mastery + 20, 50), 0, 79)` (0 → 50, 59 → 79, 79 → 79,
-   80/85 → tetap karena sudah mastered), `reviewCount`/`retentionStrength` lama
-   dipertahankan (`?? 0` / `?? 0.5`). `remembered` → mastery
-   `clamp(max(mastery, 40) + 5, 0, 100)`, `reviewCount` +1, retention
-   `round2(min(1, strength + 0.1))`. `forgot` → mastery
-   `clamp(mastery − 20, 40, 100)`, `reviewCount` 0, retention
-   `round2(max(0.1, strength − 0.2))`. Keempatnya menulis
-   `lastReviewed`/`lastAssessed`/`nextReview` = `now` dan
-   `masterySource: 'self_report'`.
-3. Interaksi: `got-it`/`started` menambah satu entri
-   `{timestamp: now ISO, type: 'lesson', duration: 0}`; `remembered`/`forgot`
-   satu entri `type: 'review', duration: 0`; `snooze`/`unsnooze` tidak
-   menambah. Riwayat lama yang sah dipertahankan urutannya, entri rusak
-   dibuang lewat `sanitizeInteractions`, entri baru selalu di akhir, dan total
-   dipotong ke `MAX_INTERACTIONS` (1000) — uji 1000 entri lama + satu baru →
-   1000 dengan entri baru terakhir. State lama tanpa `interactions` → array
-   berisi satu entri baru.
-4. Event: tepat satu baris `learning_events` per panggilan dengan kind/outcome
-   `study:got-it`, `study:started`, `review:remembered`, `review:forgot`,
-   `snooze:snoozed`, `unsnooze:unsnooze`; `masteryBefore` = mastery lama (`0`
-   tanpa state), `masteryAfter` = mastery state hasil, `source` `app`,
-   `detail` `{}`, `correct`/`total` null. `wasDue`:
-   `reviewWasDue(prior, concept.difficulty.absolute, now)` untuk review, snooze
-   dan unsnooze; **selalu false** untuk `got-it`/`started` walau state lama
-   sudah lewat jadwal. State lewat jadwal (mastery ≥ `REVIEWABLE_MASTERY`,
-   `lastReviewed` lama, difficulty konsep) → `wasDue: true`; state baru/belum
-   due → false. `createdAt` event berasal dari default DB, bukan `now` — cukup
-   dicek ISO.
-5. `snooze`: hanya `nextReview` = `now + SNOOZE_DAYS` (1 hari); mastery,
-   `reviewCount`, retention, `lastReviewed`, `masterySource` dan interactions
-   tidak berubah. `unsnooze`: hanya `nextReview`, kembali ke `lastReviewed`
-   (atau `firstSeen`) bila ≤ `now`, fallback `now` bila kedua tanggal tidak
-   ada/tidak sah/masa depan. Snooze lalu unsnooze mengembalikan jadwal semula.
-6. Penjaga statis: `recordSelfReport` memanggil `requireLearnerAndConcept`
-   sebelum `requiresEvidence`/`getKnowledgeState`; gerbang
-   `changesMastery && requiresEvidence(...).required` sebelum state ditulis;
-   `snooze`/`unsnooze` memakai `applySnooze`/`applyUnsnooze`, hasil lain
-   memakai `applyStudyOutcome`/`applyReviewOutcome` lalu menambah interaction
-   (`sanitizeInteractions(...)` + `.slice(-MAX_INTERACTIONS)`); patch mastery
-   diberi `masterySource: 'self_report'`; `setKnowledgeState` sebelum
-   `appendEvent`; `SELF_REPORT_KIND` memetakan keenam hasil dan event memakai
-   `outcome === 'snooze' ? 'snoozed' : outcome`; `wasDue` event untuk kind
-   `study` dipaksa false. Asersi lama di `tests/learning-evidence.test.ts` —
-   'self-reports are refused for quiz-checked concepts (D5) but still allowed
-   elsewhere' dan 'every answer and review is an event bound to its account' —
-   tetap utuh.
+1. `requiresEvidence` → `{required, concept, questions}`: konsep tanpa soal &
+   tanpa flag → `{required: false, questions: 0}` dengan `concept` = node;
+   konsep ber-soal → `required: true` + `questions` = jumlah; konsep
+   `evidenceRequired: true` tanpa soal → `required: true, questions: 0`;
+   konsep hilang → `{required: false, concept: null, questions: 0}`;
+   isolasi owner (soal owner lain pada id konsep sama tidak terlihat).
+2. `guardGraphCall(db, graph, owner, method, args)`: method selain
+   `setKnowledgeState` → args diteruskan apa adanya (identitas array);
+   patch yang semua fieldnya (selain bernilai `undefined`) ada di
+   `NON_EVIDENCE_FIELDS` (`nextReview`, `misconceptions`) → lolos walau
+   konsep ber-soal, args tanpa perubahan; patch `{}`/semua `undefined`
+   → lolos (rough edge: `{mastery: undefined}` diizinkan tanpa stempel);
+   patch ber-field bukti (`mastery`, `reviewCount`, `lastReviewed`, …) di
+   konsep ber-soal → `EvidenceRequiredError` persis (varian `its quiz` dan
+   `the Japanese page` untuk konsep ber-flag domain japanese); konsep tanpa
+   soal: patch tanpa `mastery` → args sama, patch dengan `mastery` → elemen
+   ketiga ditambah `masterySource: 'manual'` yang menimpa nilai palsu
+   (`'quiz'`).
+3. `seedDemoQuestions`: flag `seed:demo-questions` sudah ada → 0 tanpa
+   menulis; hanya konsep demo yang masih demo (id sama — ingat id
+   `demoConcepts` berprefiks `concept:`, domain harus sama — probe dulu
+   domain aktual `demoConcepts` di `src/lib/demo-data.ts`) dan tanpa soal
+   sendiri yang diisi (`DEMO_QUESTIONS` 44 soal = 4 per konsep, diekspor
+   `src/lib/evidence/demo-questions.ts`); konsep demo yang domainnya
+   diubah editor / sudah punya soal sendiri / konsep non-demo dilewati;
+   nilai balik = jumlah benar-benar masuk; `questionCounts` sesudahnya;
+   `onConflict (owner_id, id) doNothing` — id demo yang sudah dipakai baris
+   milik konsep LAIN tetap menghalangi insert id itu (hitungan berkurang,
+   baris lama utuh) sedangkan baris pada konsep yang sama membuat konsep
+   itu dilewati total; flag ditulis `{at ISO wall-clock, added}` sehingga
+   panggilan kedua 0; isolasi owner.
+4. Penjaga statis: `seedDemoQuestions` — cek `getMeta(DEMO_QUESTIONS_FLAG)`
+   paling awal, `questionCounts` sebelum loop, per-demo `getConcept` +
+   cek domain + `counts[conceptId]` (`continue`),
+   `DEMO_QUESTIONS.filter((q) => q.conceptId === conceptId)`,
+   `onConflict ... doNothing` + `returning('id')`, `added += inserted.length`,
+   `setMeta(DEMO_QUESTIONS_FLAG, ...)` setelah loop; `guardGraphCall` —
+   `method !== 'setKnowledgeState'` duluan, filter field `undefined`,
+   `NON_EVIDENCE_FIELDS` tepat `nextReview`+`misconceptions`,
+   `requiresEvidence` lalu lempar, cabang akhir
+   `patch.mastery === undefined ? args : [...patch, masterySource 'manual']`;
+   `requiresEvidence` memfilter `owner_id`+`concept_id`;
+   `concept?.evidenceRequired === true || questions > 0`; empat judul lama
+   `tests/learning-evidence.test.ts` tetap utuh: 'a concept with questions
+   requires evidence; one without does not', 'a direct graphCall cannot
+   make a quiz-checked concept mastered, but may postpone its review',
+   'a flagged concept (Japanese) requires evidence without questions in
+   the bank', 'example questions are seeded once, only onto example
+   concepts without a bank'.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 12–16). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10–14). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
 UI tetap bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-16: PR #85 — test: test unit langsung laporan mandiri evidence
+  `src/lib/evidence/service.ts` — `recordSelfReport` (12 test di
+  `tests/evidence-self-reports.test.ts`, node:test; satu PGlite on-disk +
+  migrasi asli via `openTestWorkspaces`, baris `user` per owner karena
+  `owner_id` ber-FK; 11 owner terpisah agar urutan test tidak saling mengunci),
+  modul tidak diubah. Dikunci: penjaga — learner/konsep hilang → `EvidenceError`
+  persis `'That learner no longer exists.'`/`'That concept no longer exists.'`
+  tanpa baris `knowledge_states`/`learning_events` (dihitung SQL mentah);
+  konsep ber-soal dan konsep `evidenceRequired` domain japanese →
+  `EvidenceRequiredError` persis `“Quizzy” is quiz-checked: its mastery only
+  changes through its quiz.`/`“Hiragana” ... through the Japanese page.` untuk
+  keempat hasil yang mengubah mastery tanpa menulis apa pun; `snooze`/
+  `unsnooze` lolos penjaga walau konsep ber-soal (dua event `snooze:snoozed`/
+  `unsnooze:unsnooze`); soal owner lain pada id konsep sama tidak memblokir
+  laporan owner ini. State — `got-it` tanpa state `{mastery: 85}` +
+  `masterySource 'self_report'`, retention 0.8, reviewCount 0,
+  `lastReviewed`/`lastAssessed`/`nextReview` = argumen `now`; state 80 → 85
+  dengan reviewCount 5 dan interaksi lama dipertahankan; `started`
+  clamp(max(m+20,50),0,79) untuk 0/59/79 dan tetap 80/85 dengan
+  reviewCount/retention lama (`?? 0`/`?? 0.5` untuk state baru);
+  `remembered` clamp(max(m,40)+5,0,100) (0→45, 85→90, 20→45) reviewCount +1
+  retention round2(min(1,+0.1)); `forgot` clamp(m−20,40,100) (0→40, 85→65,
+  50→40) reviewCount 0 retention round2(max(0.1,−0.2)). Interaksi — satu entri
+  `{timestamp now, type lesson/review, duration 0}` per hasil yang mengubah
+  mastery (`got-it`/`started` lesson, `remembered`/`forgot` review), riwayat
+  sah urut (field opsional score/bloomLevel/notes selamat), entri rusak
+  dibuang (timestamp rusak, type asing, bukan objek, tanpa duration, duration
+  negatif), entri baru selalu akhir, cap `MAX_INTERACTIONS` 1000 (1000 lama +
+  1 baru → 1000, entri lama pertama terbuang); state lama tanpa `interactions`
+  (ditulis mentah via `PostgresGraphStore.put('state:...')`) → array satu
+  entri baru. Event — tepat satu per panggilan `study:got-it`/`study:started`/
+  `review:remembered`/`review:forgot`/`snooze:snoozed`/`unsnooze:unsnooze`,
+  `source 'app'`, `detail {}`, `correct`/`total` null, `masteryBefore` 0 tanpa
+  state, `createdAt` ISO (default DB); `wasDue` `reviewWasDue(prior,
+  difficulty 5, now)`: state lewat jadwal (mastery 85, reviewCount 1, 40 hari)
+  → true untuk remembered/snooze/unsnooze (reviewCount 1→2, retention 0.9),
+  state 1 jam → false, kind `study` selalu false walau state lewat jadwal.
+  Snooze/unsnooze — hanya `nextReview` = `now + SNOOZE_DAYS` (1 hari); state
+  baru tanpa field lain (mastery 0, `masterySource` undefined, interactions
+  []); unsnooze kembali ke `lastReviewed`/`firstSeen` bila ≤ now — tanggal
+  terpilih dinormalkan `new Date(t).toISOString()` ber-milidetik `.000Z`
+  (bukan string mentah) — fallback `now` bila tanggal tidak sah (`not-a-date`)
+  atau masa depan; snooze lalu unsnooze mengembalikan jadwal semula.
+  Penjaga statis: urutan `requireLearnerAndConcept` < `requiresEvidence`/
+  `getKnowledgeState` < gerbang `changesMastery && (await requiresEvidence` <
+  `setKnowledgeState` < `appendEvent`; `SELF_REPORT_KIND` memetakan keenam
+  hasil persis; `outcome === 'snooze' ? 'snoozed' : outcome`; `wasDue` kind
+  study dipaksa false; `masterySource: 'self_report'`;
+  `sanitizeInteractions(prior?.interactions)` + `.slice(-MAX_INTERACTIONS)`;
+  dua judul lama `tests/learning-evidence.test.ts` tetap utuh. Catatan proses:
+  `node_modules` belum ada di worktree sehingga `npm ci` dijalankan lebih dulu;
+  run test awal menyisihkan dua asersi draf (regex `isIso` kehilangan pemisah
+  `T`; `applyUnsnooze` menormalkan tanggal ke ISO ber-milidetik) dan satu
+  bug urutan pembuatan learner; setelah perbaikan, typecheck/lint 0/0 dan
+  gerbang `npm run ci` utuh langsung hijau pada percobaan pertama. Tanpa
+  perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau
+  (install, typecheck, lint 0/0, 886/886 unit = 874 + 12, build, anggaran
+  bundel, CSP build produksi, smoke Playwright + PGlite 107 baris PASS).
 
 - 2026-11-16: PR #84 — test: test unit langsung sesi kuis evidence
   `src/lib/evidence/service.ts` — `startQuiz`/`submitQuiz` (10 test di
