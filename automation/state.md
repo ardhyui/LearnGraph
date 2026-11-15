@@ -81,7 +81,7 @@ Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
   → false, env distub lalu dipulihkan. `shiftDemoDate` tidak diduplikasi
   (tetap di `tests/demo-seed.test.ts`). Tanpa perubahan
   perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (606/606 unit,
-  187 cek smoke).
+  184 cek smoke).
 
 - 2026-11-15: PR #66 — test: test unit langsung store Postgres
   `src/lib/graph/store.ts` (`PostgresGraphStore` + `tableForKey`, 11 test di
