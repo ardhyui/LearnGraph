@@ -1,41 +1,69 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 29: test langsung registri psikometrik + `estimateCognitiveProfile` di `src/lib/graph/psychometrics.ts`, PR #68; berikutnya: test langsung modul util kecil `cn` di `src/lib/utils.ts` + `uuidv4` di `src/lib/uuid.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 30: test langsung `cn` di `src/lib/utils.ts` + `uuidv4` di `src/lib/uuid.ts`, PR #69; berikutnya: test langsung `src/lib/db.ts` — `dbSource`, `getDb`, `ensureDbReady`, `dumpLocalJapaneseDatabase`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung dua **modul util kecil** yang dipakai lintas
-aplikasi tetapi belum punya test langsung: `src/lib/utils.ts` (`cn`, pembungkus
-`clsx` + `tailwind-merge`) dan `src/lib/uuid.ts` (`uuidv4`, pembungkus Web
-Crypto). Keduanya adalah sisa modul `src/lib` tanpa test langsung. **Modul tidak
-diubah — test saja.**
+Penguatan tes: test unit langsung **`src/lib/db.ts`**, modul inti server yang
+belum punya test langsung (`dbSource`, `getDb`, `ensureDbReady`,
+`dumpLocalJapaneseDatabase`). **Modul tidak diubah — test saja.** Tidak perlu
+database sungguhan: cukup satu PGlite palsu yang disuntikkan lewat global.
+Test baru `tests/db.test.ts` (`node:test` murni) mengunci:
 
-Test baru `tests/utils.test.ts` dan `tests/uuid.test.ts` (`node:test` murni)
-mengunci:
-
-- `cn` — tanpa argumen → `''`; beberapa string digabung berurutan; kelas
-  Tailwind yang berkonflik diselesaikan `tailwind-merge` (bandingkan hasil
-  persis: `cn('p-2', 'p-4')` → `'p-4'`, `cn('text-sm text-red-500', 'text-lg')`
-  → `'text-red-500 text-lg'` — urutan kelas sisa dipertahankan); kelas yang
-  tidak berkonflik tetap (`cn('px-2', 'py-3')` → `'px-2 py-3'`); nilai
-  kondisional `false`/`undefined`/`null` dibuang (`cn('mt-4', false, undefined,
-  null, 'mb-2')` → `'mt-4 mb-2'`); bentuk objek/array `clsx` bekerja
-  (`cn({ 'font-bold': true, hidden: false })` → `'font-bold'`,
-  `cn(['flex', false && 'hidden', 'gap-2'])` → `'flex gap-2'`); hasil selalu
-  string.
-- `uuidv4` — memanggil `globalThis.crypto.randomUUID()` tepat sekali dan
-  mengembalikan nilainya apa adanya (stub string tetap diteruskan); hasil
-  sungguhan cocok pola UUID v4 (`4` di posisi versi, varian `[89ab]`, 36
-  karakter huruf kecil) dan 1000 pemanggilan tidak berulang; bila
-  `crypto.randomUUID` melempar, galat yang sama diteruskan (tanpa fallback
-  diam-diam). Stub dipasang lewat `Object.defineProperty(globalThis, 'crypto',
-  …)` dan deskriptor asli dipulihkan di `after`/`finally` — jangan menyentuh
-  `crypto` global di luar test ini (tiap file test berjalan di proses sendiri).
+- **Bootstrap palsu:** sebelum `await import('../src/lib/db.ts')` (impor
+  dinamis, jangan statis di bagian atas file), isi
+  `globalThis.__learngraphPglite__` dengan `Promise.resolve(fakePglite)` agar
+  bootstrap otomatis di akhir modul meng-`await` objek palsu dan tidak
+  menjalankan WASM. `fakePglite` mencatat panggilan `dumpDataDir` dan
+  mengembalikan `Blob` berisi byte gzip tiruan. Hapus
+  `__learngraphKysely__`/`__learngraphPglite__` sebelum/sesudah tiap test dan
+  pulihkan `window`/env di `after`/`finally`.
+- **`dbSource`** — dengan `DATABASE_URL` kosong (seperti CI) bernilai
+  `'pglite'`. Pemilihan `'postgres'` dikunci lewat **child process** (`node
+  --experimental-strip-types --input-type=module -e "…"` dengan
+  `DATABASE_URL=postgres://…`): cetak `dbSource`, harus `'postgres'`, tanpa
+  menghubungi jaringan (impor saja tidak membuat pool; jangan memanggil
+  `getDb()` di child). Bila child process terlalu rapuh di lingkungan CI,
+  cukup kunci jalur `'pglite'` dan tambahkan penjaga statis bahwa `dbSource`
+  diturunkan dari `DATABASE_URL` yang di-trim.
+- **`getDb()`** — memakai `window`: bila `globalThis.window` didefinisikan,
+  melempar persis `'@/lib/db is server-only — use it from a server function.'`
+  dan **tidak** membuat/menyimpan instance (`__learngraphKysely__` tetap
+  kosong); tanpa `window`, dua panggilan mengembalikan objek Kysely yang sama
+  dan menyimpannya di `globalThis.__learngraphKysely__` (memoization, satu
+  instance). Tidak perlu query SQL.
+- **`ensureDbReady()`** — pada `dbSource === 'pglite'` menunggu promise PGlite
+  palsu yang sama (bootstrap tidak membuat PGlite kedua); resolve tanpa galat.
+- **`dumpLocalJapaneseDatabase()`** — tanpa `JAPANESE_LOCAL_ORIGIN` menolak
+  persis `'Local backup is disabled.'` tanpa memanggil `dumpDataDir`; dengan
+  env terisi memanggil `dumpDataDir('gzip')` tepat sekali dan mengembalikan
+  `Uint8Array` berisi byte yang sama dengan `Blob` palsu (bukan objek `Blob`).
+  Env dipulihkan setelah test.
+- Penjaga statis: `db.ts` tetap diawali docblock server-only; bootstrap
+  otomatis hanya berjalan bila `typeof window === 'undefined'` **dan**
+  `dbSource === 'pglite'`; `getDb` memeriksa `window` sebelum memoization.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #69 — test: test unit langsung dua modul util kecil,
+  `src/lib/utils.ts` (`cn`, 8 test di `tests/utils.test.ts`) dan
+  `src/lib/uuid.ts` (`uuidv4`, 4 test di `tests/uuid.test.ts`), node:test
+  murni, modul tidak diubah. Dikunci pada `cn`: tanpa argumen → `''`; string
+  digabung berurutan; konflik Tailwind diselesaikan `tailwind-merge`
+  (`p-2`+`p-4` → `p-4`, `text-sm text-red-500`+`text-lg` →
+  `text-red-500 text-lg`, urutan sisa dipertahankan); kelas tak berkonflik
+  tetap (`px-2`+`py-3`); `false`/`undefined`/`null` dibuang; bentuk objek dan
+  array `clsx` bekerja; hasil selalu string. Dikunci pada `uuidv4`:
+  `crypto.randomUUID` dipanggil tepat sekali tanpa argumen dan nilainya
+  diteruskan apa adanya; hasil nyata cocok pola UUID v4 (36 karakter, versi 4,
+  varian `[89ab]`) dan 1000 pemanggilan tidak berulang; galat sumber acak
+  diteruskan tanpa fallback. Stub `crypto` dipasang lewat
+  `Object.defineProperty` dan deskriptor asli dipulihkan per test. Tanpa
+  perubahan perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau
+  (632/632 unit, 184 cek smoke).
 
 - 2026-11-15: PR #68 — test: test unit langsung registri psikometrik
   `src/lib/graph/psychometrics.ts` (14 test di `tests/psychometrics.test.ts`,
