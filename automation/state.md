@@ -1,52 +1,95 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 51: test unit langsung bank & penilaian kuis generik `src/lib/evidence/quiz.ts`, PR #90; berikutnya: test unit langsung jadwal & patch state kuis `reviewWasDue`/`quizStatePatch` di modul yang sama)
+Terakhir diperbarui: 2026-11-16 (siklus 52: test unit langsung jadwal & patch state kuis evidence `reviewWasDue`/`quizStatePatch`, PR #91; berikutnya: test unit langsung dataset kurikulum & bank soal Jepang `src/lib/japanese/curriculum.ts`/`questions.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung jadwal & patch state kuis
-`src/lib/evidence/quiz.ts` — `reviewWasDue`/`quizStatePatch`**. File baru
-`tests/evidence-quiz-state.test.ts` (node:test, impor modul langsung, tanpa
-PGlite/DOM/Playwright). Modul **tidak diubah**. Kedua fungsi baru tersentuh
-tidak langsung di `tests/learning-evidence.test.ts`; helper bank/penilaian
-sudah dikunci PR #90 (jangan diduplikasi). Probe dulu perilaku aktual, kunci:
+Penguatan tes: **test unit langsung dataset kurikulum & bank soal Jepang
+`src/lib/japanese/curriculum.ts` + `src/lib/japanese/questions.ts`**. File baru
+`tests/japanese-curriculum.test.ts` (node:test, impor dataset langsung, tanpa
+PGlite/DOM/Playwright). Kedua modul **tidak diubah** dan tidak punya impor
+runtime. `tests/japanese.test.ts` (66 baris) sudah memeriksa id unik, prereq
+resolve/acyclic, 6 soal per topik quiz, answer ada di opsi, dan tiap soal 3
+opsi — **jangan diduplikasi**; fokus pada yang belum dikunci. Probe dulu data
+aktual, kunci:
 
-1. `reviewWasDue` — `null`/`undefined`/prior tanpa `lastReviewed`+`firstSeen`
-   → false; `mastery` `< 40` (undefined → 0, 39) → false walau tanggal lewat;
-   `mastery` 40 + `firstSeen` lewat jadwal → true; `lastReviewed` menang atas
-   `firstSeen`; `nextReview` (snooze) diabaikan sepenuhnya (state lewat jadwal
-   + snooze besok tetap true); `difficulty` `null`/`undefined` = 0 dan 0..10
-   memperpendek interval; `now` tepat di due → true, 1 ms sebelumnya → false.
-   Nilai acuan probe: mastery 85, reviewCount 0, `lastReviewed` 2 hari lalu,
-   difficulty 0 → true; reviewCount 1 + 1 hari lalu → false; reviewCount 1 +
-   3 hari lalu difficulty 10 → true (interval 2).
-2. `quizStatePatch` — `attempts: []` jatuh ke cabang gagal: mastery 0,
-   `masterySource 'quiz'`, `lastAssessed`/`lastReviewed`/`nextReview` = ISO
-   `now`, reviewCount 0, retention `round2(max(0.1, strength−0.2))` (state baru
-   0.5 → 0.3). Urutan array tidak dipakai: `attempts` diurut `Date.parse(at)`
-   dan percobaan terakhir secara waktu yang menentukan `passed` (uji dua arah;
-   array/`prior` tidak dimutasi). Gagal terakhir → mastery
-   `round(accuracy*70)` (2/4 → 35, 3/4 → 53, 0/0 → 0) walau pass sebelumnya 85,
-   reviewCount 0, retention −0.2 dijepit 0.1, `nextReview` = now; `wasDue`
-   tetap dari `prior`. Lulus (ambang 0.8; 4/5 lulus, 0/0 gagal, 1/0 lulus —
-   rough edge) + belum learned (tanpa prior atau `mastery` < 40) → mastery 85
-   (`delayedRetrieval: false`, `ids` tak berpengaruh), lastReviewed/nextReview
-   now, reviewCount 0, retention 0.8. Lulus + learned + due → reviewCount
-   `(prior.reviewCount ?? 0)+1` (null/absen → 1), retention
-   `round2(min(1, strength+0.1))` (0.95 → 1), lastReviewed/nextReview now.
-   Lulus + learned + belum due → patch **hanya**
-   `{mastery, masterySource, lastAssessed}`: tanpa lastReviewed/reviewCount/
-   retentionStrength/nextReview (retake dini tak meregangkan jadwal).
-   `masterySource` selalu `'quiz'`; `lastAssessed` selalu ISO now.
-   `clamp01` pada `prior.retentionStrength ?? 0.5`: non-finite → 0.5, <0 → 0,
-   >1 → 1 (Infinity → 0.5, lalu due pass → 0.6); `wasDue` tiap cabang sama
-   dengan `reviewWasDue(prior, difficulty, now)`.
+1. `MODULES` — tepat 40 modul; id unik dan urut persis (salinan eksplisit 40
+   id `jp-hiragana` … `jp-n1-output`); nama unik; level N5/N4/N3/N2/N1
+   berjumlah 24/4/4/4/4; mode quiz/external/michi berjumlah 8/23/9;
+   `LEARNER === 'japanese-ardhyui'`; name/level/description tiap modul
+   non-kosong setelah trim; delapan modul quiz (`jp-hiragana`, `jp-katakana`,
+   `jp-particles`, `jp-existence`, `jp-verbs`, `jp-adjectives`, `jp-te`,
+   `jp-counters`) dikunci objeknya persis (id/name/level/description/prereqs/
+   mode/resource sebagai salinan eksplisit, mencakup copy bahasa Indonesia,
+   D2).
+2. Resource per mode — mode `quiz` semuanya
+   `https://www.irodori-online.jpf.go.jp/`; mode `external` hanya `https://`
+   dan tepat lima URL unik (irodori, tadoku, samplequestions.jlpt,
+   marugoto, aozora); mode `michi` tepat sembilan
+   `http://127.0.0.1:17831/bab/<slug>` untuk slug dasar, alam, ukuran, waktu,
+   orang, sekolah, gerak, kota, angka.
+3. `QUESTIONS` — tepat 48 soal; id unik berpola `<slug>-<1..6>`; delapan topik
+   = id modul quiz, masing-masing tepat 6 soal berurutan `slug-1..6` dan tanpa
+   topik asing; pemetaan slug: hiragana, katakana, particles, existence,
+   verbs, adjectives, te, counters. Tiap soal: `options` 3 opsi unik,
+   `answer` termasuk opsi, prompt/answer/explanation non-kosong setelah trim;
+   kunci rough edge aktual bahwa `answer` **selalu** `options[0]` untuk
+   seluruh 48 soal (opsi diacak saat undian, jadi bukan kebocoran; dataset
+   tidak diubah). Kunci beberapa soal sulit secara persis (mis. `hiragana-4`
+   「りょ」 → `ryo`, opsi `['ryo','riyo','yo']`) dan satu soal `counters`.
+4. Penjaga statis — `src/server/japanese.functions.ts` mengimpor
+   `MODULES`+`LEARNER` dari `@/lib/japanese/curriculum` dan `QUESTIONS` dari
+   `@/lib/japanese/questions`, memfilter `m.mode === 'quiz'`/`'external'`/
+   `'michi'`, dan memakai `QUESTIONS.filter((q) => q.topic === ...)`; scan
+   seluruh `src/` (`ts`/`tsx` kecuali kedua dataset) tanpa salinan
+   `MODULES`/`LEARNER`/`QUESTIONS` lain; asersi lama `tests/japanese.test.ts`
+   tetap utuh (dirujuk, bukan dipindah/diduplikasi).
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10–14). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 8–12). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
-UI tetap bahasa Inggris (D2).
+UI pelajar tetap bahasa Inggris; halaman `/japanese` berbahasa Indonesia
+(D2).
 
 ## Riwayat
+
+- 2026-11-16: PR #91 — test: test unit langsung jadwal & patch state kuis
+  evidence `src/lib/evidence/quiz.ts` — `reviewWasDue`/`quizStatePatch`
+  (11 test di `tests/evidence-quiz-state.test.ts`, node:test murni, impor
+  modul langsung, tanpa PGlite/DOM), modul tidak diubah. Dikunci:
+  `reviewWasDue` — `null`/`undefined`/`{}`/mastery < 40/tanpa tanggal → false;
+  mastery 40 + `firstSeen` 2 hari → true; `lastReviewed` menang atas
+  `firstSeen` dua arah; snooze (`nextReview` besok) diabaikan sepenuhnya;
+  reviewCount 0 + 2 hari + difficulty 0 → true; reviewCount 1 + 2 hari,
+  difficulty 0/null/undefined → false; difficulty 10 → true (interval 2);
+  reviewCount 1 + 1 hari → false; tepat di due (milidetik) → true dan 1 ms
+  sebelumnya → false. `quizStatePatch` — `attempts: []` → cabang gagal
+  (mastery 0, source `quiz`, lastAssessed/lastReviewed/nextReview ISO `now`,
+  reviewCount 0, retention 0.3; strength 0.3 → 0.1); gagal terakhir → mastery
+  `round(accuracy*70)` (2/4 → 35, 3/4 → 53, 0/0 → 0) walau pass sebelumnya 85,
+  reviewCount 0, retention −0.2 dijepit 0.1; urutan array diabaikan — diurut
+  `Date.parse(at)` dan percobaan terakhir secara waktu menentukan `passed`
+  (dua arah; array/prior tidak dimutasi); lulus belum learned (tanpa prior
+  atau mastery 39) → mastery 85, retention 0.8, reviewCount 0, ids/
+  `delayedRetrieval` tak berpengaruh, 1/0 → 85 (rough edge); lulus learned
+  due → reviewCount `(prior.reviewCount ?? 0)+1` (null/undefined → 1),
+  retention `round2(min(1, strength+0.1))` (0.95 → 1, 0.2 → 0.3); lulus
+  learned belum due → patch hanya `{mastery, masterySource, lastAssessed}`
+  (retake dini tak meregangkan jadwal); `clamp01` `?? 0.5` — non-finite →
+  0.5 (gagal 0.3/due pass 0.6), <0 → 0 (gagal 0.1), >1 → 1 (gagal 0.8/due
+  pass 1), absen → 0.5; semua cabang `masterySource 'quiz'`,
+  `lastAssessed` ISO now, dan `wasDue === reviewWasDue(prior, difficulty,
+now)`. Catatan proses: `node_modules` belum ada sehingga `npm ci` lebih
+  dulu; satu asersi draf memakai 2/3 sebagai "lulus" tetapi ambang 0.8 membuat
+  itu gagal (diperbaiki menjadi 4/5) sebelum gerbang; run gerbang pertama
+  gagal hanya di smoke karena beban mesin bersama (load ± 6,4 di 4 core; cek
+  fokus "Skip to content" → `in main false`) sementara typecheck/lint/975
+  unit/build/anggaran/CSP hijau; setelah load turun (± 0,4), `npm run ci`
+  utuh diulang tanpa perubahan kode dan hijau penuh. Tanpa perubahan
+  aplikasi/perilaku/skema/RPC/migrasi/dependensi dan tanpa perubahan
+  `docs/ROADMAP.md` (tidak ada baris backlog yang tersentuh, pola
+  PR #77/#78/#90). `npm run ci` hijau (install, typecheck, lint 0/0,
+  975/975 unit = 964 + 11, build, anggaran bundel, CSP build produksi, smoke
+  Playwright + PGlite).
 
 - 2026-11-16: PR #90 — test: test unit langsung bank & penilaian kuis generik
   `src/lib/evidence/quiz.ts` — `shuffled`/`pickQuestions`/`gradeQuiz`/
@@ -108,33 +151,33 @@ UI tetap bahasa Inggris (D2).
   `new Function`/`import(`/`fetch`, hanya menyentuh
   `localStorage`/`window`/`document`, query media persis
   `(prefers-color-scheme: dark)`. Perilaku: tersimpan `dark` → kelas `dark`
-  + `colorScheme` `dark` tanpa bertanya media (matches true/false); `light` →
-  tanpa kelas + `light`, tanpa media; `system`/kunci absen (`null`) →
-  mengikuti media (true: kelas `dark` + `dark`; false: tanpa kelas + `light`)
-  dan query dipanggil tepat sekali; nilai tak dikenal `blue` → terang tanpa
-  media; kelas `dark` yang sudah ada dihapus saat terang; `getItem` melempar
-  → ditelan, tanpa `classList` dan `colorScheme` lama tetap; rough edge
-  `document.documentElement.style` absen → kelas `dark` sempat ditambahkan
-  (atau kelas dihapus untuk terang), lalu assignment `colorScheme` melempar
-  dan ditelan (`colorScheme` `undefined`, tanpa exception keluar). Penjaga
-  statis: `theme.tsx` mengimpor `NO_FLASH_SCRIPT as NO_FLASH_SCRIPT_SOURCE`
-  dari `./theme-script` dan mengekspor ulang `NO_FLASH_SCRIPT`;
-  `ThemeProvider.tsx` memakai `THEME_STORAGE_KEY as STORAGE_KEY` untuk
-  `getItem`/`setItem`; `__root.tsx` merender
-  `<script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />`; SHA-256
-  dihitung dari `NO_FLASH_SCRIPT` = `NO_FLASH_SCRIPT_SHA256` (konstanta
-  dirujuk, bukan disalin) dan `tests/security-headers.test.ts` tetap
-  merujuknya; asersi lama `tests/provider-split.test.ts` tetap utuh. Catatan
-  proses: probe `node:vm` lebih dulu mengonfirmasi seluruh cabang sebelum
-  menulis test; satu asersi draf penjaga lama gagal karena
-  `tests/provider-split.test.ts` menyimpan regex ter-escape, diperbaiki
-  menjadi pencocokan string; prettier merapikan format sebelum gerbang;
-  `npm run ci` utuh langsung hijau pada percobaan pertama. Tanpa perubahan
-  aplikasi/perilaku/skema/RPC/migrasi/dependensi dan tanpa perubahan
-  `docs/ROADMAP.md` (tidak ada baris backlog yang tersentuh, pola PR
-  #77/#78). `npm run ci` hijau (install, typecheck, lint 0/0, 941/941 unit =
-  929 + 12, build, anggaran bundel, CSP build produksi, smoke Playwright +
-  PGlite).
+  - `colorScheme` `dark` tanpa bertanya media (matches true/false); `light` →
+    tanpa kelas + `light`, tanpa media; `system`/kunci absen (`null`) →
+    mengikuti media (true: kelas `dark` + `dark`; false: tanpa kelas + `light`)
+    dan query dipanggil tepat sekali; nilai tak dikenal `blue` → terang tanpa
+    media; kelas `dark` yang sudah ada dihapus saat terang; `getItem` melempar
+    → ditelan, tanpa `classList` dan `colorScheme` lama tetap; rough edge
+    `document.documentElement.style` absen → kelas `dark` sempat ditambahkan
+    (atau kelas dihapus untuk terang), lalu assignment `colorScheme` melempar
+    dan ditelan (`colorScheme` `undefined`, tanpa exception keluar). Penjaga
+    statis: `theme.tsx` mengimpor `NO_FLASH_SCRIPT as NO_FLASH_SCRIPT_SOURCE`
+    dari `./theme-script` dan mengekspor ulang `NO_FLASH_SCRIPT`;
+    `ThemeProvider.tsx` memakai `THEME_STORAGE_KEY as STORAGE_KEY` untuk
+    `getItem`/`setItem`; `__root.tsx` merender
+    `<script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />`; SHA-256
+    dihitung dari `NO_FLASH_SCRIPT` = `NO_FLASH_SCRIPT_SHA256` (konstanta
+    dirujuk, bukan disalin) dan `tests/security-headers.test.ts` tetap
+    merujuknya; asersi lama `tests/provider-split.test.ts` tetap utuh. Catatan
+    proses: probe `node:vm` lebih dulu mengonfirmasi seluruh cabang sebelum
+    menulis test; satu asersi draf penjaga lama gagal karena
+    `tests/provider-split.test.ts` menyimpan regex ter-escape, diperbaiki
+    menjadi pencocokan string; prettier merapikan format sebelum gerbang;
+    `npm run ci` utuh langsung hijau pada percobaan pertama. Tanpa perubahan
+    aplikasi/perilaku/skema/RPC/migrasi/dependensi dan tanpa perubahan
+    `docs/ROADMAP.md` (tidak ada baris backlog yang tersentuh, pola PR
+    #77/#78). `npm run ci` hijau (install, typecheck, lint 0/0, 941/941 unit =
+    929 + 12, build, anggaran bundel, CSP build produksi, smoke Playwright +
+    PGlite).
 
 - 2026-11-16: PR #88 — test: test unit langsung label evidence
   `src/lib/evidence/labels.ts` — `masterySourceLabel`/`evidenceMode`/
@@ -148,9 +191,9 @@ UI tetap bahasa Inggris (D2).
   selain itu `self-report`; hitungan milik konsep lain diabaikan; count
   negatif (rough edge) tidak > 0 sehingga jatuh ke cabang `evidenceRequired`.
   `quizResultNotice` — string persis: gagal selalu `... not passed yet.
-  “name” stays in your plan ...` walau `wasDue` true/`masteryBefore` 95;
+“name” stays in your plan ...` walau `wasDue` true/`masteryBefore` 95;
   lulus + `wasDue` → `... passed! “name” will come back after a longer
-  break.` (menang atas `masteryBefore` 90); lulus + tidak due +
+break.` (menang atas `masteryBefore` 90); lulus + tidak due +
   `masteryBefore` 80/85/100 → `... keeps its review date.`; `masteryBefore`
   0/79/79.9 → `... is mastered. A short review quiz comes back tomorrow.`;
   kutip lengkung dan skor `correct of total` disalin apa adanya.
@@ -183,7 +226,7 @@ UI tetap bahasa Inggris (D2).
   tidak); kind `review` menambah `answered` dan hanya `'remembered'` yang
   `correct` (`forgot`/`passed` tidak); `study`/`snooze`/`unsnooze`/
   `practice`/`lesson`/`tutor` diabaikan walau due; `rate = correct /
-  answered` tanpa pembulatan (4/4 → 1, 0/4 → 0, 2/4 → 0.5, 3/4 → 0.75,
+answered` tanpa pembulatan (4/4 → 1, 0/4 → 0, 2/4 → 0.5, 3/4 → 0.75,
   1/3 → 0.333…, 2/3 → 0.666…), `null` saat bucket kosong; dua bucket
   independen (satu kosong, yang lain terisi); `[]` → kedua bucket
   `{answered: 0, correct: 0, rate: null}`; masukan dibekukan dan snapshot
@@ -201,7 +244,7 @@ UI tetap bahasa Inggris (D2).
   fungsi dari `./events.ts` tanpa salinan (`wasDue !== true`/
   `answered ? correct / answered`/`startsWith('prefer-')`);
   `evidence.functions.ts` tetap `const { dueReviewRetention } = await
-  import('@/lib/evidence/events')`; asersi lama
+import('@/lib/evidence/events')`; asersi lama
   `tests/learning-evidence.test.ts` (judul retention) dan
   `tests/learning-measures.test.ts` (rate 0.5/0.75 + "preferred in 2 of 3
   comparisons") tetap utuh. Catatan proses: run gerbang pertama gagal di
@@ -223,7 +266,7 @@ UI tetap bahasa Inggris (D2).
   polos → `{required: false, concept: node, questions: 0}`; bank sendiri →
   `required: true` + jumlah; flag `evidenceRequired` tanpa soal →
   `required: true, questions: 0`; konsep hilang → `{required: false,
-  concept: null, questions: 0}`; soal owner lain pada id konsep sama tidak
+concept: null, questions: 0}`; soal owner lain pada id konsep sama tidak
   terlihat (tiap owner melihat konsepnya sendiri: 'Mine' vs 'Theirs').
   `guardGraphCall` — method selain `setKnowledgeState` (`addConcept`/
   `deleteConcept`/`setLearnerProfile`) diteruskan dengan identitas array;
@@ -282,7 +325,7 @@ UI tetap bahasa Inggris (D2).
   tanpa baris `knowledge_states`/`learning_events` (dihitung SQL mentah);
   konsep ber-soal dan konsep `evidenceRequired` domain japanese →
   `EvidenceRequiredError` persis `“Quizzy” is quiz-checked: its mastery only
-  changes through its quiz.`/`“Hiragana” ... through the Japanese page.` untuk
+changes through its quiz.`/`“Hiragana” ... through the Japanese page.` untuk
   keempat hasil yang mengubah mastery tanpa menulis apa pun; `snooze`/
   `unsnooze` lolos penjaga walau konsep ber-soal (dua event `snooze:snoozed`/
   `unsnooze:unsnooze`); soal owner lain pada id konsep sama tidak memblokir
@@ -306,7 +349,7 @@ UI tetap bahasa Inggris (D2).
   `review:remembered`/`review:forgot`/`snooze:snoozed`/`unsnooze:unsnooze`,
   `source 'app'`, `detail {}`, `correct`/`total` null, `masteryBefore` 0 tanpa
   state, `createdAt` ISO (default DB); `wasDue` `reviewWasDue(prior,
-  difficulty 5, now)`: state lewat jadwal (mastery 85, reviewCount 1, 40 hari)
+difficulty 5, now)`: state lewat jadwal (mastery 85, reviewCount 1, 40 hari)
   → true untuk remembered/snooze/unsnooze (reviewCount 1→2, retention 0.9),
   state 1 jam → false, kind `study` selalu false walau state lewat jadwal.
   Snooze/unsnooze — hanya `nextReview` = `now + SNOOZE_DAYS` (1 hari); state
@@ -339,7 +382,7 @@ UI tetap bahasa Inggris (D2).
   modul tidak diubah. Dikunci: `startQuiz` — learner/konsep hilang dan bank
   kosong → `EvidenceError` persis `'That learner no longer exists.'`,
   `'That concept no longer exists.'`, dan `“Nothing Here” has no quiz questions
-  yet.` tanpa baris `quiz_sessions` dan tanpa `random.uuid`; undian hanya dari
+yet.` tanpa baris `quiz_sessions` dan tanpa `random.uuid`; undian hanya dari
   bank konsep + owner itu (`QUIZ_LENGTH` 3, bank 2 → dua soal), respons
   `{sessionId, conceptId, conceptName, questions}` dengan tiap soal hanya
   `{id, prompt, options}`; snapshot mentah memuat
@@ -350,8 +393,8 @@ UI tetap bahasa Inggris (D2).
   baru tanpa id lama dan bank 5 memilih dua baru + satu lama. Opsi diacak
   salinan (`int` 0 → rotasi kiri) dan baris bank tetap urut semula. `submitQuiz`
   — sesi tak dikenal dan sesi owner lain → persis `'This quiz was not found.
-  Start a new one.'`; submit kedua → persis `'This quiz is already graded.
-  Start a new one.'`; jawaban kosong atau bukan opsi → `QuizAnswerError` persis
+Start a new one.'`; submit kedua → persis `'This quiz is already graded.
+Start a new one.'`; jawaban kosong atau bukan opsi → `QuizAnswerError` persis
   `'Answer every question first.'` tanpa mengubah `completed_at`/`answers`/
   `correct`, state, atau event. Lulus 3/3: kembalian persis 9 kunci dengan
   feedback `{questionId, picked, correct, prompt, answer, explanation}`; sesi
