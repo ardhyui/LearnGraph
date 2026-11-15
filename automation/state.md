@@ -1,65 +1,66 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 28: test langsung invarian dataset demo `src/lib/demo-data.ts`, PR #67; berikutnya: test langsung registri psikometrik + `estimateCognitiveProfile` di `src/lib/graph/psychometrics.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 29: test langsung registri psikometrik + `estimateCognitiveProfile` di `src/lib/graph/psychometrics.ts`, PR #68; berikutnya: test langsung modul util kecil `cn` di `src/lib/utils.ts` + `uuidv4` di `src/lib/uuid.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: test unit langsung **registri psikometrik** dan **estimasi
-profil kognitif** di `src/lib/graph/psychometrics.ts` (`PSYCHOMETRIC_DOMAINS`,
-`ALL_DOMAIN_IDS`, `DOMAIN_METADATA`, `DOMAIN_CATEGORIES`,
-`getDomainsByCategory`, `getDomainMetadata`, `estimateCognitiveProfile`,
-`getLearningStyleDescription`). Registri 39 domain ini dipakai My Profile,
-admin psikometrik, dan tutor; tes yang ada baru menyentuh potongan
-(`hasLearningStyleInputs`, `deriveLearningStyle`, beberapa id kanonis di
-`tests/profile-traits.test.ts` / `tests/admin-derived-profiles.test.ts`),
-sedangkan kelengkapan metadata, partisi kategori, dan ambang
-`estimateCognitiveProfile` belum dikunci. **Modul tidak diubah — test saja.**
+Penguatan tes: test unit langsung dua **modul util kecil** yang dipakai lintas
+aplikasi tetapi belum punya test langsung: `src/lib/utils.ts` (`cn`, pembungkus
+`clsx` + `tailwind-merge`) dan `src/lib/uuid.ts` (`uuidv4`, pembungkus Web
+Crypto). Keduanya adalah sisa modul `src/lib` tanpa test langsung. **Modul tidak
+diubah — test saja.**
 
-Test baru `tests/psychometrics.test.ts` (node:test murni, tanpa PGlite)
+Test baru `tests/utils.test.ts` dan `tests/uuid.test.ts` (`node:test` murni)
 mengunci:
 
-- Registri: tepat 39 domain; kunci `PSYCHOMETRIC_DOMAINS` unik dan nilainya
-  sama dengan kuncinya dalam huruf kecil; `ALL_DOMAIN_IDS` = urutan nilai
-  sumber; `DOMAIN_METADATA` memuat tepat satu entri untuk tiap id (tidak ada
-  kunci asing/kurang).
-- Metadata: tiap entri `id` sama dengan kuncinya, `name`/`description`/
-  `educationalRelevance` string tak kosong, `category` salah satu dari 12
-  `DOMAIN_CATEGORIES`, dan tiap dari `scoreInterpretation.low/mid/high` tak
-  kosong.
-- Kategori: tiap kategori di `DOMAIN_CATEGORIES` dipakai minimal satu domain;
-  `getDomainsByCategory` mengembalikan domain dengan kategori itu dalam urutan
-  `ALL_DOMAIN_IDS`; gabungan semua hasil = 39 tanpa duplikat; kategori tak
-  dikenal → `[]`; `getDomainMetadata` mengembalikan objek yang sama persis
-  dengan `DOMAIN_METADATA[id]`.
-- `estimateCognitiveProfile`: skor kosong → keempat bidang `medium`
-  (fallback 50); jendela inklusif — rata-rata 65 → `high`/`long`/`fast`/
-  `abstract`, 35 → `low`/`short`/`slow`/`concrete`, 64/36 → medium. Empat
-  rumus pasangan: working memory = rata-rata `executive_functions` +
-  `cognitive_abilities`, attention = `executive_functions` +
-  `big_five_conscientiousness`, speed = `cognitive_abilities` +
-  `metacognition`, abstract = `big_five_openness` +
-  `information_processing`; uji dengan set input yang menghasilkan kombinasi
-  berbeda dan hitung dampak bersama (`executive_functions` ikut attention,
-  `cognitive_abilities` ikut speed). Entri yang tidak ada atau bukan objek
-  (angka telanjang legacy 0–1, string) → fallback 50; `{ score: NaN }`
-  menghasilkan `medium` karena rata-ratanya NaN (perilaku saat ini — catat,
-  jangan klaim validasi rentang yang belum ada); bentuk hasil tepat empat
-  bidang.
-- `getLearningStyleDescription`: template persis
-  `You're a <modalitas> who <sosial> and learns best <pace>.` dengan teks
-  modalitas (`visual`/`auditory`/`kinesthetic`/`reading`), sosial
-  (`solo`/`collaborative`/`mixed`), dan pace
-  (`self-paced`/`structured`/`intensive`) dari sumber; `secondary` dan
-  `feedbackPreference` tidak memengaruhi teks (dua gaya berbeda dengan
-  keduanya menghasilkan teks sama).
-- Jangan duplikasi tes `hasLearningStyleInputs`/`deriveLearningStyle`/
-  `derivedProfilesFromScores` yang sudah ada di `tests/profile-traits.test.ts`
-  dan `tests/admin-derived-profiles.test.ts`.
+- `cn` — tanpa argumen → `''`; beberapa string digabung berurutan; kelas
+  Tailwind yang berkonflik diselesaikan `tailwind-merge` (bandingkan hasil
+  persis: `cn('p-2', 'p-4')` → `'p-4'`, `cn('text-sm text-red-500', 'text-lg')`
+  → `'text-red-500 text-lg'` — urutan kelas sisa dipertahankan); kelas yang
+  tidak berkonflik tetap (`cn('px-2', 'py-3')` → `'px-2 py-3'`); nilai
+  kondisional `false`/`undefined`/`null` dibuang (`cn('mt-4', false, undefined,
+  null, 'mb-2')` → `'mt-4 mb-2'`); bentuk objek/array `clsx` bekerja
+  (`cn({ 'font-bold': true, hidden: false })` → `'font-bold'`,
+  `cn(['flex', false && 'hidden', 'gap-2'])` → `'flex gap-2'`); hasil selalu
+  string.
+- `uuidv4` — memanggil `globalThis.crypto.randomUUID()` tepat sekali dan
+  mengembalikan nilainya apa adanya (stub string tetap diteruskan); hasil
+  sungguhan cocok pola UUID v4 (`4` di posisi versi, varian `[89ab]`, 36
+  karakter huruf kecil) dan 1000 pemanggilan tidak berulang; bila
+  `crypto.randomUUID` melempar, galat yang sama diteruskan (tanpa fallback
+  diam-diam). Stub dipasang lewat `Object.defineProperty(globalThis, 'crypto',
+  …)` dan deskriptor asli dipulihkan di `after`/`finally` — jangan menyentuh
+  `crypto` global di luar test ini (tiap file test berjalan di proses sendiri).
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit berbahasa
 Indonesia pola `test:`. Tanpa perubahan perilaku/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #68 — test: test unit langsung registri psikometrik
+  `src/lib/graph/psychometrics.ts` (14 test di `tests/psychometrics.test.ts`,
+  node:test murni), modul tidak diubah. Dikunci: 39 domain dalam urutan tetap
+  (salinan eksplisit), kunci `PSYCHOMETRIC_DOMAINS` unik dan nilainya sama
+  dengan kunci huruf kecil, `ALL_DOMAIN_IDS` = urutan nilai sumber,
+  `DOMAIN_METADATA` tepat satu entri per id tanpa kunci asing; tiap metadata
+  mengisi `id`/`name`/`description`/`educationalRelevance`, kategori salah satu
+  dari 12 `DOMAIN_CATEGORIES`, dan `scoreInterpretation.low/mid/high` tidak
+  kosong; partisi 12 kategori tanpa domain ganda (gabungan = 39),
+  `getDomainsByCategory` memfilter dalam urutan registri dan kategori tak
+  dikenal → `[]`, `getDomainMetadata` mengembalikan objek registri yang sama;
+  `estimateCognitiveProfile` — fallback netral untuk skor kosong
+  (`medium`/`medium`/`medium`/`mixed` karena 50), jendela 65/35 inklusif dan
+  64/36 netral, tiap bidang membaca pasangan rumusnya (`executive_functions`
+  ikut attention, `cognitive_abilities` ikut speed), angka telanjang legacy
+  0–1/string/null/array diabaikan, `{ score: NaN }` menghasilkan `medium`
+  karena rata-ratanya NaN (perilaku saat ini — bukan klaim validasi rentang);
+  bentuk hasil tepat empat bidang. `getLearningStyleDescription` memakai frasa
+  modalitas/sosial/pace persis dari sumber dalam template
+  `You're a <frasa modalitas> who <sosial> and learns best <pace>.` (frasa
+  modalitas sendiri sudah memuat "who …"), dan `secondary`/
+  `feedbackPreference` tidak mengubah teks. Tanpa perubahan
+  perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau (620/620 unit,
+  177 cek smoke).
 
 - 2026-11-15: PR #67 — test: test unit langsung dataset demo
   `src/lib/demo-data.ts` (25 test di `tests/demo-data.test.ts`, node:test
