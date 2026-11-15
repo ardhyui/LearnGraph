@@ -1,46 +1,87 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 42: test unit langsung layanan konten `src/lib/content/service.ts`, PR #81; berikutnya: test langsung bank soal demo `src/lib/evidence/demo-questions.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 43: test unit langsung bank soal demo `src/lib/evidence/demo-questions.ts`, PR #82; berikutnya: test langsung bank soal evidence — `saveQuestion`/`deleteQuestion`/`listQuestions`/`questionCounts` di `src/lib/evidence/service.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung bank soal demo**
-`src/lib/evidence/demo-questions.ts` (81 baris; `DEMO_QUESTIONS` dibangun dari
-`BANK` 11 konsep × 4 soal). Node:test murni, impor dataset langsung, tanpa
-PGlite/DOM, modul **tidak diubah**. Pola PR #80 (`tests/demo-content.test.ts`).
-Keempat soal per konsep dipakai `seedDemoQuestions` di
-`src/lib/evidence/service.ts`; perilaku seed-nya sendiri tidak diuji di sini
-(milik tugas layanan evidence berikutnya). Asersi lama "ships at least 3 valid
-questions for each of the 11 example concepts" di
-`tests/learning-evidence.test.ts` tetap utuh dan tidak dipindah. Kunci:
+Penguatan tes: **test unit langsung bank soal evidence — simpan/hapus/daftar**
+`src/lib/evidence/service.ts`: `saveQuestion`, `deleteQuestion`,
+`listQuestions`, `questionCounts`. File baru `tests/evidence-questions.test.ts`
+(node:test + satu PGlite on-disk, pola `tests/content-service.test.ts` PR #81):
+`openTestWorkspaces` dari `tests/support/graph-db.ts` dengan baris `"user"` per
+owner karena `owner_id` ber-FK, dan **owner terpisah per test** supaya urutan
+test tidak saling mengunci. Modul **tidak diubah**. `seedDemoQuestions` tidak
+diuji ulang (sudah dikunci di `tests/learning-evidence.test.ts`; dataset bank
+demo di PR #82). Kunci:
 
-1. File baru `tests/demo-questions.test.ts`:
-   - tepat 44 soal; 11 `conceptId` = id `demoConcepts` (`concept:` di-strip)
-     dalam urutan yang sama, masing-masing tepat 4 soal berurutan
-     `demo-<conceptId>-1..4`; seluruh 44 id unik dan cocok
-     `^[A-Za-z0-9_-]{1,64}$`; konsep di luar `demoConcepts` tidak ada.
-   - setiap soal lolos `questionInput.safeParse` (dari `./quiz.ts`) dengan
-     `id` diteruskan apa adanya; prompt/answer/explanation terisi (tanpa
-     trim) dan dalam batas 500/200/1000; 3–4 opsi (aktual: 4, dan soal
-     "Which is larger, 3/8 or 1/2?" tepat 3 — kunci contohnya), tiap opsi
-     unik dan 1..200 karakter, answer muncul tepat satu kali di opsi.
-   - dalam satu konsep keempat prompt berbeda (tidak ada duplikat); urutan
-     grup = urutan kunci `BANK` = urutan `demoConcepts`; nomor id 1..4
-     (bukan 0-based).
-2. Penjaga statis: `demo-questions.ts` hanya `import type { QuizQuestion }`
-   dari `./quiz.ts` (tanpa impor runtime); scan seluruh `src/` (`ts`/`tsx`
-   kecuali modul itu dan `service.ts`) tanpa `DEMO_QUESTIONS`/`demo-questions`
-   lain; `service.ts` mengimpor `DEMO_QUESTIONS` dan `seedDemoQuestions`
-   memfilter per `conceptId`; asersi lama di `tests/learning-evidence.test.ts`
-   (≥3 soal sah per konsep, id unik) dan `tests/learn-in-app.test.ts` tetap
-   utuh.
+1. `saveQuestion` — konsep tidak ada → `EvidenceError` persis
+   `'That concept no longer exists.'`, tanpa baris, `newId` tidak dipanggil.
+   Tanpa `input.id` → `newId()` tepat sekali dan id itu dipakai; baris tersimpan
+   dengan concept_id/prompt/options/answer/explanation (`explanation`
+   `undefined` → `''`). Dengan `input.id` baru → id apa adanya, `newId` tidak
+   dipanggil. Id yang sudah ada → mengganti baris di tempat (jumlah tetap 1,
+   isi baru menang, `newId` tidak dipanggil); mengganti sambil mengubah
+   `conceptId` memindahkan soal ke bank konsep itu (dicek lewat
+   `questionCounts` + `listQuestions`). Cap 50 hanya di jalur baru: 49 lalu 1
+   sah = 50, soal ke-51 → `EvidenceError` "at most 50" tanpa baris; **tetapi**
+   mengganti id yang sudah ada saat konsep tujuan sudah 50 tetap boleh (rough
+   edge — probe dulu, kunci perilaku aktualnya). `newId()` mengembalikan id
+   yang sudah ada → `EvidenceError`
+   `'Could not create the question, please try again.'` tanpa menimpa baris
+   lama. Nilai balik = objek yang tersimpan (id, conceptId, prompt, options,
+   answer, explanation). Isolasi: id sama milik owner lain tidak tersentuh.
+2. `deleteQuestion` — menghapus tepat satu baris owner itu; id sama di owner
+   lain utuh; id absen tidak melempar. Setelah dihapus, `questionCounts` tidak
+   lagi memuat konsep itu.
+3. `listQuestions` — urut `concept_id` → `created_at` → `id` (kunci dengan
+   beberapa konsep + id eksplisit; `created_at` dikendalikan lewat insert SQL
+   mentah bila perlu), filter konsep hanya konsep itu, tanpa filter = seluruh
+   workspace, owner lain tak terlihat, `options` dari jsonb selalu array
+   string dan `explanation` selalu string.
+4. `questionCounts` — hanya konsep yang punya soal muncul, nilainya jumlah per
+   konsep, workspace kosong → `{}`, owner lain terpisah.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 6–8). Commit pola
-`test: ...` (mis. `test: kunci bank soal demo dengan test langsung`). Tanpa
-perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. UI tetap bahasa
-Inggris (D2).
+Penjaga statis: `listQuestions` memfilter `owner_id` dan mengurutkan
+`concept_id`/`created_at`/`id`; `saveQuestion` memeriksa konsep sebelum cap,
+cap hanya di cabang `!existing`, upsert `onConflict ... doUpdateSet` dengan
+`updated_at` diisi `now()` SQL; `deleteQuestion` memfilter `owner_id` + `id`;
+asersi lama di `tests/learning-evidence.test.ts` ("example questions are seeded
+once…", "a concept with questions requires evidence…") tetap utuh.
+
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10–14). Commit pola
+`test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
+UI tetap bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-15: PR #82 — test: test unit langsung bank soal demo
+  `src/lib/evidence/demo-questions.ts` (7 test di `tests/demo-questions.test.ts`,
+  node:test murni, impor dataset langsung, tanpa PGlite/DOM), modul tidak
+  diubah. Dikunci: tepat 44 soal; 44 id eksplisit berurutan
+  `demo-<conceptId>-1..4` (salinan eksplisit) dan unik, semuanya cocok
+  `^[A-Za-z0-9_-]{1,64}$`; 11 `conceptId` = id `demoConcepts` (`concept:`
+  di-strip) dalam urutan sama (salinan eksplisit dicocokkan dengan
+  `demoConcepts`), masing-masing tepat 4 soal dengan prompt berbeda, tanpa
+  konsep asing. Semua soal lolos `questionInput.safeParse` dengan
+  id/conceptId diteruskan apa adanya; prompt/answer/explanation terisi tanpa
+  spasi liar (nilai == hasil trim) dan dalam batas 500/200/1000. Opsi 3–4: 43
+  soal 4 opsi, satu-satunya 3 opsi `demo-fractions-4` "Which is larger, 3/8 or
+  1/2?" dengan opsi persis `['3/8', '1/2', 'They are equal']` dan answer
+  `1/2`; tiap opsi unik dan 1..200 karakter; answer muncul tepat sekali.
+  Penjaga statis: `demo-questions.ts` hanya satu `import type { QuizQuestion }`
+  dari `./quiz.ts` tanpa impor runtime; scan seluruh `src/` (`ts`/`tsx`
+  kecuali modul itu dan `service.ts`) tanpa `DEMO_QUESTIONS`/`demo-questions`
+  lain; `service.ts` mengimpor `DEMO_QUESTIONS` dan `seedDemoQuestions`
+  memfilter per `conceptId`; asersi lama di `tests/learning-evidence.test.ts`
+  ("ships at least 3 valid questions…", `qs.length >= 3`, id unik) dan test
+  seeding di `tests/learn-in-app.test.ts` tetap utuh. Catatan proses:
+  `node_modules` belum ada di worktree sehingga `npm ci` dijalankan lebih
+  dulu; typecheck pra-gerbang menolak `Set` hasil `demoIds` yang ter-infer
+  union literal saat `has(q.conceptId: string)` — diperbaiki dengan
+  `Set<string>` sebelum gerbang; prettier tidak mengubah format. Tanpa
+  perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. `npm run ci` hijau
+  (install, typecheck, lint 0/0, 852/852 unit = 845 + 7, build, anggaran
+  bundel, CSP build produksi, 180 cek smoke Playwright + PGlite).
 
 - 2026-11-15: PR #81 — test: test unit langsung layanan konten server
   `src/lib/content/service.ts` (11 test di `tests/content-service.test.ts`,
