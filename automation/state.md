@@ -1,67 +1,101 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 50: test unit langsung skrip tema tanpa kedip `src/lib/theme-script.ts`, PR #89; berikutnya: test unit langsung bank & penilaian kuis generik `src/lib/evidence/quiz.ts` — `shuffled`/`pickQuestions`/`gradeQuiz`/`questionInput`)
+Terakhir diperbarui: 2026-11-16 (siklus 51: test unit langsung bank & penilaian kuis generik `src/lib/evidence/quiz.ts`, PR #90; berikutnya: test unit langsung jadwal & patch state kuis `reviewWasDue`/`quizStatePatch` di modul yang sama)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung bank & penilaian kuis generik
-`src/lib/evidence/quiz.ts` — `shuffled`, `pickQuestions`, `gradeQuiz`,
-`questionInput`**. File baru `tests/evidence-quiz.test.ts` (node:test, impor
-modul langsung, tanpa PGlite/DOM/Playwright). Modul **tidak diubah**. Lingkup
-hanya helper bank/penilaian; `reviewWasDue`/`quizStatePatch` sengaja
-ditinggalkan untuk tugas berikutnya (sudah tersentuh di
-`tests/learning-evidence.test.ts`). Probe dulu perilaku aktual, kunci:
+Penguatan tes: **test unit langsung jadwal & patch state kuis
+`src/lib/evidence/quiz.ts` — `reviewWasDue`/`quizStatePatch`**. File baru
+`tests/evidence-quiz-state.test.ts` (node:test, impor modul langsung, tanpa
+PGlite/DOM/Playwright). Modul **tidak diubah**. Kedua fungsi baru tersentuh
+tidak langsung di `tests/learning-evidence.test.ts`; helper bank/penilaian
+sudah dikunci PR #90 (jangan diduplikasi). Probe dulu perilaku aktual, kunci:
 
-1. Konstanta: `QUIZ_LENGTH === 3`, `MIN_OPTIONS === 2`, `MAX_OPTIONS === 6`,
-   `MAX_QUESTIONS_PER_CONCEPT === 50`.
-2. `shuffled` — Fisher–Yates: `randomInt` dipanggil menurun dengan argumen
-   `n, n-1, …, 2` (untuk 4 item: 4, 3, 2), bukan urutan naik;
-   `randomInt = () => 0` pada `[1,2,3,4]` → `[2,3,4,1]`;
-   `randomInt = (n) => n - 1` → urutan asli; array kosong/satu item
-   dikembalikan tanpa memanggil `randomInt`; masukan tidak dimutasi dan hasil
-   bukan array yang sama.
-3. `pickQuestions` — pool diacak dulu, lalu `sort` stabil menaruh id yang
-   sudah pernah muncul (`previousIds`) di belakang, baru `slice(0, count)`:
-   pool `[a,b,c,d]`, previous `[a,b,c]`, count 3, `randomInt = () => 0` →
-   `[d,b,c]`; id previous yang tidak ada di pool diabaikan; `count` ≥ panjang
-   pool → semua item (tanpa duplikat); `count` 0/negatif → `[]` tetapi
-   `randomInt` tetap dipanggil untuk seluruh pool (rough edge); masukan tidak
-   dimutasi.
-4. `gradeQuiz` — urut soal; setiap soal wajib punya jawaban string yang ada di
-   `options` soal itu, jika tidak → `QuizAnswerError` dengan `name`
-   `'QuizAnswerError'`, `status` 400, pesan persis
-   `'Answer every question first.'` (jawaban absen, `undefined`, bukan string,
-   atau bukan opsi). `Object.hasOwn` dipakai: jawaban warisan prototipe
-   dianggap tidak ada (melempar); kunci jawaban asing diabaikan; hasil persis
-   `{ correct, total, results: [{ questionId, picked, correct }] }`, `total` =
-   jumlah soal, `correct` dihitung dari kecocokan persis (`'A'` ≠ `'a'`);
-   `questions: []` → `{ correct: 0, total: 0, results: [] }`; masukan tidak
-   dimutasi.
-5. `questionInput` — `conceptId` lewat `writeId` (kosong/>128/`:`/kontrol/
-   spasi tepi gagal, 128 karakter sah); `prompt`/`options`/`answer` di-trim
-   dulu lalu 1..500 / 1..200 / 1..200; `options` 2..6, setelah trim harus unik
-   (duplikat `['A',' A ']` gagal) dan `answer` hasil trim harus ada di opsi
-   hasil trim; `explanation` di-trim, ≤1000, default `''` saat `undefined`,
-   dan spasi saja diterima sebagai `''` (rough edge, tanpa `min(1)`); `id`
-   opsional `^[A-Za-z0-9_-]{1,64}$`; kunci asing dibuang; 500/1000 karakter
-   tepat di batas sah, 501/1001 gagal; 1 opsi atau 7 opsi gagal.
-6. Penjaga statis: `src/lib/evidence/service.ts` tetap mengimpor
-   `gradeQuiz`/`MAX_QUESTIONS_PER_CONCEPT`/`pickQuestions`/`QUIZ_LENGTH`/
-   `quizStatePatch`/`reviewWasDue`/`shuffled` dari `./quiz.ts` (tanpa
-   salinan), `src/server/evidence.functions.ts` mengimpor `questionInput` dari
-   `@/lib/evidence/quiz`, `src/server/japanese.functions.ts` tetap memakai
-   `pickQuestions`/`shuffled` dari `@/lib/evidence/quiz`, dan
-   `src/routes/admin/questions.tsx` tetap memakai
-   `MIN_OPTIONS`/`MAX_OPTIONS`/`QUIZ_LENGTH`; asersi lama
-   `tests/learning-evidence.test.ts` (pickQuestions/shuffled/gradeQuiz/
-   questionInput/quizStatePatch) dan `tests/demo-questions.test.ts` tetap
-   utuh.
+1. `reviewWasDue` — `null`/`undefined`/prior tanpa `lastReviewed`+`firstSeen`
+   → false; `mastery` `< 40` (undefined → 0, 39) → false walau tanggal lewat;
+   `mastery` 40 + `firstSeen` lewat jadwal → true; `lastReviewed` menang atas
+   `firstSeen`; `nextReview` (snooze) diabaikan sepenuhnya (state lewat jadwal
+   + snooze besok tetap true); `difficulty` `null`/`undefined` = 0 dan 0..10
+   memperpendek interval; `now` tepat di due → true, 1 ms sebelumnya → false.
+   Nilai acuan probe: mastery 85, reviewCount 0, `lastReviewed` 2 hari lalu,
+   difficulty 0 → true; reviewCount 1 + 1 hari lalu → false; reviewCount 1 +
+   3 hari lalu difficulty 10 → true (interval 2).
+2. `quizStatePatch` — `attempts: []` jatuh ke cabang gagal: mastery 0,
+   `masterySource 'quiz'`, `lastAssessed`/`lastReviewed`/`nextReview` = ISO
+   `now`, reviewCount 0, retention `round2(max(0.1, strength−0.2))` (state baru
+   0.5 → 0.3). Urutan array tidak dipakai: `attempts` diurut `Date.parse(at)`
+   dan percobaan terakhir secara waktu yang menentukan `passed` (uji dua arah;
+   array/`prior` tidak dimutasi). Gagal terakhir → mastery
+   `round(accuracy*70)` (2/4 → 35, 3/4 → 53, 0/0 → 0) walau pass sebelumnya 85,
+   reviewCount 0, retention −0.2 dijepit 0.1, `nextReview` = now; `wasDue`
+   tetap dari `prior`. Lulus (ambang 0.8; 4/5 lulus, 0/0 gagal, 1/0 lulus —
+   rough edge) + belum learned (tanpa prior atau `mastery` < 40) → mastery 85
+   (`delayedRetrieval: false`, `ids` tak berpengaruh), lastReviewed/nextReview
+   now, reviewCount 0, retention 0.8. Lulus + learned + due → reviewCount
+   `(prior.reviewCount ?? 0)+1` (null/absen → 1), retention
+   `round2(min(1, strength+0.1))` (0.95 → 1), lastReviewed/nextReview now.
+   Lulus + learned + belum due → patch **hanya**
+   `{mastery, masterySource, lastAssessed}`: tanpa lastReviewed/reviewCount/
+   retentionStrength/nextReview (retake dini tak meregangkan jadwal).
+   `masterySource` selalu `'quiz'`; `lastAssessed` selalu ISO now.
+   `clamp01` pada `prior.retentionStrength ?? 0.5`: non-finite → 0.5, <0 → 0,
+   >1 → 1 (Infinity → 0.5, lalu due pass → 0.6); `wasDue` tiap cabang sama
+   dengan `reviewWasDue(prior, difficulty, now)`.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 18–22). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10–14). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
 UI tetap bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-16: PR #90 — test: test unit langsung bank & penilaian kuis generik
+  `src/lib/evidence/quiz.ts` — `shuffled`/`pickQuestions`/`gradeQuiz`/
+  `questionInput` (23 test di `tests/evidence-quiz.test.ts`, node:test murni,
+  impor modul langsung, tanpa PGlite/DOM), modul tidak diubah. Dikunci:
+  konstanta `QUIZ_LENGTH` 3, `MIN_OPTIONS` 2, `MAX_OPTIONS` 6,
+  `MAX_QUESTIONS_PER_CONCEPT` 50. `shuffled` — Fisher–Yates memanggil
+  `randomInt` menurun `[4,3,2]` untuk 4 item (`[2]` untuk 2,
+  `[6,5,4,3,2]` untuk 6), bukan urutan naik; `() => 0` pada `[1,2,3,4]` →
+  `[2,3,4,1]`, `(n) => n - 1` → urutan asli, `['a','b','c']` →
+  `['b','c','a']`; array kosong/satu item tanpa memanggil `randomInt`; hasil
+  salinan, masukan tidak dimutasi. `pickQuestions` — pool diacak dulu lalu
+  `sort` stabil menaruh id `previousIds` di belakang baru `slice`: pool
+  `[a,b,c,d]`, previous `[a,b,c]`, count 3, `() => 0` → `[d,b,c]`; tanpa
+  acak (n−1) → `[d,a,b]`; id previous asing diabaikan (`[x,y]` →
+  `[b,c,d,a]`); count 99 → semua item tanpa duplikat, pool 2 → dua; count
+  0/negatif → `[]` tetapi `randomInt` tetap dipanggil untuk seluruh pool
+  (rough edge); pool & previous tidak dimutasi. `gradeQuiz` — hasil persis
+  `{correct,total,results:[{questionId,picked,correct}]}` urut soal, `total`
+  = jumlah soal, `'a'` vs kunci `'A'` → salah (kecocokan persis); jawaban
+  absen/`undefined`/non-string/bukan opsi → `QuizAnswerError` `name`
+  `'QuizAnswerError'`, `status` 400, pesan persis
+  `'Answer every question first.'`; `Object.hasOwn` sehingga jawaban warisan
+  prototipe melempar; kunci asing diabaikan; `[]` → nol; bank & jawaban tidak
+  dimutasi. `questionInput` — `prompt`/`options`/`answer`/`explanation`
+  di-trim dulu; default `explanation: ''` (spasi saja → `''`, rough edge);
+  batas tepat 500/200/200/1000 sah dan 501/201/201/1001 gagal; 2..6 opsi unik
+  setelah trim (duplikat `['A',' A ']` gagal; `answer: ' B '` cocok dengan
+  opsi `' B '` → hasil trim `'B'`); `conceptId` lewat `writeId` (128 sah;
+  kosong/129/`:`/kontrol/spasi tepi gagal); `id` opsional
+  `^[A-Za-z0-9_-]{1,64}$` (64 sah, 65/spasi/kosong/`:` gagal); kunci asing
+  dibuang (hasil tepat lima kunci). Penjaga statis: `service.ts` mengimpor
+  `gradeQuiz`/`MAX_QUESTIONS_PER_CONCEPT`/`pickQuestions`/`QUIZ_LENGTH`/
+  `quizStatePatch`/`reviewWasDue`/`shuffled` dari `./quiz.ts` dan tidak
+  mendefinisikan salinan/konstanta sendiri; `evidence.functions.ts` →
+  `questionInput`; `japanese.functions.ts` → `pickQuestions`+`shuffled` dan
+  memanggil keduanya; rute admin mengimpor dan memakai
+  `MIN_OPTIONS`/`MAX_OPTIONS`/`QUIZ_LENGTH`; delapan anchor lama di
+  `tests/learning-evidence.test.ts` dan `questionInput.safeParse` di
+  `tests/demo-questions.test.ts` tetap utuh; `quiz.ts` tetap mengekspor semua
+  helper. Catatan proses: probe modul lebih dulu mengonfirmasi seluruh cabang
+  sebelum menulis test; satu helper draf ekstraksi impor memakai regex
+  `[\s\S]*?` sehingga serakah melewati blok impor pertama dan diperbaiki
+  menjadi `[^}]*` sebelum gerbang; typecheck/lint 0/0 dan `npm run ci` utuh
+  hijau pada percobaan pertama. Tanpa perubahan aplikasi/perilaku/skema/RPC/
+  migrasi/dependensi dan tanpa perubahan `docs/ROADMAP.md` (tidak ada baris
+  backlog yang tersentuh, pola PR #77/#78). `npm run ci` hijau (install,
+  typecheck, lint 0/0, 964/964 unit = 941 + 23, build, anggaran bundel, CSP
+  build produksi, smoke Playwright + PGlite).
 
 - 2026-11-16: PR #89 — test: test unit langsung skrip tema tanpa kedip
   `src/lib/theme-script.ts` — `NO_FLASH_SCRIPT`, `THEME_STORAGE_KEY`
