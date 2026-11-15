@@ -1,62 +1,81 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 36: tambal kerentanan audit `zod`/`seroval`/`better-auth` dalam rentang, PR #75; berikutnya: gerbang anggaran ukuran bundel klien + verifikasi code-splitting halaman graph)
+Terakhir diperbarui: 2026-11-15 (siklus 37: gerbang anggaran ukuran bundel klien di CI, PR #76; berikutnya: test langsung perencana "Today's session" `src/lib/session.ts`)
 
 ## Tugas berikutnya
 
-Performa + penguatan gerbang: **anggaran ukuran bundel klien yang dijaga CI**,
-sekaligus memverifikasi bahwa code-splitting halaman graph memang sudah
-terjadi (backlog P3 #4).
+Penguatan tes: **test unit langsung perencana "Today's session"**
+`src/lib/session.ts`. Modul murni ini belum punya `tests/session.test.ts`;
+cakupan sekarang hanya 3 test tidak langsung di
+`tests/learn-in-app.test.ts` (urutan review→pelajaran, satu contoh jeda, item
+pertama selalu masuk).
 
-Latar (diukur 2026-11-15 pada build produksi preset Nitro `vercel`, siklus 36):
-rute file-based TanStack Start **sudah** dipecah per rute — `graph-*.js` cuma
-± 20 KB dan `@xyflow/react` masuk chunk bersama `esm-*.js` ± 176 KB, sedangkan
-entry bersama `index-*.js` ± 308 KB. Total 85 chunk JS ≈ 1.648.000 byte; chunk
-rute terbesar justru `profile-*.js` ± 178 KB. Jadi tidak ada "halaman graph
-masuk bundel awal" untuk diperbaiki — **yang belum ada adalah penjaganya**:
-tidak ada langkah yang gagal bila sebuah halaman berat kembali menempel di
-bundel awal.
+1. File baru `tests/session.test.ts` (node:test murni, impor
+   `../src/lib/session.ts` langsung, tanpa PGlite/DOM). Modul **tidak diubah**;
+   jalankan dulu modulnya untuk mengunci perilaku aktual. Kunci:
+   - konstanta: `REVIEW_MINUTES = 3`, `MIN_LESSON_MINUTES = 5`,
+     `MAX_LESSON_MINUTES = 20`, `SESSION_LENGTHS = [15, 30, 45, 60]` (urutan,
+     salinan eksplisit).
+   - `sessionPacing(attention, pace)` — `short` 15/5, `medium` 25/5, `long`
+     40/5; `undefined`/`null`/nilai tak dikenal jatuh ke medium; `intensive`
+     mengalikan fokus ×1.5 lalu dibulatkan (`short` 23, `medium` 38, `long`
+     60) dengan jeda 3; pace lain (`structured`, `self-paced`) tetap jeda 5.
+   - `lessonSitting(minutes)` — 30 dan 20 → 20, `null`/`undefined` → 10,
+     pembulatan (`7.5` → 8, `4.6` → 5), clamp 5..20 (`0`, `-5` → 5; `20.5` →
+     20), nilai bukan angka finite (`NaN`, `Infinity`, `'15'`) → 10.
+   - `buildSessionPlan` — review (selalu 3 menit) mendahului pelajaran;
+     `minutes` di-`floor` (29,9 → 29) dan negatif → 0; item pertama selalu
+     direncanakan walau melebihi anggaran, jadi `minutes: 0` tetap punya satu
+     langkah; item yang tak muat dilewati tanpa mengubah urutan dan dihitung
+     di `left.reviews`/`left.next`; jeda hanya disisipkan bila langkah
+     berikutnya melewati blok fokus (`sinceBreak > 0`), biaya jeda ikut
+     dihitung saat memutuskan muat/tidak, dan tidak pernah ada jeda di
+     awal/akhir; `plannedMinutes` = jumlah menit semua langkah termasuk jeda;
+     `focusMinutes`/`breakMinutes` diteruskan dari `sessionPacing`; array
+     masukan tidak dimutasi; `reviews`/`next` kosong → `steps: []` dan
+     `left` nol. Perilaku aktual `minutes: NaN` (semua item muat karena
+     perbandingan dengan NaN selalu false) **dikunci sebagai rough edge**,
+     bukan diperbaiki di PR test.
+2. Penjaga statis: `session.ts` hanya `import type` (aman di bundle klien),
+   `StudyToday.tsx` tetap mengimpor `buildSessionPlan` + `SESSION_LENGTHS` +
+   `REVIEW_MINUTES` dari `@/lib/session`, dan ketiga test lama di
+   `tests/learn-in-app.test.ts` tetap ada (tidak dipindah/dihapus).
 
-1. Skrip baru `scripts/check-bundle.mjs` (pola persis `scripts/check-csp.mjs`:
-   `// @ts-check` + JSDoc, ekspor fungsi murni, `main` hanya jalan saat
-   `import.meta.url === file://${process.argv[1]}`, tanpa dependensi baru):
-   - `checkBudgets(assets, budgets)` — `assets` = array `{ file, bytes }`,
-     murni, tanpa I/O dan tanpa membaca disk; mengembalikan array problem
-     (string) yang kosong bila lolos.
-   - Aturan yang dikunci: (a) entry bersama — nama berkas cocok
-     `^(index|middleware)-<hash>.js$` — ≤ `ENTRY_MAX_BYTES`; (b) **tiap**
-     berkas `.js` ≤ `CHUNK_MAX_BYTES`; (c) jumlah byte seluruh `.js` ≤
-     `TOTAL_MAX_BYTES`. Berkas non-`.js` diabaikan. Tiap problem menyebut nama
-     berkas, ukuran, dan anggarannya; ringkasan gagal menyebut anggaran mana
-     yang dilanggar.
-   - Anggaran = angka **terukur di sesi itu** + kelonggaran ± 10 %, ditulis
-     sebagai konstanta bernama di skrip (bukan angka sihir di `ci.mjs`).
-2. Langkah CI baru di `scripts/ci.mjs` **setelah** `build` yang sudah ada
-   (jangan build dua kali; baca `.vercel/output/static/assets/*.js`). Exit
-   nonnol + ringkasan bila anggaran dilanggar. Gerbang tetap satu perintah
-   `npm run ci` dan tetap hijau.
-3. Test langsung `tests/check-bundle.test.ts` (node:test murni, impor `.mjs`
-   langsung, tanpa build): lolos tepat di anggaran dan gagal 1 byte di atas,
-   tiap aturan (entry/chunk/total) diuji terpisah, `index-`/`middleware-`
-   dikenali sebagai entry sementara `graph-abc123.js` tidak, berkas non-`.js`
-   diabaikan, beberapa problem sekaligus dikumpulkan dalam urutan stabil,
-   daftar kosong → `[]`, plus penjaga statis (`main` berpagar, `ci.mjs`
-   memanggil skrip hanya setelah langkah build, anggaran berupa konstanta
-   bernama).
-4. Dokumentasi: coret baris backlog P3 #4
-   `~~Performa: code-splitting halaman graph yang berat.~~ ✅ <tanggal>` + satu
-   baris penjelasan (sudah dipecah per rute oleh plugin TanStack Start; angka
-   terukur; kini dijaga anggaran) — **hanya** bila pengukuran di sesi itu
-   memang membuktikannya; kalau tidak, biarkan barisnya dan catat temuan.
-   Tambahkan entri log bertanggal di akhir `docs/ROADMAP.md`.
-
-Gerbang: `npm run ci` utuh hijau sebelum PR (typecheck ikut memeriksa `.mjs`
-karena `checkJs` — anotasi JSDoc yang kurang akan gagal di sana, bukan di
-runtime). Commit bahasa Indonesia pola `perf:` (mis.
-`perf: jaga anggaran ukuran bundel klien di gerbang CI`). Tanpa perubahan
-aplikasi/rute/skema/RPC/migrasi/dependensi.
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 18–25; typecheck
+`checkJs` juga memeriksa `.mjs` yang diimpor test). Commit pola `test: ...`
+(mis. `test: kunci perencana sesi Today dengan test langsung`). Tanpa
+perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. UI tetap bahasa
+Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-15: PR #76 — perf: gerbang anggaran ukuran bundel klien di CI
+  (backlog P3 #4). Pengukuran build produksi preset Nitro `vercel` membuktikan
+  code-splitting halaman graph **sudah** terjadi: `graph-*.js` 19.947 B,
+  `combined-graph-*.js` 15.848 B, `domains-*.js` 22.392 B, React Flow di chunk
+  bersama `esm-*.js` 176.445 B; entry bersama `index-*.js` 308.127 B; 85 berkas
+  `.js` total 1.648.225 B (terbesar setelah entry: `profile-*.js` 177.808 B).
+  Yang ditambahkan penjaganya: `scripts/check-bundle.mjs` (pola `check-csp.mjs`,
+  `// @ts-check` + JSDoc, fungsi murni `checkBudgets(assets, budgets)`, `main`
+  berpagar `import.meta.url`, hanya impor `node:`), anggaran bernama
+  `ENTRY_MAX_BYTES` 339.000 / `CHUNK_MAX_BYTES` 339.000 / `TOTAL_MAX_BYTES`
+  1.814.000 (= angka terukur + ±10 %), berkas non-`.js` diabaikan, problem urut
+  nama berkas dengan total terakhir, ringkasan gagal menyebut anggaran yang
+  dilanggar. `scripts/ci.mjs` menjalankan langkah **bundle budget on the
+  production build** tepat setelah `build` (sebelum CSP) dan membaca
+  `.vercel/output/static/assets/*.js` tanpa build kedua. `docs/ROADMAP.md`:
+  baris P3 #4 dicoret + entri log bertanggal. Test baru
+  `tests/check-bundle.test.ts` (18): lolos tepat di tiap anggaran/gagal 1 byte
+  di atas, tiap aturan terpisah, klasifikasi entry vs `graph-*.js`/`index.js`/
+  `Index-*.js`, non-`.js` diabaikan, urutan stabil, daftar kosong → `[]`, plus
+  penjaga statis (pagar `main`, impor hanya `node:`, path build yang ada,
+  konstanta bernama, urutan langkah CI build→bundel→CSP). Tanpa perubahan
+  aplikasi/rute/skema/RPC/migrasi/dependensi. `npm run ci` hijau (install,
+  typecheck, lint 0/0, 745/745 unit, build, anggaran bundel, CSP build
+  produksi, 177 cek smoke Playwright + PGlite). Catatan proses: run gerbang
+  pertama gagal di langkah smoke oleh beban mesin bersama (load ± 7 di 4 core;
+  langkah smoke 1185 detik). Smoke diulang terpisah hijau 177/177 tanpa
+  perubahan apa pun, lalu `npm run ci` utuh diulang dan hijau penuh.
 
 - 2026-11-15: PR #75 — fix: tambal kerentanan audit dependensi dalam rentang.
   `npm audit fix` (tanpa `--force`) → `zod` 4.6.5 → 4.6.7
