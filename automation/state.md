@@ -1,53 +1,89 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 35: test CLI langsung `scripts/migrate.mjs` via `spawnSync` — 13 test di `tests/migrate-cli.test.ts`, PR #74; berikutnya: tambal keamanan dependensi runtime dalam rentang via `npm audit fix`)
+Terakhir diperbarui: 2026-11-15 (siklus 36: tambal kerentanan audit `zod`/`seroval`/`better-auth` dalam rentang, PR #75; berikutnya: gerbang anggaran ukuran bundel klien + verifikasi code-splitting halaman graph)
 
 ## Tugas berikutnya
 
-Pemeliharaan dependensi: **tambal keamanan dalam rentang** berdasarkan
-`npm audit` (saat siklus 35: 12 temuan — 1 kritis, 1 tinggi, 8 moderat,
-2 rendah). Dua menimpa dependensi **runtime** yang terpasang saat ini dan
-diperbaiki `npm audit fix` tanpa `--force` (masih dalam rentang semver yang
-dinyatakan, hanya `package-lock.json` yang berubah):
+Performa + penguatan gerbang: **anggaran ukuran bundel klien yang dijaga CI**,
+sekaligus memverifikasi bahwa code-splitting halaman graph memang sudah
+terjadi (backlog P3 #4).
 
-- `zod@4.6.5` → ≥ 4.6.6 (**high**, GHSA-mrhx-c7xc-m3w5 — Zod bisa
-  menghabiskan memori saat memvalidasi koleksi berbatas ukuran besar; repo
-  memakai Zod untuk SEMUA validasi input server via
-  `src/lib/graph/rpc-schemas.ts` dan skema server function lain).
-- `seroval@1.6.9` (transitif di bawah `@tanstack/react-router`/`react-start`)
-  → versi tambal (**moderat**, GHSA-f86p-h4j2-7qgj injeksi kode lewat properti
-  `constructor` typed array; GHSA-9wx9-5pv9-3349 injeksi skrip lewat sumber
-  RegExp pada keluaran terserialisasi — serialisasi RPC TanStack Start).
+Latar (diukur 2026-11-15 pada build produksi preset Nitro `vercel`, siklus 36):
+rute file-based TanStack Start **sudah** dipecah per rute — `graph-*.js` cuma
+± 20 KB dan `@xyflow/react` masuk chunk bersama `esm-*.js` ± 176 KB, sedangkan
+entry bersama `index-*.js` ± 308 KB. Total 85 chunk JS ≈ 1.648.000 byte; chunk
+rute terbesar justru `profile-*.js` ± 178 KB. Jadi tidak ada "halaman graph
+masuk bundel awal" untuk diperbaiki — **yang belum ada adalah penjaganya**:
+tidak ada langkah yang gagal bila sebuah halaman berat kembali menempel di
+bundel awal.
 
-Bagian opsional (hanya bila mulus, satu sesi yang sama): `better-auth`
-`~1.6.30` → `1.7.25` untuk menutup GHSA-44jh-23m7-hpcf (**kritis** — rate
-limit Better Auth di PostgreSQL bisa terlampaui permintaan konkuren via
-`@better-auth/kysely-adapter`; repo memakai rate limiter bawaan Better Auth
-dengan storage Postgres). Ini minor bump 1.6 → 1.7 (bukan mayor, jadi
-diizinkan) tapi di luar tilde saat ini sehingga `package.json` ikut diedit
-(`better-auth` langsung; jalur aman: edit `"better-auth": "~1.7.25"` lalu
-`npm install`). Cek cepat dulu `npm run test` (test Better Auth:
-`tests/auth-rate-limit.test.ts`, `tests/account-rate-limit.test.ts`) sebelum
-gerbang penuh. Bila `npm run ci` gagal karena better-auth dan penyebabnya
-tidak jelas cepat, kembalikan HANYA better-auth ke `~1.6.30`
-(`git checkout origin/main -- package.json package-lock.json && npm install`),
-jalankan gerbang ulang, merge bagian `npm audit fix` saja, dan catat sisa
-better-auth di Riwayat sebagai tugas tersendiri.
+1. Skrip baru `scripts/check-bundle.mjs` (pola persis `scripts/check-csp.mjs`:
+   `// @ts-check` + JSDoc, ekspor fungsi murni, `main` hanya jalan saat
+   `import.meta.url === file://${process.argv[1]}`, tanpa dependensi baru):
+   - `checkBudgets(assets, budgets)` — `assets` = array `{ file, bytes }`,
+     murni, tanpa I/O dan tanpa membaca disk; mengembalikan array problem
+     (string) yang kosong bila lolos.
+   - Aturan yang dikunci: (a) entry bersama — nama berkas cocok
+     `^(index|middleware)-<hash>.js$` — ≤ `ENTRY_MAX_BYTES`; (b) **tiap**
+     berkas `.js` ≤ `CHUNK_MAX_BYTES`; (c) jumlah byte seluruh `.js` ≤
+     `TOTAL_MAX_BYTES`. Berkas non-`.js` diabaikan. Tiap problem menyebut nama
+     berkas, ukuran, dan anggarannya; ringkasan gagal menyebut anggaran mana
+     yang dilanggar.
+   - Anggaran = angka **terukur di sesi itu** + kelonggaran ± 10 %, ditulis
+     sebagai konstanta bernama di skrip (bukan angka sihir di `ci.mjs`).
+2. Langkah CI baru di `scripts/ci.mjs` **setelah** `build` yang sudah ada
+   (jangan build dua kali; baca `.vercel/output/static/assets/*.js`). Exit
+   nonnol + ringkasan bila anggaran dilanggar. Gerbang tetap satu perintah
+   `npm run ci` dan tetap hijau.
+3. Test langsung `tests/check-bundle.test.ts` (node:test murni, impor `.mjs`
+   langsung, tanpa build): lolos tepat di anggaran dan gagal 1 byte di atas,
+   tiap aturan (entry/chunk/total) diuji terpisah, `index-`/`middleware-`
+   dikenali sebagai entry sementara `graph-abc123.js` tidak, berkas non-`.js`
+   diabaikan, beberapa problem sekaligus dikumpulkan dalam urutan stabil,
+   daftar kosong → `[]`, plus penjaga statis (`main` berpagar, `ci.mjs`
+   memanggil skrip hanya setelah langkah build, anggaran berupa konstanta
+   bernama).
+4. Dokumentasi: coret baris backlog P3 #4
+   `~~Performa: code-splitting halaman graph yang berat.~~ ✅ <tanggal>` + satu
+   baris penjelasan (sudah dipecah per rute oleh plugin TanStack Start; angka
+   terukur; kini dijaga anggaran) — **hanya** bila pengukuran di sesi itu
+   memang membuktikannya; kalau tidak, biarkan barisnya dan catat temuan.
+   Tambahkan entri log bertanggal di akhir `docs/ROADMAP.md`.
 
-Aturan: **jangan pernah `npm uninstall`** (npm 12 menolak di repo ini); hanya
-`npm audit fix` / edit `package.json` + `npm install`. Tanpa upgrade mayor.
-Sisa yang TIDAK ikut: `minimatch` → `typescript-eslint` (moderat, dev-only,
-perbaikannya breaking change typescript-eslint) — biarkan, sebutkan di entri
-Riwayat sebagai diketahui-ditinggalkan. Setelah selesai, `npm audit` harus
-tidak lagi menampilkan zod/seroval (dan better-auth bila bagian opsional
-dikerjakan). Gerbang: `npm run ci` utuh hijau sebelum PR — test
-rpc-schemas/api-keys/api-v1 mengunci perilaku Zod, smoke mengunci serialisasi
-RPC + alur auth (sign-up/sign-in/reset password). Commit pola `fix:` (mis.
-`fix: tambal kerentanan audit zod/seroval dalam rentang`), bahasa Indonesia.
-Tambahkan entri log bertanggal di akhir `docs/ROADMAP.md` (pola entri
-keamanan 2026-11-11), tanpa mencoret backlog (tidak ada barisnya).
+Gerbang: `npm run ci` utuh hijau sebelum PR (typecheck ikut memeriksa `.mjs`
+karena `checkJs` — anotasi JSDoc yang kurang akan gagal di sana, bukan di
+runtime). Commit bahasa Indonesia pola `perf:` (mis.
+`perf: jaga anggaran ukuran bundel klien di gerbang CI`). Tanpa perubahan
+aplikasi/rute/skema/RPC/migrasi/dependensi.
 
 ## Riwayat
+
+- 2026-11-15: PR #75 — fix: tambal kerentanan audit dependensi dalam rentang.
+  `npm audit fix` (tanpa `--force`) → `zod` 4.6.5 → 4.6.7
+  (GHSA-mrhx-c7xc-m3w5, tinggi; Zod dipakai untuk semua validasi input server
+  lewat `src/lib/graph/rpc-schemas.ts`) dan `seroval` 1.6.9 → 1.8.1
+  (GHSA-f86p-h4j2-7qgj, GHSA-9wx9-5pv9-3349; serialisasi RPC TanStack Start),
+  plus patch transitif dalam rentang: `@better-auth/*` 1.6.33 → 1.6.34,
+  `@typescript-eslint/*` 8.71.1 → 8.72.2, `better-call` 1.4.0 → 1.4.5,
+  `@better-fetch/fetch` 1.3.1 → 1.3.3, `@better-auth/utils` 0.4.2 → 0.5.1,
+  `set-cookie-parser` 3.1.3 → 3.2.2 (hanya `package-lock.json`). Bagian
+  opsional dikerjakan: `better-auth` `~1.6.30` → `~1.7.25` (minor, bukan
+  mayor) menutup **kritis** GHSA-44jh-23m7-hpcf — rate limit Better Auth di
+  PostgreSQL bisa terlampaui permintaan konkuren lewat adapter
+  Kysely/Drizzle; kedelapan paket `@better-auth/*` naik ke 1.7.25. Tanpa
+  perubahan kode aplikasi: `src/lib/auth/server.ts` tetap memakai
+  `better-auth`, `better-auth/tanstack-start`, `better-auth/api`; limiter
+  bawaan tetap storage Postgres dan gate per akun
+  (`account-sign-in:<sha256(email)>`) tetap di modulnya sendiri —
+  `tests/auth-rate-limit.test.ts` + `tests/account-rate-limit.test.ts` hijau
+  tanpa perubahan. **Diketahui-ditinggalkan:** 7 temuan moderat sisa adalah
+  rantai `typescript-eslint` (`@typescript-eslint/*` 8.72.2, `minimatch`
+  10.2.6 bersarang di `typescript-estree`) — dev-only, tak ikut bundel
+  produksi, dan `fixAvailable`-nya justru upgrade **mayor**
+  `typescript-eslint` (di luar batas aman sesi otomatis). `npm audit`: 12 → 7
+  temuan (2 rendah + 1 kritis + 1 tinggi hilang). `npm run ci` hijau
+  (install, typecheck, lint 0/0, 727/727 unit, build, CSP build produksi,
+  smoke Playwright + PGlite). Tanpa perubahan skema/RPC/migrasi/perilaku.
 
 - 2026-11-15: PR #74 — test: test CLI langsung migrator deploy
   `scripts/migrate.mjs` (13 test di `tests/migrate-cli.test.ts`; node:test,
