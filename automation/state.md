@@ -1,55 +1,137 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-15 (siklus 38: test unit langsung perencana "Today's session" `src/lib/session.ts`, PR #77; berikutnya: test langsung skor bukti belajar `src/lib/evidence/scoring.ts`)
+Terakhir diperbarui: 2026-11-15 (siklus 39: test unit langsung skor bukti belajar `src/lib/evidence/scoring.ts`, PR #78; berikutnya: test langsung modul konten pelajaran `src/lib/content/content.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung skor bukti belajar**
-`src/lib/evidence/scoring.ts` (75 baris). Modul murni ini belum punya file
-test sendiri; cakupan sekarang hanya 4 asersi `evidenceMastery` + 3 asersi
-`nextQuizReview` di `tests/japanese.test.ts` (lewat re-export
-`src/lib/japanese/evidence.ts`) dan 1 asersi `evidenceMastery` di
-`tests/learning-evidence.test.ts`. `PASS_RATIO` dan `passed` belum pernah
-diperiksa langsung, begitu pula opsi `delayedRetrieval`/`distinctQuestions`.
+Penguatan tes: **test unit langsung modul konten pelajaran**
+`src/lib/content/content.ts` (225 baris). Header modul mengklaim "pure helpers
+(no I/O), unit-tested", tetapi belum punya file test sendiri; cakupannya kini
+hanya ~10 asersi di `tests/learn-in-app.test.ts` (impor yang sama untuk fitur
+M2): `contentInput` dasar, `determinePresentationStrategy` dua kasus,
+`orderContent` dua kasus, `parseRichText` dua kasus, `lessonMinutes` satu
+kasus. Sebagian besar aturan skema, matriks skor format, tie-breaker urutan,
+dan detail parser belum pernah diperiksa.
 
-1. File baru `tests/evidence-scoring.test.ts` (node:test murni, impor
-   `../src/lib/evidence/scoring.ts` langsung, tanpa PGlite/DOM/fetch). Modul
+1. File baru `tests/content.test.ts` (node:test murni, impor
+   `../src/lib/content/content.ts` langsung, tanpa PGlite/DOM/fetch). Modul
    **tidak diubah**; jalankan dulu modulnya untuk mengunci perilaku aktual.
    Kunci:
-   - konstanta `PASS_RATIO = 0.8`; `passed` = `correct / Math.max(1, total) >=
-     0.8` → 4/5 true, 3/4 false, 0/0 false (penyebut 1), `correct > total`
-     (mis. 5/4) true.
-   - `evidenceMastery([])` → 0; "percobaan terakhir" ditentukan `at`
-     (`Date.parse`), bukan urutan array; masukan tidak dimutasi.
-   - gagal pada percobaan terakhir → `Math.round(accuracy * 70)` (1/4 → 18,
-     2/4 → 35, 3/4 → 53, 0/4 → 0) dan kegagalan terakhir menang atas pass
-     sebelumnya.
-   - lolos dengan default `delayedRetrieval: true`: satu pass → 70; dua pass
-     di hari yang sama → 70 walau id berbeda; pass kedua berjarak ≥ 1 hari
-     (tepat 86.400.000 ms termasuk, batas `>=`) dan gabungan id ≥ 4 → 85;
-     gabungan id < 4 → 70.
-   - `delayedRetrieval: false`: percobaan terakhir yang lolos → 85 tanpa
-     syarat jeda/jumlah id; gagal tetap `round(accuracy * 70)`.
-   - `distinctQuestions` (mis. 2): dua pass berjeda dengan gabungan 2 id → 85,
-     sedangkan default 4 → 70; opsi 0 → 85 pada pass berjeda.
-   - `nextQuizReview([])` → null; gagal pada percobaan terakhir → ISO
-     `at + 10 menit`; pass → hitung "earned" dari pass yang berjarak ≥ 1 hari
-     dari pass terhitung sebelumnya, kegagalan me-reset hitungan, interval
-     `min(30, 2 ** min(5, max(0, earned - 1)))` hari → untuk 1..7 pass berurutan
-     harian: 1, 2, 4, 8, 16, 30, 30 hari; pass di hari yang sama tidak
-     menambah; urutan array tak berpengaruh; masukan tidak dimutasi.
-2. Penjaga statis: `src/lib/japanese/evidence.ts` tetap hanya me-re-export
-   `evidenceMastery`, `nextQuizReview`, dan tipe `Attempt` dari
-   `../evidence/scoring.ts` (kebijakan Jepang = default ketat), modul scoring
-   bebas impor runtime, dan quiz generik tetap memakai modul yang sama (bukan
-   salinan aturan).
+   - konstanta: `CONTENT_KINDS` salinan eksplisit
+     `['text','example','exercise','link','video']`; `CONTENT_KIND_LABELS`
+     satu label untuk tiap kind; `MAX_CONTENT_PER_CONCEPT = 50`;
+     `FORMAT_PREFERENCES` `['explain-first','example-first','practice-first']`;
+     `FORMAT_LABELS` satu label per preferensi; `FORMAT_TAG_PREFIX = 'format:'`.
+   - `contentInput` (Zod): minimal `{conceptId, kind:'text', title, body}` sah
+     dengan default `{solution:'', url:null, minutes:null, language:'en',
+     source:'', position:0}` dan kunci tak dikenal dibuang; `title` di-trim
+     lalu 1..200 (kosong/spasi/201 gagal); `body` dan `solution` ≤ 20.000
+     karakter tanpa trim (20.001 gagal); `url` `''` diproses jadi null dan
+     hanya `https://` yang sah (http/ftp/relatif/rusak gagal), link & video
+     wajib url tetapi bodynya boleh kosong, sedangkan text/example/exercise
+     wajib body tak kosong setelah trim dan boleh tanpa url; `minutes`
+     int 1..600 atau null (0, 601, 1.5 gagal); `language` cocok
+     `^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$` (`en`/`id`/`eng`/`en-US` lolos; `EN`,
+     `e`, `english`, `en-US-x` gagal); `position` int 0..10.000 (-1/10.001/1.5
+     gagal); `id` opsional `^[A-Za-z0-9_-]{1,64}$`; `conceptId` lewat
+     `writeId` (kosong, >128, atau mengandung `:` gagal); `kind` di luar lima
+     nilai gagal.
+   - `determinePresentationStrategy`: tag `format:<pref>` sah menang dengan
+     `source:'chosen'` walau `learningStyle` menunjuk lain; tag **pertama**
+     berawalan `format:` menentukan, jadi tag pertama tak sah (mis.
+     `format:nonsense`) membuat seluruh tag format diabaikan lalu jatuh ke
+     `learningStyle` (rough edge); tanpa tag sah — kinesthetic →
+     `practice-first`/`suggested`, visual → `example-first`/`suggested`,
+     reading/auditory → `explain-first`/`suggested`, primary lain/absen atau
+     learner null/undefined → `explain-first`/`default`; tag non-format
+     diabaikan.
+   - `withFormatPreference`: membuang semua tag `format:` lama, urutan tag
+     lain dipertahankan, tag baru ditambahkan di akhir; `null` hanya membuang;
+     `tags` undefined → `[]` atau satu tag; `.slice(0, 50)` hanya berlaku saat
+     menambah, jadi 50 tag lain + pilihan baru membuang tag baru (hasil 50),
+     sedangkan jalur `null` tidak memotong daftar >50 (rough edge).
+   - `scoreContentMatch`: matriks 15 nilai persis — explain-first
+     text 4/video 3/example 2/exercise 1/link 0; example-first
+     example 4/video 3/text 2/exercise 1/link 0; practice-first
+     exercise 4/example 3/text 2/video 1/link 0.
+   - `orderContent`: skor menurun, lalu `position` menaik, lalu id
+     `localeCompare`; masukan tidak dimutasi; skor tinggi tetap lebih dulu
+     walau posisinya besar; skor+posisi sama diselesaikan id.
+   - `lessonMinutes`: menjumlah `minutes` eksplisit (termasuk 0), `null`/
+     absen → 2 menit kecuali link → 0; daftar kosong → 0; nilai desimal
+     dijumlah apa adanya.
+   - `parseInline`: `**bold**` dan `` `code` `` menjadi span bertanda; teks di
+     antaranya utuh; penanda kosong (`****`, dua backtick) dan penanda tak
+     berpasangan tetap teks; beberapa span berurutan; string kosong → `[]`;
+     tanpa escape/HTML.
+   - `parseRichText`: `\r\n`/`\r` dinormalkan ke `\n`; blok dipisah baris
+     kosong (`/\n\s*\n/`); baris di-trimEnd dan baris kosong dibuang; paragraf
+     = baris berurutan digabung satu spasi setelah trim; baris `- ` atau `* `
+     (wajib diikuti minimal satu spasi) memulai `ul` dengan tiap item
+     `parseInline`; daftar memutus paragraf dan sebaliknya; `-`/`- ` tanpa isi
+     setelah trimEnd bukan bullet (jadi paragraf `-`) (rough edge); body
+     kosong/spasi → `[]`; `<b>`/`<script>` tetap teks biasa (tidak
+     diinterpretasi sebagai HTML).
+2. Penjaga statis: `content.ts` tetap satu sumber aturan — `src/server/
+   content.functions.ts` memakai `contentInput` + `CONTENT_KINDS` +
+   `FORMAT_PREFERENCES` sebagai validator server dan mengimpor
+   `determinePresentationStrategy`/`orderContent`; `src/routes/
+   learn.$conceptId.tsx` memakai `withFormatPreference`/`orderContent`;
+   `src/components/RichText.tsx` memakai `parseRichText` (tidak ada salinan
+   parser/HTML); `src/lib/tutor/service.ts` memakai
+   `determinePresentationStrategy`; tidak ada salinan matriks `KIND_SCORES`,
+   regex `format:` baru, atau parser markup di berkas lain. Asersi lama di
+   `tests/learn-in-app.test.ts` tetap utuh.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 15–20). Commit pola
-`test: ...` (mis. `test: kunci skor bukti belajar dengan test langsung`).
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 25). Commit pola
+`test: ...` (mis. `test: kunci konten pelajaran dengan test langsung`).
 Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi. UI tetap
 bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-15: PR #78 — test: test unit langsung skor bukti belajar
+  `src/lib/evidence/scoring.ts` (24 test di `tests/evidence-scoring.test.ts`,
+  node:test murni, impor modul langsung, tanpa PGlite/DOM), modul tidak
+  diubah. Dikunci: `PASS_RATIO = 0.8`; `passed` = `correct / max(1,total) >=
+  0.8` (4/5 true, 8/10 true, 3/4 & 7/10 false, 0/0 false, 1/0 true, 5/4 true);
+  `evidenceMastery([])` → 0 dengan/tanpa opsi; gagal terakhir →
+  `Math.round(accuracy*70)` (1/4 → 18, 2/4 → 35, 3/4 → 53, 0/4 → 0) dan
+  menang atas pass sebelumnya; percobaan terakhir ditentukan `Date.parse`,
+  bukan urutan array (dua arah diuji); default `delayedRetrieval` butuh pass
+  kedua berjarak ≥ 86.400.000 ms (tepat di batas lolos, 1 ms kurang → 70)
+  dengan gabungan id unik ≥ 4 (2+2 → 85; 3 id → 70; 2 id berbagi → 5 → 85);
+  satu pass / dua pass hari sama → 70 walau id berbeda; `delayedRetrieval:
+  false` → 85 tanpa syarat jeda/id, gagal tetap `round(accuracy*70)`;
+  `distinctQuestions` 2 → 85 untuk 2 id, 3 → 70, 0 → 85 pada pass berjeda
+  (satu pass tetap 70); masukan tidak dimutasi. `nextQuizReview`: `[]` →
+  null; gagal terakhir → ISO `at + 10 menit` (juga setelah dua pass); 1..7
+  pass harian → +1/+2/+4/+8/+16/+30/+30 hari (tanggal persis dikunci); pass
+  hari sama tidak menambah; kegagalan me-reset hitungan (3 pass, gagal, 1
+  pass → +1 hari); urutan array tak berpengaruh; masukan tidak dimutasi.
+  Penjaga statis: `src/lib/japanese/evidence.ts` tepat satu baris re-export
+  `evidenceMastery`/`nextQuizReview`/`type Attempt` dari
+  `../evidence/scoring.ts` (komentar di-strip lalu dibandingkan persis),
+  `scoring.ts` tanpa impor apa pun dan mengekspor tepat enam nama
+  (`Attempt`, `PASS_RATIO`, `passed`, `EvidenceOptions`, `evidenceMastery`,
+  `nextQuizReview`), quiz generik mengimpor `evidenceMastery, passed, type
+  Attempt` dari `./scoring.ts` dan memakai `delayedRetrieval: false` tanpa
+  salinan `PASS_RATIO`/`passed`/`Math.max(1, …)` lokal, serta
+  `japanese.functions.ts` tetap mengimpor dari `@/lib/japanese/evidence` dan
+  tak pernah menyebut `delayedRetrieval` (kebijakan Jepang = default ketat).
+  Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi; tanpa
+  perubahan `docs/ROADMAP.md` (tidak ada baris backlog yang tersentuh, sama
+  seperti PR #77). `npm run ci` hijau (install, typecheck, lint 0/0,
+  790/790 unit = 766 + 24, build, anggaran bundel, CSP build produksi, 177 cek
+  smoke Playwright + PGlite). Catatan proses: run gerbang pertama gagal di
+  smoke saat mesin bersama menjalankan suite proyek lain (load ± 8 di 4 core;
+  dev server sempat "Failed to fetch" dan tombol **Sign out** terlepas dari
+  DOM sebelum diklik); typecheck/lint/unit/build/anggaran/CSP sudah hijau pada
+  run itu. Percobaan `npm run smoke` terpisah tidak valid karena skrip smoke
+  mengharapkan server dev yang sudah berjalan (ERR_CONNECTION_REFUSED di
+  `/admin/concepts`); server dev tidak dijalankan manual, sesuai TASK_PROMPT.
+  Setelah load turun (± 1), `npm run ci` utuh diulang tanpa perubahan kode dan
+  hijau penuh (smoke 1382 detik).
 
 - 2026-11-15: PR #77 — test: test unit langsung perencana "Today's session"
   `src/lib/session.ts` (21 test di `tests/session.test.ts`, node:test murni,
