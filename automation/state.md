@@ -1,73 +1,96 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (MCP resources di PR #106; siklus berikutnya: pencarian konsep di Today)
+Terakhir diperbarui: 2026-11-16 (pencarian konsep di PR #107; siklus berikutnya: kartu penguasaan per subjek di Profile)
 
 ## Tugas berikutnya
 
-Fitur **pencarian konsep untuk pelajar di panel Today** (kandidat fitur (a);
-tanpa migrasi skema, dependensi, atau server function baru). Tujuan: pelajar
-yang sudah tahu nama konsep tidak harus menggulir daftar review/berikutnya.
+Fitur **kartu penguasaan per subjek di My Profile** (kandidat fitur (c);
+tanpa migrasi skema, dependensi, server function, atau RPC baru). Tujuan:
+pelajar melihat subjek mana yang sudah dikuasai dan mana yang masih perlu
+dikerjakan tanpa membuka Knowledge Graph atau Gap Analysis.
 
-Rancangan (baca kode dulu: `src/components/StudyToday.tsx`,
-`src/lib/DBContext.tsx` bagian `searchConcepts`, dan
-`src/lib/graph/education-graph-db.ts` bagian `searchConcepts`):
+Rancangan (baca kode dulu: `src/components/LearningOverview.tsx` — khususnya
+`load()` yang sudah memuat `concepts` + `states` + antrean review,
+`src/lib/study.ts` bagian `summarizeProgress`/`isMastered`, dan
+`src/lib/onboarding.ts` bagian `focusDomains`/`inFocus`/`domainLabel`):
 
-1. **Helper murni** `src/lib/concept-search.ts` (tanpa React/DB):
-   - `searchQuery(raw: string): string` — trim dan collapse whitespace; query
-     < 2 karakter setelah dibersihkan → string kosong (jangan mencari untuk satu
-     huruf).
-   - `conceptSearchResults(concepts, query, limit = 8)` — filter nama/deskripsi/
-     id/domain/tag case-insensitive (sama seperti engine), urutkan: nama persis
-     dulu, lalu nama mengandung, lalu sisanya menurut nama; hasil unik dan
-     dipotong `limit`. Bila ingin memakai `db.searchConcepts`, tetap sediakan
-     helper pemetaan hasil → label/domain; jangan menyalin logika engine bila
-     bisa memanggilnya.
-2. **UI di `StudyToday.tsx`** — kotak **Find a concept** di bawah bar progres
-   Today (sebelum daftar review), hanya bila akun punya konsep:
-   - `<label>` terlihat/tersembunyi aksesibel untuk input `type="search"`;
-     placeholder/clear bawaan boleh, tanpa tombol cari wajib.
-   - Mengetik ≥ 2 karakter menampilkan maksimal 8 hasil sebagai daftar
-     (`<ul>` + `<li>`) berisi nama konsep + label domain; tiap hasil adalah
-     `<Link to="/learn/$conceptId" params={{ conceptId }}>` sehingga keyboard
-     dan pembaca layar memakai tautan biasa.
-   - Tanpa hasil → satu baris tenang "No concepts match “<query>”."; query
-     kosong/terlalu pendek → daftar disembunyikan (bukan pesan galat).
-   - Selama daftar konsep dimuat atau learner berganti, bersihkan query/hasil
-     agar tidak bocor antar learner; jangan menambah panggilan tulis apa pun.
-   - Bahasa Inggris (D2), target sentuh/tautan tetap nyaman, fokus tidak
-     dipindah paksa saat mengetik.
-3. **Test** `tests/concept-search.test.ts` (node:test murni): trim/collapse,
-   batas 2 karakter, cocok nama/deskripsi/id/domain/tag, case-insensitive,
-   urutan (persis → mengandung → nama), `limit`, input kosong/duplikat/unicode,
-   serta penjaga statis panel memakai helper + `Link` ke `/learn/$conceptId`
-   dan tidak menambah `createServerFn`/`graphCall`/RPC/migrasi.
+1. **Helper murni** `src/lib/subject-mastery.ts` (tanpa React/DB):
+   - `subjectMastery(concepts, states, focus = [])` → array baris
+     `{ domain, label, total, mastered, percent }`; hitung "mastered" dengan
+     aturan yang sama dengan `summarizeProgress` (impor helper/threshold yang
+     sudah ada, jangan menyalin ambang penguasaan).
+   - Bila `focus` tidak kosong: hanya domain di `focus` yang punya konsep; bila
+     kosong: semua domain yang punya konsep. Domain tanpa konsep tidak
+     ditampilkan.
+   - Urutan: domain fokus sesuai urutan pilihan pelajar, lalu domain lain
+     menurut label; label memakai `domainLabel`; `percent` bulat 0–100
+     (`mastered/total`, total 0 → 0) dan tidak pernah NaN.
+   - Konsep tanpa knowledge state dihitung belum dikuasai; state tanpa konsep
+     diabaikan; state milik learner lain tidak pernah ikut (filter
+     `state.userId` bila field itu tersedia).
+2. **UI di `LearningOverview.tsx`** — di bawah bar progres keseluruhan dan
+   sebelum tombol langkah berikutnya, hanya bila ada minimal satu baris:
+   - `<ul aria-label="Mastery by subject">` (boleh dengan `<h3>` kecil);
+     tiap `<li>` memuat nama subjek, teks `"<mastered> of <total> mastered"`
+     dengan bentuk tunggal/jamak yang benar, dan bar `role="progressbar"`
+     ber-`aria-label` menyebut subjek serta `aria-valuenow`.
+   - Bahasa Inggris (D2), tanpa tautan/tombol baru, tanpa animasi/fokus paksa.
+   - Data tetap dari `load()` yang sudah ada; jangan menambah panggilan baca
+     atau tulis. Baris ikut berganti saat learner/subjek berganti.
+3. **Test** `tests/subject-mastery.test.ts` (node:test murni): hitungan
+   mastered/learning/not-started sama dengan `summarizeProgress`, ambang
+   penguasaan, focus terurut vs semua domain, domain tanpa konsep, state tanpa
+   konsep/learner lain, persen 0/50/100 tanpa NaN, bentuk tunggal/jamak, serta
+   penjaga statis `LearningOverview` memakai helper + `role="progressbar"` +
+   tidak menambah `createServerFn`/`graphCall`/RPC/migrasi.
 4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md` hanya bila daftar fitur berubah; `Roadmap.md` hanya bila klaim
    berubah. Jangan menandai milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
-Indonesia pola `feat:`. Setelah merge, tulis "Tugas berikutnya" berikutnya —
-kandidat: **ringkasan pelajaran terakhir** di Today, **kartu penguasaan per
-subjek** di Profile, atau **poles copy/aksesibilitas** halaman pelajar. Bukan
-tugas test.
+Indonesia pola `feat:`. Catatan dari siklus #107: **jangan memakai nilai id
+learner mentah sebagai `key` komponen di halaman yang juga memakai id itu
+sebagai key daftar lain** — React 19 memperingatkan duplikat key dan editor
+subjek bisa tertinggal terbuka; pakai namespace seperti `search-<id>`. Penjaga
+jumlah baris smoke tetap 2114.
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
 Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
 baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. **Pencarian konsep untuk pelajar** — kotak "Find a concept" di
-   Dashboard/Today memakai `searchConcepts` engine yang sudah ada, hasil
-   menaut ke `/learn/$conceptId`; aksesibel (label, daftar hasil, kosong).
-2. **Ringkasan pelajaran terakhir di Today** — "lanjutkan pelajaran terakhir"
+1. **Ringkasan pelajaran terakhir di Today** — "lanjutkan pelajaran terakhir"
    dari event `lesson` + halaman `/learn/...`; tautkan langsung.
-3. **Kartu penguasaan per subjek di Profile** — dari states + konsep yang sudah
-   dimuat, tampilkan kemajuan per domain tanpa RPC baru.
+2. **Poles copy/aksesibilitas halaman pelajar** — satu halaman per sesi,
+   fokus pada label/urutan fokus/pesan kosong, bukan tugas test.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-16: PR #107 — **Pencarian konsep di panel Today** — pelajar yang
+  sudah tahu nama konsep kini punya kotak **Find a concept** di bawah bar
+  progres Today; mencari seluruh konsep akun (nama, deskripsi, id, domain, tag,
+  case-insensitive) dan tiap hasil adalah tautan biasa ke `/learn/$conceptId`
+  berisi nama + label domain. Helper murni baru `src/lib/concept-search.ts`:
+  `searchQuery` memangkas/merapatkan spasi dan mengosongkan query < 2 karakter;
+  `conceptSearchResults` membuang id ganda, mengurutkan nama persis → nama
+  mengandung → bidang lain menurut nama, dan memotong hasil (bawaan 8). Data
+  memakai `allConcepts` yang sudah dimuat `load()` (tanpa RPC/server
+  function/migrasi/dependensi baru), kotak hanya tampil bila akun punya konsep,
+  query di-reset saat learner berganti, dan tanpa hasil muncul satu baris tenang
+  `No concepts match “<query>”.` Test baru `tests/concept-search.test.ts` (16:
+  pembersihan query/unicode/nilai hilang, kelima bidang, urutan, duplikat,
+  limit, serta penjaga statis wiring tanpa `createServerFn`/`graphCall`/
+  `db.searchConcepts`/RPC/migrasi). Catatan proses: percobaan pertama `npm run ci`
+  gagal di smoke karena `key={current.learnerId}` pada komponen pencarian
+  bertabrakan dengan key opsi pemilih learner (`me-sari-*`); React 19
+  memperingatkan duplikat key dan editor subjek tertinggal terbuka. Key diberi
+  namespace `search-<id>` lalu `npm run ci` utuh hijau (1197 unit, smoke
+  2114 baris penjaga; percobaan kedua sempat flaky karena beban mesin dari sesi
+  lain, bukan kode). `README.md` menyebut pencarian di baris fitur Today;
+  `Roadmap.md` tidak diubah dan tidak ada milestone yang ditandai selesai.
 
 - 2026-11-16: PR #106 — **MCP resources baca-saja (lanjutan M4)** — server
   `POST /api/mcp` kini juga melayani `resources/list` dan `resources/read`.
