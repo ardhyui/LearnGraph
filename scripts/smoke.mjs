@@ -1115,6 +1115,14 @@ try {
     );
     const toDashboard = page.getByRole('link', { name: 'Do your reviews on the dashboard' });
     check(await toDashboard.isVisible().catch(() => false), 'gaps: overdue reviews link to the dashboard');
+    // Screen readers hear the due reviews as one named list.
+    const reviewList = page.getByRole('list', { name: 'Reviews due' });
+    const reviewItems = await reviewList.getByRole('listitem').count().catch(() => 0);
+    check(
+      (await reviewList.isVisible().catch(() => false)) && reviewItems > 0,
+      'gaps: due reviews are a named list of review items',
+      `${reviewItems} item(s)`,
+    );
 
     await page.goto(`${BASE}/recommendations`, { waitUntil: 'networkidle' });
     const zonesTab = page.getByRole('tab', { name: 'Ready / not yet' });

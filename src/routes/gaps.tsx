@@ -648,9 +648,9 @@ function GapsDashboard() {
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-hide">
+                    <ul aria-label="Reviews due" className="space-y-3 max-h-96 overflow-y-auto scrollbar-hide">
                       {reviewQueue.queue.map((item, i) => (
-                        <motion.div
+                        <motion.li
                           key={i}
                           whileHover={{ scale: 1.01 }}
                           className="p-4 bg-secondary/50 rounded-xl border border-border/50 flex items-center gap-3"
@@ -670,9 +670,9 @@ function GapsDashboard() {
                           )}>
                             {priorityLabel(item.priority)}
                           </span>
-                        </motion.div>
+                        </motion.li>
                       ))}
-                    </div>
+                    </ul>
                   )}
 
                   {retention.length > 0 && (
