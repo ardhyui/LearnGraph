@@ -1,49 +1,105 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 56: test unit langsung sapaan & tautan pintasan dashboard `src/lib/dashboard.ts`, PR #95; berikutnya: test unit langsung gerbang akses lokal `src/lib/auth/local-access.ts`)
+Terakhir diperbarui: 2026-11-16 (siklus 57: test unit langsung gerbang akses lokal `src/lib/auth/local-access.ts`, PR #96; berikutnya: test unit langsung judul tab & label halaman `src/lib/page-titles.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung gerbang akses lokal `src/lib/auth/local-access.ts`**
-— `LOCAL_OWNER_ID`/`permitsLocalUser`. File baru `tests/local-access.test.ts`
-(node:test murni, impor modul langsung, tanpa PGlite/DOM; `Request`/`URL`/
-`Headers` global Node 26 cukup), modul **tidak diubah** dan murni (tanpa
-impor). Probe dulu perilaku aktual (bangun `Request` dengan `new Request(url,
-{ headers })`), kunci yang belum tercakup:
+Penguatan tes: **test unit langsung judul tab & label halaman `src/lib/page-titles.ts`**
+— `APP_NAME`/`PAGE_LABELS`/`pageTitle`/`titleForPath`/`pageHead`/
+`NOT_FOUND_TITLE`/`ERROR_TITLE`/`navigationAnnouncement`. File baru
+`tests/page-titles.test.ts` **tidak boleh menimpa** test lama bernama sama:
+beri nama baru `tests/page-titles-direct.test.ts` (node:test murni, impor
+modul langsung, tanpa PGlite/DOM), modul **tidak diubah**; modul hanya
+mengimpor `NAV_SECTIONS` dari `./navigation.ts`, jadi jangan klaim bebas
+impor. Probe dulu perilaku aktual, kunci yang belum tercakup:
 
-1. `LOCAL_OWNER_ID === 'local-japanese-owner'` (id pemilik setup Jepang
-   workstation-only, diekspor ulang lewat `src/lib/account.ts`).
-2. `permitsLocalUser(request, configuredOrigin)` — urutan cabang:
-   `configuredOrigin` kosong/`undefined` → false; URL request rusak atau
-   `configuredOrigin` bukan URL sah → false (try/catch);
-   `expected.protocol !== 'http://'` → false (https ditolak — harus plain
-   http loopback); `expected.hostname !== '127.0.0.1'` → false (`localhost`,
-   `::1`, hostname lain; port bebas asal 127.0.0.1);
-   `url.origin !== expected.origin` → false (beda port/protokol/host; path
-   dan query tidak berpengaruh karena hanya origin yang dibandingkan —
-   `/japanese` vs `/` sama-sama lolos); header proxy
-   `forwarded`/`x-forwarded-host`/`x-forwarded-for`/`x-forwarded-proto`
-   hadir (walau nilai kosong `''`) → false; header `origin` hadir & ≠
-   expected.origin → false, hadir & sama → lanjut, absen → lanjut;
-   `sec-fetch-site` hadir & bukan `same-origin`/`none` → false
-   (`same-site`/`cross-site` ditolak), `same-origin`/`none`/absen → lanjut;
-   semua lolos → true. Probe juga kombinasi: origin benar + sec-fetch-site
-   `cross-site` → false (urutan cek tidak menolong), dan request polos tanpa
-   header apa pun pada origin terkonfigurasi → true.
-3. Penjaga statis — `local-access.ts` mengekspor tepat `LOCAL_OWNER_ID` +
-   `permitsLocalUser` (urut) tanpa `require`; probe dulu pemakai di `src/`
-   (grep `permitsLocalUser` dan `LOCAL_OWNER_ID`) lalu kunci minimal satu
-   call-site nyata memanggil `permitsLocalUser` dan re-ekspor di
-   `src/lib/account.ts`; asersi lama `tests/japanese.test.ts` yang menyentuh
-   `LOCAL_OWNER_ID` tetap utuh (dirujuk, bukan dipindah — cek judul `it`
-   sebelum menulis anchor).
+1. `APP_NAME === 'LearnGraph'`; `NOT_FOUND_TITLE === 'Page not found ·
+   LearnGraph'`; `ERROR_TITLE === 'Something went wrong · LearnGraph'`;
+   `PAGE_LABELS` **frozen** (`Object.isFrozen`) dan tepat 25 kunci berurutan
+   persis (21 href menu dari `NAV_SECTIONS` lalu lima EXTRA_LABELS) —
+   salin eksplisit peta kunci → label (termasuk `/japanese` → `Bahasa
+   Jepang`, `/learn/$conceptId` → `Lesson`, `/` → `Dashboard`, dan lima
+   halaman ekstra `/sign-in`/`/privacy`/`/forgot-password`/
+   `/reset-password`/`/learn/$conceptId`); tidak ada label kosong dan tiap
+   label sama dengan label menu untuk href menu.
+2. `pageTitle` — `'<label> · LearnGraph'`; label kosong/`null`/`undefined`/
+   hanya spasi → `LearnGraph`; whitespace `\s+` di-collapse jadi satu spasi
+   dan di-trim (tab `'A\tB'` → `'A B'`, NBSP `'A\u00a0B'` → `'A B'`, baris
+   baru di tengah); rough edge: karakter kontrol **non-whitespace** tidak
+   dibuang (`'A\u0000B\u202eC'` tetap utuh) — kunci perilaku aktual.
+3. `titleForPath` — href menu dikenal (contoh `/` → `Dashboard · LearnGraph`,
+   `/gaps` → `Gap Analysis · LearnGraph`, `/japanese` → `Bahasa Jepang ·
+   LearnGraph`); trailing slash dibuang bila panjang > 1 (`/gaps/`,
+   `/gaps//`, `/gaps///` → label; rough edge `//`/`///` → path menjadi `''`
+   → `LearnGraph`); query/hash/case/kurang garis miring (`/gaps?x=1`,
+   `/gaps#x`, `/GAPS`, `gaps`) → `LearnGraph`; rute parameter hanya satu
+   segmen (`/learn/fractions` dan literal `/learn/$conceptId` → `Lesson ·
+   LearnGraph`; `/learn/`, `/learn/a/b` → `LearnGraph`); kunci prototipe
+   aman (`toString`, `/toString`, `/hasOwnProperty`, `__proto__`,
+   `constructor`) → `LearnGraph`; `''` → `LearnGraph`.
+4. `pageHead('/gaps')` persis `{ meta: [{ title: 'Gap Analysis ·
+   LearnGraph' }] }`; `navigationAnnouncement` delegasi ke `titleForPath`
+   (halaman dikenal, `/learn/x`, dan path tak dikenal → `LearnGraph`).
+5. Penjaga statis — `page-titles.ts` tepat satu impor
+   `import { NAV_SECTIONS } from './navigation.ts';`, tanpa `require`, dan
+   mengekspor tepat delapan nama berurutan `APP_NAME`/`PAGE_LABELS`/
+   `pageTitle`/`titleForPath`/`pageHead`/`NOT_FOUND_TITLE`/`ERROR_TITLE`/
+   `navigationAnnouncement`; `src/components/RouteAnnouncer.tsx` mengimpor
+   `navigationAnnouncement` dari `@/lib/page-titles` dan memanggilnya dengan
+   `pathname` (probe teks aktual), dan rute halaman memakai
+   `pageHead('<path>')` (sudah dikunci test lama — cukup rujuk satu contoh
+   nyata, jangan duplikasi seluruh loop). Test lama `tests/page-titles.test.ts`
+   (86 baris, tujuh `it` — cek judulnya dulu) tetap utuh: rujuk judul dan
+   jumlah barisnya sebagai anchor, jangan pindahkan asersinya.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 8–12). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 12–20). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
 Bila smoke flaky karena beban mesin bersama (pola PR #84/#91/#95), tunggu
 load turun lalu ulangi gerbang utuh tanpa mengubah kode.
 
 ## Riwayat
+
+- 2026-11-16: PR #96 — test: test unit langsung gerbang akses lokal
+  `src/lib/auth/local-access.ts` — `LOCAL_OWNER_ID`/`permitsLocalUser`
+  (16 test di `tests/local-access.test.ts`, node:test murni, impor modul
+  langsung, tanpa PGlite/DOM; `Request`/`URL`/`Headers` global Node 26 cukup),
+  modul tidak diubah; `tests/japanese.test.ts` (66 baris) tetap utuh (satu
+  judul test-nya dirujuk penjaga statis, bukan dipindah — catatan probe: test
+  lama itu tidak pernah menyebut `LOCAL_OWNER_ID`, hanya `permitsLocalUser`).
+  Dikunci: `LOCAL_OWNER_ID === 'local-japanese-owner'`. Configured origin —
+  `undefined`/`''` → false (opt-in); malformed (`'not a url'`, `'http://'`,
+  `'::::'`) → false lewat catch; `https` ditolak walau request juga https;
+  `localhost`/`::1`/`127.0.0.2`/`0.0.0.0` ditolak; port bebas asal kedua sisi
+  setuju (4321); path/query/trailing slash/userinfo pada configured origin
+  diabaikan (hanya `origin` dibandingkan, rough edge); port default 80 dan
+  kapitalisasi skema dinormalkan `URL`. Request origin — wajib sama persis
+  (https/localhost/`::1`/port lain/`127.0.0.2` → false); path, query, hash,
+  trailing slash diabaikan. URL request rusak (objek duck-typed karena
+  `new Request` menolak URL invalid) dan header yang melempar → false lewat
+  `try`/`catch`. Empat header proxy `forwarded`/`x-forwarded-host`/
+  `x-forwarded-for`/`x-forwarded-proto` ditolak walau nilainya `''` dan
+  pencarian case-insensitive (`Forwarded`). Header `origin`: sama → true,
+  beda (termasuk trailing slash/kapitalisasi) → false, absen → true, string
+  kosong → true (rough edge `if (origin && …)`). `sec-fetch-site`:
+  `same-origin`/`none`/absen/`''` → true; `same-site`/`cross-site`/
+  `SAME-ORIGIN` → false. Kombinasi: origin benar + `cross-site` → false,
+  forwarded + header lain bersih → false, dan kombinasi bersih → true.
+  Penjaga statis: `local-access.ts` tanpa impor/`require` dan mengekspor tepat
+  `LOCAL_OWNER_ID`+`permitsLocalUser` (urut); `account.ts` mere-ekspor
+  `LOCAL_OWNER_ID` dari `./auth/local-access.ts`; `verify.server.ts` mengimpor
+  dan memanggil `permitsLocalUser(request, process.env.JAPANESE_LOCAL_ORIGIN)`;
+  `api/japanese-backup.ts` memakai impor dinamis + guard yang sama; dan
+  `DeleteAccount.tsx` membandingkan `user.id === LOCAL_OWNER_ID`; anchor judul
+  test lama + jumlah baris 66 tetap utuh. Catatan proses: `node_modules` belum
+  ada di worktree sehingga `npm ci` lebih dulu; satu asersi draf "port bebas"
+  salah memakai configured origin tanpa port (origin `:1` ≠ `:80`) dan
+  diperbaiki sebelum gerbang; prettier merapikan format; typecheck/lint 0/0
+  dan `npm run ci` utuh hijau pada percobaan pertama. Tanpa perubahan
+  aplikasi/perilaku/skema/RPC/migrasi/dependensi dan tanpa perubahan
+  `docs/ROADMAP.md` (tidak ada baris backlog yang tersentuh, pola
+  PR #77/#78/#90). `npm run ci` hijau (install, typecheck, lint 0/0,
+  1047/1047 unit = 1031 + 16, build, anggaran bundel, CSP build produksi,
+  smoke Playwright + PGlite).
 
 - 2026-11-16: PR #95 — test: test unit langsung sapaan & tautan pintasan
   dashboard `src/lib/dashboard.ts` (13 test di `tests/dashboard-direct.test.ts`,
