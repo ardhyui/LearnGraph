@@ -23,7 +23,8 @@ import {
   type StudyOutcome,
 } from '@/lib/study';
 import { evidenceMode, quizResultNotice } from '@/lib/evidence/labels';
-import { getQuizOverview, recordStudyOutcome } from '@/server/evidence.functions';
+import { weekRecapLines, type WeekRecap } from '@/lib/evidence/week';
+import { getQuizOverview, getWeekRecap, recordStudyOutcome } from '@/server/evidence.functions';
 import { getContentOverview } from '@/server/content.functions';
 import {
   getOnboardingSkipped,
@@ -82,6 +83,8 @@ interface TodayData {
   quizCounts: Record<string, number>;
   /** Minutes of lesson material per concept id (absent = no lesson yet). */
   lessonMinutes: Record<string, number>;
+  /** Reviews, passed quizzes and new concepts in the last seven days. */
+  week: WeekRecap;
 }
 
 /** The quiz open in one of the lists (one at a time). */
@@ -192,13 +195,14 @@ export function StudyToday() {
     setLoading(true);
     setError(null);
     try {
-      const [allConcepts, states, queue, zpd, overview, lessons] = await Promise.all([
+      const [allConcepts, states, queue, zpd, overview, lessons, week] = await Promise.all([
         db.listConcepts(),
         db.getLearnerKnowledgeStates(learnerId),
         db.getReviewQueue(learnerId, { limit: 5 }),
         db.computeZPD(learnerId, { limit: focusKey ? 200 : 8 }),
         getQuizOverview(),
         getContentOverview(),
+        getWeekRecap({ data: { learnerId } }),
       ]);
       if (seq !== requestSeq.current) return;
       // Progress and "learn next" follow the learner's chosen subjects;
@@ -239,6 +243,7 @@ export function StudyToday() {
           .slice(0, 3),
         quizCounts: overview.counts,
         lessonMinutes: lessons.minutes,
+        week,
       });
     } catch (err) {
       if (seq !== requestSeq.current) return;
@@ -625,6 +630,9 @@ export function StudyToday() {
         </div>
       </div>
 
+      {/* Your week: what the last seven days added up to, from the event log. */}
+      {current && <WeekRecapCard recap={current.week} />}
+
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         {/* Reviews due */}
         <div>
@@ -920,6 +928,38 @@ const NOTICES: Record<StudyOutcome | ReviewOutcome | SnoozeOutcome, (name: strin
   forgot: (n) => `No problem — “${n}” will come back tomorrow so it sticks.`,
   snooze: (n) => `Okay — “${n}” is moved to tomorrow. Your progress on it is unchanged.`,
 };
+
+/**
+ * "Your week": the last seven days at a glance, counted from the event log by
+ * `weekRecap`. Quiet when nothing happened yet — no rows of noisy zeros.
+ */
+function WeekRecapCard({ recap }: { recap: WeekRecap }) {
+  const headingId = useId();
+  const lines = weekRecapLines(recap);
+  return (
+    <section
+      aria-labelledby={headingId}
+      data-testid="week-recap"
+      className="mt-4 rounded-xl border border-border/50 bg-background/40 p-4"
+    >
+      <h3 id={headingId} className="text-sm font-semibold text-foreground">
+        Your week
+      </h3>
+      <p className="text-xs text-muted-foreground">Last 7 days</p>
+      {recap.active ? (
+        <ul className="mt-2 space-y-1 text-sm text-foreground">
+          {lines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Nothing yet this week — your first review will show up here.
+        </p>
+      )}
+    </section>
+  );
+}
 
 /**
  * "Today's session": due reviews first, then lessons, fitted into the time the

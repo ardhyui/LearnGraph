@@ -1,61 +1,57 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (server MCP selesai di PR #103; siklus berikutnya: kartu rekap mingguan "Your week" di Today)
+Terakhir diperbarui: 2026-11-16 (kartu rekap mingguan "Your week" selesai di PR #104; siklus berikutnya: streak harian di kartu yang sama)
 
 ## Tugas berikutnya
 
-Fitur **kartu rekap mingguan "Your week" di panel Today** (kandidat (b),
-mendukung ukuran "Kembali belajar" di `Roadmap.md`). Tujuan: pelajar melihat
-apa yang sudah dikerjakan tujuh hari terakhir tanpa membuka halaman lain:
-review selesai, kuis lulus, dan konsep baru yang mulai dipelajari. Tanpa
-migrasi skema, tanpa dependensi, memakai log `learning_events` yang sudah ada.
+Fitur **streak harian di kartu "Your week"** (kandidat (b), mendukung ukuran
+"Kembali belajar" di `Roadmap.md`). Tujuan: pelajar melihat berapa hari
+berturut-turut mereka belajar, tanpa tabel, dependensi, atau RPC baru — hanya
+dari `learning_events` yang sudah ada. Kartu "Your week" sudah ada; tugas ini
+menambah satu baris di dalamnya.
 
 Rancangan (baca kode dulu dan sesuaikan bila ada yang lebih sederhana):
 
-1. **Helper murni** `src/lib/evidence/week.ts` (tanpa DB/React), fungsi
-   `weekRecap(events: readonly LearningEvent[], now: string | Date)` →
-   `{ reviews: number; quizzesPassed: number; newConcepts: number; active: boolean }`.
-   Jendela 7 hari: `createdAt` yang bisa diparse dan `now - 7 hari <= createdAt <= now`;
-   timestamp rusak/masa depan diabaikan (jangan melempar). `reviews` = jumlah
-   event `kind === 'review'` (semua review yang tercatat selesai); `quizzesPassed`
-   = `kind === 'quiz' && outcome === 'passed'`; `newConcepts` = jumlah konsep
-   berbeda yang **event pertamanya** (kind apa pun, urutan `listEvents` sudah
-   lama→baru) jatuh di dalam jendela, sehingga konsep yang sudah pernah
-   disentuh sebelum jendela tidak dihitung baru. `active` = salah satu > 0.
-   Batas tepat 7 hari (termasuk) dan 7 hari − 1 ms dikunci test; urutan array
-   tidak boleh mengubah hasil.
+1. **Helper murni** `src/lib/evidence/streak.ts` (tanpa DB/React), fungsi
+   `learningStreak(events: readonly LearningEvent[], now: string | Date)` →
+   `{ days: number; activeToday: boolean }`.
+   - Hanya kind belajar: `quiz`, `study`, `review`, `practice`, `lesson`;
+     `snooze`/`unsnooze`/`tutor` diabaikan.
+   - Hari kalender **UTC** (`toISOString().slice(0, 10)`), bukan jam lokal,
+     agar deterministik dan konsisten dengan server.
+   - Timestamp rusak **atau** di masa depan (`> now`) diabaikan, jangan
+     melempar.
+   - Jangkar: hari ini bila ada event belajar hari ini; selain itu kemarin bila
+     ada (streak masih hidup sampai hari berganti, `activeToday` membedakan).
+     `days` = hari berturut-turut mundur dari jangkar; 0 bila tidak ada di
+     keduanya. Satu hari dihitung sekali walau banyak event; urutan array tidak
+     mengubah hasil.
+   - Kunci test: batas tengah malam UTC (23:59:59.999 vs 00:00:00.000), celah
+     satu hari memutus streak, kemarin saja → `days > 0` + `activeToday: false`,
+     dua hari lalu saja → 0, kind non-belajar tidak menghidupkan streak,
+     timestamp rusak/masa depan, duplikat, urutan acak, kosong.
 2. **Server function** `getWeekRecap` di `src/server/evidence.functions.ts`
-   (pola `getLearningStats`: `createServerFn({ method: 'GET' })`,
-   `authMiddleware`, validator `z.object({ learnerId: lookupId })`), memanggil
-   `service.listEvents(db, context.userId, { learnerId })` lalu helper di atas
-   dengan `new Date().toISOString()`. Tidak ada RPC/tabel/migrasi baru; data
-   selalu terikat akun dan learner yang diminta.
-3. **UI** di `src/components/StudyToday.tsx`: kartu kecil di bawah bar progres
-   (sebelum bagian "Review now"/daftar), `<section aria-labelledby>` dengan
-   judul **Your week** dan tiga baris ringkas (mis. `3 reviews completed`,
-   `1 quiz passed`, `2 new concepts`; bentuk tunggal/jamak benar). Saat
-   `active === false`, tampilkan copy sopan "Nothing yet this week — your first
-   review will show up here." tanpa angka nol yang berisik. Muat di
-   `Promise.all` milik `load()` sehingga ikut berganti saat learner berganti
-   (jangan tampilkan rekap learner lain saat data baru dimuat: pakai
-   `data.learnerId` yang sudah ada). Bahasa Inggris (D2), aksesibel (heading,
-   teks biasa tanpa warna saja), tanpa tombol/tindakan.
-4. **Test** `tests/week-recap.test.ts`: helper (jendela dua sisi, timestamp
-   rusak, event sebelum jendela, konsep baru vs lama, duplikat konsep, urutan
-   acak, kosong, semua jenis event, bentuk tunggal/jamak bila helper
-   menyediakan copy) + penjaga statis (server function memakai `listEvents`
-   dengan `learnerId`, komponen memanggil `getWeekRecap` dan merender
-   "Your week", tanpa server function baru di komponen). Bila mudah, satu
-   cek smoke di panel Today: setelah alur kuis/review smoke yang sudah ada,
-   "Your week" terlihat dan minimal satu angka > 0 — hanya bila tidak flaky.
-5. **Dokumentasi**: `docs/ROADMAP.md` — tambah entri log bertanggal di akhir;
-   `Roadmap.md` hanya bila ada klaim/ukuran yang berubah (jangan menandai
-   milestone selesai). `README.md` hanya bila perlu.
+   diperluas (bukan fungsi baru): satu kali `listEvents`, kembalikan
+   `{ ...weekRecap(events, now), streak: learningStreak(events, now) }` dengan
+   `now` yang sama untuk keduanya. Validator `z.object({ learnerId: lookupId })`
+   dan isolasi akun tidak berubah.
+3. **UI** di `WeekRecapCard` (`src/components/StudyToday.tsx`): setelah baris
+   ringkas, satu baris streak — `1-day streak` / `5-day streak`; bila
+   `activeToday === false` dan `days > 0`, tambahkan
+   `— study today to keep it going`; bila `days === 0`, tidak ada baris tambahan
+   (copy kosong "Nothing yet this week — your first review will show up here."
+   tetap). Bahasa Inggris (D2), teks biasa, tanpa tombol/warna saja. Tipe
+   `WeekRecap` di `week.ts`/`TodayData` menyesuaikan.
+4. **Test** `tests/streak.test.ts`: seluruh cabang helper + bentuk tunggal/jamak
+   + penjaga statis (`getWeekRecap` memakai satu `listEvents` dan
+   `learningStreak`, kartu merender "day streak", tanpa server function baru di
+   komponen). Perbarui penjaga jumlah baris smoke hanya bila smoke berubah.
+5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+   `Roadmap.md` hanya bila klaim berubah (jangan tandai milestone selesai).
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `feat:`. Setelah merge, tulis "Tugas berikutnya" berikutnya —
-kandidat: **MCP resources** (`resources/list`/`resources/read` untuk ringkasan
-pelajar dan konsep, lanjutan M4), **streak harian** dari `learning_events`,
+kandidat: **MCP resources** (`resources/list`/`resources/read`, lanjutan M4),
 **pencarian konsep** dengan `searchConcepts`, atau **ringkasan pelajaran
 terakhir** di Today. Bukan tugas test.
 
@@ -79,6 +75,24 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-16: PR #104 — **Kartu rekap mingguan "Your week" di Today** — pelajar
+  melihat aktivitas tujuh hari terakhir tanpa membuka halaman lain: review
+  selesai, kuis lulus, dan konsep baru. Helper murni
+  `src/lib/evidence/week.ts` (`weekRecap`/`weekRecapLines`): jendela inklusif
+  dua sisi (tepat 7 hari lalu sampai sekarang), timestamp rusak/masa depan
+  diabaikan tanpa melempar, konsep baru hanya bila event pertamanya (kind apa
+  pun) jatuh di jendela, urutan array tidak berpengaruh, bentuk tunggal/jamak
+  benar dan baris nol tidak ditampilkan. Server function `getWeekRecap` (pola
+  `getLearningStats`: `authMiddleware`, validator `{ learnerId: lookupId }`,
+  `listEvents` terikat `context.userId`) — tanpa RPC/tabel/migrasi baru. Kartu
+  `<section aria-labelledby>` **Your week** di bawah bar progres Today, dimuat
+  dalam `Promise.all` milik `load()` sehingga berganti bersama learner, dengan
+  copy tenang saat belum ada aktivitas. Test baru `tests/week-recap.test.ts`
+  (18) + satu cek smoke (setelah kuis lulus, "Your week" memuat baris
+  "quizzes passed"); penjaga jumlah baris smoke 2103 → 2114.
+  `docs/ROADMAP.md` mendapat entri log; `Roadmap.md` tidak diubah (tidak ada
+  klaim berubah, milestone tidak ditandai selesai). `npm run ci` hijau.
 
 - 2026-11-16: PR #103 — **Server MCP baca-saja (M4)** — `POST /api/mcp`
   berbicara JSON-RPC 2.0 "Streamable HTTP" sebagai `application/json`

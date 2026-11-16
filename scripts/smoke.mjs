@@ -609,6 +609,17 @@ try {
     } else {
       check(false, 'dashboard: passing the quick quiz raises the mastered count', 'no recommended concept');
     }
+
+    // "Your week" recounts the activity above from the event log: the quiz just
+    // passed shows up without leaving the dashboard.
+    const week = today.getByTestId('week-recap');
+    const weekSeen = await week.waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const weekText = weekSeen ? (await week.innerText()).replace(/\s+/g, ' ') : '';
+    check(
+      weekSeen && /Your week/.test(weekText) && /\d+ quizzes? passed/.test(weekText),
+      'dashboard: "Your week" recaps the last seven days from the event log',
+      weekText.slice(0, 80),
+    );
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'dashboard study loop has no page errors', newErrors.join(' | '));
   }
