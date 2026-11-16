@@ -1,56 +1,110 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 52: test unit langsung jadwal & patch state kuis evidence `reviewWasDue`/`quizStatePatch`, PR #91; berikutnya: test unit langsung dataset kurikulum & bank soal Jepang `src/lib/japanese/curriculum.ts`/`questions.ts`)
+Terakhir diperbarui: 2026-11-16 (siklus 53: test unit langsung dataset kurikulum & bank soal Jepang, PR #92; berikutnya: test unit langsung ukuran keberhasilan belajar `src/lib/evidence/measures.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung dataset kurikulum & bank soal Jepang
-`src/lib/japanese/curriculum.ts` + `src/lib/japanese/questions.ts`**. File baru
-`tests/japanese-curriculum.test.ts` (node:test, impor dataset langsung, tanpa
-PGlite/DOM/Playwright). Kedua modul **tidak diubah** dan tidak punya impor
-runtime. `tests/japanese.test.ts` (66 baris) sudah memeriksa id unik, prereq
-resolve/acyclic, 6 soal per topik quiz, answer ada di opsi, dan tiap soal 3
-opsi — **jangan diduplikasi**; fokus pada yang belum dikunci. Probe dulu data
-aktual, kunci:
+Penguatan tes: **test unit langsung ukuran keberhasilan belajar
+`src/lib/evidence/measures.ts`**. File baru
+`tests/evidence-measures-direct.test.ts` (node:test murni, impor modul langsung,
+tanpa PGlite/DOM; `tests/learning-measures.test.ts` yang lama 111 baris tetap
+utuh — **jangan diduplikasi/dipindah**). Modul **tidak diubah** dan hanya
+mengimpor `dueReviewRetention`/`tutorPreference` + tipe dari `./events.ts`.
+Probe dulu perilaku aktual, kunci yang belum tercakup:
 
-1. `MODULES` — tepat 40 modul; id unik dan urut persis (salinan eksplisit 40
-   id `jp-hiragana` … `jp-n1-output`); nama unik; level N5/N4/N3/N2/N1
-   berjumlah 24/4/4/4/4; mode quiz/external/michi berjumlah 8/23/9;
-   `LEARNER === 'japanese-ardhyui'`; name/level/description tiap modul
-   non-kosong setelah trim; delapan modul quiz (`jp-hiragana`, `jp-katakana`,
-   `jp-particles`, `jp-existence`, `jp-verbs`, `jp-adjectives`, `jp-te`,
-   `jp-counters`) dikunci objeknya persis (id/name/level/description/prereqs/
-   mode/resource sebagai salinan eksplisit, mencakup copy bahasa Indonesia,
-   D2).
-2. Resource per mode — mode `quiz` semuanya
-   `https://www.irodori-online.jpf.go.jp/`; mode `external` hanya `https://`
-   dan tepat lima URL unik (irodori, tadoku, samplequestions.jlpt,
-   marugoto, aozora); mode `michi` tepat sembilan
-   `http://127.0.0.1:17831/bab/<slug>` untuk slug dasar, alam, ukuran, waktu,
-   orang, sekolah, gerak, kota, angka.
-3. `QUESTIONS` — tepat 48 soal; id unik berpola `<slug>-<1..6>`; delapan topik
-   = id modul quiz, masing-masing tepat 6 soal berurutan `slug-1..6` dan tanpa
-   topik asing; pemetaan slug: hiragana, katakana, particles, existence,
-   verbs, adjectives, te, counters. Tiap soal: `options` 3 opsi unik,
-   `answer` termasuk opsi, prompt/answer/explanation non-kosong setelah trim;
-   kunci rough edge aktual bahwa `answer` **selalu** `options[0]` untuk
-   seluruh 48 soal (opsi diacak saat undian, jadi bukan kebocoran; dataset
-   tidak diubah). Kunci beberapa soal sulit secara persis (mis. `hiragana-4`
-   「りょ」 → `ryo`, opsi `['ryo','riyo','yo']`) dan satu soal `counters`.
-4. Penjaga statis — `src/server/japanese.functions.ts` mengimpor
-   `MODULES`+`LEARNER` dari `@/lib/japanese/curriculum` dan `QUESTIONS` dari
-   `@/lib/japanese/questions`, memfilter `m.mode === 'quiz'`/`'external'`/
-   `'michi'`, dan memakai `QUESTIONS.filter((q) => q.topic === ...)`; scan
-   seluruh `src/` (`ts`/`tsx` kecuali kedua dataset) tanpa salinan
-   `MODULES`/`LEARNER`/`QUESTIONS` lain; asersi lama `tests/japanese.test.ts`
-   tetap utuh (dirujuk, bukan dipindah/diduplikasi).
+1. `returningLearners(events, now)` — hanya kind `quiz`/`study`/`review`/
+   `practice`/`lesson` dihitung (`snooze`/`unsnooze`/`tutor` diabaikan kapan
+   pun); `createdAt` bukan tanggal sah atau di masa depan diabaikan; event
+   **tepat 7 hari** lalu masuk minggu sebelumnya (bukan "recent"), **tepat 14
+   hari** lalu diabaikan sepenuhnya, dan `now` tepat masuk recent; satu learner
+   dihitung sekali walau banyak event; learner yang hanya aktif 0–7 hari tidak
+   menambah `activeBefore`; `rate = returned / activeBefore` tanpa pembulatan
+   dan `null` hanya saat `activeBefore === 0` (`before` tanpa kembalinya → 0).
+2. `finishesConcept` — `true` hanya `quiz`+`passed` dan `study`+`got-it`;
+   `quiz`+`failed`, `study`+`started`, `review`+`remembered`,
+   `practice`+`logged`, `lesson`+`opened` → false.
+3. `activationTime(accountCreatedAt, events)` — memilih event penyelesai
+   **paling awal** menurut waktu (urutan array diabaikan); `firstFinishedAt`
+   ISO ber-milidetik; `minutes` dibulatkan `Math.round` lalu dijepit
+   `Math.max(0, …)` (selesai sebelum akun dibuat → 0); tanpa event penyelesai →
+   keduanya `null`; `accountCreatedAt` null/rusak → `firstFinishedAt` tetap
+   terisi tetapi `minutes` null; event ber-`createdAt` rusak atau kind
+   non-penyelesai diabaikan.
+4. `learningMeasures(events, created, now)` — `events` = jumlah baris;
+   `retention`/`returning`/`activation`/`tutor` diteruskan dari helper di atas;
+   `calibrationGap = Math.round((selfReport.rate − quiz.rate) × 100)` hanya bila
+   kedua rate non-null (positif, negatif, dan 0), selain itu `null`; masukan
+   kosong → seluruh cabang kosong (events 0, gap null, rate null).
+5. `measureRows(m)` — id berurutan persis `retention`, `calibration`,
+   `returning`, `activation`, `session`, `personalisation`, label persis, dan
+   target persis (termasuk `Under 5 minutes`, `80%`). Nilai yang dikunci:
+   retention empat cabang (`No due reviews answered yet`, hanya kuis
+   `quizzes 100% of 1`, hanya laporan diri `self-reports 100% of 1`, keduanya
+   `quizzes 50% of 2, self-reports 50% of 2`); kalibrasi `null` / `0` →
+   `Self-reports match quiz results` / positif `N points higher` / negatif
+   `N points lower` (bentuk tunggal `1 point`); returning `null` / `0 of 2
+learners ... (0%)` dan bentuk tunggal `1 of 1 learner ... (100%)`; aktivasi
+   `No concept finished yet` / `Finished, but the account’s start date is
+unknown` / `N minutes` / `1 hour` (60 menit) / `2 hours` (90 menit,
+   dibulatkan) / `3 days` (≥ 48 jam); session string tetap; personalisasi
+   `No blind comparisons yet` / `... preferred in 2 of 3 comparisons (the
+other: 1, no difference: 0)` dan bentuk tunggal `1 comparison`.
+6. Penjaga statis — `measures.ts` tepat satu impor
+   `import { dueReviewRetention, tutorPreference, type LearningEvent, type
+RetentionStat } from './events.ts';`, tanpa impor lain/`require`; mengekspor
+   lima fungsi + empat tipe. `src/server/evidence.functions.ts` memakai
+   `import('@/lib/evidence/measures')` dinamis dan memanggil `learningMeasures`
+   dengan `created ? new Date(created).toISOString() : null` + `new Date()`;
+   `src/components/LearningMeasures.tsx` mengimpor/memanggil `measureRows` dan
+   menampilkan `r.label`/`r.value`/`r.target`; string nilai baris tidak disalin
+   di `src/` lain; asersi lama `tests/learning-measures.test.ts` dan
+   `tests/evidence-events.test.ts` tetap utuh (dirujuk, bukan dipindah).
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 8–12). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10–14). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
-UI pelajar tetap bahasa Inggris; halaman `/japanese` berbahasa Indonesia
-(D2).
+UI pelajar tetap bahasa Inggris; halaman `/japanese` berbahasa Indonesia (D2).
 
 ## Riwayat
+
+- 2026-11-16: PR #92 — test: test unit langsung dataset kurikulum & bank soal
+  Jepang `src/lib/japanese/curriculum.ts` + `src/lib/japanese/questions.ts`
+  (12 test di `tests/japanese-curriculum.test.ts`, node:test murni, impor
+  dataset langsung, tanpa PGlite/DOM/Playwright), kedua modul tidak diubah.
+  Dikunci: `MODULES` tepat 40 dengan urutan id persis (salinan eksplisit
+  `jp-hiragana` … `jp-n1-output`) dan unik, nama unik, level 24/4/4/4/4
+  (N5–N1), mode 8/23/9 (quiz/external/michi), `LEARNER === 'japanese-ardhyui'`,
+  name/level/description/resource non-kosong dan ter-trim; delapan modul kuis
+  (`jp-hiragana` … `jp-counters`) dikunci objeknya utuh (id/name/level/
+  description/prereqs/mode/resource, termasuk copy bahasa Indonesia, D2), dan
+  resource per mode — kuis semuanya irodori, external tepat 23 modul dengan
+  hanya `https://` dan lima URL unik (irodori, tadoku, samplequestions.jlpt,
+  marugoto, aozora), michi tepat sembilan URL `http://127.0.0.1:17831/bab/…`
+  untuk slug dasar/alam/ukuran/waktu/orang/sekolah/gerak/kota/angka.
+  `QUESTIONS` tepat 48, id unik berpola `<slug>-1..6` (delapan slug hiragana,
+  katakana, particles, existence, verbs, adjectives, te, counters), topik persis
+  id delapan modul kuis, enam soal per topik berurutan, tanpa topik asing; tiap
+  soal tiga opsi unik, answer muncul tepat sekali, prompt/answer/explanation
+  non-kosong dan ter-trim; rough edge aktual bahwa `answer === options[0]` untuk
+  seluruh 48 soal (opsi diacak saat undian, dataset tidak diubah); soal sulit
+  `hiragana-4` (「りょ」 → `ryo`, opsi `['ryo','riyo','yo']`) dan `counters-1`
+  (「三つ」 → `みっつ`) dikunci persis. Penjaga statis: kedua dataset tanpa impor/
+  `require`; `japanese.functions.ts` mengimpor `MODULES`+`LEARNER` dari
+  `@/lib/japanese/curriculum` dan `QUESTIONS` dari `@/lib/japanese/questions`,
+  memfilter `m.mode === 'quiz'`/`'external'`/`'michi'`, dan memakai
+  `QUESTIONS.filter((q) => q.topic === data.concept)`; scan seluruh `src/`
+  (`ts`/`tsx` kecuali kedua dataset) tanpa salinan `japanese-ardhyui`/
+  `jp-hiragana`/`export const MODULES`/`export const QUESTIONS`/
+  `export const LEARNER =`; lima asersi lama `tests/japanese.test.ts` tetap
+  utuh. Catatan proses: `node_modules` belum ada sehingga `npm ci` lebih dulu;
+  satu asersi draf penjaga salinan gagal karena penanda `export const LEARNER`
+  juga cocok dengan `export const LEARNER_SHORTCUTS` di `src/lib/dashboard.ts`,
+  diperbaiki menjadi `export const LEARNER =` sebelum gerbang; prettier
+  merapikan format; typecheck/lint 0/0 dan `npm run ci` utuh langsung hijau pada
+  percobaan pertama. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/
+  dependensi dan tanpa perubahan `docs/ROADMAP.md` (tidak ada baris backlog yang
+  tersentuh, pola PR #77/#78/#90). `npm run ci` hijau (install, typecheck,
+  lint 0/0, 987/987 unit = 975 + 12, build, anggaran bundel, CSP build
+  produksi, smoke Playwright + PGlite).
 
 - 2026-11-16: PR #91 — test: test unit langsung jadwal & patch state kuis
   evidence `src/lib/evidence/quiz.ts` — `reviewWasDue`/`quizStatePatch`
