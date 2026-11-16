@@ -1,62 +1,59 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (ringkasan hasil pencarian konsep di panel Today; siklus berikutnya: ringkasan hasil analisis di Gap Analysis)
+Terakhir diperbarui: 2026-11-17 (ringkasan hasil analisis di kartu Shaky spots; siklus berikutnya: tab aksesibel di Recommendations)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas/copy **ringkasan hasil analisis di kartu "Shaky spots"
-halaman Gap Analysis** (kandidat fitur (a); tanpa migrasi skema, dependensi,
-server function, RPC, atau method RPC baru). Konteks: `/gaps` menghitung empat
-jenis masalah (`gaps.missing`/`partial`/`forgotten`/`misconceptions`) dan
-menampilkannya sebagai empat kartu angka di atas, tetapi kartu **Shaky spots**
-hanya berisi daftar panjang (atau empty state) tanpa satu kalimat yang
-merangkumnya; halaman baru terisi setelah analisis selesai, jadi pembaca layar
-tidak pernah mendengar gambaran besarnya. Tujuan: satu baris tenang di bawah
-judul **Shaky spots** dan di atas daftar/empty state yang menyebut total dan
-rincian per jenis.
+Poles aksesibilitas **tab halaman Recommendations** (`/recommendations`) —
+kandidat fitur (a); tanpa migrasi skema, dependensi, server function, RPC,
+atau method RPC baru. Konteks: tiga tombol tab (**Recommendations**,
+**Ready / not yet**, **Learning Path**) saat ini `<motion.button>` biasa tanpa
+`role="tablist"`/`role="tab"`/`aria-selected`/`aria-controls`, jadi pembaca
+layar tidak tahu tab mana yang aktif dan pengguna keyboard tidak bisa
+berpindah tab dengan tombol panah sebagaimana pola tab WAI-ARIA. Panel yang
+berganti juga tidak diberi nama.
 
-Rancangan (baca kode dulu: `src/lib/gaps.ts` — `GAP_KINDS`, `countLabel`;
-kartu "Shaky spots" di `src/routes/gaps.tsx`; `tests/gaps.test.ts`):
+Rancangan (baca kode dulu: `activeTab` + blok tab dan tiga panel di
+`src/routes/recommendations.tsx`; pola fokus/ref yang sudah ada di repo):
 
-1. **Helper murni** di `src/lib/gaps.ts` (tanpa React/DB/jam), mis.
-   `gapSummaryLine(counts: { missing: number; partial: number; forgotten: number; misconceptions: number }): string | null`.
-   Kunci perilaku:
-   - total = jumlah keempat nilai; total 0 → `null` (empty state
-     `No shaky spots right now — nice work!` tetap satu-satunya pesan);
-   - total 1 → `1 shaky spot: 1 fading`; total > 1 →
-     `<n> shaky spots: …` (bentuk tunggal/jamak "spot" benar);
-   - rincian hanya jenis bernilai > 0, selalu urut
-     missing → partial → forgotten → misconceptions, dipisah koma dengan
-     ` and` sebelum bagian terakhir (mis.
-     `4 shaky spots: 1 not started, 2 still learning and 1 fading`);
-     satu jenis saja tetap disebut;
-   - kata per jenis dikunci lowercase: `not started`, `still learning`,
-     `fading`, `mix-up`/`mix-ups` (bentuk jamak benar). Jangan memakai label
-     kartu apa adanya (`Mix-ups` tidak berpluralisasi baik); jangan menyalin
-     aturan hitung — cukup jumlahkan nilai yang diberikan. Bila
-     `countLabel` pas, pakai; teks kartu angka dan empty state lama tidak
-     berubah;
-   - nilai negatif/NaN/non-finite/absen (cast runtime) diperlakukan 0 tanpa
-     melempar.
-2. **UI di `GapsDashboard`**: tepat setelah `<h2>Shaky spots</h2>` dan sebelum
-   cabang `gaps.summary.total === 0`, satu
-   `<p className="text-sm text-muted-foreground mb-3">` hanya bila helper
-   mengembalikan string. Tanpa tombol, animasi, live region baru, fokus
-   paksa, atau panggilan baca/tulis tambahan; tetap bahasa Inggris (D2).
-3. **Test** `tests/gaps.test.ts` diperluas: total 0, 1, banyak; tiap jenis
-   sendirian dan kombinasi; urutan tetap; kata `mix-up`/`mix-ups`; nilai
-   negatif/NaN/non-finite; serta penjaga statis pemanggilan helper (tepat satu
-   kali) + posisi di bawah heading "Shaky spots" dan di atas empty state,
-   tanpa `createServerFn`/`graphCall`/RPC/migrasi baru. Smoke tidak berubah
-   (penjaga 2114 tetap).
+1. **Helper murni** baru `src/lib/tabs.ts` (tanpa React/DOM/jam), mis.
+   `nextTabIndex(current: number, key: string, count: number): number | null`
+   untuk pola tab horizontal. Kunci perilaku:
+   - `count` yang bukan finite/≤ 0 (termasuk NaN/Infinity/negatif) → `null`;
+     `count` dibulatkan ke bawah lalu minimal 1;
+   - `current` bukan finite/negatif/di luar rentang dinormalkan dengan modulo
+     positif (mis. `-1` pada 3 tab → `2`, `5` → `2`), NaN/Infinity → `0`;
+   - `ArrowRight` → `(i + 1) % count`, `ArrowLeft` → `(i - 1 + count) % count`
+     (membungkus di ujung), `Home` → `0`, `End` → `count - 1`;
+   - kunci lain (termasuk `ArrowUp`/`ArrowDown`/`Enter`/`' '`/string kosong/
+     `null` saat cast runtime) → `null`, tanpa melempar.
+2. **UI di `RecommendationsPage`**: wadah tab memakai `role="tablist"` +
+   `aria-label="Recommendation views"`; tiap tombol `role="tab"`,
+   `id="rec-tab-<id>"`, `aria-selected={activeTab === id}`,
+   `tabIndex={activeTab === id ? 0 : -1}`, dan `aria-controls` hanya pada tab
+   aktif (panel lain tidak dirender) menunjuk `rec-panel-<id>`; `onKeyDown`
+   memakai helper lalu `setActiveTab` + fokus ke tombol tujuan lewat array ref
+   (tanpa mengubah klik/tombol mouse). Tiap panel yang dirender dibungkus
+   `role="tabpanel"`, `id="rec-panel-<id>"`, `aria-labelledby="rec-tab-<id>"`,
+   dan `tabIndex={0}`; tiga label tab, jumlah, urutan, isi, dan perilaku
+   `AnimatePresence` tidak berubah. Tanpa live region baru, tanpa fokus paksa
+   saat mount, tetap bahasa Inggris (D2).
+3. **Test** baru `tests/recommendations-tabs.test.ts`: seluruh cabang helper
+   (kanan/kiri membungkus, Home/End, kunci lain, `count` 1, `count` rusak,
+   `current` negatif/di luar rentang/NaN) serta penjaga statis
+   `src/routes/recommendations.tsx` (`role="tablist"`, tiga `role="tab"`,
+   `aria-selected`, `tabIndex`, `aria-controls`/`aria-labelledby`, `tabpanel`,
+   helper dipanggil dari `onKeyDown`, tanpa `createServerFn`/`graphCall`/
+   RPC/migrasi baru). Test lama dan smoke tidak berubah (penjaga 2114 tetap).
 4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
-   `README.md` hanya bila baris fitur Gap Analysis berubah; `Roadmap.md` hanya
-   bila klaim berubah. Jangan menandai milestone selesai.
+   `README.md` hanya bila klaim fitur berubah; `Roadmap.md` hanya bila arah
+   berubah. Jangan menandai milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
-Indonesia pola `feat:`. Catatan mesin: sesi lain dapat membuat load ±8 di 4
-core sehingga smoke flaky; ulangi `npm run ci` utuh tanpa perubahan kode
-setelah load turun (pola PR #91/#95).
+Indonesia pola `feat:`/`fix:`. Catatan mesin: sesi lain dapat membuat load
+±8–10 di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link,
+`Failed to fetch`); ulangi `npm run ci` utuh tanpa perubahan kode setelah load
+turun (pola PR #91/#95/#111).
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
@@ -73,6 +70,38 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #111 — **Ringkasan hasil analisis di kartu "Shaky spots"
+  halaman Gap Analysis** — kartu **Shaky spots** (`/gaps`) sebelumnya langsung
+  menampilkan daftar panjang (atau empty state) tanpa satu kalimat yang
+  merangkum keempat kartu angka di atasnya, jadi pembaca layar tidak pernah
+  mendengar gambaran besarnya. Kini tepat di bawah judul **Shaky spots** dan di
+  atas daftar/empty state ada satu baris tenang
+  `text-sm text-muted-foreground mb-3`: `1 shaky spot: 1 fading`,
+  `4 shaky spots: 1 not started, 2 still learning and 1 fading`, atau
+  `3 shaky spots: 3 mix-ups`. Helper murni baru `gapSummaryLine` di
+  `src/lib/gaps.ts` hanya menjumlahkan nilai yang diberikan (aturan hitung
+  kartu tidak disalin), menyebut hanya jenis > 0 dengan urutan tetap
+  missing → partial → forgotten → misconceptions, memakai `countLabel` untuk
+  bentuk tunggal/jamak (`mix-up`/`mix-ups`; `not started`/`still learning`/
+  `fading` tetap), memakai ` and ` sebelum bagian terakhir, mengembalikan
+  `null` saat total 0 (empty state `No shaky spots right now — nice work!`
+  tetap satu-satunya pesan), dan memperlakukan nilai negatif/NaN/non-finite/
+  absen maupun masukan bukan objek sebagai 0 tanpa melempar. Halaman memanggil
+  helper sekali dari panjang keempat daftar yang sama dengan kartu angka,
+  tanpa tombol/animasi/live region/fokus paksa/panggilan baca-tulis tambahan,
+  bahasa Inggris (D2). Test `tests/gaps.test.ts` 11 → 17: total 0/absen/bukan
+  objek, tunggal/jamak, tiap jenis sendirian, kombinasi dua/tiga/empat jenis
+  dengan urutan dan ` and `, `mix-up`/`mix-ups`, nilai negatif/NaN/Infinity,
+  serta penjaga statis helper dipanggil tepat sekali dan dirender di bawah
+  heading serta di atas empty state tanpa `createServerFn`/`graphCall`/RPC/
+  migrasi. Smoke tidak berubah (penjaga 2114 tetap). `README.md` dan
+  `Roadmap.md` tidak diubah (tidak ada klaim berubah, milestone tidak ditandai
+  selesai); `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau
+  (1240/1240 unit = 1234 + 6; dua percobaan sebelumnya gagal hanya di cek smoke
+  berbeda — Sign out ter-detach dan skip-link `in main false` — saat mesin
+  bersama berload ~8–10 di 4 core, lalu diulang utuh tanpa perubahan kode dan
+  hijau penuh).
 
 - 2026-11-16: PR #110 — **Ringkasan jumlah hasil pencarian di panel Today** —
   kotak **Find a concept** (PR #107) memotong daftar di 8 hasil tanpa memberi

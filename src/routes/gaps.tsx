@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, BellOff, BookOpen, Clock, Brain, Target, RefreshCw, TrendingDown, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
-import { GAP_KINDS, conceptLabel, countLabel, priorityLabel, reviewSummary, snoozeLabel, stepTypeLabel } from '@/lib/gaps';
+import { GAP_KINDS, conceptLabel, countLabel, gapSummaryLine, priorityLabel, reviewSummary, snoozeLabel, stepTypeLabel } from '@/lib/gaps';
 import { snoozedReviews } from '@/lib/graph/spacing';
 import { focusAfterAnswer } from '@/lib/study';
 import { masterySourceLabel, retentionLine } from '@/lib/evidence/labels';
@@ -314,6 +314,16 @@ function GapsDashboard() {
   // rendered client-side after loading, so this never differs from SSR).
   const now = new Date();
 
+  // One calm line above the list, counted exactly like the summary cards.
+  const shakySummary = gaps
+    ? gapSummaryLine({
+        missing: gaps.missing.length,
+        partial: gaps.partial.length,
+        forgotten: gaps.forgotten.length,
+        misconceptions: gaps.misconceptions.length,
+      })
+    : null;
+
   const handleLearnerChange = (userId: string) => {
     if (userId) setSelectedLearnerId(userId);
   };
@@ -499,6 +509,10 @@ function GapsDashboard() {
                     <Brain className="text-primary" aria-hidden="true" />
                     Shaky spots
                   </h2>
+
+                  {shakySummary && (
+                    <p className="text-sm text-muted-foreground mb-3">{shakySummary}</p>
+                  )}
 
                   {gaps.summary.total === 0 ? (
                     <div className="text-center py-12">

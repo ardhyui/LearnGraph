@@ -12,6 +12,7 @@ import {
   countLabel,
   daysUntil,
   dueLabel,
+  gapSummaryLine,
   humanizeConceptId,
   learnFirstLabel,
   missingPrereqReason,
@@ -135,5 +136,72 @@ describe('pages use names, not raw concept ids', () => {
       assert.doesNotMatch(src, /missingPrerequisites\.slice\(0, 3\)\.join/, `${file} joins raw prerequisite ids`);
       assert.doesNotMatch(src, /Computed in/, `${file} shows debug timing`);
     }
+  });
+});
+
+describe('Shaky spots summary line', () => {
+  it('says nothing when there is nothing to summarize', () => {
+    assert.equal(gapSummaryLine({ missing: 0, partial: 0, forgotten: 0, misconceptions: 0 }), null);
+    assert.equal(gapSummaryLine({}), null);
+    assert.equal(gapSummaryLine(null), null);
+    assert.equal(gapSummaryLine(undefined), null);
+    // A cast that goes wrong at runtime must not throw.
+    assert.equal(gapSummaryLine('nope' as never), null);
+  });
+
+  it('uses the singular for one spot and the plural above one', () => {
+    assert.equal(gapSummaryLine({ missing: 0, partial: 0, forgotten: 1, misconceptions: 0 }), '1 shaky spot: 1 fading');
+    assert.equal(
+      gapSummaryLine({ missing: 0, partial: 0, forgotten: 2, misconceptions: 0 }),
+      '2 shaky spots: 2 fading',
+    );
+    assert.equal(gapSummaryLine({ missing: 1, partial: 0, forgotten: 0, misconceptions: 0 }), '1 shaky spot: 1 not started');
+  });
+
+  it('lists every non-zero kind in display order with commas and “and”', () => {
+    assert.equal(
+      gapSummaryLine({ missing: 1, partial: 2, forgotten: 1, misconceptions: 0 }),
+      '4 shaky spots: 1 not started, 2 still learning and 1 fading',
+    );
+    assert.equal(
+      gapSummaryLine({ missing: 1, partial: 1, forgotten: 1, misconceptions: 1 }),
+      '4 shaky spots: 1 not started, 1 still learning, 1 fading and 1 mix-up',
+    );
+    assert.equal(
+      gapSummaryLine({ missing: 1, partial: 2, forgotten: 3, misconceptions: 4 }),
+      '10 shaky spots: 1 not started, 2 still learning, 3 fading and 4 mix-ups',
+    );
+    // Two kinds get "and" without a comma.
+    assert.equal(gapSummaryLine({ missing: 1, forgotten: 2 }), '3 shaky spots: 1 not started and 2 fading');
+  });
+
+  it('uses the right singular/plural per kind', () => {
+    assert.equal(gapSummaryLine({ misconceptions: 1 }), '1 shaky spot: 1 mix-up');
+    assert.equal(gapSummaryLine({ misconceptions: 2 }), '2 shaky spots: 2 mix-ups');
+    assert.equal(gapSummaryLine({ partial: 3 }), '3 shaky spots: 3 still learning');
+    assert.equal(gapSummaryLine({ forgotten: 4 }), '4 shaky spots: 4 fading');
+    assert.equal(gapSummaryLine({ missing: 5 }), '5 shaky spots: 5 not started');
+  });
+
+  it('treats negative, NaN, infinite and absent counts as zero', () => {
+    assert.equal(
+      gapSummaryLine({ missing: -3, partial: Number.NaN, forgotten: Number.POSITIVE_INFINITY, misconceptions: 1 }),
+      '1 shaky spot: 1 mix-up',
+    );
+    assert.equal(gapSummaryLine({ missing: Number.NEGATIVE_INFINITY }), null);
+    assert.equal(gapSummaryLine({ partial: Number.NaN }), null);
+    assert.equal(gapSummaryLine({ forgotten: -1, misconceptions: -9 }), null);
+  });
+
+  it('is shown once between the heading and the list on Gap Analysis', () => {
+    const src = fs.readFileSync('src/routes/gaps.tsx', 'utf8');
+    assert.equal(src.match(/gapSummaryLine\(/g)?.length, 1, 'helper should be called exactly once');
+    const heading = src.indexOf('Shaky spots');
+    const rendered = src.indexOf('{shakySummary &&');
+    const emptyState = src.indexOf('No shaky spots right now');
+    assert.ok(heading >= 0 && rendered > heading, 'summary should come after the Shaky spots heading');
+    assert.ok(emptyState > rendered, 'summary should come before the empty state');
+    assert.match(src, /<p className="text-sm text-muted-foreground mb-3">\{shakySummary\}<\/p>/);
+    assert.doesNotMatch(src, /createServerFn|graphCall|rpc-schemas/);
   });
 });
