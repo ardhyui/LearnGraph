@@ -23,7 +23,7 @@ import {
   type StudyOutcome,
 } from '@/lib/study';
 import { evidenceMode, quizResultNotice } from '@/lib/evidence/labels';
-import { conceptSearchResults, searchQuery } from '@/lib/concept-search';
+import { conceptSearchResults, conceptSearchSummary, searchQuery } from '@/lib/concept-search';
 import { weekRecapLines, type WeekRecap } from '@/lib/evidence/week';
 import { streakLine, type LearningStreak } from '@/lib/evidence/streak';
 import type { LastLesson } from '@/lib/evidence/last-lesson';
@@ -950,8 +950,10 @@ const NOTICES: Record<StudyOutcome | ReviewOutcome | SnoozeOutcome, (name: strin
  * so a learner who knows the name can open its lesson without scrolling the
  * review and "Learn next" lists. Results are ordinary links (keyboard and
  * screen readers use them as such); a query under two characters hides the
- * list rather than reporting an error. Mounted per learner, so a query typed
- * for one learner never follows the next.
+ * list rather than reporting an error. While typing, a polite status line
+ * announces how many concepts matched and whether the list was cut short —
+ * screen readers hear nothing from the list itself changing. Mounted per
+ * learner, so a query typed for one learner never follows the next.
  */
 function ConceptSearch({ concepts }: { concepts: ConceptNode[] }) {
   const inputId = useId();
@@ -959,6 +961,7 @@ function ConceptSearch({ concepts }: { concepts: ConceptNode[] }) {
   const [query, setQuery] = useState('');
   const cleaned = searchQuery(query);
   const results = conceptSearchResults(concepts, query);
+  const summary = conceptSearchSummary(concepts, query);
   return (
     <section
       aria-labelledby={headingId}
@@ -981,6 +984,11 @@ function ConceptSearch({ concepts }: { concepts: ConceptNode[] }) {
         autoComplete="off"
         className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       />
+      {summary && (
+        <p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">
+          {summary}
+        </p>
+      )}
       {cleaned &&
         (results.length > 0 ? (
           <ul aria-label="Concept search results" className="mt-2 space-y-1">
