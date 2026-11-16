@@ -479,114 +479,120 @@ function RecommendationsPage() {
                         <p className="text-muted-foreground">No new concepts ready to learn right now.</p>
                       </motion.div>
                     ) : (
-                      zpd.recommendations.map((rec, idx) => (
-                        <motion.div
-                          key={rec.concept.conceptId}
-                          variants={itemVariants}
-                          whileHover={{ y: -2 }}
-                          className="glass-card p-5 hover:shadow-xl transition-all duration-300"
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className="text-3xl font-bold bg-gradient-to-br from-primary/20 to-purple-500/20 text-primary w-12 h-12 rounded-xl flex items-center justify-center">
-                              {idx + 1}
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2 flex-wrap">
-                                <h3 className="text-xl font-semibold text-foreground">{rec.concept.name}</h3>
-                                <span className={cn('px-2.5 py-0.5 rounded-lg text-xs font-medium', getDifficultyColor(rec.concept.difficulty.absolute))}>
-                                  Level {rec.concept.difficulty.absolute}
-                                </span>
-                                <span className="px-2.5 py-0.5 rounded-lg text-xs bg-muted text-muted-foreground">
-                                  {rec.concept.domain}
-                                </span>
+                      <motion.ol
+                        aria-label="Recommended concepts"
+                        variants={containerVariants}
+                        className="space-y-4"
+                      >
+                        {zpd.recommendations.map((rec, idx) => (
+                          <motion.li
+                            key={rec.concept.conceptId}
+                            variants={itemVariants}
+                            whileHover={{ y: -2 }}
+                            className="glass-card p-5 hover:shadow-xl transition-all duration-300"
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className="text-3xl font-bold bg-gradient-to-br from-primary/20 to-purple-500/20 text-primary w-12 h-12 rounded-xl flex items-center justify-center">
+                                {idx + 1}
                               </div>
-
-                              <p className="text-muted-foreground mb-4">{rec.concept.description}</p>
-
-                              {/* Metrics */}
-                              <div className="flex flex-wrap gap-4 mb-4 text-sm">
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50">
-                                  <Zap className={cn('w-4 h-4', getReadinessColor(rec.readinessScore))} />
-                                  <span className="text-foreground">Readiness: {Math.round(rec.readinessScore * 100)}%</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50">
-                                  <Clock className="w-4 h-4 text-muted-foreground" />
-                                  <span className="text-foreground">Est. time: {formatDuration(rec.estimatedMasteryTime)}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50">
-                                  <Brain className="w-4 h-4 text-purple-500" />
-                                  <span className="text-foreground">Profile match: {Math.round(rec.psychometricMatch * 100)}%</span>
-                                </div>
-                              </div>
-
-                              {/* Reasons */}
-                              {rec.reasons.length > 0 && (
-                                <div className="mb-4">
-                                  <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                                    Why this concept?
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                  <h3 className="text-xl font-semibold text-foreground">{rec.concept.name}</h3>
+                                  <span className={cn('px-2.5 py-0.5 rounded-lg text-xs font-medium', getDifficultyColor(rec.concept.difficulty.absolute))}>
+                                    Level {rec.concept.difficulty.absolute}
                                   </span>
-                                  <ul className="mt-2 space-y-1.5">
-                                    {rec.reasons.map((reason, i) => (
-                                      <li key={i} className="text-sm flex items-start gap-2 text-foreground">
-                                        <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                                        {reason}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {/* Prerequisites */}
-                              {rec.prerequisiteChain.length > 0 && (
-                                <div className="mb-4">
-                                  <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                                    Builds on
+                                  <span className="px-2.5 py-0.5 rounded-lg text-xs bg-muted text-muted-foreground">
+                                    {rec.concept.domain}
                                   </span>
-                                  <div className="mt-2 flex flex-wrap gap-1.5 items-center">
-                                    {rec.prerequisiteChain.map((prereq, i) => (
-                                      <span key={i} className="flex items-center gap-1.5">
-                                        {i > 0 && <span className="text-muted-foreground">→</span>}
-                                        <span className="px-2.5 py-1 bg-secondary rounded-lg text-sm text-foreground">
-                                          {prereq}
-                                        </span>
-                                      </span>
-                                    ))}
-                                    <span className="text-muted-foreground">→</span>
-                                    <span className="px-2.5 py-1 bg-primary/10 text-primary rounded-lg text-sm font-medium">
-                                      {rec.concept.name}
-                                    </span>
+                                </div>
+
+                                <p className="text-muted-foreground mb-4">{rec.concept.description}</p>
+
+                                {/* Metrics */}
+                                <div className="flex flex-wrap gap-4 mb-4 text-sm">
+                                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50">
+                                    <Zap className={cn('w-4 h-4', getReadinessColor(rec.readinessScore))} />
+                                    <span className="text-foreground">Readiness: {Math.round(rec.readinessScore * 100)}%</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50">
+                                    <Clock className="w-4 h-4 text-muted-foreground" />
+                                    <span className="text-foreground">Est. time: {formatDuration(rec.estimatedMasteryTime)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50">
+                                    <Brain className="w-4 h-4 text-purple-500" />
+                                    <span className="text-foreground">Profile match: {Math.round(rec.psychometricMatch * 100)}%</span>
                                   </div>
                                 </div>
-                              )}
 
-                              {/* Scaffolding Strategies */}
-                              <div>
-                                <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                                  Ways to learn it
-                                </span>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {rec.scaffoldingStrategies.map((strategy, i) => (
-                                    <motion.span
-                                      key={i}
-                                      whileHover={{ scale: 1.05 }}
-                                      className="px-3 py-1.5 bg-purple-500/10 rounded-full text-sm flex items-center gap-1.5 text-foreground cursor-default"
-                                      title={strategy.reason}
-                                    >
-                                      <span aria-hidden="true">{SCAFFOLDING_ICONS[strategy.type] || '📚'}</span>
-                                      <span className="capitalize">{strategy.type.replace('_', ' ')}</span>
-                                      {strategy.source && (
-                                        <span className="text-xs text-muted-foreground border-l border-purple-500/30 pl-1.5">
-                                          {SCAFFOLDING_SOURCE_LABELS[strategy.source]}
+                                {/* Reasons */}
+                                {rec.reasons.length > 0 && (
+                                  <div className="mb-4">
+                                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                                      Why this concept?
+                                    </span>
+                                    <ul className="mt-2 space-y-1.5">
+                                      {rec.reasons.map((reason, i) => (
+                                        <li key={i} className="text-sm flex items-start gap-2 text-foreground">
+                                          <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                          {reason}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {/* Prerequisites */}
+                                {rec.prerequisiteChain.length > 0 && (
+                                  <div className="mb-4">
+                                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                                      Builds on
+                                    </span>
+                                    <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                                      {rec.prerequisiteChain.map((prereq, i) => (
+                                        <span key={i} className="flex items-center gap-1.5">
+                                          {i > 0 && <span className="text-muted-foreground">→</span>}
+                                          <span className="px-2.5 py-1 bg-secondary rounded-lg text-sm text-foreground">
+                                            {prereq}
+                                          </span>
                                         </span>
-                                      )}
-                                    </motion.span>
-                                  ))}
+                                      ))}
+                                      <span className="text-muted-foreground">→</span>
+                                      <span className="px-2.5 py-1 bg-primary/10 text-primary rounded-lg text-sm font-medium">
+                                        {rec.concept.name}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Scaffolding Strategies */}
+                                <div>
+                                  <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                                    Ways to learn it
+                                  </span>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {rec.scaffoldingStrategies.map((strategy, i) => (
+                                      <motion.span
+                                        key={i}
+                                        whileHover={{ scale: 1.05 }}
+                                        className="px-3 py-1.5 bg-purple-500/10 rounded-full text-sm flex items-center gap-1.5 text-foreground cursor-default"
+                                        title={strategy.reason}
+                                      >
+                                        <span aria-hidden="true">{SCAFFOLDING_ICONS[strategy.type] || '📚'}</span>
+                                        <span className="capitalize">{strategy.type.replace('_', ' ')}</span>
+                                        {strategy.source && (
+                                          <span className="text-xs text-muted-foreground border-l border-purple-500/30 pl-1.5">
+                                            {SCAFFOLDING_SOURCE_LABELS[strategy.source]}
+                                          </span>
+                                        )}
+                                      </motion.span>
+                                    ))}
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        </motion.div>
-                      ))
+                          </motion.li>
+                        ))}
+                      </motion.ol>
                     )}
                   </motion.div>
                 )}

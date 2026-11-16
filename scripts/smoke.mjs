@@ -1140,6 +1140,15 @@ try {
       'recommendations: the universal worked example says it is always suggested',
       waysShown ? '' : 'no recommendation cards',
     );
+    // Screen readers hear the suggestion cards as one named list.
+    const recList = page.getByRole('list', { name: 'Recommended concepts' });
+    const recListShown = await recList.isVisible().catch(() => false);
+    const recItems = await recList.getByRole('listitem').count().catch(() => 0);
+    check(
+      recListShown && recItems > 0,
+      'recommendations: cards are a named list of recommendations',
+      `${recItems} item(s)`,
+    );
     // Alice Chen is an example learner with a stored visual learning style.
     await recSelect.selectOption({ label: 'Alice Chen' });
     const fromProfile = await page
