@@ -1,47 +1,51 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (fokus semantik daftar prasyarat/unlocks di panel detail `/graph`; siklus berikutnya: status terpilih tombol panjang & tata letak kuis di `/profile`)
+Terakhir diperbarui: 2026-11-17 (grup pilihan panjang & tata letak kuis di `/profile`; siklus berikutnya: fokus judul pelajaran setelah pindah konsep di `/learn/$conceptId`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **tombol pilihan panjang kuis dan tata letak kuis di
-`/profile`** — kandidat fitur (a); tanpa migrasi skema, dependensi, server
-function, RPC, atau method RPC baru. Konteks: di `src/routes/profile.tsx`
-sekitar baris 1183–1239 ada dua pasang tombol toggle di dalam kartu **Short
-questionnaires**:
+Poles aksesibilitas **fokus setelah berpindah konsep di halaman pelajaran
+`/learn/$conceptId`** — kandidat fitur (a); tanpa migrasi skema, dependensi,
+server function, RPC, atau method RPC baru. Konteks: `LessonPage` di
+`src/routes/learn.$conceptId.tsx` melayani rute parameter yang sama. Tautan
+**Next: <konsep>** di `<nav aria-label="Next step">` (sekitar baris 437–450)
+dan chip **Builds on** (sekitar baris 257–279) menavigasi ke `conceptId` lain.
+`useEffect` yang bergantung pada `load` (sekitar baris 81–87) mengosongkan
+`lesson`, sehingga seluruh `<article>` beserta tautan yang sedang fokus
+ter-unmount dan fokus jatuh ke `<body>`. Pemakai keyboard/pembaca layar harus
+men-Tab dari awal halaman; `RouteAnnouncer` hanya mengumumkan judul halaman,
+bukan memindahkan fokus.
 
-- **Quick** / **Full** mengubah `assessmentType`,
-- **Cards** / **All questions** mengubah `assessmentViewMode`.
+Rancangan (baca kode dulu: `load`, effect reset, `<article
+aria-labelledby="lesson-title">`, `<h1 id="lesson-title">`, `noticeRef`, dan
+`requestAnimationFrame` yang sudah ada di `finishQuiz`/`cancelQuiz`):
 
-Keempatnya `<button>` biasa tanpa `aria-pressed` dan wadahnya `<div>` tanpa
-nama, sehingga pembaca layar tidak tahu opsi mana yang sedang terpilih (pilihan
-hanya tampak dari warna) dan tidak tahu kedua tombol itu satu grup pilihan.
-Seluruh label teks, `onClick`, kelas visual, urutan, dan perilaku tetap sama.
-
-Rancangan (baca kode dulu: `assessmentType`/`assessmentViewMode`, kedua
-`<div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-xl">`,
-ikon `Zap`/`FileText`/`LayoutGrid`/`List`, dan blok penjelasan
-`assessmentType === 'quick' ? …` di bawahnya):
-
-1. Beri wadah pasangan pertama `role="group"` +
-   `aria-label="Quiz length"` dan wadah pasangan kedua `role="group"` +
-   `aria-label="Quiz layout"`; kelas wadah tidak berubah.
-2. Tiap tombol mendapat `aria-pressed={assessmentType === 'quick'}`,
-   `aria-pressed={assessmentType === 'full'}`,
-   `aria-pressed={assessmentViewMode === 'cards'}`,
-   `aria-pressed={assessmentViewMode === 'all'}`. Jangan menambah `role`
-   tombol lain, `aria-label` pengganti teks, atau perubahan `onClick`.
-3. Ikon dekoratif di keempat tombol diberi `aria-hidden="true"` (pola ikon
-   lain di halaman), tanpa mengubah ukuran/kelas atau teks tombol.
-4. **Test**: file baru `tests/profile-quiz-toggles.test.ts` (penjaga statis
-   `src/routes/profile.tsx`) — tepat dua `role="group"` dengan `aria-label`
-   yang disebut, tepat empat `aria-pressed` dengan ekspresi persis di atas,
-   label teks `Quick`/`Full`/`Cards`/`All questions` dan urutan tetap, kelas
-   wadah/tombol tetap, ikon keempat tombol `aria-hidden`, tidak ada
-   `aria-label` yang mengganti nama tombol, dan tidak ada `createServerFn`/
-   `graphCall`/`rpc-schemas`/migrasi baru di halaman. Tidak perlu cek smoke
-   baru (perubahan semantik saja); jumlah baris smoke tidak berubah sehingga
-   `tests/skip-link.test.ts` tidak disentuh.
+1. Beri `<h1 id="lesson-title">` `ref={lessonTitleRef}`, `tabIndex={-1}`, dan
+   tambahkan `focus:outline-none` pada kelasnya; teks, ukuran, warna, dan
+   posisi judul tidak berubah.
+2. Deteksi perpindahan konsep **setelah mount**: simpan `conceptId` sebelumnya
+   di ref (nilai awal `conceptId` saat mount, bukan `null` yang langsung
+   memicu fokus). Saat `lesson` baru sudah dirender dan `conceptId` berbeda
+   dari nilai ref, pindahkan fokus dengan
+   `requestAnimationFrame(() => lessonTitleRef.current?.focus())`, lalu
+   perbarui ref. Jangan memindahkan fokus saat mount pertama, saat learner
+   berganti, saat `load()` diulang (setelah kuis/laporan diri), atau saat
+   `quizOpen` berubah — `finishQuiz`/`cancelQuiz` tetap seperti sekarang.
+3. Jangan mengubah `Link`/`nav`, urutan tab, `article`, isi judul, atau
+   `ConceptQuiz`; tanpa live region baru dan tanpa fokus paksa pada elemen
+   lain.
+4. **Test**: file baru `tests/lesson-navigation-focus.test.ts` (penjaga statis)
+   — `lessonTitleRef` + `tabIndex={-1}` + `focus:outline-none` pada `h1`,
+   effect hanya memindahkan fokus ketika `lesson` ada dan `conceptId` berbeda
+   dari ref sebelumnya, urutan `requestAnimationFrame` → `lessonTitleRef
+   .current?.focus()`, tepat satu `.focus()` baru untuk judul (dua `.focus()`
+   lama di `finishQuiz`/`cancelQuiz` tetap), serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Bila memungkinkan,
+   tambah **satu cek smoke** setelah tautan **Next:** muncul di alur pelajaran:
+   klik tautan itu, tunggu `data-testid="lesson"` baru, lalu pastikan
+   `document.activeElement` adalah `h1#lesson-title` berisi nama konsep baru,
+   bukan `<body>`; bila smoke bertambah baris, perbarui penjaga jumlah baris
+   di `tests/skip-link.test.ts`.
 5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -59,14 +63,37 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Setelah
-   antrean review `/gaps`, panel detail `/graph`, dan toggle kuis `/profile`:
-   `/learn/$conceptId` (mis. urutan fokus setelah aksi lain), lalu sisa
-   `/profile` (mis. ringkasan statistik, label grup).
+   antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`, dan
+   fokus pindah konsep `/learn/$conceptId` (tugas berikutnya): sisa `/profile`
+   (mis. label grup dan semantik bar progres ringkasan statistik), lalu
+   halaman pelajar lain (`/recommendations` selain tab, `/admin/*` bukan
+   prioritas).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #118 — **Tombol panjang dan tata letak kuis di `/profile`
+  menjadi grup pilihan bernama** — dua pasang toggle di kartu **Short
+  questionnaires** sebelumnya `<button>` biasa di dalam `<div>` tanpa nama,
+  jadi pembaca layar tidak tahu opsi mana yang terpilih (hanya warna) dan
+  tidak tahu tiap pasangan satu grup pilihan. Kini wadah pertama
+  `<div role="group" aria-label="Quiz length">` dan kedua
+  `<div role="group" aria-label="Quiz layout">` dengan kelas
+  `flex items-center gap-2 bg-secondary/50 p-1 rounded-xl` yang sama; keempat
+  tombol memakai `aria-pressed` yang sudah ada (`assessmentType === 'quick'`/
+  `'full'`, `assessmentViewMode === 'cards'`/`'all'`), dan ikon dekoratif
+  `Zap`/`FileText`/`LayoutGrid`/`List` diberi `aria-hidden="true"` tanpa
+  mengubah kelas `w-4 h-4`. Label, `onClick`, kelas tombol, urutan, blok
+  penjelasan, dan ringkasan progres tidak berubah; tanpa `aria-label`
+  pengganti nama tombol, `role` tambahan, live region, atau pemindahan fokus;
+  UI bahasa Inggris (D2). Test baru `tests/profile-quiz-toggles.test.ts` (8
+  penjaga statis) dan entri log `docs/ROADMAP.md`. Tidak ada cek smoke baru
+  (perubahan semantik; toggle hanya tampil setelah mode assessment dibuka),
+  penjaga jumlah baris smoke tidak berubah. `README.md` dan `Roadmap.md` tidak
+  diubah. `npm run ci` hijau penuh (1297/1297 unit = 1289 + 8; smoke lulus
+  pada percobaan pertama).
 
 - 2026-11-17: PR #117 — **Prasyarat dan unlocks di panel detail Knowledge
   Graph menjadi daftar bernama** — panel detail konsep di `/graph` sebelumnya
