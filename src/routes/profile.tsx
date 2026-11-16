@@ -1182,9 +1182,14 @@ function ProfilePage() {
                 </div>
                 <div className="flex items-center gap-4 flex-wrap">
                   {/* Assessment Type Toggle */}
-                  <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-xl">
+                  <div
+                    role="group"
+                    aria-label="Quiz length"
+                    className="flex items-center gap-2 bg-secondary/50 p-1 rounded-xl"
+                  >
                     <button
                       onClick={() => setAssessmentType('quick')}
+                      aria-pressed={assessmentType === 'quick'}
                       className={cn(
                         'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
                         assessmentType === 'quick'
@@ -1192,11 +1197,12 @@ function ProfilePage() {
                           : 'hover:bg-secondary text-muted-foreground'
                       )}
                     >
-                      <Zap className="w-4 h-4" />
+                      <Zap className="w-4 h-4" aria-hidden="true" />
                       Quick
                     </button>
                     <button
                       onClick={() => setAssessmentType('full')}
+                      aria-pressed={assessmentType === 'full'}
                       className={cn(
                         'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
                         assessmentType === 'full'
@@ -1204,15 +1210,20 @@ function ProfilePage() {
                           : 'hover:bg-secondary text-muted-foreground'
                       )}
                     >
-                      <FileText className="w-4 h-4" />
+                      <FileText className="w-4 h-4" aria-hidden="true" />
                       Full
                     </button>
                   </div>
 
                   {/* View Mode Toggle */}
-                  <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-xl">
+                  <div
+                    role="group"
+                    aria-label="Quiz layout"
+                    className="flex items-center gap-2 bg-secondary/50 p-1 rounded-xl"
+                  >
                     <button
                       onClick={() => setAssessmentViewMode('cards')}
+                      aria-pressed={assessmentViewMode === 'cards'}
                       className={cn(
                         'px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
                         assessmentViewMode === 'cards'
@@ -1220,11 +1231,12 @@ function ProfilePage() {
                           : 'hover:bg-secondary text-muted-foreground'
                       )}
                     >
-                      <LayoutGrid className="w-4 h-4" />
+                      <LayoutGrid className="w-4 h-4" aria-hidden="true" />
                       Cards
                     </button>
                     <button
                       onClick={() => setAssessmentViewMode('all')}
+                      aria-pressed={assessmentViewMode === 'all'}
                       className={cn(
                         'px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
                         assessmentViewMode === 'all'
@@ -1232,7 +1244,7 @@ function ProfilePage() {
                           : 'hover:bg-secondary text-muted-foreground'
                       )}
                     >
-                      <List className="w-4 h-4" />
+                      <List className="w-4 h-4" aria-hidden="true" />
                       All questions
                     </button>
                   </div>
