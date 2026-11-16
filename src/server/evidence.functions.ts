@@ -113,13 +113,14 @@ export const getWeekRecap = createServerFn({ method: 'GET' })
   .validator(z.object({ learnerId: lookupId }))
   .handler(async ({ data, context }) => {
     const { db, service } = await services(context.userId);
-    const [{ weekRecap }, { learningStreak }] = await Promise.all([
+    const [{ weekRecap }, { learningStreak }, { lastLesson }] = await Promise.all([
       import('@/lib/evidence/week'),
       import('@/lib/evidence/streak'),
+      import('@/lib/evidence/last-lesson'),
     ]);
     const events = await service.listEvents(db, context.userId, { learnerId: data.learnerId });
     const now = new Date().toISOString();
-    return { ...weekRecap(events, now), streak: learningStreak(events, now) };
+    return { ...weekRecap(events, now), streak: learningStreak(events, now), lastLesson: lastLesson(events) };
   });
 
 /** The roadmap's measures of success for this workspace (all of its learners). */
