@@ -1,56 +1,54 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (ringkasan hasil analisis di kartu Shaky spots; siklus berikutnya: tab aksesibel di Recommendations)
+Terakhir diperbarui: 2026-11-17 (tab aksesibel di Recommendations; siklus berikutnya: fokus hasil kuis di halaman pelajaran)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **tab halaman Recommendations** (`/recommendations`) —
-kandidat fitur (a); tanpa migrasi skema, dependensi, server function, RPC,
-atau method RPC baru. Konteks: tiga tombol tab (**Recommendations**,
-**Ready / not yet**, **Learning Path**) saat ini `<motion.button>` biasa tanpa
-`role="tablist"`/`role="tab"`/`aria-selected`/`aria-controls`, jadi pembaca
-layar tidak tahu tab mana yang aktif dan pengguna keyboard tidak bisa
-berpindah tab dengan tombol panah sebagaimana pola tab WAI-ARIA. Panel yang
-berganti juga tidak diberi nama.
+Poles aksesibilitas **urutan fokus setelah kuis di halaman pelajaran**
+(`/learn/$conceptId`) — kandidat fitur (a); tanpa migrasi skema, dependensi,
+server function, RPC, atau method RPC baru. Konteks: `finishQuiz` di
+`src/routes/learn.$conceptId.tsx` menutup `ConceptQuiz` lalu mengisi `notice`
+(`<p role="status" aria-live="polite">` di atas `<article>`, sekitar baris 230),
+tetapi elemen yang sedang fokus (tombol **Done** di dalam kuis) ikut
+ter-unmount sehingga fokus jatuh ke `<body>`; pengguna keyboard/pembaca layar
+kehilangan posisi dan harus men-Tab dari awal halaman. Cancel sudah benar
+(`cancelQuiz` memfokuskan kembali tombol **Take the quick quiz** lewat
+`quizButtonRef` + `requestAnimationFrame`).
 
-Rancangan (baca kode dulu: `activeTab` + blok tab dan tiga panel di
-`src/routes/recommendations.tsx`; pola fokus/ref yang sudah ada di repo):
+Rancangan (baca kode dulu: state `notice`, `finishQuiz`, `cancelQuiz`, dan
+`<p role="status">` di `src/routes/learn.$conceptId.tsx`):
 
-1. **Helper murni** baru `src/lib/tabs.ts` (tanpa React/DOM/jam), mis.
-   `nextTabIndex(current: number, key: string, count: number): number | null`
-   untuk pola tab horizontal. Kunci perilaku:
-   - `count` yang bukan finite/≤ 0 (termasuk NaN/Infinity/negatif) → `null`;
-     `count` dibulatkan ke bawah lalu minimal 1;
-   - `current` bukan finite/negatif/di luar rentang dinormalkan dengan modulo
-     positif (mis. `-1` pada 3 tab → `2`, `5` → `2`), NaN/Infinity → `0`;
-   - `ArrowRight` → `(i + 1) % count`, `ArrowLeft` → `(i - 1 + count) % count`
-     (membungkus di ujung), `Home` → `0`, `End` → `count - 1`;
-   - kunci lain (termasuk `ArrowUp`/`ArrowDown`/`Enter`/`' '`/string kosong/
-     `null` saat cast runtime) → `null`, tanpa melempar.
-2. **UI di `RecommendationsPage`**: wadah tab memakai `role="tablist"` +
-   `aria-label="Recommendation views"`; tiap tombol `role="tab"`,
-   `id="rec-tab-<id>"`, `aria-selected={activeTab === id}`,
-   `tabIndex={activeTab === id ? 0 : -1}`, dan `aria-controls` hanya pada tab
-   aktif (panel lain tidak dirender) menunjuk `rec-panel-<id>`; `onKeyDown`
-   memakai helper lalu `setActiveTab` + fokus ke tombol tujuan lewat array ref
-   (tanpa mengubah klik/tombol mouse). Tiap panel yang dirender dibungkus
-   `role="tabpanel"`, `id="rec-panel-<id>"`, `aria-labelledby="rec-tab-<id>"`,
-   dan `tabIndex={0}`; tiga label tab, jumlah, urutan, isi, dan perilaku
-   `AnimatePresence` tidak berubah. Tanpa live region baru, tanpa fokus paksa
-   saat mount, tetap bahasa Inggris (D2).
-3. **Test** baru `tests/recommendations-tabs.test.ts`: seluruh cabang helper
-   (kanan/kiri membungkus, Home/End, kunci lain, `count` 1, `count` rusak,
-   `current` negatif/di luar rentang/NaN) serta penjaga statis
-   `src/routes/recommendations.tsx` (`role="tablist"`, tiga `role="tab"`,
-   `aria-selected`, `tabIndex`, `aria-controls`/`aria-labelledby`, `tabpanel`,
-   helper dipanggil dari `onKeyDown`, tanpa `createServerFn`/`graphCall`/
-   RPC/migrasi baru). Test lama dan smoke tidak berubah (penjaga 2114 tetap).
-4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+1. Tambah `noticeRef = useRef<HTMLParagraphElement>(null)`; pasang di `<p>` yang
+   sudah ada sebagai `ref={noticeRef}` + `tabIndex={-1}` + kelas
+   `focus:outline-none` (atau padanan repo) supaya fokus programatik tidak
+   memunculkan ring palsu. Teks, `role="status"`, `aria-live="polite"`, posisi,
+   dan kelas warna tidak berubah.
+2. Di `finishQuiz`, setelah `setNotice(...)` dan `await load()` (agar teks hasil
+   sudah ter-commit), pindahkan fokus dengan pola yang sama seperti
+   `cancelQuiz`: `requestAnimationFrame(() => noticeRef.current?.focus())`.
+   Berlaku untuk kuis lulus maupun gagal; jangan menambah fokus paksa saat
+   mount, saat learner/konsep berganti, saat `load()` dipanggil ulang, atau
+   pada `selfReport` (live region lama sudah mengumumkan).
+3. `cancelQuiz` tetap memfokuskan tombol kuis; `ConceptQuiz`, `quizResultNotice`,
+   alur jawab/`Done`, dan copy tidak berubah. Tetap bahasa Inggris (D2).
+4. **Test**: file baru `tests/lesson-focus.test.ts` berisi penjaga statis
+   `src/routes/learn.$conceptId.tsx` — `noticeRef` ada, `<p` status memakai
+   `ref={noticeRef}` dan `tabIndex={-1}`, `finishQuiz` memanggil
+   `noticeRef.current?.focus()` di dalam `requestAnimationFrame` setelah
+   `await load()`, `cancelQuiz` tetap memakai `quizButtonRef.current?.focus()`,
+   tidak ada `focus()` di effect mount, serta tanpa `createServerFn`/RPC/
+   migrasi baru. Tambah **satu cek smoke** di alur pelajaran yang sudah ada
+   (`scripts/smoke.mjs`, blok lesson setelah `closeQuiz`): setelah kuis ditutup,
+   `document.activeElement` adalah elemen `role="status"` yang memuat teks
+   hasil (mis. `passed`), bukan `<body>`; perbarui penjaga jumlah baris
+   `tests/skip-link.test.ts` 2114 → jumlah baru (hitung dengan
+   `trimEnd().split('\n').length`).
+5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md` hanya bila klaim fitur berubah; `Roadmap.md` hanya bila arah
    berubah. Jangan menandai milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
-Indonesia pola `feat:`/`fix:`. Catatan mesin: sesi lain dapat membuat load
+Indonesia pola `fix:`/`feat:`. Catatan mesin: sesi lain dapat membuat load
 ±8–10 di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link,
 `Failed to fetch`); ulangi `npm run ci` utuh tanpa perubahan kode setelah load
 turun (pola PR #91/#95/#111).
@@ -70,6 +68,22 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #— — **Tab halaman Recommendations bisa dipakai pembaca
+  layar dan keyboard** — tiga tombol tab (**Recommendations**,
+  **Ready / not yet**, **Learning Path**) di `/recommendations` sebelumnya
+  `<motion.button>` biasa tanpa peran tab WAI-ARIA, sehingga pembaca layar
+  tidak tahu tab aktif, panel tak punya nama, dan tombol panah tidak berfungsi.
+  Kini wadah `role="tablist"` + `aria-label="Recommendation views"`; tiap
+  tombol `role="tab"` dengan `id="rec-tab-<id>"`, `aria-selected`, `tabIndex`
+  roving, dan `aria-controls` hanya pada tab aktif; tiap panel `role="tabpanel"`,
+  `id="rec-panel-<id>"`, `aria-labelledby`, `tabIndex={0}`. Helper murni
+  `nextTabIndex` di `src/lib/tabs.ts` memetakan panah kiri/kanan dengan
+  pembungkusan, Home/End, dan `null` untuk kunci lain; `count`/`current` rusak
+  dinormalkan tanpa melempar. `onKeyDown` memindahkan seleksi dan fokus lewat
+  array ref. Test baru `tests/recommendations-tabs.test.ts` (16). Smoke tidak
+  berubah (penjaga 2114 tetap). `README.md` dan `Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau.
 
 - 2026-11-17: PR #111 — **Ringkasan hasil analisis di kartu "Shaky spots"
   halaman Gap Analysis** — kartu **Shaky spots** (`/gaps`) sebelumnya langsung
