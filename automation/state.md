@@ -1,78 +1,96 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (kartu penguasaan per subjek di PR #108; siklus berikutnya: "Continue your last lesson" di Today)
+Terakhir diperbarui: 2026-11-16 (tautan "Continue your last lesson" di PR #109; siklus berikutnya: ringkasan hasil pencarian di Today)
 
 ## Tugas berikutnya
 
-Fitur **"Continue your last lesson" di panel Today** (kandidat fitur (a) di
-daftar bawah; tanpa migrasi skema, dependensi, RPC, atau method RPC baru).
-Tujuan: pelajar yang sempat membuka/menyelesaikan pelajaran bisa langsung
-melanjutkan konsep terakhir tanpa mencari di daftar **Learn next** atau kotak
-pencarian.
+Poles aksesibilitas **ringkasan hasil pencarian konsep di panel Today**
+(kandidat fitur (a); tanpa migrasi skema, dependensi, server function, RPC,
+atau method RPC baru). Konteks: kotak **Find a concept** (PR #107) menampilkan
+maksimal 8 hasil tanpa memberi tahu berapa yang cocok atau bahwa daftarnya
+dipotong; pengguna pembaca layar yang mengetik tidak mendengar perubahan apa
+pun sampai daftar hasil berubah. Tujuan: satu baris tenang yang mengumumkan
+jumlah hasil dan pemotongan, terlihat dan terbaca.
 
-Catatan hasil probe kode: kind `lesson` di `LearningEventKind` **tidak pernah
-ditulis** oleh kode saat ini (`SELF_REPORT_KIND` memetakan `got-it`/`started`
-→ `study`; `/japanese` menulis source `japanese`), jadi jangan menunggu event
-`lesson`. Pakai event yang benar-benar ada.
+Rancangan (baca kode dulu: `src/lib/concept-search.ts` — `searchQuery`,
+`conceptSearchResults`; komponen `ConceptSearch` di
+`src/components/StudyToday.tsx`; `tests/concept-search.test.ts`):
 
-Rancangan (baca kode dulu: `src/components/StudyToday.tsx` — `load()` memanggil
-`getWeekRecap` dalam `Promise.all` dan menyimpannya sebagai `week`;
-`WeekRecapCard`; `src/server/evidence.functions.ts` bagian `getWeekRecap`;
-`src/lib/evidence/events.ts`; `src/lib/evidence/week.ts`; `src/lib/gaps.ts`
-bagian `conceptNameMap`; halaman `src/routes/learn.$conceptId.tsx`):
-
-1. **Helper murni** `src/lib/evidence/last-lesson.ts` (tanpa React/DB):
-   - `lastLesson(events)` → `{ conceptId, at } | null` dari event belajar
-     terbaru: hanya kind `study`/`quiz`/`practice`/`lesson`; `review`/
-     `snooze`/`unsnooze`/`tutor` diabaikan. Hanya source `app` (event
-     `source: 'japanese'` dilewati) supaya tautannya selalu sah ke
-     `/learn/$conceptId`.
-   - `conceptId` kosong dilewati; `createdAt` rusak/tidak bisa diparse
-     diabaikan tanpa melempar; tidak ada event → `null`.
-   - Urutan array tidak berpengaruh (bandingkan `Date.parse`); bila waktunya
-     seri, kemunculan terakhir dalam array menang; `at` = ISO asli event.
-2. **Server**: perluas `getWeekRecap` yang sudah ada — **bukan** server
-   function baru — dengan `lastLesson: lastLesson(events)` dari `listEvents`
-   yang sama; `authMiddleware`, validator `z.object({ learnerId: lookupId })`,
-   dan isolasi akun tidak berubah. Sesuaikan `tests/week-recap.test.ts` yang
-   mengunci bentuk balikan.
-3. **UI di `StudyToday.tsx`**: di bawah bar progres/`ConceptSearch` dan di
-   atas kartu **Your week**, hanya bila `week.lastLesson` ada **dan** konsep
-   itu masih ada di `current.concepts` (konsep terhapus → sembunyikan):
-   - satu baris tenang berbahasa Inggris (D2), mis. judul kecil **Continue
-     your last lesson** + `Link` ke `/learn/$conceptId` berisi nama konsep
-     dari `conceptNameMap(current.concepts)`, target sentuh ≥ 40 px dan
-     focus ring yang sudah dipakai tautan lain;
-   - tanpa tombol baru, tanpa animasi/fokus paksa, tanpa panggilan baca/tulis
-     tambahan (data ikut `load()` dan berganti bersama learner).
-4. **Test** `tests/last-lesson.test.ts` (node:test murni): kind yang dihitung
-   vs diabaikan, source `japanese`, event terbaru vs urutan array acak, seri,
-   `createdAt` rusak, `conceptId` kosong, kosong → `null`; penjaga statis
-   `getWeekRecap` memakai satu `listEvents` + helper, dan panel merender
-   `Link` ke `/learn/$conceptId` tanpa `createServerFn`/`graphCall`/RPC/
-   migrasi. Sesuaikan juga penjaga `tests/week-recap.test.ts`.
-5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+1. **Helper murni** di `src/lib/concept-search.ts` (tanpa React/DB), mis.
+   `conceptSearchSummary(concepts, query, limit = 8)` → `string | null`.
+   Kunci perilaku:
+   - query dibersihkan dengan `searchQuery`; kosong/pendek → `null` (tidak
+     ada pengumuman, daftar memang tersembunyi);
+   - total cocok 0 → `null`; baris `No concepts match “…”` yang sudah ada
+     tetap satu-satunya pesan;
+   - total 1 → `1 concept found`; total > 1 dan ≤ limit →
+     `<n> concepts found` (pilih satu susunan kata dan kunci di test);
+   - total > limit → `<limit> of <total> concepts shown`, jadi pemotongan
+     terlihat; `limit` ≤ 0 → `null` (tidak ada yang ditampilkan);
+   - id duplikat dihitung sekali, konsisten dengan `conceptSearchResults`;
+   - **jangan menyalin aturan bidang pencocokan**: berbagi satu jalur dengan
+     `conceptSearchResults` (mis. helper internal `rankedMatches` yang
+     dipakai keduanya) dan pastikan hasil pencarian lama tidak berubah.
+2. **UI di `ConceptSearch`**: tepat di bawah `<input>` dan di atas daftar
+   hasil, satu baris `<p role="status" aria-live="polite" className="mt-2
+   text-xs text-muted-foreground">` hanya bila helper mengembalikan string.
+   Tanpa tombol baru, animasi, fokus paksa, atau panggilan baca/tulis
+   tambahan; tetap bahasa Inggris (D2) dan ikut hilang saat learner berganti
+   lewat key `search-<id>` yang sudah ada.
+3. **Test** `tests/concept-search.test.ts` diperluas: cabang helper
+   (kosong/pendek, 0, 1, banyak, terpotong, `limit` 0/negatif, duplikat),
+   hasil `conceptSearchResults` tidak berubah, dan penjaga statis baris status
+   di panel (`role="status"`, `aria-live="polite"`, helper dipanggil) tanpa
+   `createServerFn`/`graphCall`/RPC/migrasi. Smoke tidak berubah (penjaga
+   2114 tetap).
+4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md` hanya bila baris fitur Today berubah; `Roadmap.md` hanya bila
    klaim berubah. Jangan menandai milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
-Indonesia pola `feat:`. Catatan dari siklus #107/#108: jangan memakai nilai id
-learner mentah sebagai `key` komponen di halaman yang juga memakai id itu
-sebagai key daftar lain (`search-<id>`); penjaga jumlah baris smoke tetap
-2114.
+Indonesia pola `feat:`. Catatan mesin: sesi lain dapat membuat load ±8 di 4
+core sehingga smoke flaky; ulangi `npm run ci` utuh tanpa perubahan kode
+setelah load turun (pola PR #91/#95).
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
 Tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis; baca
 kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. **Poles copy/aksesibilitas halaman pelajar** — satu halaman per sesi,
-   fokus pada label/urutan fokus/pesan kosong, bukan tugas test.
+1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
+   fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Contoh yang
+   belum diperiksa: `/recommendations` dan `/gaps` (kartu ringkasan, pesan
+   kosong, target sentuh).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-16: PR #109 — **Tautan "Continue your last lesson" di panel Today** —
+  pelajar yang sempat membuka atau mengerjakan sebuah konsep kini bisa langsung
+  melanjutkannya tanpa mencari di **Learn next** atau kotak pencarian: di bawah
+  bar progres/pencarian dan di atas kartu **Your week**, satu baris tenang
+  berjudul **Continue your last lesson** menautkan ke `/learn/$conceptId`
+  berisi nama konsep dari `conceptNameMap(current.concepts)`. Helper murni baru
+  `src/lib/evidence/last-lesson.ts` (`lastLesson`) membaca log
+  `learning_events`: hanya kind `study`/`quiz`/`practice`/`lesson` (`review`/
+  `snooze`/`unsnooze`/`tutor` diabaikan), hanya source `app` (`/japanese`
+  punya halaman sendiri), `conceptId` kosong dan `createdAt` rusak dilewati
+  tanpa melempar, urutan array tidak berpengaruh, waktu seri dimenangkan
+  kemunculan terakhir, dan `at` = ISO asli event. `getWeekRecap` diperluas —
+  bukan server function baru — dengan `lastLesson` dari satu kali `listEvents`
+  dan satu `now`; `authMiddleware`, validator
+  `z.object({ learnerId: lookupId })`, dan isolasi akun tidak berubah. Baris
+  disembunyikan bila konsepnya sudah tidak ada di akun, memakai `Link` biasa,
+  target sentuh 40 px, focus ring yang sama, tanpa tombol/animasi/fokus
+  paksa/panggilan tambahan. Test baru `tests/last-lesson.test.ts` (11) +
+  penyesuaian penjaga `tests/week-recap.test.ts` dan `tests/streak.test.ts`.
+  Smoke tidak berubah (penjaga 2114 tetap). `README.md` menyebut tautan ke
+  pelajaran terakhir di baris fitur Today; `Roadmap.md` tidak diubah dan tidak
+  ada milestone yang ditandai selesai. `npm run ci` hijau (1225/1225 unit =
+  1214 + 11; percobaan pertama gagal hanya di smoke saat mesin berload ±8 dari
+  sesi lain, lalu diulang utuh tanpa perubahan kode dan hijau).
 
 - 2026-11-16: PR #108 — **Kartu penguasaan per subjek di My Profile** — pelajar
   melihat subjek mana yang sudah dikuasai dan mana yang masih perlu dikerjakan
