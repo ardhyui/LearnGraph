@@ -26,6 +26,7 @@ import { evidenceMode, quizResultNotice } from '@/lib/evidence/labels';
 import { conceptSearchResults, searchQuery } from '@/lib/concept-search';
 import { weekRecapLines, type WeekRecap } from '@/lib/evidence/week';
 import { streakLine, type LearningStreak } from '@/lib/evidence/streak';
+import type { LastLesson } from '@/lib/evidence/last-lesson';
 import { getQuizOverview, getWeekRecap, recordStudyOutcome } from '@/server/evidence.functions';
 import { getContentOverview } from '@/server/content.functions';
 import {
@@ -87,8 +88,8 @@ interface TodayData {
   quizCounts: Record<string, number>;
   /** Minutes of lesson material per concept id (absent = no lesson yet). */
   lessonMinutes: Record<string, number>;
-  /** Reviews, passed quizzes and new concepts in the last seven days, plus the daily streak. */
-  week: WeekRecap & { streak: LearningStreak };
+  /** Reviews, passed quizzes, new concepts and the daily streak, plus the last lesson touched. */
+  week: WeekRecap & { streak: LearningStreak; lastLesson: LastLesson | null };
 }
 
 /** The quiz open in one of the lists (one at a time). */
@@ -640,6 +641,11 @@ export function StudyToday() {
         <ConceptSearch key={`search-${current.learnerId}`} concepts={current.concepts} />
       )}
 
+      {/* Continue the concept touched most recently, without searching for it. */}
+      {current && current.week.lastLesson && (
+        <ContinueLastLesson concepts={current.concepts} lastLesson={current.week.lastLesson} />
+      )}
+
       {/* Your week: what the last seven days added up to, from the event log. */}
       {current && <WeekRecapCard week={current.week} />}
 
@@ -996,6 +1002,42 @@ function ConceptSearch({ concepts }: { concepts: ConceptNode[] }) {
             No concepts match “{cleaned}”.
           </p>
         ))}
+    </section>
+  );
+}
+
+/**
+ * "Continue your last lesson": one quiet link back to the concept the learner
+ * touched most recently. Hidden when that concept is gone from the account, so
+ * the link never points at a lesson page that no longer exists.
+ */
+function ContinueLastLesson({
+  concepts,
+  lastLesson,
+}: {
+  concepts: ConceptNode[];
+  lastLesson: LastLesson;
+}) {
+  const headingId = useId();
+  const name = conceptNameMap(concepts).get(lastLesson.conceptId);
+  if (!name) return null;
+  return (
+    <section
+      aria-labelledby={headingId}
+      data-testid="continue-last-lesson"
+      className="mt-4 rounded-xl border border-border/50 bg-background/40 p-4"
+    >
+      <h3 id={headingId} className="text-sm font-semibold text-foreground">
+        Continue your last lesson
+      </h3>
+      <Link
+        to="/learn/$conceptId"
+        params={{ conceptId: lastLesson.conceptId }}
+        className="mt-1 inline-flex min-h-10 items-center gap-1.5 text-sm font-medium text-primary underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <BookOpen className="h-4 w-4" aria-hidden="true" />
+        {name}
+      </Link>
     </section>
   );
 }

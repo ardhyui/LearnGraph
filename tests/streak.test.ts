@@ -226,10 +226,10 @@ describe('wiring guards (static)', () => {
     assert.match(block, /const now = new Date\(\)\.toISOString\(\);/);
     assert.match(block, /weekRecap\(events, now\)/);
     assert.match(block, /learningStreak\(events, now\)/);
-    assert.match(
-      block,
-      /return \{ \.\.\.weekRecap\(events, now\), streak: learningStreak\(events, now\) \};/,
-    );
+    assert.match(block, /import\('@\/lib\/evidence\/last-lesson'\)/);
+    assert.match(block, /\.\.\.weekRecap\(events, now\),/);
+    assert.match(block, /streak: learningStreak\(events, now\),/);
+    assert.ok(block.includes('lastLesson: lastLesson(events)'));
   });
 
   it('shows the streak in the same card without a server function of its own', () => {
@@ -237,7 +237,11 @@ describe('wiring guards (static)', () => {
     assert.ok(
       today.includes("import { streakLine, type LearningStreak } from '@/lib/evidence/streak';"),
     );
-    assert.ok(today.includes('week: WeekRecap & { streak: LearningStreak };'));
+    assert.ok(
+      today.includes(
+        'week: WeekRecap & { streak: LearningStreak; lastLesson: LastLesson | null };',
+      ),
+    );
     assert.ok(today.includes('getWeekRecap({ data: { learnerId } })'));
     assert.match(today, /\{current && <WeekRecapCard week=\{current\.week\} \/>\}/);
     assert.match(today, />\s*Your week\s*</);

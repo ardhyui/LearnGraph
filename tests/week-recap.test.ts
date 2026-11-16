@@ -215,12 +215,15 @@ describe('wiring guards (static)', () => {
     assert.match(block, /middleware\(\[authMiddleware\]\)/);
     assert.match(block, /validator\(z\.object\(\{ learnerId: lookupId \}\)\)/);
     assert.match(block, /import\('@\/lib\/evidence\/week'\)/);
+    assert.match(block, /import\('@\/lib\/evidence\/last-lesson'\)/);
     assert.match(
       block,
       /service\.listEvents\(db, context\.userId, \{ learnerId: data\.learnerId \}\)/,
     );
+    assert.equal(block.match(/service\.listEvents\(/g)?.length, 1);
     assert.match(block, /const now = new Date\(\)\.toISOString\(\);/);
     assert.match(block, /weekRecap\(events, now\)/);
+    assert.ok(block.includes('lastLesson: lastLesson(events)'));
   });
 
   it('shows the recap in the Today panel without a server function of its own', () => {
