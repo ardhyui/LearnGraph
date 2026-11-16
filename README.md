@@ -39,7 +39,7 @@ LearnGraph is a **Graph RAG (Retrieval-Augmented Generation) knowledge base** th
 |---------|-------------|--------|
 | **Learner Profiles** | Store and manage learner data with full psychometric profiles | **Working** |
 | **Knowledge Graph** | Concepts, prerequisites, Bloom's taxonomy, difficulty ratings | **Working** |
-| **Progress Tracking** | Mastery levels (0-100%), misconceptions, review history | **Working** |
+| **Progress Tracking** | Mastery levels (0-100%), misconceptions, review history, and mastery by subject on My Profile | **Working** |
 | **Lessons in the app** | `/learn/<concept>`: explanation, worked example and practice in the learner's preferred order, then the quiz; Today plans a session that fits the time available and can search the learner's concepts by name | **Working** (mathematics example subject) |
 | **Tutor chat (bring your own key)** | Ask Claude on a lesson page with your own Anthropic API key; optional blind comparison with an answer that doesn't know you | **Working** (not yet tried against the live API here) |
 | **AI drafts for teachers** | Curriculum (text, PDF or Word .docx) and quiz questions drafted by Claude with your own key; every draft is approved, edited or discarded before saving | **Working** (off by default; not yet tried against the live API here) |
