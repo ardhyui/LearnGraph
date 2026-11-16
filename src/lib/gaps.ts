@@ -135,6 +135,46 @@ export function countLabel(n: number, singular: string, plural = `${singular}s`)
   return `${n} ${n === 1 ? singular : plural}`;
 }
 
+/** The four counts shown on the Gap Analysis summary cards. */
+export interface GapCounts {
+  missing: number;
+  partial: number;
+  forgotten: number;
+  misconceptions: number;
+}
+
+const GAP_SUMMARY_PARTS: readonly { key: keyof GapCounts; singular: string; plural: string }[] = [
+  { key: 'missing', singular: 'not started', plural: 'not started' },
+  { key: 'partial', singular: 'still learning', plural: 'still learning' },
+  { key: 'forgotten', singular: 'fading', plural: 'fading' },
+  { key: 'misconceptions', singular: 'mix-up', plural: 'mix-ups' },
+];
+
+/** Runtime-safe count: absent, negative, NaN and infinities count as zero. */
+function safeCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+/**
+ * One calm line above the "Shaky spots" list: "4 shaky spots: 1 not started,
+ * 2 still learning and 1 fading". Null when nothing is shaky (the empty state
+ * already says so) and for absent/odd input. Only the values already shown on
+ * the summary cards are counted, in display order.
+ */
+export function gapSummaryLine(counts: Partial<Record<keyof GapCounts, number>> | null | undefined): string | null {
+  if (!counts || typeof counts !== 'object') return null;
+  const parts: string[] = [];
+  let total = 0;
+  for (const part of GAP_SUMMARY_PARTS) {
+    const n = safeCount(counts[part.key]);
+    total += n;
+    if (n > 0) parts.push(countLabel(n, part.singular, part.plural));
+  }
+  if (total === 0) return null;
+  const detail = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return `${countLabel(total, 'shaky spot')}: ${detail}`;
+}
+
 /**
  * When a snoozed review comes back, in plain words: "Snoozed until later
  * today", "Snoozed until tomorrow", "Snoozed until Mon, Nov 9".
