@@ -1,45 +1,48 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (fokus kartu rekomendasi sebagai daftar berurut; siklus berikutnya: semantik daftar antrean review di `/gaps`)
+Terakhir diperbarui: 2026-11-17 (fokus semantik daftar antrean review di `/gaps`; siklus berikutnya: semantik daftar prasyarat/unlocks di panel detail `/graph`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **semantik daftar antrean review** di `/gaps` — kandidat
-fitur (a); tanpa migrasi skema, dependensi, server function, RPC, atau method
-RPC baru. Konteks: kartu **Reviews** di `src/routes/gaps.tsx` (sekitar baris
-651–675) merender `reviewQueue.queue.map` sebagai deretan `<motion.div>` di
-dalam `<div className="space-y-3 max-h-96 overflow-y-auto scrollbar-hide">`,
-sehingga pembaca layar tidak tahu item-item itu satu daftar review dan tidak
-bisa melompat per item, padahal tiap item membawa prioritas dan tanggal review.
-Empty state (`!reviewQueue || reviewQueue.queue.length === 0`, teks **Nothing
-due right now** / **Nothing to review yet**) dan daftar **Snoozed reviews**
-(<ul aria-label="Snoozed reviews">) tetap seperti sekarang.
+Poles aksesibilitas **semantik daftar prasyarat dan unlocks di panel detail
+Knowledge Graph** — kandidat fitur (a); tanpa migrasi skema, dependensi, server
+function, RPC, atau method RPC baru. Konteks: panel detail konsep di
+`src/routes/graph.tsx` (sekitar baris 785–817) merender **Prerequisites** dan
+**Unlocks** sebagai deretan `<span>` di dalam
+`<div className="flex flex-wrap gap-1.5">`, sehingga pembaca layar tidak tahu
+chip-chip itu satu daftar konsep dan tidak bisa melompat per item, padahal
+setiap chip adalah satu konsep prasyarat/penerus. Judul `h4` yang sudah memuat
+hitungan (`Prerequisites (n)` / `Unlocks (n)`) tetap seperti sekarang.
 
-Rancangan (baca kode dulu: `reviewSummary`, `priorityLabel`,
-`getPriorityColor`, `key={i}`, dan cek smoke gap di `scripts/smoke.mjs`):
+Rancangan (baca kode dulu: `selectedConcept.prerequisites`,
+`selectedConcept.dependents`, `key={i}`, kelas chip biru/hijau, dan
+`src/routes/graph.tsx` di sekitar kedua blok):
 
-1. Ganti wadah hasil peta menjadi `<ul aria-label="Reviews due" className=
-   "space-y-3 max-h-96 overflow-y-auto scrollbar-hide">` dan tiap item
-   `<motion.div>` hasil `map` menjadi `<motion.li>`. Pertahankan tepat
-   `key={i}`, `whileHover={{ scale: 1.01 }}`, seluruh `className` visual item,
-   isi (nama konsep via `conceptLabel`, `reviewSummary`, badge
-   `priorityLabel`), urutan, dan titik prioritas ber-`aria-hidden`.
-2. Pastikan hanya `<li>` yang menjadi anak langsung `<ul>` di markup (tanpa
-   `<div>` pembungkus tambahan di antaranya) dan tidak muncul penanda
-   bullet/nomor (Tailwind preflight sudah menghapus marker; jangan menambah
-   kelas visual baru tanpa perlu). Jangan memindahkan fokus, menambah live
-   region, atau mengubah empty state, kartu angka/ringkasan shaky spots,
-   banner overdue, atau daftar Snoozed.
-3. **Test**: file baru `tests/gaps-review-list.test.ts` (penjaga statis
-   `src/routes/gaps.tsx`) — `<ul` dengan `aria-label="Reviews due"` dan kelas
-   gulir yang sama, hasil `map` berupa `<motion.li>` langsung, `key`/
-   `whileHover`/kelas/isi tetap, empty state tidak ikut menjadi item daftar,
-   daftar Snoozed tetap `<ul aria-label="Snoozed reviews">`, dan tidak ada
-   `createServerFn`/`graphCall`/RPC/migrasi baru. Tambah **satu cek smoke** di
-   blok Gap Analysis yang sudah ada (`scripts/smoke.mjs`): daftar bernama
-   **Reviews due** terlihat dan jumlah `listitem`-nya > 0 saat ada review,
-   lalu perbarui penjaga jumlah baris `tests/skip-link.test.ts` sesuai jumlah
-   baru (hitung dengan `trimEnd().split('\n').length`).
+1. Ganti wadah `div` pada **Prerequisites** menjadi
+   `<ul aria-label="Prerequisites" className="flex flex-wrap gap-1.5">` dan
+   tiap `span` hasil `map` menjadi `<li key={i}>` yang membungkus `span` dengan
+   kelas visual persis sama (`bg-blue-500/10 text-blue-600 dark:text-blue-400
+   text-xs px-2.5 py-1 rounded-lg`). Lakukan hal yang sama untuk **Unlocks**:
+   `<ul aria-label="Unlocks" ...>` dan `<li key={i}>` berisi span kelas
+   `bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs px-2.5
+   py-1 rounded-lg`. Tidak ada `<div>` tambahan di antara `<ul>` dan `<li>`;
+   Tailwind preflight sudah menghapus marker sehingga tidak perlu kelas marker
+   baru. Isi (`{prereq}`, `{dep}`), urutan, `key={i}`, ikon `GitBranch`/`Clock`
+   ber-`aria-hidden`, teks judul + hitungan, dan seluruh bagian panel lain
+   (mastery, badge ZPD/overdue, ID konsep, `GraphDetailPanel`) tidak berubah.
+2. Jangan memindahkan fokus, menambah live region, atau mengubah pemilihan
+   node/ReactFlow; hanya semantik daftar di panel detail.
+3. **Test**: file baru `tests/graph-detail-lists.test.ts` (penjaga statis
+   `src/routes/graph.tsx`) — tepat satu `<ul aria-label="Prerequisites">` dan
+   satu `<ul aria-label="Unlocks">` dengan kelas flex-wrap yang sama, hasil
+   `map` langsung berupa `<li>` (tanpa pembungkus perantara), kedua chip `span`
+   mempertahankan kelas/isi/urutan, judul `h4` beserta hitungannya tetap,
+   kedua daftar berada di cabang `selectedConcept.prerequisites.length > 0` /
+   `dependents.length > 0`, dan tidak ada `createServerFn`/`graphCall`/
+   `rpc-schemas`/migrasi baru di halaman. Tidak perlu cek smoke baru: panel
+   detail baru muncul setelah node ReactFlow diklik, dan interaksi kanvas itu
+   flaky di mesin bersama — penjaga statis cukup. Tidak ada perubahan
+   `tests/skip-link.test.ts` karena jumlah baris smoke tidak berubah.
 4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -57,13 +60,35 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Setelah
-   antrean review `/gaps`: `/profile`, `/graph`, dan `/learn/$conceptId`
-   (mis. urutan fokus setelah aksi lain).
+   antrean review `/gaps` dan panel detail `/graph`: `/profile` dan
+   `/learn/$conceptId` (mis. urutan fokus setelah aksi lain).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #116 — **Antrean review di `/gaps` menjadi satu daftar
+  bernama** — kartu **Reviews** sebelumnya merender `reviewQueue.queue.map`
+  sebagai deretan `<motion.div>` di dalam `<div className="space-y-3 max-h-96
+  overflow-y-auto scrollbar-hide">`, sehingga pembaca layar tidak tahu item
+  itu satu daftar review dan tidak bisa melompat per item. Kini wadahnya
+  `<ul aria-label="Reviews due">` dengan kelas gulir/jarak vertikal yang sama,
+  dan tiap item `<motion.li>` dengan `key={i}`,
+  `whileHover={{ scale: 1.01 }}`, serta seluruh kelas visual, isi (nama konsep
+  via `conceptLabel`, `reviewSummary`, badge `priorityLabel`), urutan, dan
+  titik prioritas ber-`aria-hidden` tetap. Tidak ada `<div>` perantara antara
+  `<ul>` dan `<li>`; tanpa kelas marker baru (Tailwind preflight sudah
+  menghapus penanda). Empty state **Nothing due right now** / **Nothing to
+  review yet** tetap di cabangnya sendiri dan bukan item daftar, daftar
+  **Snoozed reviews** tetap `<ul aria-label="Snoozed reviews">`, dan banner
+  overdue, kartu angka/ringkasan shaky spots, copy, fokus, serta live region
+  tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/gaps-review-list.test.ts` (8 penjaga statis) dan satu cek smoke
+  memastikan daftar **Reviews due** terlihat dengan `listitem` > 0; penjaga
+  jumlah baris smoke 2134 → 2142. `README.md` dan `Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau (1278/1278 unit =
+  1270 + 8; smoke lulus pada percobaan pertama).
 
 - 2026-11-17: PR #115 — **Kartu rekomendasi di `/recommendations` menjadi
   satu daftar berurut bernama** — kartu hasil `zpd.recommendations.map`
