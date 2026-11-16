@@ -1,72 +1,63 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (kebijakan baru: tanpa PR test-only; siklus berikutnya: server MCP — fitur M4)
+Terakhir diperbarui: 2026-11-16 (server MCP selesai di PR #103; siklus berikutnya: kartu rekap mingguan "Your week" di Today)
 
 ## Tugas berikutnya
 
-Fitur **M4: server MCP baca-saja** (Roadmap `Roadmap.md` baris "Server MCP
-belum dibuat"). Tujuan: asisten AI mana pun yang mendukung Model Context
-Protocol (mis. Claude Desktop) bisa memakai konteks belajar pelajar lewat
-endpoint MCP yang memakai **API key yang sudah ada** (`lg_…`, hashing
-SHA-256, 60 permintaan/menit, bisa dicabut). Tanpa dependensi baru, tanpa
-migrasi skema, tanpa mengubah API v1.
+Fitur **kartu rekap mingguan "Your week" di panel Today** (kandidat (b),
+mendukung ukuran "Kembali belajar" di `Roadmap.md`). Tujuan: pelajar melihat
+apa yang sudah dikerjakan tujuh hari terakhir tanpa membuka halaman lain:
+review selesai, kuis lulus, dan konsep baru yang mulai dipelajari. Tanpa
+migrasi skema, tanpa dependensi, memakai log `learning_events` yang sudah ada.
 
-Rancangan:
+Rancangan (baca kode dulu dan sesuaikan bila ada yang lebih sederhana):
 
-1. **Endpoint** `POST /api/mcp` (route baru `src/routes/api/mcp.ts`, pola
-   `src/routes/api/v1/context.ts`): JSON-RPC 2.0 "Streamable HTTP" —
-   balas `application/json`, `cache-control: no-store`. `GET` → 405
-   dengan `Allow: POST` (tanpa stream SSE; dokumentasikan).
-   Autentikasi `Authorization: Bearer lg_…` memakai ulang helper yang ada
-   di `src/lib/api/v1.ts`/`src/lib/api-keys.ts` (`bearerKey`,
-   `allowApiRequest`, `hashApiKey`, `verifyApiKey`) — ekspor/refactor
-   kecil bila perlu, jangan duplikasi logika.
-2. **Modul protokol murni** `src/lib/mcp/protocol.ts` (tanpa DB/React):
-   - `initialize` → `{ protocolVersion, capabilities: { tools: {} },
-     serverInfo: { name: 'learngraph', version } }`; jika klien meminta
-     versi yang didukung (mis. `2025-06-18` atau `2025-03-26`) pakai itu,
-     selain itu balas versi terbaru yang didukung.
-   - `notifications/initialized` (dan notifikasi lain) → tanpa body (202).
-   - `ping` → `{}`.
-   - `tools/list` → dua alat:
-     - `list_learners` — argumen kosong; hasil = daftar pelajar akun.
-     - `get_tutor_context` — argumen `{ learner?: string, concept?: string,
-       query?: string (≤1000) }`; hasil = teks brief tutor.
-   - `tools/call` → jalankan handler; hasil MCP
-     `{ content: [{ type: 'text', text }] }` (+ `structuredContent` bila
-     mudah: `queryType`, `tokens`). Alat tak dikenal → JSON-RPC error
-     `-32602`; method tak dikenal → `-32601`; JSON rusak → `-32700`;
-     request tak sah → `-32600`. Batch boleh ditolak `-32600`
-     (didokumentasikan di README/komentar).
-3. **Handler alat** `src/lib/mcp/tools.ts` (server-only): pakai ulang
-   logika `apiLearners`/`apiContext` — sebaiknya ekstrak fungsi inti dari
-   `src/lib/api/v1.ts` (mis. `learnersPayload(owner)`,
-   `contextPayload(owner, {learner, concept, query})`) sehingga REST dan
-   MCP memakai satu sumber; respons REST tidak boleh berubah.
-4. **Test**:
-   - `tests/mcp-protocol.test.ts` (murni): initialize (versi didukung &
-     tak dikenal), notifikasi → 202/tanpa body, ping, tools/list (dua
-     alat + skema input), tools/call sukses/alat tak dikenal/argumen
-     salah, JSON rusak, method tak dikenal, batch ditolak.
-   - Smoke (blok API v1 di `scripts/smoke.mjs`): dengan key yang dibuat
-     di cek yang sama — `initialize` 200 + `serverInfo.name`, `tools/list`
-     memuat dua alat, `tools/call get_tutor_context` mengembalikan teks
-     yang dimulai "You are tutoring one learner", tanpa key 401. Jangan
-     menambah cek yang flaky (cukup `fetch` tanpa browser).
-5. **Dokumentasi**: `Roadmap.md` M4 — tandai bagian "Server MCP" selesai
-   (jangan menandai milestone M4 selesai); `docs/ROADMAP.md` — tambah
-   entri log bertanggal; sebut endpoint di `README.md` bagian API
-   baca-saja bila ada.
+1. **Helper murni** `src/lib/evidence/week.ts` (tanpa DB/React), fungsi
+   `weekRecap(events: readonly LearningEvent[], now: string | Date)` →
+   `{ reviews: number; quizzesPassed: number; newConcepts: number; active: boolean }`.
+   Jendela 7 hari: `createdAt` yang bisa diparse dan `now - 7 hari <= createdAt <= now`;
+   timestamp rusak/masa depan diabaikan (jangan melempar). `reviews` = jumlah
+   event `kind === 'review'` (semua review yang tercatat selesai); `quizzesPassed`
+   = `kind === 'quiz' && outcome === 'passed'`; `newConcepts` = jumlah konsep
+   berbeda yang **event pertamanya** (kind apa pun, urutan `listEvents` sudah
+   lama→baru) jatuh di dalam jendela, sehingga konsep yang sudah pernah
+   disentuh sebelum jendela tidak dihitung baru. `active` = salah satu > 0.
+   Batas tepat 7 hari (termasuk) dan 7 hari − 1 ms dikunci test; urutan array
+   tidak boleh mengubah hasil.
+2. **Server function** `getWeekRecap` di `src/server/evidence.functions.ts`
+   (pola `getLearningStats`: `createServerFn({ method: 'GET' })`,
+   `authMiddleware`, validator `z.object({ learnerId: lookupId })`), memanggil
+   `service.listEvents(db, context.userId, { learnerId })` lalu helper di atas
+   dengan `new Date().toISOString()`. Tidak ada RPC/tabel/migrasi baru; data
+   selalu terikat akun dan learner yang diminta.
+3. **UI** di `src/components/StudyToday.tsx`: kartu kecil di bawah bar progres
+   (sebelum bagian "Review now"/daftar), `<section aria-labelledby>` dengan
+   judul **Your week** dan tiga baris ringkas (mis. `3 reviews completed`,
+   `1 quiz passed`, `2 new concepts`; bentuk tunggal/jamak benar). Saat
+   `active === false`, tampilkan copy sopan "Nothing yet this week — your first
+   review will show up here." tanpa angka nol yang berisik. Muat di
+   `Promise.all` milik `load()` sehingga ikut berganti saat learner berganti
+   (jangan tampilkan rekap learner lain saat data baru dimuat: pakai
+   `data.learnerId` yang sudah ada). Bahasa Inggris (D2), aksesibel (heading,
+   teks biasa tanpa warna saja), tanpa tombol/tindakan.
+4. **Test** `tests/week-recap.test.ts`: helper (jendela dua sisi, timestamp
+   rusak, event sebelum jendela, konsep baru vs lama, duplikat konsep, urutan
+   acak, kosong, semua jenis event, bentuk tunggal/jamak bila helper
+   menyediakan copy) + penjaga statis (server function memakai `listEvents`
+   dengan `learnerId`, komponen memanggil `getWeekRecap` dan merender
+   "Your week", tanpa server function baru di komponen). Bila mudah, satu
+   cek smoke di panel Today: setelah alur kuis/review smoke yang sudah ada,
+   "Your week" terlihat dan minimal satu angka > 0 — hanya bila tidak flaky.
+5. **Dokumentasi**: `docs/ROADMAP.md` — tambah entri log bertanggal di akhir;
+   `Roadmap.md` hanya bila ada klaim/ukuran yang berubah (jangan menandai
+   milestone selesai). `README.md` hanya bila perlu.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
-Indonesia pola `feat:`. Setelah merge, tulis "Tugas berikutnya" untuk
-sesi berikutnya — kandidat (pilih satu, spekkan dengan membaca kode dulu):
-(a) **MCP resources** (`resources/list`/`resources/read` untuk ringkasan
-pelajar & konsep yang dipelajari — lanjutan M4), atau (b) **kartu rekap
-mingguan di panel Today** dari `learning_events` (review selesai, kuis
-lulus, konsep baru 7 hari terakhir; tanpa skema baru, mendukung ukuran
-"Kembali belajar" di `Roadmap.md`), atau (c) item roadmap lain yang
-benar-benar terbuka. Bukan tugas test.
+Indonesia pola `feat:`. Setelah merge, tulis "Tugas berikutnya" berikutnya —
+kandidat: **MCP resources** (`resources/list`/`resources/read` untuk ringkasan
+pelajar dan konsep, lanjutan M4), **streak harian** dari `learning_events`,
+**pencarian konsep** dengan `searchConcepts`, atau **ringkasan pelajaran
+terakhir** di Today. Bukan tugas test.
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
@@ -76,22 +67,40 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 1. **MCP resources** — `resources/list` + `resources/read` di server MCP
    (ringkasan pelajar: penguasaan per konsep, review jatuh tempo; konsep:
    tujuan/materi ringkas). Lanjutan M4.
-2. **Kartu rekap mingguan ("Your week") di panel Today** — dari
-   `learning_events` 7 hari terakhir: review selesai, kuis lulus, konsep
-   baru dipelajari; kosongkan dengan sopan bila belum ada data.
-   Mendukung ukuran "Kembali belajar" di `Roadmap.md`.
-3. **Streak harian** — jumlah hari berturut-turut dengan aktivitas
-   (dari `learning_events`), tampil kecil di Today; tanpa tabel baru.
-4. **Pencarian konsep untuk pelajar** — kotak "Find a concept" di
+2. **Streak harian** — jumlah hari berturut-turut dengan aktivitas (dari
+   `learning_events`), tampil kecil di Today; tanpa tabel baru.
+3. **Pencarian konsep untuk pelajar** — kotak "Find a concept" di
    Dashboard/Today memakai `searchConcepts` engine yang sudah ada, hasil
    menaut ke `/learn/$conceptId`; aksesibel (label, daftar hasil, kosong).
-5. **Ringkasan pelajaran terakhir di Today** — "lanjutkan pelajaran
+4. **Ringkasan pelajaran terakhir di Today** — "lanjutkan pelajaran
    terakhir" dari event `lesson` + halaman `/learn/...`; tautkan langsung.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-16: PR #103 — **Server MCP baca-saja (M4)** — `POST /api/mcp`
+  berbicara JSON-RPC 2.0 "Streamable HTTP" sebagai `application/json`
+  (`cache-control: no-store`, `GET` 405 + `Allow: POST`, tanpa SSE) memakai
+  API key `lg_…` yang sudah ada lewat `authenticateApiRequest`; protokol murni
+  `src/lib/mcp/protocol.ts` (initialize `2025-06-18`/`2025-03-26`, versi asing
+  → terbaru, ping, notifikasi 202 tanpa body, `tools/list` dua alat, dan
+  `tools/call` dengan galat `-32602`/`-32601`/`-32700`/`-32600`; batch
+  ditolak). `src/lib/mcp/tools.ts` memakai ulang `learnersPayload`/
+  `contextPayload` yang diekstrak dari `src/lib/api/v1.ts` sehingga REST tak
+  berubah dan MCP tak bisa berbeda; galat domain (learner/konsep tidak ada)
+  menjadi hasil `isError` alat. Route `src/routes/api/mcp.ts` + dynamic import
+  server-only; tanpa dependensi/migrasi/RPC. Test baru: `tests/mcp-protocol.test.ts`
+  (19, cabang protokol + penjaga wiring) dan `tests/mcp-api.test.ts` (9, handler
+  di PGlite: 401 tanpa key, key dicabut seketika, isolasi akun, bentuk REST,
+  brief default, 405, tabel tak berubah); smoke menambah cek MCP memakai key
+  yang sama (initialize + serverInfo.name, tools/list, tools/call brief,
+  tanpa key 401, GET 405). Penjaga jumlah baris smoke di
+  `tests/skip-link.test.ts` diperbarui 2057 → 2103 karena smoke bertambah.
+  `Roadmap.md` (bagian "Server MCP" selesai; milestone M4 tetap tidak
+  ditandai selesai), `README.md`, dan entri log `docs/ROADMAP.md` diperbarui.
+  `npm run ci` hijau.
 
 - 2026-11-16: **Kebijakan loop diperbaiki** — PR **test-only dilarang**;
   sesi #55–#101 sempat menghasilkan puluhan PR "test: kunci …" setelah

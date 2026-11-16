@@ -151,7 +151,7 @@ Bagian tanpa biaya LLM:
 - [x] Deteksi jenis pertanyaan dan template prompt. Enam jenis (explain, practice, stuck, review, next, general), Inggris dan Indonesia.
 - [x] Domain sensitif tidak pernah masuk konteks (daftar tolak dengan test). Konteks dibangun dari allow-list (tanpa skor mentah); test memeriksa 12 domain sensitif dan label-labelnya.
 - [x] Tombol "Salin konteks untuk AI tutor", dengan isi yang bisa dilihat sebelum disalin. Panel "Ask an AI tutor" di halaman pelajaran.
-- [x] Antarmuka baca untuk LLM eksternal: API key per akun atau server MCP. Saat ini belum ada API publik, padahal tesis produknya adalah "makes any LLM smarter". Dibuat sebagai API baca-saja dengan API key per akun: `GET /api/v1/learners` dan `GET /api/v1/context` (hash SHA-256 saja yang disimpan, 60 permintaan/menit per key, bisa dicabut). Server MCP belum dibuat.
+- [x] Antarmuka baca untuk LLM eksternal: API key per akun atau server MCP. Saat ini belum ada API publik, padahal tesis produknya adalah "makes any LLM smarter". Dibuat sebagai API baca-saja dengan API key per akun: `GET /api/v1/learners` dan `GET /api/v1/context` (hash SHA-256 saja yang disimpan, 60 permintaan/menit per key, bisa dicabut). Server MCP baca-saja ada di `POST /api/mcp`: JSON-RPC 2.0 dengan `initialize`, `ping`, `tools/list`, dan `tools/call` (`list_learners`, `get_tutor_context`) memakai key yang sama, balasan JSON tanpa SSE, batch ditolak.
 
 Bagian 🔒 (keputusan D3):
 
@@ -166,7 +166,7 @@ Bagian 🔒 (keputusan D3):
 **Catatan implementasi (perlu ditinjau pemilik):**
 
 - Daftar 12 domain sensitif di `src/lib/tutor/context.ts` adalah usulan sementara sampai keputusan D4. Konteks memang tidak pernah membaca skor psikometrik mentah; daftar itu hanya jaring pengaman untuk test.
-- Antarmuka baca untuk LLM eksternal dibuat sebagai API key baca-saja per akun, sesuai item roadmap. Ini permukaan publik baru; batas lajunya per instance (bukan global di serverless). Bila tidak diinginkan, cukup hapus kedua route `src/routes/api/v1/`.
+- Antarmuka baca untuk LLM eksternal dibuat sebagai API key baca-saja per akun, sesuai item roadmap. Ini permukaan publik baru; batas lajunya per instance (bukan global di serverless). Bila tidak diinginkan, cukup hapus route `src/routes/api/v1/` dan `src/routes/api/mcp.ts`.
 - Tes fungsional Fase 7 baru bisa diuji dengan LLM sungguhan (🔒 D3). Yang sudah teruji: brief memuat riwayat dan kesulitan pelajar.
 - Chat tutor bawaan dan pembandingnya belum pernah dijalankan ke model sungguhan; test memakai klien tiruan karena tidak ada API key di lingkungan ini.
 

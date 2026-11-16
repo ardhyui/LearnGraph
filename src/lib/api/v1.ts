@@ -6,6 +6,8 @@
  *
  * Authenticated with `Authorization: Bearer lg_…` (see src/lib/api-keys.ts),
  * scoped to the key's account, read-only, 60 requests a minute per key.
+ * The same payload builders (`learnersPayload`, `contextPayload`) back the MCP
+ * server at `POST /api/mcp` (src/lib/mcp/), so REST and MCP stay in sync.
  * Server-only.
  */
 import { allowApiRequest, bearerKey, hashApiKey, verifyApiKey } from '../api-keys.ts';
@@ -18,8 +20,18 @@ const json = (status: number, body: unknown) =>
 
 const PARAM_MAX = 128;
 
+/** A request the caller can fix (shown as a JSON error, not logged as a server error). */
+export class ApiRequestError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+  }
+}
+
 /** The key's account, or the error response to send. */
-async function authenticate(request: Request): Promise<{ owner: string } | Response> {
+export async function authenticateApiRequest(request: Request): Promise<{ owner: string } | Response> {
   const key = bearerKey(request);
   if (!key) {
     return new Response(JSON.stringify({ error: 'Send an API key: Authorization: Bearer lg_…' }), {
@@ -39,15 +51,74 @@ async function graphFor(owner: string) {
   return graphForOwner(owner);
 }
 
+export interface LearnersPayload {
+  learners: Array<{ id: string; name: string; example: boolean }>;
+}
+
+/** The account's learners, as both `/api/v1/learners` and MCP `list_learners` return them. */
+export async function learnersPayload(owner: string): Promise<LearnersPayload> {
+  const graph = await graphFor(owner);
+  const learners = await graph.listLearnerProfiles();
+  return {
+    learners: learners.map((l) => ({ id: l.userId, name: l.name ?? l.userId, example: l.userId.startsWith('demo-') })),
+  };
+}
+
+export interface ContextQuery {
+  learner?: string | null;
+  concept?: string | null;
+  query?: string | null;
+}
+
+export interface ContextPayload {
+  learner: string;
+  concept: string | null;
+  queryType: string;
+  tokens: number;
+  context: string;
+}
+
+/**
+ * The tutor brief for one request, shared by `/api/v1/context` and MCP
+ * `get_tutor_context`. Throws `ApiRequestError` for anything the caller can fix.
+ */
+export async function contextPayload(owner: string, input: ContextQuery): Promise<ContextPayload> {
+  const learnerParam = input.learner?.trim() || null;
+  const conceptParam = input.concept?.trim() || null;
+  const query = input.query?.slice(0, 1000) ?? null;
+  if ((learnerParam?.length ?? 0) > PARAM_MAX || (conceptParam?.length ?? 0) > 200) {
+    throw new ApiRequestError(400, 'learner or concept is too long.');
+  }
+  const graph = await graphFor(owner);
+  // Default learner: the account's own (not an example learner), else the first.
+  let learnerId = learnerParam;
+  if (!learnerId) {
+    const learners = await graph.listLearnerProfiles();
+    learnerId = (learners.find((l) => !l.userId.startsWith('demo-')) ?? learners[0])?.userId ?? null;
+    if (!learnerId) throw new ApiRequestError(404, 'This account has no learners yet.');
+  }
+  // A concept can be named by id or by name (what an assistant usually knows).
+  let conceptId: string | null = null;
+  if (conceptParam) {
+    const wanted = conceptParam.toLowerCase();
+    const concepts = await graph.listConcepts();
+    conceptId =
+      concepts.find((c) => c.conceptId === conceptParam)?.conceptId ??
+      concepts.find((c) => c.name.toLowerCase() === wanted)?.conceptId ??
+      null;
+    if (!conceptId) throw new ApiRequestError(404, `No concept "${conceptParam}" in this account.`);
+  }
+  const { getRAGContext } = await import('../tutor/service.ts');
+  const ctx = await getRAGContext(graph, { learnerId, conceptId, query });
+  if (!ctx) throw new ApiRequestError(404, `No learner "${learnerId}" in this account.`);
+  return { learner: learnerId, concept: conceptId, queryType: ctx.queryType, tokens: ctx.tokens, context: ctx.text };
+}
+
 export async function apiLearners(request: Request): Promise<Response> {
   try {
-    const auth = await authenticate(request);
+    const auth = await authenticateApiRequest(request);
     if (auth instanceof Response) return auth;
-    const graph = await graphFor(auth.owner);
-    const learners = await graph.listLearnerProfiles();
-    return json(200, {
-      learners: learners.map((l) => ({ id: l.userId, name: l.name ?? l.userId, example: l.userId.startsWith('demo-') })),
-    });
+    return json(200, await learnersPayload(auth.owner));
   } catch (err) {
     console.error('[api/v1/learners]', err);
     return json(500, { error: 'Something went wrong on our side.' });
@@ -56,39 +127,17 @@ export async function apiLearners(request: Request): Promise<Response> {
 
 export async function apiContext(request: Request): Promise<Response> {
   try {
-    const auth = await authenticate(request);
+    const auth = await authenticateApiRequest(request);
     if (auth instanceof Response) return auth;
     const url = new URL(request.url);
-    const learnerParam = url.searchParams.get('learner')?.trim() || null;
-    const conceptParam = url.searchParams.get('concept')?.trim() || null;
-    const query = url.searchParams.get('q')?.slice(0, 1000) ?? null;
-    if ((learnerParam?.length ?? 0) > PARAM_MAX || (conceptParam?.length ?? 0) > 200) {
-      return json(400, { error: 'learner or concept is too long.' });
-    }
-    const graph = await graphFor(auth.owner);
-    // Default learner: the account's own (not an example learner), else the first.
-    let learnerId = learnerParam;
-    if (!learnerId) {
-      const learners = await graph.listLearnerProfiles();
-      learnerId = (learners.find((l) => !l.userId.startsWith('demo-')) ?? learners[0])?.userId ?? null;
-      if (!learnerId) return json(404, { error: 'This account has no learners yet.' });
-    }
-    // A concept can be named by id or by name (what an assistant usually knows).
-    let conceptId: string | null = null;
-    if (conceptParam) {
-      const wanted = conceptParam.toLowerCase();
-      const concepts = await graph.listConcepts();
-      conceptId =
-        concepts.find((c) => c.conceptId === conceptParam)?.conceptId ??
-        concepts.find((c) => c.name.toLowerCase() === wanted)?.conceptId ??
-        null;
-      if (!conceptId) return json(404, { error: `No concept "${conceptParam}" in this account.` });
-    }
-    const { getRAGContext } = await import('../tutor/service.ts');
-    const ctx = await getRAGContext(graph, { learnerId, conceptId, query });
-    if (!ctx) return json(404, { error: `No learner "${learnerId}" in this account.` });
-    return json(200, { learner: learnerId, concept: conceptId, queryType: ctx.queryType, tokens: ctx.tokens, context: ctx.text });
+    const payload = await contextPayload(auth.owner, {
+      learner: url.searchParams.get('learner'),
+      concept: url.searchParams.get('concept'),
+      query: url.searchParams.get('q'),
+    });
+    return json(200, payload);
   } catch (err) {
+    if (err instanceof ApiRequestError) return json(err.status, { error: err.message });
     console.error('[api/v1/context]', err);
     return json(500, { error: 'Something went wrong on our side.' });
   }

@@ -291,6 +291,6 @@ describe('SkipLink wiring', () => {
     assert.ok(smoke.includes('a11y: "Skip to content" is the first Tab stop'));
     assert.ok(smoke.includes("await page.keyboard.press('Tab');"));
     assert.ok(smoke.includes("await page.keyboard.press('Enter');"));
-    assert.equal(smoke.trimEnd().split('\n').length, 2057);
+    assert.equal(smoke.trimEnd().split('\n').length, 2103);
   });
 });

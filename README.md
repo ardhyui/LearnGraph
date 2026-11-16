@@ -529,6 +529,18 @@ Keys can only read the tutor brief (≤ 2000 tokens, no raw psychometric
 scores) of their own account, are limited to 60 requests a minute, and stop
 working as soon as they are revoked.
 
+The same key also opens a read-only **Model Context Protocol** server for MCP
+clients (Claude Desktop, IDE assistants, and similar) at `POST /api/mcp`. It
+speaks JSON-RPC 2.0 as plain JSON over Streamable HTTP (no SSE stream; `GET`
+returns 405). Tools: `list_learners` and `get_tutor_context` (arguments
+`learner`, `concept`, `query`), the same data as the REST endpoints.
+
+```bash
+curl -X POST -H "Authorization: Bearer lg_…" -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' https://<host>/api/mcp
+# → { "result": { "tools": [{ "name": "list_learners" }, …] } }
+```
+
 
 | Entry point | Description |
 |-------------|-------------|
