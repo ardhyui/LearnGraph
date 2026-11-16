@@ -1,46 +1,88 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 61: test unit langsung komponen `src/components/SubjectChoices.tsx`, PR #100; berikutnya: test unit langsung komponen `src/components/SkipLink.tsx`)
+Terakhir diperbarui: 2026-11-16 (siklus 62: test unit langsung komponen `src/components/SkipLink.tsx`, PR #101; berikutnya: test unit langsung komponen `src/components/RichText.tsx`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung komponen `src/components/SkipLink.tsx`**
-— tautan "Skip to content" (WCAG 2.4.1) yang dirender sebagai anak pertama
-`<body>` di `src/routes/__root.tsx`; belum pernah dites langsung (hanya smoke).
-File baru `tests/skip-link.test.ts` (node:test murni, transpilasi `.tsx`
-in-memory seperti `tests/subject-choices.test.ts`, `react-dom/server`
-`createElement`/`renderToStaticMarkup`, tanpa PGlite/Playwright); komponen
-**tidak diubah**.
+Penguatan tes: **test unit langsung komponen `src/components/RichText.tsx`**
+— teks pelajaran (`parseRichText`: paragraf, daftar butir, tebal, kode) sebagai
+elemen React di `/learn/$conceptId` dan editor konten admin; belum pernah dites
+langsung (hanya lewat tes parser di `tests/content.test.ts`). File baru
+`tests/rich-text.test.ts` (node:test murni, transpilasi `.tsx` in-memory
+seperti `tests/skip-link.test.ts`/`tests/subject-choices.test.ts`,
+`react-dom/server` `createElement`/`renderToStaticMarkup`, alias
+`'@/lib/content/content'` ditulis ulang ke URL `src/lib/content/content.ts`;
+tanpa PGlite/Playwright); komponen **tidak diubah**.
 
-1. Markup: render `SkipLink()` → tepat satu `<a>` dengan `href="#main"` dan
-   teks persis `Skip to content`; kelas `sr-only` + `focus:not-sr-only`
-   (tampil saat fokus) tetap ada; tanpa `target`/`role`/`tabIndex`/`onKeyDown`.
-2. Handler: ambil `props.onClick` dari `SkipLink()` (React 19 mengembalikan
-   elemen; panggil komponen langsung, bukan lewat DOM) lalu pasang
-   `globalThis.document` tiruan dan pulihkan di `finally`. Tanpa `<main>`
-   (`querySelector` → null) → `preventDefault` **tidak** dipanggil dan tidak
-   ada `setAttribute`/`focus`/`scrollIntoView`; `querySelector` dipanggil
-   dengan selector persis `'main'`. `<main>` tanpa `tabindex` →
-   `preventDefault` sekali, urutan `hasAttribute('tabindex')` false →
-   `setAttribute('tabindex','-1')` → `focus()` → `scrollIntoView({ block:
-   'start' })`. `<main>` yang sudah ber-`tabindex` (`'0'`/`'-1'`) tidak
-   ditimpa (`setAttribute` tidak dipanggil) tetapi tetap fokus+scroll.
-3. Penjaga statis: `SkipLink.tsx` hanya `import type { MouseEvent } from
-   'react';`, tanpa hook/router/DB/`require`, mengekspor tepat `SkipLink`;
-   `__root.tsx` mengimpor dari `@/components/SkipLink` dan merender
-   `<SkipLink />` tepat setelah `<body ...>` sebelum `<ThemeProvider>`/
-   `<RouteAnnouncer>`; `scripts/smoke.mjs` tetap memuat cek
-   `a11y: "Skip to content" is the first Tab stop` (jangan diubah); asersi
-   baru tidak boleh memindahkan anchor lama — konfirmasi dulu jumlah baris
-   aktual berkas yang dirujuk (pola catatan probe siklus 60).
+1. Markup: `text: ''` → persis `<div></div>`; tanpa `className` → `<div>` tanpa
+   atribut `class`; `className="mt-4"` → `<div class="mt-4">`. Satu paragraf →
+   `<p>` berkelas `mt-2 first:mt-0` berisi satu `<span>`; daftar → `<ul>`
+   berkelas `mt-2 list-disc space-y-1 pl-5 first:mt-0` dengan satu `<li>` per
+   butir; `**x**` → `<strong>x</strong>`; kode inline → `<code>` berkelas
+   `rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]`; setiap bagian inline
+   biasa dibungkus `<span>` (termasuk potongan kosong/spasi di antara tebal/
+   kode). Urutan blok mengikuti parser, mis. `'p\n- b1\nq'` → `<p>`,
+   `<ul><li>`, `<p>` (bandingkan dengan `parseRichText(...)` langsung, bukan
+   salinan aturan).
+2. Escaping & keamanan: `'<b>x</b> & <script>alert(1)</script>'` tampil sebagai
+   teks (`&lt;b&gt;x&lt;/b&gt; &amp; …`), tanpa `<b>`/`<script>` mentah di
+   markup; teks hanya spasi/baris kosong tidak menghasilkan blok.
+3. Penjaga statis: `RichText.tsx` (46 baris) hanya satu impor
+   `import { parseRichText, type Inline } from '@/lib/content/content';`, tanpa
+   `require`/hook/router/DB/`fetch`, tepat satu `<div` pembungkus, helper
+   `Parts` lokal (tidak diekspor) dipakai untuk `<p>` **dan** `<li>`, dan modul
+   hasil impor mengekspor tepat `['RichText']`;
+   `src/routes/learn.$conceptId.tsx` dan `src/routes/admin/content.tsx` tetap
+   merender `<RichText text={…}` ber-`className`; anchor lama
+   `tests/content.test.ts` tetap 482 baris dengan judul
+   `'renders lesson text through parseRichText only, never as HTML'` utuh
+   (konfirmasi jumlah baris aktual dulu — pola catatan probe).
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 4–6). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 5–7). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi
 dan tanpa perubahan `docs/ROADMAP.md` (tidak ada baris backlog tersentuh).
 Bila smoke flaky karena beban mesin bersama (pola PR #84/#91/#95), tunggu
 load turun lalu ulangi gerbang utuh tanpa mengubah kode.
 
 ## Riwayat
+
+- 2026-11-16: PR #101 — test: test unit langsung komponen
+  `src/components/SkipLink.tsx` — tautan "Skip to content" (WCAG 2.4.1) anak
+  pertama `<body>` (7 test di `tests/skip-link.test.ts`, node:test murni,
+  transpilasi `.tsx` in-memory + `react-dom/server`
+  `createElement`/`renderToStaticMarkup`, `document` tiruan per test yang
+  dipulihkan di `finally`; tanpa PGlite/Playwright), komponen tidak diubah.
+  Dikunci: markup tepat satu `<a href="#main">` berteks persis `Skip to
+  content`, kelas `sr-only` lalu `focus:not-sr-only` (+ `focus:fixed`), tanpa
+  `target`/`role`/`tabIndex`/`onKeyDown` di markup maupun props elemen (props
+  hanya `href`/`onClick`/`className`/`children`). Handler diambil dari
+  `SkipLink().props.onClick` (React 19 mengembalikan elemen): tanpa `<main>` →
+  hanya `querySelector('main')`, `preventDefault` 0, tanpa
+  `setAttribute`/`focus`/`scrollIntoView`; `<main>` tanpa `tabindex` → urutan
+  persis `querySelector` → `preventDefault` → `hasAttribute('tabindex')` →
+  `setAttribute('tabindex','-1')` → `focus()` →
+  `scrollIntoView({ block: 'start' })`; `<main>` ber-`tabindex` `'0'`/`'-1'` →
+  `setAttribute` tidak dipanggil, tetap fokus+scroll. Penjaga statis:
+  `SkipLink.tsx` tepat satu impor `import type { MouseEvent } from 'react';`,
+  tanpa `require`/hook/router/DB/`fetch`/`localStorage`, satu `<a>`, modul
+  mengekspor tepat `['SkipLink']`; `__root.tsx` mengimpor dari
+  `@/components/SkipLink` dan baris tepat setelah `<body …>` adalah
+  `<SkipLink />` (sekali) sebelum `ThemeProvider`/`RouteAnnouncer`, jumlah
+  baris 90; `scripts/smoke.mjs` tetap memuat cek
+  `a11y: "Skip to content" is the first Tab stop`, `Tab`/`Enter`, jumlah baris
+  2057 (dihitung `trimEnd().split('\n')` karena berkas ber-trailing newline).
+  Catatan proses: `node_modules` belum ada di worktree sehingga `npm ci` lebih
+  dulu; probe render + tiga cabang handler lebih dulu mengonfirmasi markup,
+  urutan panggilan, dan props berisi tepat empat kunci; satu run `node --test`
+  langsung hijau setelah menghapus impor `pathToFileURL` yang tak terpakai
+  (lint 0/0); test menjadi 7 (spesifikasi menulis ± 4–6) dan itu yang dicatat;
+  typecheck/lint 0/0 dan `npm run ci` utuh hijau pada percobaan pertama
+  (load ± 2), termasuk cek smoke `a11y: "Skip to content" is the first Tab
+  stop … in main true`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/
+  dependensi dan tanpa perubahan `docs/ROADMAP.md` (tidak ada baris backlog
+  tersentuh). `npm run ci` hijau (install, typecheck, lint 0/0, 1085/1085 unit
+  = 1078 + 7, build, anggaran bundel, CSP build produksi, smoke Playwright
+  dan PGlite).
 
 - 2026-11-16: PR #100 — test: test unit langsung komponen
   `src/components/SubjectChoices.tsx` (7 test di `tests/subject-choices.test.ts`,
