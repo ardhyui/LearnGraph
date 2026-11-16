@@ -69,7 +69,7 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
-- 2026-11-17: PR #— — **Tab halaman Recommendations bisa dipakai pembaca
+- 2026-11-17: PR #112 — **Tab halaman Recommendations bisa dipakai pembaca
   layar dan keyboard** — tiga tombol tab (**Recommendations**,
   **Ready / not yet**, **Learning Path**) di `/recommendations` sebelumnya
   `<motion.button>` biasa tanpa peran tab WAI-ARIA, sehingga pembaca layar
@@ -82,8 +82,12 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
   pembungkusan, Home/End, dan `null` untuk kunci lain; `count`/`current` rusak
   dinormalkan tanpa melempar. `onKeyDown` memindahkan seleksi dan fokus lewat
   array ref. Test baru `tests/recommendations-tabs.test.ts` (16). Smoke tidak
-  berubah (penjaga 2114 tetap). `README.md` dan `Roadmap.md` tidak diubah;
-  `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau.
+  menambah baris (penjaga 2114 tetap) tetapi dua pemilih tab disesuaikan dari
+  role `button` ke `tab`, dan `process.exit` diganti `process.exitCode` agar
+  daftar hasil smoke tidak terpotong saat gagal. `README.md` dan `Roadmap.md`
+  tidak diubah; `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau
+  (1240/1240 unit; dua percobaan awal gagal di smoke karena pemilih tab lama,
+  lalu hijau penuh setelah pemilih diperbaiki).
 
 - 2026-11-17: PR #111 — **Ringkasan hasil analisis di kartu "Shaky spots"
   halaman Gap Analysis** — kartu **Shaky spots** (`/gaps`) sebelumnya langsung
