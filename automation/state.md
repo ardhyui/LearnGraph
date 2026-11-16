@@ -1,51 +1,49 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (tab aksesibel di Recommendations; siklus berikutnya: fokus hasil kuis di halaman pelajaran)
+Terakhir diperbarui: 2026-11-17 (fokus hasil kuis di halaman pelajaran; siklus berikutnya: semantik daftar kartu Recommendations)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **urutan fokus setelah kuis di halaman pelajaran**
-(`/learn/$conceptId`) — kandidat fitur (a); tanpa migrasi skema, dependensi,
-server function, RPC, atau method RPC baru. Konteks: `finishQuiz` di
-`src/routes/learn.$conceptId.tsx` menutup `ConceptQuiz` lalu mengisi `notice`
-(`<p role="status" aria-live="polite">` di atas `<article>`, sekitar baris 230),
-tetapi elemen yang sedang fokus (tombol **Done** di dalam kuis) ikut
-ter-unmount sehingga fokus jatuh ke `<body>`; pengguna keyboard/pembaca layar
-kehilangan posisi dan harus men-Tab dari awal halaman. Cancel sudah benar
-(`cancelQuiz` memfokuskan kembali tombol **Take the quick quiz** lewat
-`quizButtonRef` + `requestAnimationFrame`).
+Poles aksesibilitas **semantik daftar kartu rekomendasi** di `/recommendations`
+— kandidat fitur (a); tanpa migrasi skema, dependensi, server function, RPC,
+atau method RPC baru. Konteks: panel tab **Recommendations** di
+`src/routes/recommendations.tsx` (sekitar baris 460–592) merender
+`zpd.recommendations.map` sebagai deretan `<motion.div>` di dalam
+`<motion.div role="tabpanel" id="rec-panel-recommendations">`, sehingga pembaca
+layar tidak tahu kartu-kartu itu satu daftar berurut dan tidak bisa melompat
+per item, padahal urutannya adalah prioritas belajar (badge angka `{idx + 1}`
+di setiap kartu sudah tampil visual). Empty state
+(`zpd.recommendations.length === 0`, teks **All caught up!** / "No new concepts
+ready to learn right now.") tetap seperti sekarang.
 
-Rancangan (baca kode dulu: state `notice`, `finishQuiz`, `cancelQuiz`, dan
-`<p role="status">` di `src/routes/learn.$conceptId.tsx`):
+Rancangan (baca kode dulu: `containerVariants`/`itemVariants`,
+`AnimatePresence`, dan badge `{idx + 1}`):
 
-1. Tambah `noticeRef = useRef<HTMLParagraphElement>(null)`; pasang di `<p>` yang
-   sudah ada sebagai `ref={noticeRef}` + `tabIndex={-1}` + kelas
-   `focus:outline-none` (atau padanan repo) supaya fokus programatik tidak
-   memunculkan ring palsu. Teks, `role="status"`, `aria-live="polite"`, posisi,
-   dan kelas warna tidak berubah.
-2. Di `finishQuiz`, setelah `setNotice(...)` dan `await load()` (agar teks hasil
-   sudah ter-commit), pindahkan fokus dengan pola yang sama seperti
-   `cancelQuiz`: `requestAnimationFrame(() => noticeRef.current?.focus())`.
-   Berlaku untuk kuis lulus maupun gagal; jangan menambah fokus paksa saat
-   mount, saat learner/konsep berganti, saat `load()` dipanggil ulang, atau
-   pada `selfReport` (live region lama sudah mengumumkan).
-3. `cancelQuiz` tetap memfokuskan tombol kuis; `ConceptQuiz`, `quizResultNotice`,
-   alur jawab/`Done`, dan copy tidak berubah. Tetap bahasa Inggris (D2).
-4. **Test**: file baru `tests/lesson-focus.test.ts` berisi penjaga statis
-   `src/routes/learn.$conceptId.tsx` — `noticeRef` ada, `<p` status memakai
-   `ref={noticeRef}` dan `tabIndex={-1}`, `finishQuiz` memanggil
-   `noticeRef.current?.focus()` di dalam `requestAnimationFrame` setelah
-   `await load()`, `cancelQuiz` tetap memakai `quizButtonRef.current?.focus()`,
-   tidak ada `focus()` di effect mount, serta tanpa `createServerFn`/RPC/
-   migrasi baru. Tambah **satu cek smoke** di alur pelajaran yang sudah ada
-   (`scripts/smoke.mjs`, blok lesson setelah `closeQuiz`): setelah kuis ditutup,
-   `document.activeElement` adalah elemen `role="status"` yang memuat teks
-   hasil (mis. `passed`), bukan `<body>`; perbarui penjaga jumlah baris
-   `tests/skip-link.test.ts` 2114 → jumlah baru (hitung dengan
+1. Ganti wadah hasil peta kartu menjadi `<motion.ol aria-label="Recommended
+   concepts" ...>` dan tiap kartu `<motion.div>` hasil `map` menjadi
+   `<motion.li>`. Pertahankan tepat: `key={rec.concept.conceptId}`,
+   `variants={itemVariants}`, `whileHover={{ y: -2 }}`, seluruh `className`
+   visual, isi kartu, urutan, badge angka `{idx + 1}`, dan
+   `AnimatePresence mode="wait"`. Jangan mengubah empty state, tablist/tab/
+   tabpanel, teks/copy, atau animasi.
+2. Pastikan hanya `<li>` yang menjadi anak langsung `<ol>` di markup (tanpa
+   `<div>` pembungkus tambahan di antaranya) dan tidak muncul penanda nomor
+   ganda (Tailwind preflight sudah menghapus marker; jangan menambah kelas
+   visual baru tanpa perlu). Jangan memindahkan fokus, menambah live region,
+   atau mengubah urutan/angka.
+3. **Test**: file baru `tests/recommendations-list.test.ts` (penjaga statis
+   `src/routes/recommendations.tsx`) — `<motion.ol` dengan
+   `aria-label="Recommended concepts"`, hasil `map` berupa `<motion.li>`,
+   `key`/`variants`/`whileHover`/badge `{idx + 1}` tetap, empty state tidak
+   ikut menjadi item daftar, dan tidak ada `createServerFn`/`graphCall`/RPC/
+   migrasi baru. Tambah **satu cek smoke** di blok Recommendations yang sudah
+   ada (`scripts/smoke.mjs`): daftar bernama **Recommended concepts** terlihat
+   dan jumlah `listitem`-nya > 0 saat ada rekomendasi, lalu perbarui penjaga
+   jumlah baris `tests/skip-link.test.ts` 2125 → jumlah baru (hitung dengan
    `trimEnd().split('\n').length`).
-5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
-   `README.md` hanya bila klaim fitur berubah; `Roadmap.md` hanya bila arah
-   berubah. Jangan menandai milestone selesai.
+4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+   `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
+   milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `fix:`/`feat:`. Catatan mesin: sesi lain dapat membuat load
@@ -60,9 +58,8 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Kandidat
-   berikutnya: `/recommendations` (kartu ringkasan, pesan kosong "No new
-   concepts ready to learn right now", target sentuh) dan `/learn/$conceptId`
-   (urutan fokus setelah kuis).
+   setelah daftar Recommendations: `/gaps`, `/profile`, `/graph`, dan
+   `/learn/$conceptId` (mis. urutan fokus setelah aksi lain).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).

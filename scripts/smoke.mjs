@@ -934,6 +934,17 @@ try {
     await closeQuiz(lesson);
     await lesson.getByTestId('lesson-progress').filter({ hasText: 'From quizzes' }).waitFor({ timeout: 15000 }).catch(() => {});
     const progress = await lesson.getByTestId('lesson-progress').innerText().catch(() => '');
+    // "Done" unmounts the quiz; focus must land on the result notice instead
+    // of falling back to the document body.
+    const focused = await page.evaluate(() => {
+      const el = document.activeElement;
+      return { tag: el?.tagName ?? '', role: el?.getAttribute('role') ?? '', text: el?.textContent ?? '' };
+    });
+    check(
+      focused.tag === 'P' && focused.role === 'status' && /passed/.test(focused.text),
+      'lesson: focus moves to the quiz result notice after Done',
+      `${focused.tag.toLowerCase()} role=${focused.role || 'none'} "${focused.text.slice(0, 60)}"`,
+    );
     const nextStep = await lesson.getByRole('navigation', { name: 'Next step' }).getByRole('link', { name: /^Next: / }).count();
     const minutes = (Date.now() - started) / 60000;
     check(

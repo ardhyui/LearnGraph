@@ -56,6 +56,7 @@ function LessonPage() {
   const seq = useRef(0);
   const logged = useRef<string | null>(null);
   const quizButtonRef = useRef<HTMLButtonElement>(null);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
   const ids = { learner: useId(), format: useId(), check: useId() };
 
   const load = useCallback(async () => {
@@ -131,6 +132,9 @@ function LessonPage() {
     setQuizOpen(false);
     setNotice(quizResultNotice(result));
     await load();
+    // "Done" unmounts the quiz, so keep keyboard and screen-reader users in
+    // place by moving focus to the result they just produced.
+    requestAnimationFrame(() => noticeRef.current?.focus());
   };
 
   const cancelQuiz = () => {
@@ -227,7 +231,13 @@ function LessonPage() {
                 </div>
               </header>
 
-              <p role="status" aria-live="polite" className={cn('text-sm text-emerald-700 dark:text-emerald-400', notice && 'mt-4')}>
+              <p
+                ref={noticeRef}
+                role="status"
+                aria-live="polite"
+                tabIndex={-1}
+                className={cn('text-sm text-emerald-700 dark:text-emerald-400 focus:outline-none', notice && 'mt-4')}
+              >
                 {notice}
               </p>
 
