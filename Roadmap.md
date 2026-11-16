@@ -151,7 +151,7 @@ Bagian tanpa biaya LLM:
 - [x] Deteksi jenis pertanyaan dan template prompt. Enam jenis (explain, practice, stuck, review, next, general), Inggris dan Indonesia.
 - [x] Domain sensitif tidak pernah masuk konteks (daftar tolak dengan test). Konteks dibangun dari allow-list (tanpa skor mentah); test memeriksa 12 domain sensitif dan label-labelnya.
 - [x] Tombol "Salin konteks untuk AI tutor", dengan isi yang bisa dilihat sebelum disalin. Panel "Ask an AI tutor" di halaman pelajaran.
-- [x] Antarmuka baca untuk LLM eksternal: API key per akun atau server MCP. Saat ini belum ada API publik, padahal tesis produknya adalah "makes any LLM smarter". Dibuat sebagai API baca-saja dengan API key per akun: `GET /api/v1/learners` dan `GET /api/v1/context` (hash SHA-256 saja yang disimpan, 60 permintaan/menit per key, bisa dicabut). Server MCP baca-saja ada di `POST /api/mcp`: JSON-RPC 2.0 dengan `initialize`, `ping`, `tools/list`, dan `tools/call` (`list_learners`, `get_tutor_context`) memakai key yang sama, balasan JSON tanpa SSE, batch ditolak.
+- [x] Antarmuka baca untuk LLM eksternal: API key per akun atau server MCP. Saat ini belum ada API publik, padahal tesis produknya adalah "makes any LLM smarter". Dibuat sebagai API baca-saja dengan API key per akun: `GET /api/v1/learners` dan `GET /api/v1/context` (hash SHA-256 saja yang disimpan, 60 permintaan/menit per key, bisa dicabut). Server MCP baca-saja ada di `POST /api/mcp`: JSON-RPC 2.0 dengan `initialize`, `ping`, `tools/list`, `tools/call` (`list_learners`, `get_tutor_context`), serta `resources/list`/`resources/read` (ringkasan pelajar dan detail konsep sebagai Markdown) memakai key yang sama, balasan JSON tanpa SSE, batch ditolak.
 
 Bagian 🔒 (keputusan D3):
 

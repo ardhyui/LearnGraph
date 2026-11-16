@@ -18,7 +18,7 @@ import {
   SERVER_VERSION,
   SUPPORTED_PROTOCOL_VERSIONS,
   type McpHttpResponse,
-  type McpToolHandlers,
+  type McpHandlers,
 } from '../src/lib/mcp/protocol.ts';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -29,7 +29,7 @@ interface JsonRpcBody {
   id?: unknown;
   result?: {
     protocolVersion?: string;
-    capabilities?: { tools?: unknown };
+    capabilities?: { tools?: unknown; resources?: unknown };
     serverInfo?: { name?: string; version?: string };
     instructions?: string;
     tools?: Array<{
@@ -38,6 +38,8 @@ interface JsonRpcBody {
       inputSchema?: { type?: string; properties?: Record<string, unknown> };
     }>;
     content?: Array<{ type?: string; text?: string }>;
+    resources?: Array<{ uri?: string; name?: string; description?: string; mimeType?: string }>;
+    contents?: Array<{ uri?: string; mimeType?: string; text?: string }>;
     structuredContent?: unknown;
     isError?: boolean;
   };
@@ -46,10 +48,15 @@ interface JsonRpcBody {
 
 const body = (res: McpHttpResponse) => res.body as JsonRpcBody;
 
-function fakeHandlers(): McpToolHandlers & { calls: Array<Record<string, unknown>> } {
+function fakeHandlers(): McpHandlers & {
+  calls: Array<Record<string, unknown>>;
+  resourceReads: string[];
+} {
   const calls: Array<Record<string, unknown>> = [];
+  const resourceReads: string[] = [];
   return {
     calls,
+    resourceReads,
     list_learners: async () => ({
       text: 'Sari — learner id: me-sari',
       structuredContent: { learners: [{ id: 'me-sari', name: 'Sari', example: false }] },
@@ -58,8 +65,38 @@ function fakeHandlers(): McpToolHandlers & { calls: Array<Record<string, unknown
       calls.push(args);
       return {
         text: 'You are tutoring one learner. Sari is practising Fractions.',
-        structuredContent: { learner: 'me-sari', concept: 'c-frac', queryType: 'explain', tokens: 42 },
+        structuredContent: {
+          learner: 'me-sari',
+          concept: 'c-frac',
+          queryType: 'explain',
+          tokens: 42,
+        },
       };
+    },
+    list_resources: async () => [
+      {
+        uri: 'learngraph://learner/me-sari',
+        name: 'Sari',
+        description: 'Learner summary.',
+        mimeType: 'text/markdown',
+      },
+      {
+        uri: 'learngraph://concept/c-frac',
+        name: 'Fractions',
+        description: 'Concept details.',
+        mimeType: 'text/markdown',
+      },
+    ],
+    read_resource: async (uri) => {
+      resourceReads.push(uri);
+      if (uri === 'learngraph://learner/me-sari') {
+        return {
+          uri,
+          mimeType: 'text/markdown',
+          text: '# Sari\n\n## Mastery\n\n- Fractions — 90% (From quizzes)',
+        };
+      }
+      return null;
     },
   };
 }
@@ -80,23 +117,30 @@ const initialize = (id: unknown, protocolVersion?: unknown) =>
   );
 
 describe('MCP protocol: initialize and notifications', () => {
-  it('echoes a supported protocol version and advertises the tools capability', async () => {
+  it('echoes a supported protocol version and advertises tools and resources', async () => {
     for (const version of SUPPORTED_PROTOCOL_VERSIONS) {
       const res = await initialize(7, version);
       assert.equal(res.status, 200);
       assert.equal(body(res).jsonrpc, '2.0');
       assert.equal(body(res).id, 7);
       assert.equal(body(res).result?.protocolVersion, version);
-      assert.deepEqual(body(res).result?.capabilities, { tools: {} });
+      assert.deepEqual(body(res).result?.capabilities, { tools: {}, resources: {} });
       assert.equal(body(res).result?.serverInfo?.name, SERVER_NAME);
       assert.equal(body(res).result?.serverInfo?.version, SERVER_VERSION);
       assert.match(body(res).result?.instructions ?? '', /list_learners/);
+      assert.match(body(res).result?.instructions ?? '', /resources\/read/);
     }
   });
 
   it('falls back to the newest supported version for unknown or missing requests', async () => {
-    assert.equal(body(await initialize(1, '1999-01-01')).result?.protocolVersion, LATEST_PROTOCOL_VERSION);
-    assert.equal(body(await initialize(2, 42 as unknown)).result?.protocolVersion, LATEST_PROTOCOL_VERSION);
+    assert.equal(
+      body(await initialize(1, '1999-01-01')).result?.protocolVersion,
+      LATEST_PROTOCOL_VERSION,
+    );
+    assert.equal(
+      body(await initialize(2, 42 as unknown)).result?.protocolVersion,
+      LATEST_PROTOCOL_VERSION,
+    );
     const noParams = await handleMcpMessage(
       JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'initialize' }),
       fakeHandlers(),
@@ -151,7 +195,11 @@ describe('MCP protocol: tools/list', () => {
       assert.ok((tool.description ?? '').length > 20);
     }
     assert.deepEqual(tools[0].inputSchema?.properties, {});
-    assert.deepEqual(Object.keys(tools[1].inputSchema?.properties ?? {}), ['learner', 'concept', 'query']);
+    assert.deepEqual(Object.keys(tools[1].inputSchema?.properties ?? {}), [
+      'learner',
+      'concept',
+      'query',
+    ]);
   });
 });
 
@@ -188,7 +236,11 @@ describe('MCP protocol: tools/call', () => {
         method: 'tools/call',
         params: {
           name: 'get_tutor_context',
-          arguments: { learner: 'me-sari', concept: 'Fractions', query: 'explain adding fractions' },
+          arguments: {
+            learner: 'me-sari',
+            concept: 'Fractions',
+            query: 'explain adding fractions',
+          },
         },
       }),
       handlers,
@@ -210,7 +262,12 @@ describe('MCP protocol: tools/call', () => {
   it('treats missing arguments and null fields as omitted', async () => {
     const handlers = fakeHandlers();
     await handleMcpMessage(
-      JSON.stringify({ jsonrpc: '2.0', id: 22, method: 'tools/call', params: { name: 'get_tutor_context' } }),
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 22,
+        method: 'tools/call',
+        params: { name: 'get_tutor_context' },
+      }),
       handlers,
     );
     await handleMcpMessage(
@@ -218,7 +275,10 @@ describe('MCP protocol: tools/call', () => {
         jsonrpc: '2.0',
         id: 23,
         method: 'tools/call',
-        params: { name: 'get_tutor_context', arguments: { learner: null, concept: null, query: null } },
+        params: {
+          name: 'get_tutor_context',
+          arguments: { learner: null, concept: null, query: null },
+        },
       }),
       handlers,
     );
@@ -246,7 +306,12 @@ describe('MCP protocol: tools/call', () => {
     ];
     for (const [args, message] of cases) {
       const res = await handleMcpMessage(
-        JSON.stringify({ jsonrpc: '2.0', id: 32, method: 'tools/call', params: { name: 'get_tutor_context', arguments: args } }),
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 32,
+          method: 'tools/call',
+          params: { name: 'get_tutor_context', arguments: args },
+        }),
         handlers,
       );
       assert.equal(body(res).error?.code, -32602, JSON.stringify(args));
@@ -285,6 +350,107 @@ describe('MCP protocol: tools/call', () => {
   });
 });
 
+describe('MCP protocol: resources', () => {
+  const request = (id: unknown, method: string, params?: unknown) =>
+    handleMcpMessage(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id,
+        method,
+        ...(params === undefined ? {} : { params }),
+      }),
+      fakeHandlers(),
+    );
+
+  it('lists resources in the advertised Markdown shape', async () => {
+    const res = await request(60, 'resources/list');
+    assert.equal(res.status, 200);
+    assert.deepEqual(body(res).result?.resources, [
+      {
+        uri: 'learngraph://learner/me-sari',
+        name: 'Sari',
+        description: 'Learner summary.',
+        mimeType: 'text/markdown',
+      },
+      {
+        uri: 'learngraph://concept/c-frac',
+        name: 'Fractions',
+        description: 'Concept details.',
+        mimeType: 'text/markdown',
+      },
+    ]);
+  });
+
+  it('reads a known resource and passes the decoded URI to the handler', async () => {
+    const handlers = fakeHandlers();
+    const res = await handleMcpMessage(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 61,
+        method: 'resources/read',
+        params: { uri: 'learngraph://learner/me-sari' },
+      }),
+      handlers,
+    );
+    assert.deepEqual(handlers.resourceReads, ['learngraph://learner/me-sari']);
+    assert.deepEqual(body(res).result?.contents, [
+      {
+        uri: 'learngraph://learner/me-sari',
+        mimeType: 'text/markdown',
+        text: '# Sari\n\n## Mastery\n\n- Fractions — 90% (From quizzes)',
+      },
+    ]);
+  });
+
+  it('answers an unknown resource with JSON-RPC -32002 and no contents', async () => {
+    const res = await request(62, 'resources/read', { uri: 'learngraph://concept/nope' });
+    assert.equal(body(res).error?.code, -32002);
+    assert.equal(body(res).error?.message, 'Resource not found: learngraph://concept/nope');
+    assert.equal(body(res).result, undefined);
+  });
+
+  it('rejects malformed params with -32602 and never calls the handler', async () => {
+    const handlers = fakeHandlers();
+    const cases: Array<[unknown, RegExp]> = [
+      [undefined, /expected an object/],
+      ['learngraph://learner/me-sari', /expected an object/],
+      [{}, /"uri" must be a non-empty string/],
+      [{ uri: '' }, /"uri" must be a non-empty string/],
+      [{ uri: 42 }, /"uri" must be a non-empty string/],
+      [{ uri: 'x'.repeat(513) }, /"uri" is longer than 512/],
+    ];
+    for (const [params, message] of cases) {
+      const res = await handleMcpMessage(
+        JSON.stringify({ jsonrpc: '2.0', id: 63, method: 'resources/read', params }),
+        handlers,
+      );
+      assert.equal(body(res).error?.code, -32602, JSON.stringify(params));
+      assert.match(body(res).error?.message ?? '', message);
+    }
+    assert.deepEqual(handlers.resourceReads, []);
+  });
+
+  it('accepts a 512-character URI and treats notifications without a body', async () => {
+    const handlers: McpHandlers = {
+      ...fakeHandlers(),
+      read_resource: async (uri) => ({ uri, mimeType: 'text/markdown', text: uri }),
+    };
+    const long = `learngraph://concept/${'x'.repeat(512 - 'learngraph://concept/'.length)}`;
+    const res = await handleMcpMessage(
+      JSON.stringify({ jsonrpc: '2.0', id: 64, method: 'resources/read', params: { uri: long } }),
+      handlers,
+    );
+    assert.equal(body(res).result?.contents?.[0]?.uri, long);
+
+    const note = await handleMcpMessage(
+      JSON.stringify({ jsonrpc: '2.0', method: 'notifications/resources/list_changed' }),
+      handlers,
+    );
+    assert.equal(note.status, 202);
+    assert.equal('body' in note, false);
+  });
+});
+
 describe('MCP protocol: bad input', () => {
   it('answers broken JSON with -32700 and a null id', async () => {
     const res = await handleMcpMessage('{"jsonrpc":', fakeHandlers());
@@ -314,11 +480,11 @@ describe('MCP protocol: bad input', () => {
 
   it('answers unknown methods with -32601', async () => {
     const res = await handleMcpMessage(
-      JSON.stringify({ jsonrpc: '2.0', id: 50, method: 'resources/list' }),
+      JSON.stringify({ jsonrpc: '2.0', id: 50, method: 'prompts/list' }),
       fakeHandlers(),
     );
     assert.equal(body(res).error?.code, -32601);
-    assert.match(body(res).error?.message ?? '', /resources\/list/);
+    assert.match(body(res).error?.message ?? '', /prompts\/list/);
   });
 
   it('negotiates only known versions', () => {
@@ -353,5 +519,26 @@ describe('MCP wiring', () => {
     assert.equal((protocol.match(/^import /gm) ?? []).length, 0);
     assert.ok(!protocol.includes('fetch('));
     assert.ok(!source('src/lib/mcp/route.ts').includes('insertInto'));
+    for (const path of [
+      'src/lib/mcp/protocol.ts',
+      'src/lib/mcp/resources.ts',
+      'src/lib/mcp/tools.ts',
+    ]) {
+      const text = source(path);
+      assert.ok(!text.includes('createServerFn'), path);
+      assert.ok(!text.includes('graphCall'), path);
+    }
+  });
+
+  it('keeps the resource helpers pure and the tools account-scoped', () => {
+    const resources = source('src/lib/mcp/resources.ts');
+    assert.ok(resources.includes('export function learnerResourceUri'));
+    assert.ok(resources.includes('export function conceptResourceUri'));
+    assert.ok(resources.includes('export function parseResourceUri'));
+    assert.ok(!resources.includes('fetch('));
+    const tools = source('src/lib/mcp/tools.ts');
+    assert.ok(tools.includes('graphFor(owner)'));
+    assert.ok(tools.includes('list_resources'));
+    assert.ok(tools.includes('read_resource'));
   });
 });

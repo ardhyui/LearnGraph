@@ -1,74 +1,54 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (streak harian di kartu "Your week" selesai di PR #105; siklus berikutnya: MCP resources)
+Terakhir diperbarui: 2026-11-16 (MCP resources di PR #106; siklus berikutnya: pencarian konsep di Today)
 
 ## Tugas berikutnya
 
-Fitur **MCP resources baca-saja** (lanjutan M4; server MCP dari PR #103 sudah
-ada, tetapi `resources/list`/`resources/read` belum). Tujuan: asisten AI bisa
-menjelajahi konteks belajar lewat resources, bukan hanya dua tool. Tanpa
-dependensi, tabel, kolom, migrasi, atau method RPC baru; semua data dibaca lewat
-graph yang sudah terikat akun.
+Fitur **pencarian konsep untuk pelajar di panel Today** (kandidat fitur (a);
+tanpa migrasi skema, dependensi, atau server function baru). Tujuan: pelajar
+yang sudah tahu nama konsep tidak harus menggulir daftar review/berikutnya.
 
-Rancangan (baca kode dulu: `src/lib/mcp/protocol.ts`, `src/lib/mcp/tools.ts`,
-`src/lib/mcp/route.ts`, `src/lib/api/v1.ts`, `src/lib/gaps.ts`):
+Rancangan (baca kode dulu: `src/components/StudyToday.tsx`,
+`src/lib/DBContext.tsx` bagian `searchConcepts`, dan
+`src/lib/graph/education-graph-db.ts` bagian `searchConcepts`):
 
-1. **Protokol** di `src/lib/mcp/protocol.ts`:
-   - `initialize` mengiklankan `capabilities: { tools: {}, resources: {} }`
-     (tanpa mengubah `serverInfo`/versi protokol/negosiasi versi).
-   - `resources/list` → `{ resources: McpResource[] }`; tiap resource
-     `{ uri, name, description?, mimeType: 'text/markdown' }`.
-   - `resources/read` → `{ contents: [{ uri, mimeType: 'text/markdown', text }] }`.
-     Validator params: objek dengan `uri` string tidak kosong, maks. 512
-     karakter; selain itu `-32602`. URI tak dikenal atau milik akun lain →
-     galat JSON-RPC `-32002` dengan pesan `Resource not found: <uri>`.
-   - Notifikasi tetap 202 tanpa body; `ping`, `tools/list`, `tools/call`,
-     galat `-32700`/`-32600`/`-32601`/`-32602` yang ada tidak berubah.
-   - Handler bertipe `McpHandlers` (tools + `list_resources()` +
-     `read_resource(uri)`); `read_resource` mengembalikan `null` untuk resource
-     yang tidak ada sehingga protokol yang memetakan ke `-32002`. Semua stub
-     di test lama mengikuti tipe baru (bukan `any`/cast).
-2. **Isi resource** di `src/lib/mcp/resources.ts` (helper murni baru, tanpa
-   DB/React) + `src/lib/mcp/tools.ts` (server-only):
-   - `learngraph://learner/<encodeURIComponent(id)>` — ringkasan pelajar:
-     nama, mastery per konsep (nama, persen, sumber lewat `masterySourceLabel`),
-     dan review yang jatuh tempo saat ini (nama + tanggal); bila kosong tulis
-     "No concepts yet." / "Nothing due right now." dengan kalimat tenang.
-     Urutkan deterministik (nama konsep), jangan tampilkan `concept:` mentah
-     bila nama ada. Reuse `conceptNameMap`/label yang sudah ada, jangan
-     duplikasi.
-   - `learngraph://concept/<encodeURIComponent(id)>` — nama, domain, deskripsi,
-     estimasi waktu belajar (`timeEstimates`) bila ada, dan prasyarat langsung
-     (nama, bukan id) bila ada.
-   - `resources/list` = learner lebih dulu lalu konsep, masing-masing urut nama;
-     hanya dari `graphForOwner(owner)`/`learnersPayload` akun itu. Jangan
-     menambah jalur baca DB yang melewati `owner_id`; learner/konsep akun lain
-     tidak boleh muncul dan `resources/read` URI mereka harus `-32002`.
-   - `mcpToolHandlersFor(owner)` mengembalikan handler lengkap; route
-     `src/lib/mcp/route.ts` tidak menambah autentikasi/rate limit baru.
-3. **Test**:
-   - `tests/mcp-resources.test.ts` (node:test murni, tanpa PGlite): cabang
-     protokol `resources/list`/`resources/read` (sukses, URI kosong/bukan
-     string/terlalu panjang, resource tidak ada → `-32002`, notifikasi 202,
-     capabilities initialize), bentuk/konten markdown helper, `encodeURIComponent`
-     round trip, urutan deterministik, dan penjaga statis (tidak ada
-     `createServerFn`/`graphCall` baru, tanpa dependensi/migrasi).
-   - Perluas `tests/mcp-api.test.ts` (PGlite): resources/list hanya berisi
-     learner+konsep akun sendiri (dua workspace satu DB), resources/read learner
-     memuat mastery & review jatuh tempo, URI learner/konsep akun lain atau
-     tak dikenal → `-32002`, key dicabut/tanpa key tetap 401, GET tetap 405,
-     dan jumlah baris tabel graph tidak berubah setelah rangkaian panggilan.
-   - Bila smoke MCP diperluas (`resources/list` + satu `resources/read`),
-     perbarui penjaga jumlah baris di `tests/skip-link.test.ts`; bila tidak,
-     biarkan 2114.
-4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`; `README.md`
-   bagian MCP menyebut resources; `Roadmap.md` hanya bila kalimat klaimnya
-   berubah (jangan menandai milestone M4 selesai).
+1. **Helper murni** `src/lib/concept-search.ts` (tanpa React/DB):
+   - `searchQuery(raw: string): string` — trim dan collapse whitespace; query
+     < 2 karakter setelah dibersihkan → string kosong (jangan mencari untuk satu
+     huruf).
+   - `conceptSearchResults(concepts, query, limit = 8)` — filter nama/deskripsi/
+     id/domain/tag case-insensitive (sama seperti engine), urutkan: nama persis
+     dulu, lalu nama mengandung, lalu sisanya menurut nama; hasil unik dan
+     dipotong `limit`. Bila ingin memakai `db.searchConcepts`, tetap sediakan
+     helper pemetaan hasil → label/domain; jangan menyalin logika engine bila
+     bisa memanggilnya.
+2. **UI di `StudyToday.tsx`** — kotak **Find a concept** di bawah bar progres
+   Today (sebelum daftar review), hanya bila akun punya konsep:
+   - `<label>` terlihat/tersembunyi aksesibel untuk input `type="search"`;
+     placeholder/clear bawaan boleh, tanpa tombol cari wajib.
+   - Mengetik ≥ 2 karakter menampilkan maksimal 8 hasil sebagai daftar
+     (`<ul>` + `<li>`) berisi nama konsep + label domain; tiap hasil adalah
+     `<Link to="/learn/$conceptId" params={{ conceptId }}>` sehingga keyboard
+     dan pembaca layar memakai tautan biasa.
+   - Tanpa hasil → satu baris tenang "No concepts match “<query>”."; query
+     kosong/terlalu pendek → daftar disembunyikan (bukan pesan galat).
+   - Selama daftar konsep dimuat atau learner berganti, bersihkan query/hasil
+     agar tidak bocor antar learner; jangan menambah panggilan tulis apa pun.
+   - Bahasa Inggris (D2), target sentuh/tautan tetap nyaman, fokus tidak
+     dipindah paksa saat mengetik.
+3. **Test** `tests/concept-search.test.ts` (node:test murni): trim/collapse,
+   batas 2 karakter, cocok nama/deskripsi/id/domain/tag, case-insensitive,
+   urutan (persis → mengandung → nama), `limit`, input kosong/duplikat/unicode,
+   serta penjaga statis panel memakai helper + `Link` ke `/learn/$conceptId`
+   dan tidak menambah `createServerFn`/`graphCall`/RPC/migrasi.
+4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+   `README.md` hanya bila daftar fitur berubah; `Roadmap.md` hanya bila klaim
+   berubah. Jangan menandai milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `feat:`. Setelah merge, tulis "Tugas berikutnya" berikutnya —
-kandidat: **pencarian konsep** dengan `searchConcepts`, **ringkasan pelajaran
-terakhir** di Today, atau **kartu penguasaan per subjek** di Profile. Bukan
+kandidat: **ringkasan pelajaran terakhir** di Today, **kartu penguasaan per
+subjek** di Profile, atau **poles copy/aksesibilitas** halaman pelajar. Bukan
 tugas test.
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)

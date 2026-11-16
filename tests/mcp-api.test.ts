@@ -48,6 +48,8 @@ interface RpcBody {
     serverInfo?: { name?: string };
     tools?: Array<{ name?: string }>;
     content?: Array<{ type?: string; text?: string }>;
+    resources?: Array<{ uri?: string; name?: string; description?: string; mimeType?: string }>;
+    contents?: Array<{ uri?: string; mimeType?: string; text?: string }>;
     structuredContent?: {
       learners?: Array<{ id: string; name: string; example: boolean }>;
       learner?: string;
@@ -83,11 +85,10 @@ describe('MCP endpoint (read-only, account-scoped)', () => {
     await pg.waitReady;
     await applyMigrations(pgliteMigratable(pg), migrationFiles());
     for (const owner of ['mcp-a', 'mcp-b']) {
-      await pg.query(`insert into "user" (id, name, email, "emailVerified") values ($1, $2, $3, false)`, [
-        owner,
-        owner,
-        `${owner}@example.test`,
-      ]);
+      await pg.query(
+        `insert into "user" (id, name, email, "emailVerified") values ($1, $2, $3, false)`,
+        [owner, owner, `${owner}@example.test`],
+      );
     }
     const g = globalThis as typeof globalThis & { __learngraphPglite__?: Promise<PGlite> };
     g.__learngraphPglite__ = Promise.resolve(pg);
@@ -100,12 +101,33 @@ describe('MCP endpoint (read-only, account-scoped)', () => {
     const a = await graphForOwner('mcp-a');
     await a.setLearnerProfile('demo-alice', { name: 'Alice (example)' });
     await a.setLearnerProfile('me-sari', { name: 'Sari' });
-    await a.addConcept({ conceptId: 'c-frac', name: 'Fractions', domain: 'math', description: 'Parts of a whole' });
-    await a.setKnowledgeState('me-sari', 'c-frac', { mastery: 90, masterySource: 'quiz' });
+    await a.addConcept({
+      conceptId: 'c-frac',
+      name: 'Fractions',
+      domain: 'math',
+      description: 'Parts of a whole',
+    });
+    await a.addConcept({
+      conceptId: 'c-base',
+      name: 'Whole numbers',
+      domain: 'math',
+      description: 'Counting numbers',
+    });
+    await a.addEdge({ from: 'c-base', to: 'c-frac', strength: 'required' });
+    await a.setKnowledgeState('me-sari', 'c-frac', {
+      mastery: 90,
+      masterySource: 'quiz',
+      nextReview: '2020-01-01T00:00:00.000Z',
+    });
 
     const b = await graphForOwner('mcp-b');
     await b.setLearnerProfile('me-budi', { name: 'Budi' });
-    await b.addConcept({ conceptId: 'c-galois', name: 'Galois theory', domain: 'math', description: '' });
+    await b.addConcept({
+      conceptId: 'c-galois',
+      name: 'Galois theory',
+      domain: 'math',
+      description: '',
+    });
     await b.setKnowledgeState('me-budi', 'c-galois', { mastery: 95, masterySource: 'quiz' });
   });
 
@@ -151,7 +173,11 @@ describe('MCP endpoint (read-only, account-scoped)', () => {
           jsonrpc: '2.0',
           id: 2,
           method: 'initialize',
-          params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } },
+          params: {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            clientInfo: { name: 'test', version: '1' },
+          },
         },
         keyA,
       ),
@@ -173,7 +199,10 @@ describe('MCP endpoint (read-only, account-scoped)', () => {
   it('lists only the key account’s learners, with the REST shape', async () => {
     const res = await body<RpcBody>(
       await handleMcpPost(
-        rpc({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'list_learners' } }, keyA),
+        rpc(
+          { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'list_learners' } },
+          keyA,
+        ),
       ),
     );
     assert.deepEqual(res.result?.structuredContent?.learners, [
@@ -210,6 +239,93 @@ describe('MCP endpoint (read-only, account-scoped)', () => {
       tokens: res.result?.structuredContent?.tokens,
     });
     assert.ok((res.result?.structuredContent?.tokens ?? 0) > 0);
+  });
+
+  it('lists only the account’s learners and concepts as Markdown resources', async () => {
+    const res = await body<RpcBody>(
+      await handleMcpPost(rpc({ jsonrpc: '2.0', id: 15, method: 'resources/list' }, keyA)),
+    );
+    assert.equal(res.error, undefined);
+    assert.deepEqual(
+      res.result?.resources?.map((resource) => [resource.uri, resource.name, resource.mimeType]),
+      [
+        ['learngraph://learner/demo-alice', 'Alice (example)', 'text/markdown'],
+        ['learngraph://learner/me-sari', 'Sari', 'text/markdown'],
+        ['learngraph://concept/c-frac', 'Fractions', 'text/markdown'],
+        ['learngraph://concept/c-base', 'Whole numbers', 'text/markdown'],
+      ],
+    );
+    assert.ok(!JSON.stringify(res).includes('Budi'));
+    assert.ok(!JSON.stringify(res).includes('Galois'));
+    for (const resource of res.result?.resources ?? []) {
+      assert.ok((resource.description ?? '').length > 10, resource.uri);
+    }
+  });
+
+  it('reads a learner summary with mastery, source and the review due now', async () => {
+    const res = await body<RpcBody>(
+      await handleMcpPost(
+        rpc(
+          {
+            jsonrpc: '2.0',
+            id: 16,
+            method: 'resources/read',
+            params: { uri: 'learngraph://learner/me-sari' },
+          },
+          keyA,
+        ),
+      ),
+    );
+    assert.equal(res.error, undefined);
+    assert.equal(res.result?.contents?.length, 1);
+    assert.equal(res.result?.contents?.[0]?.uri, 'learngraph://learner/me-sari');
+    assert.equal(res.result?.contents?.[0]?.mimeType, 'text/markdown');
+    const text = res.result?.contents?.[0]?.text ?? '';
+    assert.match(text, /^# Sari/);
+    assert.match(text, /- Fractions — 90% \(From quizzes\)/);
+    assert.match(text, /## Reviews due now/);
+    assert.match(text, /- Fractions — 2020-01-01/);
+    assert.ok(!text.includes('concept:'));
+  });
+
+  it('reads a concept with its domain, description and prerequisite names', async () => {
+    const res = await body<RpcBody>(
+      await handleMcpPost(
+        rpc(
+          {
+            jsonrpc: '2.0',
+            id: 17,
+            method: 'resources/read',
+            params: { uri: 'learngraph://concept/c-frac' },
+          },
+          keyA,
+        ),
+      ),
+    );
+    const text = res.result?.contents?.[0]?.text ?? '';
+    assert.match(text, /^# Fractions/);
+    assert.match(text, /- Domain: math/);
+    assert.match(text, /- Description: Parts of a whole/);
+    assert.match(text, /## Prerequisites\n\n- Whole numbers/);
+    assert.ok(!text.includes('c-base'));
+  });
+
+  it('answers another account’s or an unknown resource URI with -32002', async () => {
+    for (const uri of [
+      'learngraph://learner/me-budi',
+      'learngraph://concept/c-galois',
+      'learngraph://concept/nope',
+      'learngraph://learner/',
+      'https://example.test/learner/me-sari',
+    ]) {
+      const res = await body<RpcBody>(
+        await handleMcpPost(
+          rpc({ jsonrpc: '2.0', id: 18, method: 'resources/read', params: { uri } }, keyA),
+        ),
+      );
+      assert.equal(res.error?.code, -32002, uri);
+      assert.equal(res.error?.message, `Resource not found: ${uri}`);
+    }
   });
 
   it('never lets one account read another’s learner or concept', async () => {
@@ -265,12 +381,15 @@ describe('MCP endpoint (read-only, account-scoped)', () => {
   it('rejects unknown tools and methods with protocol errors', async () => {
     const tool = await body<RpcBody>(
       await handleMcpPost(
-        rpc({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'delete_everything' } }, keyA),
+        rpc(
+          { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'delete_everything' } },
+          keyA,
+        ),
       ),
     );
     assert.equal(tool.error?.code, -32602);
     const method = await body<RpcBody>(
-      await handleMcpPost(rpc({ jsonrpc: '2.0', id: 10, method: 'resources/list' }, keyA)),
+      await handleMcpPost(rpc({ jsonrpc: '2.0', id: 10, method: 'prompts/list' }, keyA)),
     );
     assert.equal(method.error?.code, -32601);
   });
@@ -289,13 +408,49 @@ describe('MCP endpoint (read-only, account-scoped)', () => {
 
   it('leaves the graph tables untouched after a round of reads', async () => {
     const count = async (table: string) =>
-      Number((await pg.query<{ n: number }>(`select count(*)::int as n from "${table}"`)).rows[0].n);
+      Number(
+        (await pg.query<{ n: number }>(`select count(*)::int as n from "${table}"`)).rows[0].n,
+      );
     const before = await Promise.all(GRAPH_TABLES.map(count));
     await handleMcpPost(
-      rpc({ jsonrpc: '2.0', id: 13, method: 'tools/call', params: { name: 'get_tutor_context', arguments: { concept: 'Fractions' } } }, keyA),
+      rpc(
+        {
+          jsonrpc: '2.0',
+          id: 13,
+          method: 'tools/call',
+          params: { name: 'get_tutor_context', arguments: { concept: 'Fractions' } },
+        },
+        keyA,
+      ),
     );
     await handleMcpPost(
-      rpc({ jsonrpc: '2.0', id: 14, method: 'tools/call', params: { name: 'list_learners' } }, keyA),
+      rpc(
+        { jsonrpc: '2.0', id: 14, method: 'tools/call', params: { name: 'list_learners' } },
+        keyA,
+      ),
+    );
+    await handleMcpPost(rpc({ jsonrpc: '2.0', id: 15, method: 'resources/list' }, keyA));
+    await handleMcpPost(
+      rpc(
+        {
+          jsonrpc: '2.0',
+          id: 16,
+          method: 'resources/read',
+          params: { uri: 'learngraph://learner/me-sari' },
+        },
+        keyA,
+      ),
+    );
+    await handleMcpPost(
+      rpc(
+        {
+          jsonrpc: '2.0',
+          id: 17,
+          method: 'resources/read',
+          params: { uri: 'learngraph://concept/c-frac' },
+        },
+        keyA,
+      ),
     );
     const after = await Promise.all(GRAPH_TABLES.map(count));
     assert.deepEqual(after, before);

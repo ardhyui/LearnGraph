@@ -4,10 +4,11 @@
  * The route (`src/lib/mcp/route.ts`) owns auth and HTTP; the tool handlers
  * (`src/lib/mcp/tools.ts`) own the graph. No dependencies, no database.
  *
- * Supported: `initialize`, `ping`, `tools/list`, `tools/call`, and
- * notifications (202, no body). Streamable HTTP is answered as plain
- * `application/json`; there is no SSE stream. JSON-RPC batches are rejected
- * because this server has nothing to batch (and clients can fall back).
+ * Supported: `initialize`, `ping`, `tools/list`, `tools/call`,
+ * `resources/list`, `resources/read`, and notifications (202, no body).
+ * Streamable HTTP is answered as plain `application/json`; there is no SSE
+ * stream. JSON-RPC batches are rejected because this server has nothing to
+ * batch (and clients can fall back).
  */
 
 export const SERVER_NAME = 'learngraph';
@@ -26,8 +27,37 @@ export interface McpToolResult {
 
 export interface McpToolHandlers {
   list_learners: () => Promise<McpToolResult>;
-  get_tutor_context: (args: { learner?: string; concept?: string; query?: string }) => Promise<McpToolResult>;
+  get_tutor_context: (args: {
+    learner?: string;
+    concept?: string;
+    query?: string;
+  }) => Promise<McpToolResult>;
 }
+
+/** One read-only document advertised by `resources/list`. */
+export interface McpResource {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType: 'text/markdown';
+}
+
+/** One document body returned by `resources/read`. */
+export interface McpResourceContent {
+  uri: string;
+  mimeType: 'text/markdown';
+  text: string;
+}
+
+/** Everything the transport needs: the two tools plus the resource surface. */
+export interface McpHandlers extends McpToolHandlers {
+  list_resources: () => Promise<McpResource[]>;
+  /** `null` for a URI this account does not own (mapped to JSON-RPC -32002). */
+  read_resource: (uri: string) => Promise<McpResourceContent | null>;
+}
+
+/** Longest URI `resources/read` accepts before it is invalid params. */
+export const MAX_RESOURCE_URI_LENGTH = 512;
 
 export interface McpHttpResponse {
   status: number;
@@ -38,7 +68,7 @@ export interface McpHttpResponse {
 export const MCP_TOOLS = [
   {
     name: 'list_learners',
-    description: "List the learners in the account this API key belongs to. Read-only.",
+    description: 'List the learners in the account this API key belongs to. Read-only.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -66,7 +96,8 @@ export const MCP_TOOLS = [
         query: {
           type: 'string',
           maxLength: 1000,
-          description: "What the learner asked, so the brief can pick explain/practice/stuck/review/next/general.",
+          description:
+            'What the learner asked, so the brief can pick explain/practice/stuck/review/next/general.',
         },
       },
       additionalProperties: false,
@@ -120,8 +151,39 @@ export function parseToolArguments(name: string, raw: unknown): ParsedArgs {
 
 const toolContent = (result: McpToolResult) => ({
   content: [{ type: 'text', text: result.text }],
-  ...(result.structuredContent === undefined ? {} : { structuredContent: result.structuredContent }),
+  ...(result.structuredContent === undefined
+    ? {}
+    : { structuredContent: result.structuredContent }),
 });
+
+type ParsedResourceRead = { ok: true; uri: string } | { ok: false; message: string };
+
+/** Validate `resources/read` params: exactly one non-empty URI, at most 512 characters. */
+export function parseResourceReadParams(raw: unknown): ParsedResourceRead {
+  if (!isRecord(raw)) return { ok: false, message: 'expected an object.' };
+  const uri = raw.uri;
+  if (typeof uri !== 'string' || !uri) {
+    return { ok: false, message: '"uri" must be a non-empty string.' };
+  }
+  if (uri.length > MAX_RESOURCE_URI_LENGTH) {
+    return { ok: false, message: `"uri" is longer than ${MAX_RESOURCE_URI_LENGTH} characters.` };
+  }
+  return { ok: true, uri };
+}
+
+async function readResource(
+  id: unknown,
+  params: unknown,
+  handlers: McpHandlers,
+): Promise<McpHttpResponse> {
+  const parsed = parseResourceReadParams(params);
+  if (!parsed.ok) return errorResponse(id, -32602, `Invalid params: ${parsed.message}`);
+  const content = await handlers.read_resource(parsed.uri);
+  // A URI for another account and a URI that never existed look the same on
+  // purpose: neither confirms what the account does not own.
+  if (!content) return errorResponse(id, -32002, `Resource not found: ${parsed.uri}`);
+  return response(id, { contents: [content] });
+}
 
 async function callTool(
   id: unknown,
@@ -155,7 +217,7 @@ async function callTool(
 /** Handle one JSON-RPC message. Bad JSON and invalid requests get JSON-RPC errors. */
 export async function handleMcpMessage(
   raw: string,
-  handlers: McpToolHandlers,
+  handlers: McpHandlers,
 ): Promise<McpHttpResponse> {
   let message: unknown;
   try {
@@ -184,11 +246,12 @@ export async function handleMcpMessage(
       const params = isRecord(message.params) ? message.params : {};
       return response(id, {
         protocolVersion: negotiateProtocolVersion(params.protocolVersion),
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {} },
         serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
         instructions:
           'Read-only LearnGraph context for one account. Call list_learners, then ' +
-          'get_tutor_context with the learner id (and optionally a concept and the question).',
+          'get_tutor_context with the learner id (and optionally a concept and the question). ' +
+          'resources/list and resources/read expose learner summaries and concept details.',
       });
     }
     case 'ping':
@@ -197,6 +260,10 @@ export async function handleMcpMessage(
       return response(id, { tools: MCP_TOOLS });
     case 'tools/call':
       return callTool(id, message.params, handlers);
+    case 'resources/list':
+      return response(id, { resources: await handlers.list_resources() });
+    case 'resources/read':
+      return readResource(id, message.params, handlers);
     default:
       return errorResponse(id, -32601, `Method not found: ${method}`);
   }
