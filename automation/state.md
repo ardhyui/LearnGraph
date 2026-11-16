@@ -66,6 +66,29 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-17: PR #114 — **Fokus keyboard pindah ke hasil kuis di halaman
+  pelajaran** — tombol **Done** di kuis `/learn/$conceptId` menutup
+  `ConceptQuiz` dan mengisi `notice`, tetapi elemen yang sedang fokus ikut
+  ter-unmount sehingga fokus jatuh ke `<body>`; pengguna keyboard/pembaca layar
+  harus men-Tab dari awal halaman. Kini paragraf `role="status"
+  aria-live="polite"` yang sudah ada memakai `ref={noticeRef}`,
+  `tabIndex={-1}`, dan `focus:outline-none` (teks, peran live region, posisi,
+  kelas warna/spasi tetap), dan `finishQuiz` memindahkan fokus dengan
+  `requestAnimationFrame(() => noticeRef.current?.focus())` setelah
+  `setNotice(...)` + `await load()` selesai — berlaku untuk kuis lulus maupun
+  gagal. `cancelQuiz` tetap kembali ke tombol **Take the quick quiz** lewat
+  `quizButtonRef`; tidak ada fokus paksa saat mount, ganti learner/konsep,
+  reload `load()`, atau laporan diri. `ConceptQuiz`, alur jawab/`Done`,
+  `quizResultNotice`, dan copy tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/lesson-focus.test.ts` (6 penjaga statis: ref, kontrak paragraf status,
+  urutan `setNotice` → `await load()` → `requestAnimationFrame` → `focus`,
+  `cancelQuiz`/`selfReport`/`load`, tanpa `createServerFn`/RPC/migrasi, dan cek
+  smoke setelah `closeQuiz(lesson)`). Satu cek smoke baru memastikan
+  `document.activeElement` adalah `<p role="status">` berisi `passed`, bukan
+  `<body>`; penjaga baris smoke 2114 → 2125. `README.md` dan `Roadmap.md` tidak
+  diubah; `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau
+  (1262/1262 unit = 1256 + 6; smoke baru lulus pada percobaan pertama).
+
 - 2026-11-17: PR #112 — **Tab halaman Recommendations bisa dipakai pembaca
   layar dan keyboard** — tiga tombol tab (**Recommendations**,
   **Ready / not yet**, **Learning Path**) di `/recommendations` sebelumnya
