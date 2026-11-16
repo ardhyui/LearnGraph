@@ -1,46 +1,45 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (fokus hasil kuis di halaman pelajaran; siklus berikutnya: semantik daftar kartu Recommendations)
+Terakhir diperbarui: 2026-11-17 (fokus kartu rekomendasi sebagai daftar berurut; siklus berikutnya: semantik daftar antrean review di `/gaps`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **semantik daftar kartu rekomendasi** di `/recommendations`
-— kandidat fitur (a); tanpa migrasi skema, dependensi, server function, RPC,
-atau method RPC baru. Konteks: panel tab **Recommendations** di
-`src/routes/recommendations.tsx` (sekitar baris 460–592) merender
-`zpd.recommendations.map` sebagai deretan `<motion.div>` di dalam
-`<motion.div role="tabpanel" id="rec-panel-recommendations">`, sehingga pembaca
-layar tidak tahu kartu-kartu itu satu daftar berurut dan tidak bisa melompat
-per item, padahal urutannya adalah prioritas belajar (badge angka `{idx + 1}`
-di setiap kartu sudah tampil visual). Empty state
-(`zpd.recommendations.length === 0`, teks **All caught up!** / "No new concepts
-ready to learn right now.") tetap seperti sekarang.
+Poles aksesibilitas **semantik daftar antrean review** di `/gaps` — kandidat
+fitur (a); tanpa migrasi skema, dependensi, server function, RPC, atau method
+RPC baru. Konteks: kartu **Reviews** di `src/routes/gaps.tsx` (sekitar baris
+651–675) merender `reviewQueue.queue.map` sebagai deretan `<motion.div>` di
+dalam `<div className="space-y-3 max-h-96 overflow-y-auto scrollbar-hide">`,
+sehingga pembaca layar tidak tahu item-item itu satu daftar review dan tidak
+bisa melompat per item, padahal tiap item membawa prioritas dan tanggal review.
+Empty state (`!reviewQueue || reviewQueue.queue.length === 0`, teks **Nothing
+due right now** / **Nothing to review yet**) dan daftar **Snoozed reviews**
+(<ul aria-label="Snoozed reviews">) tetap seperti sekarang.
 
-Rancangan (baca kode dulu: `containerVariants`/`itemVariants`,
-`AnimatePresence`, dan badge `{idx + 1}`):
+Rancangan (baca kode dulu: `reviewSummary`, `priorityLabel`,
+`getPriorityColor`, `key={i}`, dan cek smoke gap di `scripts/smoke.mjs`):
 
-1. Ganti wadah hasil peta kartu menjadi `<motion.ol aria-label="Recommended
-   concepts" ...>` dan tiap kartu `<motion.div>` hasil `map` menjadi
-   `<motion.li>`. Pertahankan tepat: `key={rec.concept.conceptId}`,
-   `variants={itemVariants}`, `whileHover={{ y: -2 }}`, seluruh `className`
-   visual, isi kartu, urutan, badge angka `{idx + 1}`, dan
-   `AnimatePresence mode="wait"`. Jangan mengubah empty state, tablist/tab/
-   tabpanel, teks/copy, atau animasi.
-2. Pastikan hanya `<li>` yang menjadi anak langsung `<ol>` di markup (tanpa
-   `<div>` pembungkus tambahan di antaranya) dan tidak muncul penanda nomor
-   ganda (Tailwind preflight sudah menghapus marker; jangan menambah kelas
-   visual baru tanpa perlu). Jangan memindahkan fokus, menambah live region,
-   atau mengubah urutan/angka.
-3. **Test**: file baru `tests/recommendations-list.test.ts` (penjaga statis
-   `src/routes/recommendations.tsx`) — `<motion.ol` dengan
-   `aria-label="Recommended concepts"`, hasil `map` berupa `<motion.li>`,
-   `key`/`variants`/`whileHover`/badge `{idx + 1}` tetap, empty state tidak
-   ikut menjadi item daftar, dan tidak ada `createServerFn`/`graphCall`/RPC/
-   migrasi baru. Tambah **satu cek smoke** di blok Recommendations yang sudah
-   ada (`scripts/smoke.mjs`): daftar bernama **Recommended concepts** terlihat
-   dan jumlah `listitem`-nya > 0 saat ada rekomendasi, lalu perbarui penjaga
-   jumlah baris `tests/skip-link.test.ts` 2125 → jumlah baru (hitung dengan
-   `trimEnd().split('\n').length`).
+1. Ganti wadah hasil peta menjadi `<ul aria-label="Reviews due" className=
+   "space-y-3 max-h-96 overflow-y-auto scrollbar-hide">` dan tiap item
+   `<motion.div>` hasil `map` menjadi `<motion.li>`. Pertahankan tepat
+   `key={i}`, `whileHover={{ scale: 1.01 }}`, seluruh `className` visual item,
+   isi (nama konsep via `conceptLabel`, `reviewSummary`, badge
+   `priorityLabel`), urutan, dan titik prioritas ber-`aria-hidden`.
+2. Pastikan hanya `<li>` yang menjadi anak langsung `<ul>` di markup (tanpa
+   `<div>` pembungkus tambahan di antaranya) dan tidak muncul penanda
+   bullet/nomor (Tailwind preflight sudah menghapus marker; jangan menambah
+   kelas visual baru tanpa perlu). Jangan memindahkan fokus, menambah live
+   region, atau mengubah empty state, kartu angka/ringkasan shaky spots,
+   banner overdue, atau daftar Snoozed.
+3. **Test**: file baru `tests/gaps-review-list.test.ts` (penjaga statis
+   `src/routes/gaps.tsx`) — `<ul` dengan `aria-label="Reviews due"` dan kelas
+   gulir yang sama, hasil `map` berupa `<motion.li>` langsung, `key`/
+   `whileHover`/kelas/isi tetap, empty state tidak ikut menjadi item daftar,
+   daftar Snoozed tetap `<ul aria-label="Snoozed reviews">`, dan tidak ada
+   `createServerFn`/`graphCall`/RPC/migrasi baru. Tambah **satu cek smoke** di
+   blok Gap Analysis yang sudah ada (`scripts/smoke.mjs`): daftar bernama
+   **Reviews due** terlihat dan jumlah `listitem`-nya > 0 saat ada review,
+   lalu perbarui penjaga jumlah baris `tests/skip-link.test.ts` sesuai jumlah
+   baru (hitung dengan `trimEnd().split('\n').length`).
 4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -57,14 +56,35 @@ Tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis; baca
 kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
-   fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Kandidat
-   setelah daftar Recommendations: `/gaps`, `/profile`, `/graph`, dan
-   `/learn/$conceptId` (mis. urutan fokus setelah aksi lain).
+   fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Setelah
+   antrean review `/gaps`: `/profile`, `/graph`, dan `/learn/$conceptId`
+   (mis. urutan fokus setelah aksi lain).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #115 — **Kartu rekomendasi di `/recommendations` menjadi
+  satu daftar berurut bernama** — kartu hasil `zpd.recommendations.map`
+  sebelumnya deretan `<motion.div>` langsung di dalam `role="tabpanel"`,
+  sehingga pembaca layar tidak tahu kartu-kartu itu satu daftar prioritas dan
+  tidak bisa melompat per item. Kini wadahnya
+  `<motion.ol aria-label="Recommended concepts">` dengan
+  `variants={containerVariants}` dan `className="space-y-4"` (kontrak animasi
+  dan jarak vertikal dipindahkan ke daftar), dan tiap kartu `<motion.li>`
+  dengan `key={rec.concept.conceptId}`, `variants={itemVariants}`,
+  `whileHover={{ y: -2 }}`, serta seluruh kelas visual, isi, urutan, dan badge
+  angka `{idx + 1}` tetap. Tidak ada `<div>` perantara antara `<ol>` dan
+  `<li>`; tanpa kelas marker baru (Tailwind preflight sudah menghapus penanda),
+  empty state **All caught up!** tetap `motion.div` di cabangnya sendiri dan
+  bukan item daftar; tablist/tab/tabpanel, `AnimatePresence mode="wait"`,
+  copy, dan fokus tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/recommendations-list.test.ts` (8 penjaga statis) dan satu cek smoke
+  memastikan daftar **Recommended concepts** terlihat dengan `listitem` > 0;
+  penjaga jumlah baris smoke 2125 → 2134. `README.md` dan `Roadmap.md` tidak
+  diubah; `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau
+  (1270/1270 unit = 1262 + 8; smoke lulus pada percobaan pertama).
 
 - 2026-11-17: PR #114 — **Fokus keyboard pindah ke hasil kuis di halaman
   pelajaran** — tombol **Done** di kuis `/learn/$conceptId` menutup
