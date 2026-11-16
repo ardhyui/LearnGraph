@@ -35,6 +35,7 @@ import { Route as AdminPsychometricsRouteImport } from './routes/admin/psychomet
 import { Route as AdminQuestionsRouteImport } from './routes/admin/questions'
 import { Route as AdminStatesRouteImport } from './routes/admin/states'
 import { Route as ApiJapaneseBackupRouteImport } from './routes/api/japanese-backup'
+import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as LearnConceptIdRouteImport } from './routes/learn.$conceptId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiV1ContextRouteImport } from './routes/api/v1/context'
@@ -170,6 +171,11 @@ const ApiJapaneseBackupRoute = ApiJapaneseBackupRouteImport.update({
   path: '/api/japanese-backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LearnConceptIdRoute = LearnConceptIdRouteImport.update({
   id: '/learn/$conceptId',
   path: '/learn/$conceptId',
@@ -218,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/admin/questions': typeof AdminQuestionsRoute
   '/admin/states': typeof AdminStatesRoute
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/learn/$conceptId': typeof LearnConceptIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/context': typeof ApiV1ContextRoute
@@ -250,6 +257,7 @@ export interface FileRoutesByTo {
   '/admin/questions': typeof AdminQuestionsRoute
   '/admin/states': typeof AdminStatesRoute
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/learn/$conceptId': typeof LearnConceptIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/context': typeof ApiV1ContextRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/admin/questions': typeof AdminQuestionsRoute
   '/admin/states': typeof AdminStatesRoute
   '/api/japanese-backup': typeof ApiJapaneseBackupRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/learn/$conceptId': typeof LearnConceptIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/context': typeof ApiV1ContextRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/admin/questions'
     | '/admin/states'
     | '/api/japanese-backup'
+    | '/api/mcp'
     | '/learn/$conceptId'
     | '/api/auth/$'
     | '/api/v1/context'
@@ -349,6 +359,7 @@ export interface FileRouteTypes {
     | '/admin/questions'
     | '/admin/states'
     | '/api/japanese-backup'
+    | '/api/mcp'
     | '/learn/$conceptId'
     | '/api/auth/$'
     | '/api/v1/context'
@@ -381,6 +392,7 @@ export interface FileRouteTypes {
     | '/admin/questions'
     | '/admin/states'
     | '/api/japanese-backup'
+    | '/api/mcp'
     | '/learn/$conceptId'
     | '/api/auth/$'
     | '/api/v1/context'
@@ -414,6 +426,7 @@ export interface RootRouteChildren {
   AdminQuestionsRoute: typeof AdminQuestionsRoute
   AdminStatesRoute: typeof AdminStatesRoute
   ApiJapaneseBackupRoute: typeof ApiJapaneseBackupRoute
+  ApiMcpRoute: typeof ApiMcpRoute
   LearnConceptIdRoute: typeof LearnConceptIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiV1ContextRoute: typeof ApiV1ContextRoute
@@ -604,6 +617,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiJapaneseBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/learn/$conceptId': {
       id: '/learn/$conceptId'
       path: '/learn/$conceptId'
@@ -662,6 +682,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminQuestionsRoute: AdminQuestionsRoute,
   AdminStatesRoute: AdminStatesRoute,
   ApiJapaneseBackupRoute: ApiJapaneseBackupRoute,
+  ApiMcpRoute: ApiMcpRoute,
   LearnConceptIdRoute: LearnConceptIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiV1ContextRoute: ApiV1ContextRoute,

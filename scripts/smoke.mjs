@@ -1830,6 +1830,52 @@ try {
       'api: a read-only key fetches the tutor brief; without a key the API refuses',
       `context ${ctxRes.status} (${ctxBody.queryType}), no key ${anon.status}, learners ${learnersRes.status}`,
     );
+    // The same key opens the read-only MCP endpoint (JSON-RPC 2.0 over POST).
+    const mcp = (msg, k) =>
+      fetch(`${BASE}/api/mcp`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(k ? { authorization: `Bearer ${k}` } : {}) },
+        body: JSON.stringify(msg),
+      });
+    const initMcp = await mcp(
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'smoke', version: '1' } },
+      },
+      key,
+    );
+    const initMcpBody = await initMcp.json().catch(() => ({}));
+    const toolsMcp = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, key);
+    const toolsMcpBody = await toolsMcp.json().catch(() => ({}));
+    const mcpTools = (toolsMcpBody.result?.tools ?? []).map((t) => t.name);
+    const callMcp = await mcp(
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'get_tutor_context', arguments: { concept: 'Fractions', query: 'explain adding fractions' } },
+      },
+      key,
+    );
+    const callMcpBody = await callMcp.json().catch(() => ({}));
+    const mcpText = callMcpBody.result?.content?.[0]?.text ?? '';
+    const noKeyMcp = await mcp({ jsonrpc: '2.0', id: 4, method: 'ping' }, null);
+    const getMcp = await fetch(`${BASE}/api/mcp`);
+    check(
+      initMcp.status === 200 &&
+        initMcpBody.result?.serverInfo?.name === 'learngraph' &&
+        toolsMcp.status === 200 &&
+        mcpTools.includes('list_learners') &&
+        mcpTools.includes('get_tutor_context') &&
+        callMcp.status === 200 &&
+        /^You are tutoring one learner/.test(mcpText) &&
+        noKeyMcp.status === 401 &&
+        getMcp.status === 405,
+      'api: an MCP client reads learner context with the same read-only key',
+      `initialize ${initMcp.status}, tools ${mcpTools.join('+')}, call ${callMcp.status}, no key ${noKeyMcp.status}, GET ${getMcp.status}`,
+    );
     page.once('dialog', (d) => d.accept());
     await access.getByRole('button', { name: /^Revoke/ }).first().click();
     await access.getByRole('list', { name: 'Your API keys' }).waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
