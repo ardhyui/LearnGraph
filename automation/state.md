@@ -1,61 +1,90 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 58: test unit langsung judul tab & label halaman `src/lib/page-titles.ts`, PR #97; berikutnya: test unit langsung nilai default context data & tema `src/lib/db-context.ts` + `src/lib/theme-context.ts`)
+Terakhir diperbarui: 2026-11-16 (siklus 59: test unit langsung nilai default context data & tema `src/lib/db-context.ts` + `src/lib/theme-context.ts`, PR #98; berikutnya: test unit langsung penjaga CSP `src/lib/zod-config.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung nilai default context data & tema
-`src/lib/db-context.ts` + `src/lib/theme-context.ts`** — `DBContext` dan
-`ThemeContext` (dua modul terakhir di `src/lib` yang belum punya test
-langsung; `tests/provider-split.test.ts` hanya memeriksa nama ekspor, bukan
-nilai default yang dipakai hook di luar provider). File baru
-`tests/context-defaults-direct.test.ts` (node:test murni, impor modul
-langsung, tanpa PGlite/DOM); kedua modul **tidak diubah**. Kedua modul hanya
-mengimpor `createContext` dari `react` (plus `import type` dari
-`@/lib/graph/methods` di `db-context.ts`), jadi jangan klaim bebas impor.
-Jangan mencoba mengimpor `DBContext.tsx`/`theme.tsx`/`DBProvider.tsx`:
-modul-modul itu memakai impor tanpa ekstensi dan JSX sehingga tidak bisa
-dijalankan Node murni. Nilai default dibaca dengan
-`react-dom/server` (`createElement` + `useContext` + `renderToStaticMarkup`)
-— React merender di Node tanpa DOM. Probe dulu perilaku aktual:
+Penguatan tes: **test unit langsung penjaga CSP `src/lib/zod-config.ts`** —
+modul terakhir di `src/lib` yang masih tanpa test langsung dan bisa diuji
+tanpa jaringan/PGlite/DOM (`auth/client.ts`, `auth/server.ts`,
+`auth/verify.server.ts` sengaja dilewati: butuh better-auth, request sesi, dan
+database). File baru `tests/zod-config.test.ts` (node:test murni, tanpa
+PGlite/DOM/Playwright); modul **tidak diubah**. Efek modul hanya muncul saat
+`window` ada, jadi uji lewat dua proses anak agar zod belum ter-cache di proses
+test: `execFileSync(process.execPath, ['--experimental-strip-types',
+'--input-type=module', '-e', skrip])`, skrip mengimpor
+`pathToFileURL(<src/lib/zod-config.ts>).href`, lalu mencetak JSON
+`{ before, after }` dari `z.core.globalConfig.jitless`. Probe aktual:
+`before` selalu `undefined`; `after` tetap `undefined` tanpa `window`, dan
+menjadi `true` bila `globalThis.window` diisi (termasuk rough edge `null`,
+`0`, `''` — `typeof` bukan `'undefined'`).
 
-1. `DBContext` default: tepat empat kunci `db`/`isLoading`/`error`/`isReady`
-   dengan nilai `null`/`true`/`null`/`false`; `db` bukan objek, `error`
-   bukan `Error`. `theme-context` default: tepat tiga kunci
-   `theme`/`resolvedTheme`/`setTheme`; `theme === 'system'`,
-   `resolvedTheme === 'light'`, `setTheme` berupa fungsi yang mengembalikan
-   `undefined` dan tidak melempar (JSON.stringify membuang fungsi, jadi baca
-   objeknya langsung di komponen dan kembalikan field satu per satu).
-2. Provider tetap bisa menimpa default: render
-   `DBContext.Provider value={custom}` lalu `useContext(DBContext)` →
-   objek custom utuh (termasuk `db` objek tiruan, `isLoading` false,
-   `error` `Error` asli, `isReady` true); `ThemeContext.Provider` dengan
-   `{theme:'dark',resolvedTheme:'dark',setTheme}` → nilai custom utuh dan
-   fungsi yang dipanggil memanggil tiruan `setTheme` (bukan no-op default).
-   Ini mengunci bahwa `DBProvider.tsx`/`ThemeProvider.tsx` memakai context
-   yang sama (identity), tanpa merender komponen providernya.
-3. Penjaga statis — `db-context.ts` hanya `import { createContext } from
-   'react'` + satu `import type { RemoteGraphDB } from '@/lib/graph/methods'`,
-   tanpa `require`, mengekspor `DBContextValue` (interface) dan `DBContext`
-   berurutan; `theme-context.ts` hanya impor `createContext` dari `react`,
-   mengekspor `Theme`, `ThemeContextValue`, `ThemeContext` berurutan;
-   `DBProvider.tsx` mengimpor `DBContext` dari `@/lib/db-context` dan
-   mengoper `{ db, isLoading, error, isReady }` ke `DBContext.Provider`;
-   `ThemeProvider.tsx` mengimpor `ThemeContext` dari `@/lib/theme-context`
-   dan mengoper `{ theme, resolvedTheme, setTheme }`; `theme.tsx` masih
-   `return useContext(ThemeContext)`; `DBContext.tsx` masih mengekspor
-   kedelapan hook (rujuk, jangan salin seluruh daftar test lama).
-   `tests/provider-split.test.ts` (5 `it`, 68 baris) dan
-   `tests/theme-script.test.ts` (12 `it`) tetap utuh: rujuk satu judul +
-   jumlah baris sebagai anchor, jangan pindahkan asersinya.
+1. Tanpa `globalThis.window` → `after === undefined` (tidak memanggil
+   `z.config`); dengan `globalThis.window = {}` → `after === true`. Ulangi
+   untuk `null`/`0`/`''` dan kunci ketiganya juga `true` (rough edge
+   `typeof`); `delete globalThis.window` lalu import modul → tetap
+   `undefined`. Pastikan `before` `undefined` di tiap proses (zod segar) dan
+   exit code 0.
+2. Penjaga statis: `zod-config.ts` hanya satu impor
+   `import { z } from 'zod';`, tanpa `require`, tidak mengekspor apa pun,
+   dan urutan persis `if (typeof window !== 'undefined')` →
+   `z.config({ jitless: true });`; `src/router.tsx` mengimpor
+   `'./lib/zod-config'` sebagai **impor pertama** (sebelum
+   `@tanstack/react-router`/`./routeTree.gen`) dengan komentar
+   `// First: configures Zod before any route module builds a schema.` tetap
+   ada; hanya router yang mengimpor `zod-config` di seluruh `src/` (scan
+   rekursif). Anchor: `tests/security-headers.test.ts` dan
+   `tests/check-csp.test.ts` tetap utuh (jumlah baris), asersi lamanya tidak
+   dipindah.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 5–8). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 4–6). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi
 dan tanpa perubahan `docs/ROADMAP.md` (tidak ada baris backlog tersentuh).
 Bila smoke flaky karena beban mesin bersama (pola PR #84/#91/#95), tunggu
 load turun lalu ulangi gerbang utuh tanpa mengubah kode.
 
 ## Riwayat
+
+- 2026-11-16: PR #98 — test: test unit langsung nilai default context data &
+  tema `src/lib/db-context.ts` + `src/lib/theme-context.ts` (7 test di
+  `tests/context-defaults-direct.test.ts`, node:test murni, impor modul
+  langsung + `react-dom/server` `createElement`/`useContext`/
+  `renderToStaticMarkup` tanpa PGlite/DOM), kedua modul tidak diubah;
+  `tests/provider-split.test.ts` (5 `it`, **71** baris — catatan probe:
+  spesifikasi tugas menulis 68, berkas aktual 71) dan
+  `tests/theme-script.test.ts` (12 `it`) tetap utuh (dirujuk penjaga statis,
+  asersinya tidak dipindah). Dikunci: `DBContext` default tepat empat kunci
+  `db`/`isLoading`/`error`/`isReady` dengan `null`/`true`/`null`/`false`
+  (`db` dan `error` persis `null`, bukan `Error`); `ThemeContext` default
+  tepat tiga kunci, `theme 'system'`, `resolvedTheme 'light'`, dan `setTheme`
+  fungsi no-op yang mengembalikan `undefined` untuk `'dark'`/`'light'`/
+  `'system'` tanpa melempar (dibaca langsung, bukan lewat JSON). Provider
+  menimpa default tanpa salinan: `DBContext.Provider` mengembalikan objek
+  custom yang identik (termasuk `db` tiruan, `isLoading` false, `error`
+  `Error` asli, `isReady` true); `ThemeContext.Provider` mengembalikan objek
+  custom identik dan `setTheme`-nya memanggil tiruan (`'light'` tercatat),
+  bukan no-op default. Penjaga statis: `db-context.ts` hanya dua impor
+  (`createContext` dari `react` + `import type RemoteGraphDB` dari
+  `@/lib/graph/methods`), tanpa `require`, mengekspor `DBContextValue` lalu
+  `DBContext`; `theme-context.ts` hanya impor `createContext`, mengekspor
+  `Theme`/`ThemeContextValue`/`ThemeContext` berurutan; `DBProvider.tsx`
+  mengimpor `DBContext`+tipe dari `@/lib/db-context` dan mengoper
+  `{ db, isLoading, error, isReady: !!db && !isLoading }` lewat
+  `<DBContext.Provider value={value}>`; `ThemeProvider.tsx` mengoper
+  `{ theme, resolvedTheme, setTheme }`; `theme.tsx` masih
+  `return useContext(ThemeContext)`; `DBContext.tsx` mengimpor `DBContext`
+  dari `@/lib/db-context` dan tetap mengekspor kedelapan hook. Catatan
+  proses: `node_modules` belum ada di worktree sehingga `npm ci` lebih dulu;
+  probe React server lebih dulu mengonfirmasi seluruh nilai/cabang; satu
+  asersi draf `value.error instanceof Error` ditolak typecheck
+  (TS2358 karena `Error | null`) dan dihapus — `error === null` sudah
+  membuktikan bukan `Error`; satu regex draf `isReady,` salah karena kode
+  aktual `isReady: !!db && !isLoading,` dan diperbaiki sebelum gerbang;
+  prettier merapikan format. Tanpa perubahan aplikasi/perilaku/skema/RPC/
+  migrasi/dependensi dan tanpa perubahan `docs/ROADMAP.md` (tidak ada baris
+  backlog tersentuh, pola PR #77/#78/#90/#92–#97). `npm run ci` hijau
+  (install, typecheck, lint 0/0, 1072/1072 unit = 1065 + 7, build, anggaran
+  bundel, CSP build produksi, smoke Playwright + PGlite).
 
 - 2026-11-16: PR #97 — test: test unit langsung judul tab & label halaman
   `src/lib/page-titles.ts` — `APP_NAME`/`PAGE_LABELS`/`pageTitle`/
