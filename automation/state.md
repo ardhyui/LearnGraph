@@ -1,51 +1,57 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (tautan "Continue your last lesson" di PR #109; siklus berikutnya: ringkasan hasil pencarian di Today)
+Terakhir diperbarui: 2026-11-16 (ringkasan hasil pencarian konsep di panel Today; siklus berikutnya: ringkasan hasil analisis di Gap Analysis)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **ringkasan hasil pencarian konsep di panel Today**
-(kandidat fitur (a); tanpa migrasi skema, dependensi, server function, RPC,
-atau method RPC baru). Konteks: kotak **Find a concept** (PR #107) menampilkan
-maksimal 8 hasil tanpa memberi tahu berapa yang cocok atau bahwa daftarnya
-dipotong; pengguna pembaca layar yang mengetik tidak mendengar perubahan apa
-pun sampai daftar hasil berubah. Tujuan: satu baris tenang yang mengumumkan
-jumlah hasil dan pemotongan, terlihat dan terbaca.
+Poles aksesibilitas/copy **ringkasan hasil analisis di kartu "Shaky spots"
+halaman Gap Analysis** (kandidat fitur (a); tanpa migrasi skema, dependensi,
+server function, RPC, atau method RPC baru). Konteks: `/gaps` menghitung empat
+jenis masalah (`gaps.missing`/`partial`/`forgotten`/`misconceptions`) dan
+menampilkannya sebagai empat kartu angka di atas, tetapi kartu **Shaky spots**
+hanya berisi daftar panjang (atau empty state) tanpa satu kalimat yang
+merangkumnya; halaman baru terisi setelah analisis selesai, jadi pembaca layar
+tidak pernah mendengar gambaran besarnya. Tujuan: satu baris tenang di bawah
+judul **Shaky spots** dan di atas daftar/empty state yang menyebut total dan
+rincian per jenis.
 
-Rancangan (baca kode dulu: `src/lib/concept-search.ts` — `searchQuery`,
-`conceptSearchResults`; komponen `ConceptSearch` di
-`src/components/StudyToday.tsx`; `tests/concept-search.test.ts`):
+Rancangan (baca kode dulu: `src/lib/gaps.ts` — `GAP_KINDS`, `countLabel`;
+kartu "Shaky spots" di `src/routes/gaps.tsx`; `tests/gaps.test.ts`):
 
-1. **Helper murni** di `src/lib/concept-search.ts` (tanpa React/DB), mis.
-   `conceptSearchSummary(concepts, query, limit = 8)` → `string | null`.
+1. **Helper murni** di `src/lib/gaps.ts` (tanpa React/DB/jam), mis.
+   `gapSummaryLine(counts: { missing: number; partial: number; forgotten: number; misconceptions: number }): string | null`.
    Kunci perilaku:
-   - query dibersihkan dengan `searchQuery`; kosong/pendek → `null` (tidak
-     ada pengumuman, daftar memang tersembunyi);
-   - total cocok 0 → `null`; baris `No concepts match “…”` yang sudah ada
-     tetap satu-satunya pesan;
-   - total 1 → `1 concept found`; total > 1 dan ≤ limit →
-     `<n> concepts found` (pilih satu susunan kata dan kunci di test);
-   - total > limit → `<limit> of <total> concepts shown`, jadi pemotongan
-     terlihat; `limit` ≤ 0 → `null` (tidak ada yang ditampilkan);
-   - id duplikat dihitung sekali, konsisten dengan `conceptSearchResults`;
-   - **jangan menyalin aturan bidang pencocokan**: berbagi satu jalur dengan
-     `conceptSearchResults` (mis. helper internal `rankedMatches` yang
-     dipakai keduanya) dan pastikan hasil pencarian lama tidak berubah.
-2. **UI di `ConceptSearch`**: tepat di bawah `<input>` dan di atas daftar
-   hasil, satu baris `<p role="status" aria-live="polite" className="mt-2
-   text-xs text-muted-foreground">` hanya bila helper mengembalikan string.
-   Tanpa tombol baru, animasi, fokus paksa, atau panggilan baca/tulis
-   tambahan; tetap bahasa Inggris (D2) dan ikut hilang saat learner berganti
-   lewat key `search-<id>` yang sudah ada.
-3. **Test** `tests/concept-search.test.ts` diperluas: cabang helper
-   (kosong/pendek, 0, 1, banyak, terpotong, `limit` 0/negatif, duplikat),
-   hasil `conceptSearchResults` tidak berubah, dan penjaga statis baris status
-   di panel (`role="status"`, `aria-live="polite"`, helper dipanggil) tanpa
-   `createServerFn`/`graphCall`/RPC/migrasi. Smoke tidak berubah (penjaga
-   2114 tetap).
+   - total = jumlah keempat nilai; total 0 → `null` (empty state
+     `No shaky spots right now — nice work!` tetap satu-satunya pesan);
+   - total 1 → `1 shaky spot: 1 fading`; total > 1 →
+     `<n> shaky spots: …` (bentuk tunggal/jamak "spot" benar);
+   - rincian hanya jenis bernilai > 0, selalu urut
+     missing → partial → forgotten → misconceptions, dipisah koma dengan
+     ` and` sebelum bagian terakhir (mis.
+     `4 shaky spots: 1 not started, 2 still learning and 1 fading`);
+     satu jenis saja tetap disebut;
+   - kata per jenis dikunci lowercase: `not started`, `still learning`,
+     `fading`, `mix-up`/`mix-ups` (bentuk jamak benar). Jangan memakai label
+     kartu apa adanya (`Mix-ups` tidak berpluralisasi baik); jangan menyalin
+     aturan hitung — cukup jumlahkan nilai yang diberikan. Bila
+     `countLabel` pas, pakai; teks kartu angka dan empty state lama tidak
+     berubah;
+   - nilai negatif/NaN/non-finite/absen (cast runtime) diperlakukan 0 tanpa
+     melempar.
+2. **UI di `GapsDashboard`**: tepat setelah `<h2>Shaky spots</h2>` dan sebelum
+   cabang `gaps.summary.total === 0`, satu
+   `<p className="text-sm text-muted-foreground mb-3">` hanya bila helper
+   mengembalikan string. Tanpa tombol, animasi, live region baru, fokus
+   paksa, atau panggilan baca/tulis tambahan; tetap bahasa Inggris (D2).
+3. **Test** `tests/gaps.test.ts` diperluas: total 0, 1, banyak; tiap jenis
+   sendirian dan kombinasi; urutan tetap; kata `mix-up`/`mix-ups`; nilai
+   negatif/NaN/non-finite; serta penjaga statis pemanggilan helper (tepat satu
+   kali) + posisi di bawah heading "Shaky spots" dan di atas empty state,
+   tanpa `createServerFn`/`graphCall`/RPC/migrasi baru. Smoke tidak berubah
+   (penjaga 2114 tetap).
 4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
-   `README.md` hanya bila baris fitur Today berubah; `Roadmap.md` hanya bila
-   klaim berubah. Jangan menandai milestone selesai.
+   `README.md` hanya bila baris fitur Gap Analysis berubah; `Roadmap.md` hanya
+   bila klaim berubah. Jangan menandai milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `feat:`. Catatan mesin: sesi lain dapat membuat load ±8 di 4
@@ -58,14 +64,48 @@ Tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis; baca
 kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
-   fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Contoh yang
-   belum diperiksa: `/recommendations` dan `/gaps` (kartu ringkasan, pesan
-   kosong, target sentuh).
+   fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Kandidat
+   berikutnya: `/recommendations` (kartu ringkasan, pesan kosong "No new
+   concepts ready to learn right now", target sentuh) dan `/learn/$conceptId`
+   (urutan fokus setelah kuis).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-16: PR #110 — **Ringkasan jumlah hasil pencarian di panel Today** —
+  kotak **Find a concept** (PR #107) memotong daftar di 8 hasil tanpa memberi
+  tahu berapa yang cocok, dan daftar `<ul>` bukan live region sehingga pembaca
+  layar tidak mendengar apa pun saat pengguna mengetik. Kini tepat di bawah
+  kotak ketik dan di atas daftar hasil ada satu baris tenang `role="status"`
+  ber-`aria-live="polite"`: `1 concept found`, `<n> concepts found`, atau
+  `<limit> of <total> concepts shown` bila daftar dipangkas. Helper murni baru
+  `conceptSearchSummary` di `src/lib/concept-search.ts` mengembalikan `null`
+  untuk query kosong/terlalu pendek (daftar memang tersembunyi), nol kecocokan
+  (baris `No concepts match “…”` lama tetap satu-satunya pesan), dan limit
+  ≤ 0/NaN/Infinity (tidak ada yang ditampilkan); id ganda dihitung sekali.
+  Aturan pencocokan tidak disalin: isi `conceptSearchResults` diekstrak ke
+  helper internal `rankedMatches` yang dipakai bersama lewat `resultLimit`
+  yang sama, jadi hitungan yang diumumkan tidak bisa berbeda dari daftar, dan
+  seluruh 16 test pencarian lama tetap lulus tanpa diubah. Panel memakai data
+  yang sudah dimuat (tanpa panggilan baca/tulis, tombol, animasi, atau fokus
+  paksa), baris ikut hilang saat learner berganti lewat key `search-<id>` yang
+  sudah ada, dan bahasa Inggris (D2). Test `tests/concept-search.test.ts`
+  16 → 25: delapan cabang helper (diam untuk kosong/pendek/nol/limit
+  0/negatif/NaN/Infinity, tunggal, jamak, terpotong bawaan dan limit khusus,
+  duplikat) + satu test kesepakatan ringkasan-vs-daftar untuk enam kombinasi
+  query/limit + penjaga statis baris status (`role="status"`,
+  `aria-live="polite"`, helper dipanggil, posisi di antara input dan daftar)
+  tanpa `createServerFn`/`graphCall`/RPC/migrasi. Smoke tidak berubah
+  (penjaga 2114 tetap). `docs/ROADMAP.md` mendapat entri log; `README.md` dan
+  `Roadmap.md` tidak diubah (tidak ada klaim berubah, milestone tidak ditandai
+  selesai). Catatan proses: sesi ini mengambil alih commit `f1f7297` yang
+  sudah didorong dari worktree sesi lain tetapi belum punya PR/pembaruan
+  state, memverifikasi ulang kode dan test terhadap spek, menambah pembaruan
+  state ini, lalu menjalankan `npm run ci` utuh pada percobaan pertama tanpa
+  perubahan kode dan hijau (typecheck, lint 0/0, 1234/1234 unit, build,
+  anggaran bundel, CSP produksi, smoke Playwright + PGlite).
 
 - 2026-11-16: PR #109 — **Tautan "Continue your last lesson" di panel Today** —
   pelajar yang sempat membuka atau mengerjakan sebuah konsep kini bisa langsung
