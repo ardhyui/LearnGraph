@@ -1,70 +1,123 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 53: test unit langsung dataset kurikulum & bank soal Jepang, PR #92; berikutnya: test unit langsung ukuran keberhasilan belajar `src/lib/evidence/measures.ts`)
+Terakhir diperbarui: 2026-11-16 (siklus 54: test unit langsung ukuran keberhasilan belajar `src/lib/evidence/measures.ts`, PR #93; berikutnya: test unit langsung data & helper navigasi `src/lib/navigation.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung ukuran keberhasilan belajar
-`src/lib/evidence/measures.ts`**. File baru
-`tests/evidence-measures-direct.test.ts` (node:test murni, impor modul langsung,
-tanpa PGlite/DOM; `tests/learning-measures.test.ts` yang lama 111 baris tetap
-utuh — **jangan diduplikasi/dipindah**). Modul **tidak diubah** dan hanya
-mengimpor `dueReviewRetention`/`tutorPreference` + tipe dari `./events.ts`.
-Probe dulu perilaku aktual, kunci yang belum tercakup:
+Penguatan tes: **test unit langsung data & helper navigasi utama
+`src/lib/navigation.ts`**. File baru `tests/navigation-direct.test.ts`
+(node:test murni, impor modul langsung, tanpa PGlite/DOM;
+`tests/navigation.test.ts` yang lama 63 baris tetap utuh — **jangan
+diduplikasi/dipindah**; lima judul `it` lamanya dirujuk penjaga statis).
+Modul **tidak diubah** dan murni tanpa impor. Probe dulu perilaku aktual,
+kunci yang belum tercakup:
 
-1. `returningLearners(events, now)` — hanya kind `quiz`/`study`/`review`/
-   `practice`/`lesson` dihitung (`snooze`/`unsnooze`/`tutor` diabaikan kapan
-   pun); `createdAt` bukan tanggal sah atau di masa depan diabaikan; event
-   **tepat 7 hari** lalu masuk minggu sebelumnya (bukan "recent"), **tepat 14
-   hari** lalu diabaikan sepenuhnya, dan `now` tepat masuk recent; satu learner
-   dihitung sekali walau banyak event; learner yang hanya aktif 0–7 hari tidak
-   menambah `activeBefore`; `rate = returned / activeBefore` tanpa pembulatan
-   dan `null` hanya saat `activeBefore === 0` (`before` tanpa kembalinya → 0).
-2. `finishesConcept` — `true` hanya `quiz`+`passed` dan `study`+`got-it`;
-   `quiz`+`failed`, `study`+`started`, `review`+`remembered`,
-   `practice`+`logged`, `lesson`+`opened` → false.
-3. `activationTime(accountCreatedAt, events)` — memilih event penyelesai
-   **paling awal** menurut waktu (urutan array diabaikan); `firstFinishedAt`
-   ISO ber-milidetik; `minutes` dibulatkan `Math.round` lalu dijepit
-   `Math.max(0, …)` (selesai sebelum akun dibuat → 0); tanpa event penyelesai →
-   keduanya `null`; `accountCreatedAt` null/rusak → `firstFinishedAt` tetap
-   terisi tetapi `minutes` null; event ber-`createdAt` rusak atau kind
-   non-penyelesai diabaikan.
-4. `learningMeasures(events, created, now)` — `events` = jumlah baris;
-   `retention`/`returning`/`activation`/`tutor` diteruskan dari helper di atas;
-   `calibrationGap = Math.round((selfReport.rate − quiz.rate) × 100)` hanya bila
-   kedua rate non-null (positif, negatif, dan 0), selain itu `null`; masukan
-   kosong → seluruh cabang kosong (events 0, gap null, rate null).
-5. `measureRows(m)` — id berurutan persis `retention`, `calibration`,
-   `returning`, `activation`, `session`, `personalisation`, label persis, dan
-   target persis (termasuk `Under 5 minutes`, `80%`). Nilai yang dikunci:
-   retention empat cabang (`No due reviews answered yet`, hanya kuis
-   `quizzes 100% of 1`, hanya laporan diri `self-reports 100% of 1`, keduanya
-   `quizzes 50% of 2, self-reports 50% of 2`); kalibrasi `null` / `0` →
-   `Self-reports match quiz results` / positif `N points higher` / negatif
-   `N points lower` (bentuk tunggal `1 point`); returning `null` / `0 of 2
-learners ... (0%)` dan bentuk tunggal `1 of 1 learner ... (100%)`; aktivasi
-   `No concept finished yet` / `Finished, but the account’s start date is
-unknown` / `N minutes` / `1 hour` (60 menit) / `2 hours` (90 menit,
-   dibulatkan) / `3 days` (≥ 48 jam); session string tetap; personalisasi
-   `No blind comparisons yet` / `... preferred in 2 of 3 comparisons (the
-other: 1, no difference: 0)` dan bentuk tunggal `1 comparison`.
-6. Penjaga statis — `measures.ts` tepat satu impor
-   `import { dueReviewRetention, tutorPreference, type LearningEvent, type
-RetentionStat } from './events.ts';`, tanpa impor lain/`require`; mengekspor
-   lima fungsi + empat tipe. `src/server/evidence.functions.ts` memakai
-   `import('@/lib/evidence/measures')` dinamis dan memanggil `learningMeasures`
-   dengan `created ? new Date(created).toISOString() : null` + `new Date()`;
-   `src/components/LearningMeasures.tsx` mengimpor/memanggil `measureRows` dan
-   menampilkan `r.label`/`r.value`/`r.target`; string nilai baris tidak disalin
-   di `src/` lain; asersi lama `tests/learning-measures.test.ts` dan
-   `tests/evidence-events.test.ts` tetap utuh (dirujuk, bukan dipindah).
+1. `NAV_SECTIONS` — tepat empat section dengan id/urutan persis
+   `learn`/`explore`/`manage`/`developer`, title persis
+   `Learn`/`Explore`/`Manage data`/`Developer tools`, `collapsible`
+   false/false/true/true; jumlah item 6/4/9/2 dan daftar 21 href persis
+   (salinan eksplisit) unik; tiap item label/description non-kosong ter-trim
+   dan `icon` salah satu dari union `NavIcon` (20 nilai, salinan eksplisit);
+   `/japanese` di grup Learn berlabel `Bahasa Jepang` dengan deskripsi
+   bahasa Indonesia `Jalur N5 sampai N1 dan latihan` (D2); partisi grup
+   sesuai test lama: learn+explore tanpa `/admin*`/`/tests`/`/status`/
+   `/data-entry`, manage hanya `/admin*`+`/data-entry`, developer hanya
+   `/status`+`/tests`; section pertama `learn` dan item pertamanya `/`.
+2. `isNavItemActive` — `/` hanya exact (`/` true, `/gaps` false); href lain
+   exact true, prefix segmen true (`/admin/learners` vs `/admin/learners/x`),
+   prefix kata lain false (`/graph` vs `/graphs`); probe trailing slash
+   (`/graph/`) dan kunci sesuai perilaku aktual.
+3. `sectionHasActive`/`isSectionOpen` — section non-collapsible selalu true
+   walau `saved` false; collapsible: halaman di dalamnya selalu true walau
+   `saved` false (grup halaman aktif tak bisa disembunyikan); `saved` true →
+   true walau di halaman lain; tanpa `saved` → false (`?? false`).
+4. `NAV_STORAGE_KEY === 'learngraph:nav-open'`.
+5. `parseNavOpenState` — `null`/`undefined`/`''`/bukan JSON (`'not json'`)/
+   array (`'[true]'`)/`'null'`/number/string JSON (`'42'`, `'"x"'`) → `{}`;
+   hanya boolean untuk section collapsible yang diambil
+   (`{"manage":true,"developer":false}` utuh); kunci section non-collapsible
+   (`learn`/`explore`) dan kunci asing diabaikan; nilai non-boolean per kunci
+   (`"yes"`, 1, null) dibuang tanpa menggugurkan kunci lain; `'{}'` → `{}`.
+6. Penjaga statis — `navigation.ts` tanpa impor/`require` dan mengekspor
+   tepat `NAV_SECTIONS`, `isNavItemActive`, `sectionHasActive`,
+   `isSectionOpen`, `NAV_STORAGE_KEY`, `parseNavOpenState` (+ tipe
+   `NavIcon`/`NavItem`/`NavSection`/`NavOpenState`); `Sidebar.tsx` mengimpor
+   `NAV_SECTIONS`/`NAV_STORAGE_KEY`/`isSectionOpen`/`parseNavOpenState`
+   dari `@/lib/navigation` dan memakai `localStorage.getItem`/`setItem`
+   dengan `NAV_STORAGE_KEY` + `JSON.stringify` saat menyimpan;
+   `page-titles.ts` membangun peta judul dari `NAV_SECTIONS` (`flatMap`
+   items → `[href, label]`); string `description` item tidak disalin di
+   `src/` lain — pakai literal ter-kutip penuh dan probe dulu (aman mis.
+   `'Your plan for today'`, `'What to learn next'`, `'Draft a course with
+   AI'`, `'Run engine checks'`, `'Quick add forms'`; hindari substring
+   `'See how concepts connect'` yang melekat di `dashboard.ts` serta label
+   `'Functional Tests'`/`'Manage data'`/`'Bahasa Jepang'` yang punya
+   kecocokan sah di rute); anchor lima judul `it` + jumlah baris 63
+   `tests/navigation.test.ts` tetap utuh.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10–14). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
 UI pelajar tetap bahasa Inggris; halaman `/japanese` berbahasa Indonesia (D2).
 
 ## Riwayat
+
+- 2026-11-16: PR #93 — test: test unit langsung ukuran keberhasilan belajar
+  `src/lib/evidence/measures.ts` (16 test di
+  `tests/evidence-measures-direct.test.ts`, node:test murni, impor modul
+  langsung, tanpa PGlite/DOM), modul tidak diubah; `tests/learning-measures.test.ts`
+  (111 baris) dan `tests/evidence-events.test.ts` tetap utuh (dirujuk
+  penjaganya, bukan dipindah). Dikunci: `returningLearners` — lima kind
+  belajar (`quiz`/`study`/`review`/`practice`/`lesson`) dihitung dan
+  `snooze`/`unsnooze`/`tutor` diabaikan kapan pun; batas minggu dua sisi
+  (tepat 7 hari → minggu sebelumnya, 7 hari − 1 ms → recent, tepat 14 hari
+  diabaikan, `now` tepat → recent, masa depan/`createdAt` rusak diabaikan);
+  satu learner sekali walau empat event; recent-only tidak menambah
+  `activeBefore`; rate tanpa pembulatan (1/3), `null` hanya saat
+  `activeBefore === 0`, `before` tanpa kembali → 0. `finishesConcept` —
+  true hanya `quiz`+`passed` dan `study`+`got-it`, lima kombinasi lain
+  false. `activationTime` — penyelesai paling awal menurut waktu (urutan
+  array diabaikan dua arah), `firstFinishedAt` ISO ber-milidetik,
+  pembulatan `Math.round` half-up (10 dtk → 0, 30 dtk → 1, 90 dtk → 2),
+  clamp 0 bila selesai sebelum akun; tanpa penyelesai → keduanya null;
+  `accountCreatedAt` null/rusak → `firstFinishedAt` terisi tetapi `minutes`
+  null; penyelesai ber-`createdAt` rusak diabaikan (sendirian → null,
+  bercampur → yang sah menang). `learningMeasures` — `events` = jumlah
+  baris; `retention`/`returning`/`activation`/`tutor` diteruskan
+  (dibandingkan langsung dengan hasil `dueReviewRetention`/
+  `tutorPreference` dari `events.ts`); `calibrationGap` hanya bila kedua
+  rate non-null (0.75−2/3 → 8, 1/3−2/3 → −33, sama → 0,
+  kuis-saja/laporan-saja → null); masukan kosong → seluruh cabang kosong.
+  `measureRows` — keenam baris dikunci utuh (id/label/value/target persis,
+  termasuk `Under 5 minutes` dan `80%`): keempat cabang retention (`No due
+  reviews answered yet`, kuis-saja `quizzes 100% of 1`, laporan-saja
+  `self-reports 100% of 1`, keduanya `quizzes 50% of 2, self-reports 50%
+  of 2`); kalibrasi null/0/positif/negatif + bentuk tunggal `1 point`;
+  returning null/`0 of 2 learners … (0%)`/`1 of 1 learner … (100%)`;
+  aktivasi `No concept finished yet`/`Finished, but the account’s start
+  date is unknown`/`1 minute`/`45 minutes`/`1 hour` (60)/`2 hours` (90,
+  dibulatkan)/`2 days` (48 jam)/`3 days` (72 jam); string session tetap;
+  personalisasi `No blind comparisons yet`/`2 of 3 comparisons (the other:
+  1, no difference: 0)`/bentuk tunggal `1 of 1 comparison`. Penjaga statis:
+  `measures.ts` tepat satu impor `./events.ts` persis dan tanpa `require`,
+  mengekspor lima fungsi + empat tipe (urut); `evidence.functions.ts`
+  memakai `import('@/lib/evidence/measures')` dinamis +
+  `learningMeasures(events, created ? new Date(created).toISOString() :
+  null, new Date())`; `LearningMeasures.tsx` mengimpor/memanggil
+  `measureRows` dan merender `{r.label}`/`{r.value}`/`Target: {r.target}`;
+  11 string nilai baris tidak disalin di `src/` lain (scan rekursif, hanya
+  `measures.ts` dikecualikan); anchor lama kedua test lama tetap ada +
+  jumlah baris `learning-measures.test.ts` tetap 111. Catatan proses:
+  `node_modules` belum ada di worktree sehingga `npm ci` lebih dulu; probe
+  modul mengonfirmasi seluruh cabang sebelum menulis test; satu asersi
+  draf penjaga salah menghitung baris (112 ≠ 111 karena trailing newline)
+  dan diperbaiki dengan `trimEnd()` sebelum gerbang; prettier merapikan
+  format; typecheck/lint 0/0 dan `npm run ci` utuh hijau pada percobaan
+  pertama (mesin sempat berload 6–7 selama langkah test, tetap lolos).
+  Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi dan tanpa
+  perubahan `docs/ROADMAP.md` (tidak ada baris backlog yang tersentuh,
+  pola PR #77/#78/#90). `npm run ci` hijau (install, typecheck, lint 0/0,
+  1003/1003 unit = 987 + 16, build, anggaran bundel, CSP build produksi,
+  smoke Playwright + PGlite).
 
 - 2026-11-16: PR #92 — test: test unit langsung dataset kurikulum & bank soal
   Jepang `src/lib/japanese/curriculum.ts` + `src/lib/japanese/questions.ts`
