@@ -1,80 +1,112 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (kartu rekap mingguan "Your week" selesai di PR #104; siklus berikutnya: streak harian di kartu yang sama)
+Terakhir diperbarui: 2026-11-16 (streak harian di kartu "Your week" selesai di PR #105; siklus berikutnya: MCP resources)
 
 ## Tugas berikutnya
 
-Fitur **streak harian di kartu "Your week"** (kandidat (b), mendukung ukuran
-"Kembali belajar" di `Roadmap.md`). Tujuan: pelajar melihat berapa hari
-berturut-turut mereka belajar, tanpa tabel, dependensi, atau RPC baru — hanya
-dari `learning_events` yang sudah ada. Kartu "Your week" sudah ada; tugas ini
-menambah satu baris di dalamnya.
+Fitur **MCP resources baca-saja** (lanjutan M4; server MCP dari PR #103 sudah
+ada, tetapi `resources/list`/`resources/read` belum). Tujuan: asisten AI bisa
+menjelajahi konteks belajar lewat resources, bukan hanya dua tool. Tanpa
+dependensi, tabel, kolom, migrasi, atau method RPC baru; semua data dibaca lewat
+graph yang sudah terikat akun.
 
-Rancangan (baca kode dulu dan sesuaikan bila ada yang lebih sederhana):
+Rancangan (baca kode dulu: `src/lib/mcp/protocol.ts`, `src/lib/mcp/tools.ts`,
+`src/lib/mcp/route.ts`, `src/lib/api/v1.ts`, `src/lib/gaps.ts`):
 
-1. **Helper murni** `src/lib/evidence/streak.ts` (tanpa DB/React), fungsi
-   `learningStreak(events: readonly LearningEvent[], now: string | Date)` →
-   `{ days: number; activeToday: boolean }`.
-   - Hanya kind belajar: `quiz`, `study`, `review`, `practice`, `lesson`;
-     `snooze`/`unsnooze`/`tutor` diabaikan.
-   - Hari kalender **UTC** (`toISOString().slice(0, 10)`), bukan jam lokal,
-     agar deterministik dan konsisten dengan server.
-   - Timestamp rusak **atau** di masa depan (`> now`) diabaikan, jangan
-     melempar.
-   - Jangkar: hari ini bila ada event belajar hari ini; selain itu kemarin bila
-     ada (streak masih hidup sampai hari berganti, `activeToday` membedakan).
-     `days` = hari berturut-turut mundur dari jangkar; 0 bila tidak ada di
-     keduanya. Satu hari dihitung sekali walau banyak event; urutan array tidak
-     mengubah hasil.
-   - Kunci test: batas tengah malam UTC (23:59:59.999 vs 00:00:00.000), celah
-     satu hari memutus streak, kemarin saja → `days > 0` + `activeToday: false`,
-     dua hari lalu saja → 0, kind non-belajar tidak menghidupkan streak,
-     timestamp rusak/masa depan, duplikat, urutan acak, kosong.
-2. **Server function** `getWeekRecap` di `src/server/evidence.functions.ts`
-   diperluas (bukan fungsi baru): satu kali `listEvents`, kembalikan
-   `{ ...weekRecap(events, now), streak: learningStreak(events, now) }` dengan
-   `now` yang sama untuk keduanya. Validator `z.object({ learnerId: lookupId })`
-   dan isolasi akun tidak berubah.
-3. **UI** di `WeekRecapCard` (`src/components/StudyToday.tsx`): setelah baris
-   ringkas, satu baris streak — `1-day streak` / `5-day streak`; bila
-   `activeToday === false` dan `days > 0`, tambahkan
-   `— study today to keep it going`; bila `days === 0`, tidak ada baris tambahan
-   (copy kosong "Nothing yet this week — your first review will show up here."
-   tetap). Bahasa Inggris (D2), teks biasa, tanpa tombol/warna saja. Tipe
-   `WeekRecap` di `week.ts`/`TodayData` menyesuaikan.
-4. **Test** `tests/streak.test.ts`: seluruh cabang helper + bentuk tunggal/jamak
-   + penjaga statis (`getWeekRecap` memakai satu `listEvents` dan
-   `learningStreak`, kartu merender "day streak", tanpa server function baru di
-   komponen). Perbarui penjaga jumlah baris smoke hanya bila smoke berubah.
-5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
-   `Roadmap.md` hanya bila klaim berubah (jangan tandai milestone selesai).
+1. **Protokol** di `src/lib/mcp/protocol.ts`:
+   - `initialize` mengiklankan `capabilities: { tools: {}, resources: {} }`
+     (tanpa mengubah `serverInfo`/versi protokol/negosiasi versi).
+   - `resources/list` → `{ resources: McpResource[] }`; tiap resource
+     `{ uri, name, description?, mimeType: 'text/markdown' }`.
+   - `resources/read` → `{ contents: [{ uri, mimeType: 'text/markdown', text }] }`.
+     Validator params: objek dengan `uri` string tidak kosong, maks. 512
+     karakter; selain itu `-32602`. URI tak dikenal atau milik akun lain →
+     galat JSON-RPC `-32002` dengan pesan `Resource not found: <uri>`.
+   - Notifikasi tetap 202 tanpa body; `ping`, `tools/list`, `tools/call`,
+     galat `-32700`/`-32600`/`-32601`/`-32602` yang ada tidak berubah.
+   - Handler bertipe `McpHandlers` (tools + `list_resources()` +
+     `read_resource(uri)`); `read_resource` mengembalikan `null` untuk resource
+     yang tidak ada sehingga protokol yang memetakan ke `-32002`. Semua stub
+     di test lama mengikuti tipe baru (bukan `any`/cast).
+2. **Isi resource** di `src/lib/mcp/resources.ts` (helper murni baru, tanpa
+   DB/React) + `src/lib/mcp/tools.ts` (server-only):
+   - `learngraph://learner/<encodeURIComponent(id)>` — ringkasan pelajar:
+     nama, mastery per konsep (nama, persen, sumber lewat `masterySourceLabel`),
+     dan review yang jatuh tempo saat ini (nama + tanggal); bila kosong tulis
+     "No concepts yet." / "Nothing due right now." dengan kalimat tenang.
+     Urutkan deterministik (nama konsep), jangan tampilkan `concept:` mentah
+     bila nama ada. Reuse `conceptNameMap`/label yang sudah ada, jangan
+     duplikasi.
+   - `learngraph://concept/<encodeURIComponent(id)>` — nama, domain, deskripsi,
+     estimasi waktu belajar (`timeEstimates`) bila ada, dan prasyarat langsung
+     (nama, bukan id) bila ada.
+   - `resources/list` = learner lebih dulu lalu konsep, masing-masing urut nama;
+     hanya dari `graphForOwner(owner)`/`learnersPayload` akun itu. Jangan
+     menambah jalur baca DB yang melewati `owner_id`; learner/konsep akun lain
+     tidak boleh muncul dan `resources/read` URI mereka harus `-32002`.
+   - `mcpToolHandlersFor(owner)` mengembalikan handler lengkap; route
+     `src/lib/mcp/route.ts` tidak menambah autentikasi/rate limit baru.
+3. **Test**:
+   - `tests/mcp-resources.test.ts` (node:test murni, tanpa PGlite): cabang
+     protokol `resources/list`/`resources/read` (sukses, URI kosong/bukan
+     string/terlalu panjang, resource tidak ada → `-32002`, notifikasi 202,
+     capabilities initialize), bentuk/konten markdown helper, `encodeURIComponent`
+     round trip, urutan deterministik, dan penjaga statis (tidak ada
+     `createServerFn`/`graphCall` baru, tanpa dependensi/migrasi).
+   - Perluas `tests/mcp-api.test.ts` (PGlite): resources/list hanya berisi
+     learner+konsep akun sendiri (dua workspace satu DB), resources/read learner
+     memuat mastery & review jatuh tempo, URI learner/konsep akun lain atau
+     tak dikenal → `-32002`, key dicabut/tanpa key tetap 401, GET tetap 405,
+     dan jumlah baris tabel graph tidak berubah setelah rangkaian panggilan.
+   - Bila smoke MCP diperluas (`resources/list` + satu `resources/read`),
+     perbarui penjaga jumlah baris di `tests/skip-link.test.ts`; bila tidak,
+     biarkan 2114.
+4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`; `README.md`
+   bagian MCP menyebut resources; `Roadmap.md` hanya bila kalimat klaimnya
+   berubah (jangan menandai milestone M4 selesai).
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `feat:`. Setelah merge, tulis "Tugas berikutnya" berikutnya —
-kandidat: **MCP resources** (`resources/list`/`resources/read`, lanjutan M4),
-**pencarian konsep** dengan `searchConcepts`, atau **ringkasan pelajaran
-terakhir** di Today. Bukan tugas test.
+kandidat: **pencarian konsep** dengan `searchConcepts`, **ringkasan pelajaran
+terakhir** di Today, atau **kartu penguasaan per subjek** di Profile. Bukan
+tugas test.
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
 Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
 baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. **MCP resources** — `resources/list` + `resources/read` di server MCP
-   (ringkasan pelajar: penguasaan per konsep, review jatuh tempo; konsep:
-   tujuan/materi ringkas). Lanjutan M4.
-2. **Streak harian** — jumlah hari berturut-turut dengan aktivitas (dari
-   `learning_events`), tampil kecil di Today; tanpa tabel baru.
-3. **Pencarian konsep untuk pelajar** — kotak "Find a concept" di
+1. **Pencarian konsep untuk pelajar** — kotak "Find a concept" di
    Dashboard/Today memakai `searchConcepts` engine yang sudah ada, hasil
    menaut ke `/learn/$conceptId`; aksesibel (label, daftar hasil, kosong).
-4. **Ringkasan pelajaran terakhir di Today** — "lanjutkan pelajaran
-   terakhir" dari event `lesson` + halaman `/learn/...`; tautkan langsung.
+2. **Ringkasan pelajaran terakhir di Today** — "lanjutkan pelajaran terakhir"
+   dari event `lesson` + halaman `/learn/...`; tautkan langsung.
+3. **Kartu penguasaan per subjek di Profile** — dari states + konsep yang sudah
+   dimuat, tampilkan kemajuan per domain tanpa RPC baru.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-16: PR #105 — **Streak harian di kartu "Your week"** — pelajar melihat
+  berapa hari berturut-turut mereka belajar ("5-day streak"), dengan ajakan
+  "study today to keep it going" bila hari ini belum ada aktivitas tetapi streak
+  masih hidup dari kemarin. Helper murni `src/lib/evidence/streak.ts`
+  (`learningStreak`/`streakLine`): hari kalender UTC, hanya kind
+  `quiz`/`study`/`review`/`practice`/`lesson` (`snooze`/`unsnooze`/`tutor`
+  diabaikan), timestamp rusak/masa depan diabaikan tanpa melempar, satu hari
+  dihitung sekali walau banyak event dan urutan array tidak berpengaruh, hari
+  ini jadi jangkar atau kemarin dengan `activeToday: false`, celah sehari penuh
+  memutus streak. `getWeekRecap` diperluas (bukan fungsi baru) dengan satu kali
+  `listEvents` dan satu `now` untuk `weekRecap` + `learningStreak`; validator
+  `{ learnerId: lookupId }` dan isolasi akun tidak berubah. Kartu "Your week"
+  merender baris streak setelah baris ringkas, teks biasa tanpa tombol, copy
+  kosong lama tetap bila belum ada streak/aktivitas. Test baru
+  `tests/streak.test.ts` (18) + penyesuaian penjaga `tests/week-recap.test.ts`;
+  smoke tidak berubah (penjaga 2114 tetap). `docs/ROADMAP.md` mendapat entri
+  log; `Roadmap.md` tidak diubah (tidak ada klaim berubah, milestone tidak
+  ditandai selesai). `npm run ci` hijau.
 
 - 2026-11-16: PR #104 — **Kartu rekap mingguan "Your week" di Today** — pelajar
   melihat aktivitas tujuh hari terakhir tanpa membuka halaman lain: review
