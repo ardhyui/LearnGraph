@@ -17,6 +17,7 @@ import type { LearnerProfile } from '@/lib/graph/types';
 import { domainLabel, focusDomains, inFocus } from '@/lib/onboarding';
 import { masteredLine, profileNextStep } from '@/lib/profile';
 import { summarizeProgress, type ProgressSummary } from '@/lib/study';
+import { subjectMastery, type SubjectMasteryRow } from '@/lib/subject-mastery';
 
 interface LearningOverviewProps {
   learner: Pick<LearnerProfile, 'userId' | 'name' | 'tags'>;
@@ -28,6 +29,7 @@ interface Overview {
   learnerId: string;
   progress: ProgressSummary;
   reviewsDue: number;
+  mastery: SubjectMasteryRow[];
 }
 
 export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewProps) {
@@ -59,8 +61,15 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
       if (seq !== requestSeq.current) return;
       // Same rule as the Today panel: progress follows the chosen subjects,
       // reviews cover everything learned.
-      const inSubjects = inFocus(concepts, focusKey ? focusKey.split('\n') : [], (c) => c.domain);
-      setData({ learnerId, progress: summarizeProgress(inSubjects, states), reviewsDue: queue.stats.totalItems });
+      const subjects = focusKey ? focusKey.split('\n') : [];
+      const inSubjects = inFocus(concepts, subjects, (c) => c.domain);
+      setData({
+        learnerId,
+        progress: summarizeProgress(inSubjects, states),
+        reviewsDue: queue.stats.totalItems,
+        // Every chosen subject with concepts, using the same loaded states.
+        mastery: subjectMastery(concepts, states, subjects, learnerId),
+      });
     } catch (err) {
       if (seq !== requestSeq.current) return;
       console.error('Failed to load learning overview:', err);
@@ -98,7 +107,11 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
   const next = current ? profileNextStep(current.progress, current.reviewsDue) : null;
 
   return (
-    <section aria-labelledby="my-learning-heading" className="glass-card mb-8 p-4 sm:p-6" data-testid="my-learning">
+    <section
+      aria-labelledby="my-learning-heading"
+      className="glass-card mb-8 p-4 sm:p-6"
+      data-testid="my-learning"
+    >
       <h2 id="my-learning-heading" className="text-lg font-semibold text-foreground">
         My learning
       </h2>
@@ -129,7 +142,11 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
         />
       )}
 
-      <p aria-live="polite" role="status" className={notice ? 'mt-3 text-sm text-emerald-700 dark:text-emerald-400' : 'sr-only'}>
+      <p
+        aria-live="polite"
+        role="status"
+        className={notice ? 'mt-3 text-sm text-emerald-700 dark:text-emerald-400' : 'sr-only'}
+      >
         {notice}
       </p>
 
@@ -175,6 +192,34 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
                 </div>
               ))}
             </dl>
+            {current.mastery.length > 0 && (
+              <div className="mt-4">
+                <h3 className="text-sm font-medium text-foreground">Mastery by subject</h3>
+                <ul aria-label="Mastery by subject" className="mt-2 space-y-2">
+                  {current.mastery.map((row) => (
+                    <li key={row.domain}>
+                      <div className="flex items-baseline justify-between gap-2 text-sm">
+                        <span className="text-foreground">{row.label}</span>
+                        <span className="text-muted-foreground">{masteredLine(row)}</span>
+                      </div>
+                      <div
+                        role="progressbar"
+                        aria-label={`${row.label} mastery`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={row.percent}
+                        className="mt-1 h-1.5 overflow-hidden rounded-full bg-primary/10"
+                      >
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500"
+                          style={{ width: `${row.percent}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           {next && (
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
