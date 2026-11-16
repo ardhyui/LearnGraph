@@ -1,7 +1,7 @@
 # Misi kontribusi LearnGraph — satu tugas per sesi (tanpa pengawasan)
 
 Kamu bekerja otomatis di repo **LearnGraph** (graph-based adaptive education, TanStack Start + React 19, Postgres/PGlite, Node 26).
-Tujuan loop ini: perbaikan mandiri berkelanjutan — bug fix, item backlog kecil terkurasi, penguatan tes, dan polesan `docs/ROADMAP.md` — sesuai keputusan pemilik D8 ("lanjutkan putaran otomatis untuk item kecil").
+Tujuan loop ini: perbaikan mandiri berkelanjutan — bug fix, fitur kecil dari roadmap, dan poles produk yang terlihat pelajar — sesuai keputusan pemilik D8 ("lanjutkan putaran otomatis untuk item kecil").
 
 Baca `automation/state.md` terlebih dahulu. **Selesaikan "Tugas berikutnya" yang tertulis di sana** — jangan memilih tugas lain kecuali tugas itu sudah ditandai `blocked` (dua kegagalan berturut-turut dengan alasan jelas).
 
@@ -14,7 +14,7 @@ Baca `automation/state.md` terlebih dahulu. **Selesaikan "Tugas berikutnya" yang
    ```bash
    npm run ci
    ```
-   Ini satu perintah lengkap: `npm ci`, typecheck, lint (0 warning), test unit (~306), build, CSP build produksi, smoke Playwright + PGlite. Butuh ±25 menit — jalankan utuh, jangan dipotong. Bila `node_modules` hilang, `npm ci` dijalankan oleh langkah pertamanya. **Jangan pernah `npm uninstall`** (npm 12 menolaknya di repo ini); bila dependensi harus berubah, edit `package.json`/`package-lock.json` lalu `npm install`.
+   Ini satu perintah lengkap: `npm ci`, typecheck, lint (0 warning), test unit, build, CSP build produksi, smoke Playwright + PGlite. Butuh ±25 menit — jalankan utuh, jangan dipotong. Bila `node_modules` hilang, `npm ci` dijalankan oleh langkah pertamanya. **Jangan pernah `npm uninstall`** (npm 12 menolaknya di repo ini); bila dependensi harus berubah, edit `package.json`/`package-lock.json` lalu `npm install`.
 4. Commit berbahasa Indonesia, pola konvensi repo: `feat: ...`, `fix: ...`, `chore: ...`, `perf: ...`, `docs: ...` dengan deskripsi ringkas (lihat `git log --oneline -20`). Push, `gh pr create --base main`, lalu `gh pr merge <n> --merge` **hanya setelah CI hijau**.
 5. Perbarui `automation/state.md` pada branch yang sama sebelum PR:
    - pindahkan tugas selesai ke "Riwayat" (satu baris: tanggal, PR #, ringkasan),
@@ -25,8 +25,20 @@ Baca `automation/state.md` terlebih dahulu. **Selesaikan "Tugas berikutnya" yang
 ## Sumber tugas (urut prioritas)
 
 1. Bug nyata: test gagal, typecheck/lint error, error runtime yang bisa direproduksi.
-2. Item backlog terbuka di `docs/ROADMAP.md` (baris "Lanjutan:" yang belum dicoret) yang teknis dan bisa diverifikasi otomatis.
-3. Perbaikan kecil terukur: aksesibilitas, performa, dokumentasi, penguatan tes (mis. modul murni yang belum punya test langsung).
+2. Item roadmap yang belum selesai: `Roadmap.md` (milestone M0–M5 dan "Pekerjaan lintas
+   milestone") dan baris "Lanjutan:" yang belum dicoret di `docs/ROADMAP.md`.
+3. Fitur kecil yang disebut eksplisit sebagai belum ada dan mendukung tesis produk
+   (mis. "Server MCP belum dibuat" di M4, P2.1, kartu rekap mingguan dari
+   `learning_events`), selama bisa diverifikasi otomatis dan tanpa migrasi skema.
+4. Poles produk yang terlihat pelajar: copy, aksesibilitas, performa.
+
+**Dilarang: PR yang isinya HANYA test** (menambah/mengubah test tanpa perubahan
+perilaku produk). Test wajib menyertai fitur/perbaikan, bukan menjadi tujuan sendiri.
+Bila tidak ada item roadmap/fitur yang aman, pilih poles produk yang terlihat
+pelajar — bukan test. "Tugas berikutnya" di `state.md` wajib berupa fitur/roadmap/
+poles, bukan tugas test.
+
+Jangan menandai fase roadmap menjadi "selesai". Draf tetap draf; lihat batas janji produk di `Roadmap.md`.
 
 **Dilarang memilih** item yang menunggu keputusan/pemilik: tabel "Keputusan untuk pemilik" di `Roadmap.md` (D1–D8), apa pun yang bertanda 🔒 (butuh akun/secret/biaya), M6 (ditunda menurut D1), M7 (butuh data pengguna nyata), dan jangan menandai milestone/selesai-bila apa pun sebagai tercapai — itu hak pemilik.
 
