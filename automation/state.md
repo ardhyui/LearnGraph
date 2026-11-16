@@ -1,49 +1,79 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 59: test unit langsung nilai default context data & tema `src/lib/db-context.ts` + `src/lib/theme-context.ts`, PR #98; berikutnya: test unit langsung penjaga CSP `src/lib/zod-config.ts`)
+Terakhir diperbarui: 2026-11-16 (siklus 60: test unit langsung penjaga CSP `src/lib/zod-config.ts`, PR #99; berikutnya: test unit langsung komponen `src/components/SubjectChoices.tsx`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung penjaga CSP `src/lib/zod-config.ts`** —
-modul terakhir di `src/lib` yang masih tanpa test langsung dan bisa diuji
-tanpa jaringan/PGlite/DOM (`auth/client.ts`, `auth/server.ts`,
-`auth/verify.server.ts` sengaja dilewati: butuh better-auth, request sesi, dan
-database). File baru `tests/zod-config.test.ts` (node:test murni, tanpa
-PGlite/DOM/Playwright); modul **tidak diubah**. Efek modul hanya muncul saat
-`window` ada, jadi uji lewat dua proses anak agar zod belum ter-cache di proses
-test: `execFileSync(process.execPath, ['--experimental-strip-types',
-'--input-type=module', '-e', skrip])`, skrip mengimpor
-`pathToFileURL(<src/lib/zod-config.ts>).href`, lalu mencetak JSON
-`{ before, after }` dari `z.core.globalConfig.jitless`. Probe aktual:
-`before` selalu `undefined`; `after` tetap `undefined` tanpa `window`, dan
-menjadi `true` bila `globalThis.window` diisi (termasuk rough edge `null`,
-`0`, `''` — `typeof` bukan `'undefined'`).
+Penguatan tes: **test unit langsung komponen `src/components/SubjectChoices.tsx`**
+— checkbox subjek presentasional ("Mathematics · 6 concepts") yang dipakai
+`src/components/Onboarding.tsx` dan `src/components/FocusEditor.tsx`; belum
+pernah dites langsung (hanya lewat smoke). File baru
+`tests/subject-choices.test.ts` (node:test murni, render server dengan
+`react-dom/server` `createElement`/`renderToStaticMarkup`, tanpa
+PGlite/DOM/Playwright); komponen **tidak diubah**.
 
-1. Tanpa `globalThis.window` → `after === undefined` (tidak memanggil
-   `z.config`); dengan `globalThis.window = {}` → `after === true`. Ulangi
-   untuk `null`/`0`/`''` dan kunci ketiganya juga `true` (rough edge
-   `typeof`); `delete globalThis.window` lalu import modul → tetap
-   `undefined`. Pastikan `before` `undefined` di tiap proses (zod segar) dan
-   exit code 0.
-2. Penjaga statis: `zod-config.ts` hanya satu impor
-   `import { z } from 'zod';`, tanpa `require`, tidak mengekspor apa pun,
-   dan urutan persis `if (typeof window !== 'undefined')` →
-   `z.config({ jitless: true });`; `src/router.tsx` mengimpor
-   `'./lib/zod-config'` sebagai **impor pertama** (sebelum
-   `@tanstack/react-router`/`./routeTree.gen`) dengan komentar
-   `// First: configures Zod before any route module builds a schema.` tetap
-   ada; hanya router yang mengimpor `zod-config` di seluruh `src/` (scan
-   rekursif). Anchor: `tests/security-headers.test.ts` dan
-   `tests/check-csp.test.ts` tetap utuh (jumlah baris), asersi lamanya tidak
-   dipindah.
+1. Render dengan tiga domain (`mathematics` 6, `computer-science` 1,
+   `art_history` 0) dan `chosen=['computer-science']`: tepat tiga `<label>`,
+   urutan masukan dipertahankan, tiap label memuat `domainLabel` (`Mathematics`,
+   `Computer science`, `Art history`), teks hitungan persis `6 concepts`,
+   `1 concept`, `0 concepts` (singular hanya untuk 1), dan checkbox
+   `computer-science` ber-atribut `checked` sedangkan dua lainnya tidak.
+2. `disabled` — tanpa prop / `false` tidak menghasilkan atribut `disabled`;
+   `true` memberi `disabled` pada **semua** checkbox. `chosen` kosong → tanpa
+   `checked`; `chosen` duplikat tidak menggandakan label; `domains` kosong →
+   tanpa `<label>`; `onToggle` tidak dipanggil saat render server.
+3. Escaping SSR: domain berisi karakter HTML (`<b>x</b>`, `&`) tampil
+   ter-escape (`&lt;b&gt;`, `&amp;`), bukan HTML mentah; label `domainLabel`
+   dengan pemisah `-`/`_` dan huruf pertama dikapitalkan tetap terbaca.
+4. Penjaga statis: `SubjectChoices.tsx` hanya mengimpor `domainLabel` dari
+   `@/lib/onboarding` (tanpa hook/router/DB), `onChange={(e) =>
+   onToggle(domain, e.target.checked)}` tetap ada, dan kedua pemakai
+   mengimpor `SubjectChoices` dari `@/components/SubjectChoices`; anchor
+   `tests/onboarding.test.ts` (281 baris) tetap utuh. Catatan probe: konfirmasi
+   dulu bentuk markup aktual (`checked`/`disabled` adalah atribut boolean yang
+   hanya muncul saat true, bukan `checked=""`).
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 4–6). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 5–8). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi
 dan tanpa perubahan `docs/ROADMAP.md` (tidak ada baris backlog tersentuh).
 Bila smoke flaky karena beban mesin bersama (pola PR #84/#91/#95), tunggu
 load turun lalu ulangi gerbang utuh tanpa mengubah kode.
 
 ## Riwayat
+
+- 2026-11-16: PR #99 — test: test unit langsung penjaga CSP
+  `src/lib/zod-config.ts` (6 test di `tests/zod-config.test.ts`, node:test
+  murni, modul **tidak diubah**). Zod meng-cache `jitless` per proses, jadi
+  tiap keadaan `window` diperiksa di proses anak baru lewat
+  `spawnSync(process.execPath, ['--experimental-strip-types',
+  '--input-type=module', '-e', skrip])`; skrip mengimpor
+  `pathToFileURL(<src/lib/zod-config.ts>).href`, mencetak JSON
+  `{ before, after }` dari `z.core.globalConfig.jitless`, dan test memastikan
+  exit code 0 + stderr kosong (`JSON.stringify` membuang `undefined`, jadi
+  kunci yang hilang berarti "belum dikonfigurasi"). Dikunci: `before` selalu
+  `undefined` di tiap proses (Zod segar); tanpa `window` dan setelah
+  `delete globalThis.window` → `after` tetap `undefined` (`z.config` tidak
+  dipanggil); `window = {}` → `after === true`; rough edge `null`, `0`, dan
+  `''` juga `true` karena guard memakai `typeof`, bukan truthiness. Penjaga
+  statis: modul hanya `import { z } from 'zod';`, tanpa `require`, tanpa
+  ekspor, dan guard persis
+  `if (typeof window !== 'undefined') z.config({ jitless: true });` dengan
+  tepat satu panggilan `z.config`; `src/router.tsx` menaruh komentar
+  `// First: configures Zod before any route module builds a schema.` lalu
+  `import './lib/zod-config';` sebagai dua baris pertama/impor pertama,
+  sebelum `@tanstack/react-router` dan `routeTree.gen`; scan rekursif `src/`
+  membuktikan hanya router yang mengimpor `zod-config` (pencocokan string
+  ber-kutip). Anchor tetap utuh: `tests/security-headers.test.ts` 136 baris
+  dan `tests/check-csp.test.ts` 263 baris (dihitung dengan
+  `split('\n').length`). Catatan proses: `node_modules` belum ada di worktree
+  sehingga `npm ci` dijalankan lebih dulu; probe lima keadaan `window` sebelum
+  menulis test mengonfirmasi seluruh cabang dan rough edge, termasuk bahwa
+  `null`/`0`/`''` memang mengaktifkan `jitless`. Tanpa perubahan
+  aplikasi/perilaku/skema/RPC/migrasi/dependensi dan tanpa perubahan
+  `docs/ROADMAP.md` (tidak ada baris backlog tersentuh, pola PR
+  #77/#78/#90/#92–#98). `npm run ci` hijau (install, typecheck, lint 0/0,
+  1078/1078 unit = 1072 + 6, build, anggaran bundel, CSP build produksi,
+  smoke Playwright + PGlite).
 
 - 2026-11-16: PR #98 — test: test unit langsung nilai default context data &
   tema `src/lib/db-context.ts` + `src/lib/theme-context.ts` (7 test di
