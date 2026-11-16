@@ -1,58 +1,106 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 55: test unit langsung data & helper navigasi utama `src/lib/navigation.ts`, PR #94; berikutnya: test unit langsung sapaan & tautan pintasan dashboard `src/lib/dashboard.ts`)
+Terakhir diperbarui: 2026-11-16 (siklus 56: test unit langsung sapaan & tautan pintasan dashboard `src/lib/dashboard.ts`, PR #95; berikutnya: test unit langsung gerbang akses lokal `src/lib/auth/local-access.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung sapaan & tautan pintasan dashboard
-`src/lib/dashboard.ts`**. File baru `tests/dashboard-direct.test.ts`
-(node:test murni, impor modul langsung, tanpa PGlite/DOM;
-`tests/dashboard.test.ts` yang lama 48 baris tetap utuh — **jangan
-diduplikasi/dipindah**; lima judul `it` lamanya dirujuk penjaga statis).
-Modul **tidak diubah** dan murni tanpa impor. Probe dulu perilaku aktual,
-kunci yang belum tercakup:
+Penguatan tes: **test unit langsung gerbang akses lokal `src/lib/auth/local-access.ts`**
+— `LOCAL_OWNER_ID`/`permitsLocalUser`. File baru `tests/local-access.test.ts`
+(node:test murni, impor modul langsung, tanpa PGlite/DOM; `Request`/`URL`/
+`Headers` global Node 26 cukup), modul **tidak diubah** dan murni (tanpa
+impor). Probe dulu perilaku aktual (bangun `Request` dengan `new Request(url,
+{ headers })`), kunci yang belum tercakup:
 
-1. `LEARNER_SHORTCUTS` — tepat empat tautan dengan urutan href persis
-   `/recommendations`/`/gaps`/`/graph`/`/profile` beserta label dan
-   description persis (salinan eksplisit: `Recommendations`/`Gap Analysis`/
-   `Knowledge Graph`/`My Profile`); `MANAGE_LINKS` — tepat lima dengan
-   urutan href persis `/admin/learners`/`/admin/concepts`/
-   `/admin/prerequisites`/`/admin/states`/`/data-entry` beserta label
-   (`Learners`/`Concepts`/`Prerequisites`/`Knowledge States`/
-   `Data Entry Guide`) dan description persis; tiap label/description
-   non-kosong ter-trim; partisi sesuai test lama: learner tanpa `/admin*`
-   dan `/data-entry`, manage hanya `/admin*`+`/data-entry`, gabungan
-   sembilan href unik.
-2. `greetingName` — kata pertama nama dengan spasi liar di-collapse
-   (`'  Muhammad   Lazuardi '` → `Muhammad`), fallback local-part email
-   (`ardhy.ui@example.test` → `ardhy.ui`), `null`/`undefined`/objek kosong/
-   nama dan email kosong → `null`; karakter kontrol/format (Unicode Cc/Cf)
-   dibuang dari nama maupun email sebelum split — probe nama yang hanya
-   berisi kontrol → jatuh ke email; batas `MAX_NAME` 40 dihitung per code
-   point: tepat 40 utuh, 41 → 40 code point + `…` (panjang 41), emoji
-   astral tidak terpotong dua (39 `a` + 2 emoji → 39 `a` + emoji pertama +
-   `…`); probe tepat 40 code point yang berisi emoji di tepi batas.
-3. `dashboardHeading` — `Hi, <nama>` bila `greetingName` non-null,
-   persis `Your learning today` bila null.
-4. Penjaga statis — `dashboard.ts` tanpa impor/`require` dan mengekspor
-   tepat `DashboardLink`/`LEARNER_SHORTCUTS`/`MANAGE_LINKS`/`greetingName`/
-   `dashboardHeading` (urut); `src/routes/index.tsx` mengimpor
-   `LEARNER_SHORTCUTS`/`MANAGE_LINKS`/`dashboardHeading` dari
-   `@/lib/dashboard` dan merender `{dashboardHeading(user)}`/
-   `LEARNER_SHORTCUTS.map`/`MANAGE_LINKS.map`; string description tautan
-   tidak disalin di `src/` lain — pakai literal ter-kutip penuh dan probe
-   dulu (aman mis. `'More concepts you are ready to learn next'`,
-   `'Find shaky foundations and what to review'`,
-   `'How to structure your content'`; hindari label `Recommendations`/
-   `Gap Analysis`/`Knowledge Graph`/`My Profile`/`Learners` yang punya
-   kecocokan sah di `navigation.ts`/rute); anchor lima judul `it` + jumlah
-   baris 48 `tests/dashboard.test.ts` tetap utuh.
+1. `LOCAL_OWNER_ID === 'local-japanese-owner'` (id pemilik setup Jepang
+   workstation-only, diekspor ulang lewat `src/lib/account.ts`).
+2. `permitsLocalUser(request, configuredOrigin)` — urutan cabang:
+   `configuredOrigin` kosong/`undefined` → false; URL request rusak atau
+   `configuredOrigin` bukan URL sah → false (try/catch);
+   `expected.protocol !== 'http://'` → false (https ditolak — harus plain
+   http loopback); `expected.hostname !== '127.0.0.1'` → false (`localhost`,
+   `::1`, hostname lain; port bebas asal 127.0.0.1);
+   `url.origin !== expected.origin` → false (beda port/protokol/host; path
+   dan query tidak berpengaruh karena hanya origin yang dibandingkan —
+   `/japanese` vs `/` sama-sama lolos); header proxy
+   `forwarded`/`x-forwarded-host`/`x-forwarded-for`/`x-forwarded-proto`
+   hadir (walau nilai kosong `''`) → false; header `origin` hadir & ≠
+   expected.origin → false, hadir & sama → lanjut, absen → lanjut;
+   `sec-fetch-site` hadir & bukan `same-origin`/`none` → false
+   (`same-site`/`cross-site` ditolak), `same-origin`/`none`/absen → lanjut;
+   semua lolos → true. Probe juga kombinasi: origin benar + sec-fetch-site
+   `cross-site` → false (urutan cek tidak menolong), dan request polos tanpa
+   header apa pun pada origin terkonfigurasi → true.
+3. Penjaga statis — `local-access.ts` mengekspor tepat `LOCAL_OWNER_ID` +
+   `permitsLocalUser` (urut) tanpa `require`; probe dulu pemakai di `src/`
+   (grep `permitsLocalUser` dan `LOCAL_OWNER_ID`) lalu kunci minimal satu
+   call-site nyata memanggil `permitsLocalUser` dan re-ekspor di
+   `src/lib/account.ts`; asersi lama `tests/japanese.test.ts` yang menyentuh
+   `LOCAL_OWNER_ID` tetap utuh (dirujuk, bukan dipindah — cek judul `it`
+   sebelum menulis anchor).
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 6–10). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 8–12). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
-UI pelajar tetap bahasa Inggris (D2).
+Bila smoke flaky karena beban mesin bersama (pola PR #84/#91/#95), tunggu
+load turun lalu ulangi gerbang utuh tanpa mengubah kode.
 
 ## Riwayat
+
+- 2026-11-16: PR #95 — test: test unit langsung sapaan & tautan pintasan
+  dashboard `src/lib/dashboard.ts` (13 test di `tests/dashboard-direct.test.ts`,
+  node:test murni, impor modul langsung, tanpa PGlite/DOM), modul tidak
+  diubah; `tests/dashboard.test.ts` (48 baris) tetap utuh (lima judul `it`
+  lamanya dirujuk penjaga statis, bukan dipindah). Dikunci: `LEARNER_SHORTCUTS`
+  — tepat empat tautan dengan urutan href persis `/recommendations`/`/gaps`/
+  `/graph`/`/profile` beserta label dan description persis (salinan eksplisit
+  `Recommendations`/`Gap Analysis`/`Knowledge Graph`/`My Profile`);
+  `MANAGE_LINKS` — tepat lima dengan urutan href persis `/admin/learners`/
+  `/admin/concepts`/`/admin/prerequisites`/`/admin/states`/`/data-entry`
+  beserta label (`Learners`/`Concepts`/`Prerequisites`/`Knowledge States`/
+  `Data Entry Guide`) dan description persis; tiap label/description non-kosong
+  ter-trim; partisi learner tanpa `/admin*` dan `/data-entry`, manage hanya
+  `/admin*`+`/data-entry`, gabungan sembilan href unik. `greetingName` —
+  kata pertama nama dengan spasi liar di-collapse (`'  Muhammad   Lazuardi '`
+  → `Muhammad`), fallback local-part email (`ardhy.ui@example.test` →
+  `ardhy.ui`; plus-addressing `first.last+tag` utuh, spasi local-part
+  di-trim, tanpa `@` tetap utuh `no-at-mark`), `null`/`undefined`/objek
+  kosong/nama dan email kosong → `null`; karakter Cc/Cf dibuang dari nama
+  maupun email sebelum split (`'S\u0000a\u202eri Smoke'` → `Sari`, ZWSP
+  `'A\u200bri Budi'` → `Ari`); nama hanya kontrol (`'\u0007\u202e'`) →
+  jatuh ke email yang juga dibersihkan (`'bo\u0000b@x.test'` → `bob`);
+  rough edge hasil probe: tab adalah Cc sehingga dihapus **sebelum**
+  `split(/\s+/)` — `'Sari\tSmoke'` → `'SariSmoke'` (kata menyatu, bukan
+  terpisah; hanya spasi Zs yang memisah); batas `MAX_NAME` 40 per code
+  point: tepat 40 utuh (`'a'×40`; juga 38a+😀😀 dan 39a+😀 di tepi batas),
+  41 → 40 code point + `…` (`'a'×41` → panjang 41; 39a+😀😀 → 39a+😀+`…`
+  = 41 cp / 42 unit UTF-16). `dashboardHeading` — `Hi, <nama>` bila
+  non-null, persis `Your learning today` bila null. Penjaga statis:
+  `dashboard.ts` tanpa impor/`require` dan mengekspor tepat
+  `DashboardLink`/`LEARNER_SHORTCUTS`/`MANAGE_LINKS`/`greetingName`/
+  `dashboardHeading` (urut); `src/routes/index.tsx` mengimpor ketiganya
+  dari `@/lib/dashboard` dan merender `{dashboardHeading(user)}`/
+  `LEARNER_SHORTCUTS.map`/`MANAGE_LINKS.map`; tujuh string description
+  (literal ter-kutip penuh, diprobe unik ke `dashboard.ts` —
+  `'Learner profiles'`/`'Concept nodes'` dikecualikan karena punya
+  kecocokan sah di `navigation.ts`/`combined-graph.tsx`) tidak disalin di
+  `src/` lain (scan rekursif); anchor lima judul `it` + jumlah baris 48
+  `tests/dashboard.test.ts` tetap utuh. Catatan proses: `node_modules`
+  belum ada di worktree sehingga `npm ci` lebih dulu; probe modul
+  mengonfirmasi seluruh cabang sebelum menulis test (tab-dihapus-bukan-
+  pemisah ditemukan di probe; satu typo literal penjaga
+  `{dashboardHeading(user)}}` terkoreksi sebelum gerbang); prettier tidak
+  mengubah format; run gerbang pertama gagal hanya di satu cek smoke
+  (hydration `details open=""`) saat beban mesin bersama load ±6 di 4 core
+  dengan log `Failed to fetch`/`AbortError` — pola flaky PR #84/#91;
+  setelah load turun (±1,6) `npm run ci` utuh diulang tanpa perubahan
+  kode dan hijau penuh. Sesi ini mengambil alih branch `test/dashboard-direct`
+  lewat branch lokal `test/dashboard-direct-takeover` (tanpa mengubah file
+  test), melengkapi state, lalu menjalankan ulang `npm run ci` utuh hijau
+  pada percobaan pertama (load ±0,5). Tanpa perubahan aplikasi/perilaku/skema/RPC/
+  migrasi/dependensi dan tanpa perubahan `docs/ROADMAP.md` (tidak ada
+  baris backlog yang tersentuh, pola PR #77/#78/#90/#92/#93/#94).
+  `npm run ci` hijau (install, typecheck, lint 0/0, 1031/1031 unit =
+  1018 + 13, build, anggaran bundel, CSP build produksi, smoke Playwright
+  + PGlite).
 
 - 2026-11-16: PR #94 — test: test unit langsung data & helper navigasi utama
   `src/lib/navigation.ts` (15 test di `tests/navigation-direct.test.ts`,
