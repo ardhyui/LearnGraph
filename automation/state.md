@@ -68,6 +68,28 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-17: PR #116 — **Antrean review di `/gaps` menjadi satu daftar
+  bernama** — kartu **Reviews** sebelumnya merender `reviewQueue.queue.map`
+  sebagai deretan `<motion.div>` di dalam `<div className="space-y-3 max-h-96
+  overflow-y-auto scrollbar-hide">`, sehingga pembaca layar tidak tahu item
+  itu satu daftar review dan tidak bisa melompat per item. Kini wadahnya
+  `<ul aria-label="Reviews due">` dengan kelas gulir/jarak vertikal yang sama,
+  dan tiap item `<motion.li>` dengan `key={i}`,
+  `whileHover={{ scale: 1.01 }}`, serta seluruh kelas visual, isi (nama konsep
+  via `conceptLabel`, `reviewSummary`, badge `priorityLabel`), urutan, dan
+  titik prioritas ber-`aria-hidden` tetap. Tidak ada `<div>` perantara antara
+  `<ul>` dan `<li>`; tanpa kelas marker baru (Tailwind preflight sudah
+  menghapus penanda). Empty state **Nothing due right now** / **Nothing to
+  review yet** tetap di cabangnya sendiri dan bukan item daftar, daftar
+  **Snoozed reviews** tetap `<ul aria-label="Snoozed reviews">`, dan banner
+  overdue, kartu angka/ringkasan shaky spots, copy, fokus, serta live region
+  tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/gaps-review-list.test.ts` (8 penjaga statis) dan satu cek smoke
+  memastikan daftar **Reviews due** terlihat dengan `listitem` > 0; penjaga
+  jumlah baris smoke 2134 → 2142. `README.md` dan `Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau (1278/1278 unit =
+  1270 + 8; smoke lulus pada percobaan pertama).
+
 - 2026-11-17: PR #115 — **Kartu rekomendasi di `/recommendations` menjadi
   satu daftar berurut bernama** — kartu hasil `zpd.recommendations.map`
   sebelumnya deretan `<motion.div>` langsung di dalam `role="tabpanel"`,
