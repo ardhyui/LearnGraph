@@ -1,57 +1,58 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (tab aksesibel di Recommendations; siklus berikutnya: fokus hasil kuis di halaman pelajaran)
+Terakhir diperbarui: 2026-11-17 (fokus hasil kuis di halaman pelajaran; siklus berikutnya: label subjek ramah di kartu Recommendations)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **urutan fokus setelah kuis di halaman pelajaran**
-(`/learn/$conceptId`) — kandidat fitur (a); tanpa migrasi skema, dependensi,
-server function, RPC, atau method RPC baru. Konteks: `finishQuiz` di
-`src/routes/learn.$conceptId.tsx` menutup `ConceptQuiz` lalu mengisi `notice`
-(`<p role="status" aria-live="polite">` di atas `<article>`, sekitar baris 230),
-tetapi elemen yang sedang fokus (tombol **Done** di dalam kuis) ikut
-ter-unmount sehingga fokus jatuh ke `<body>`; pengguna keyboard/pembaca layar
-kehilangan posisi dan harus men-Tab dari awal halaman. Cancel sudah benar
-(`cancelQuiz` memfokuskan kembali tombol **Take the quick quiz** lewat
-`quizButtonRef` + `requestAnimationFrame`).
+Poles copy **label subjek ramah di kartu rekomendasi** (`/recommendations`)
+— tanpa migrasi skema, dependensi, server function, RPC, atau method RPC baru.
+Konteks: chip domain pada tiap kartu tab **Recommendations** di
+`src/routes/recommendations.tsx` (sekitar baris 496–501,
+`<span className="px-2.5 py-0.5 rounded-lg text-xs bg-muted text-muted-foreground">`)
+menampilkan id mentah `{rec.concept.domain}` — pelajar melihat `mathematics`,
+`computer-science`, `art_history` — padahal halaman lain sudah memakai
+`domainLabel` dari `src/lib/onboarding` (`Mathematics`, `Computer science`,
+`Art history`; lihat `src/routes/learn.$conceptId.tsx` baris ~198). Halaman
+recommendations belum mengimpor `domainLabel` sama sekali. Tab **Ready / not
+yet** dan **Learning Path** tidak menampilkan domain jadi tidak tersentuh.
 
-Rancangan (baca kode dulu: state `notice`, `finishQuiz`, `cancelQuiz`, dan
-`<p role="status">` di `src/routes/learn.$conceptId.tsx`):
+Rancangan (baca kode dulu: chip domain di kartu rekomendasi, impor di bagian
+atas `src/routes/recommendations.tsx`, dan `domainLabel` di
+`src/lib/onboarding.ts`):
 
-1. Tambah `noticeRef = useRef<HTMLParagraphElement>(null)`; pasang di `<p>` yang
-   sudah ada sebagai `ref={noticeRef}` + `tabIndex={-1}` + kelas
-   `focus:outline-none` (atau padanan repo) supaya fokus programatik tidak
-   memunculkan ring palsu. Teks, `role="status"`, `aria-live="polite"`, posisi,
-   dan kelas warna tidak berubah.
-2. Di `finishQuiz`, setelah `setNotice(...)` dan `await load()` (agar teks hasil
-   sudah ter-commit), pindahkan fokus dengan pola yang sama seperti
-   `cancelQuiz`: `requestAnimationFrame(() => noticeRef.current?.focus())`.
-   Berlaku untuk kuis lulus maupun gagal; jangan menambah fokus paksa saat
-   mount, saat learner/konsep berganti, saat `load()` dipanggil ulang, atau
-   pada `selfReport` (live region lama sudah mengumumkan).
-3. `cancelQuiz` tetap memfokuskan tombol kuis; `ConceptQuiz`, `quizResultNotice`,
-   alur jawab/`Done`, dan copy tidak berubah. Tetap bahasa Inggris (D2).
-4. **Test**: file baru `tests/lesson-focus.test.ts` berisi penjaga statis
-   `src/routes/learn.$conceptId.tsx` — `noticeRef` ada, `<p` status memakai
-   `ref={noticeRef}` dan `tabIndex={-1}`, `finishQuiz` memanggil
-   `noticeRef.current?.focus()` di dalam `requestAnimationFrame` setelah
-   `await load()`, `cancelQuiz` tetap memakai `quizButtonRef.current?.focus()`,
-   tidak ada `focus()` di effect mount, serta tanpa `createServerFn`/RPC/
-   migrasi baru. Tambah **satu cek smoke** di alur pelajaran yang sudah ada
-   (`scripts/smoke.mjs`, blok lesson setelah `closeQuiz`): setelah kuis ditutup,
-   `document.activeElement` adalah elemen `role="status"` yang memuat teks
-   hasil (mis. `passed`), bukan `<body>`; perbarui penjaga jumlah baris
-   `tests/skip-link.test.ts` 2114 → jumlah baru (hitung dengan
-   `trimEnd().split('\n').length`).
-5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
-   `README.md` hanya bila klaim fitur berubah; `Roadmap.md` hanya bila arah
-   berubah. Jangan menandai milestone selesai.
+1. Tambah `domainLabel` ke impor dari `@/lib/onboarding` di
+   `src/routes/recommendations.tsx`, lalu ganti isi chip domain kartu
+   rekomendasi `{rec.concept.domain}` → `{domainLabel(rec.concept.domain)}`.
+   Kelas chip, `Level N`, nomor kartu, nama konsep, deskripsi, animasi, dan
+   seluruh tab/panel (PR #112) tidak berubah. Bahasa Inggris (D2).
+2. **Test**: file baru `tests/recommendations-domain-label.test.ts` berisi
+   penjaga statis `src/routes/recommendations.tsx` — `domainLabel` diimpor
+   dari `@/lib/onboarding`, dipanggil tepat di chip domain kartu rekomendasi,
+   tidak ada lagi `{rec.concept.domain}` mentah di berkas, tab/zona/path tetap
+   utuh, serta tanpa `createServerFn`/`graphCall`/RPC/migrasi baru
+   (`src/lib/migrations.ts` dan `src/lib/graph/rpc-schemas.ts` tidak menyebut
+   perubahan ini). `tests/recommendations-tabs.test.ts` tetap lulus tanpa
+   diubah. Untuk cabang `domainLabel` sendiri, baca dulu cakupan
+   `tests/onboarding.test.ts`; hanya tambah test bila ada cabang yang belum
+   terkunci (jangan duplikat).
+3. **Smoke** (opsional, hati-hati): baca data demo di `src/lib/graph/seed.ts`
+   dulu untuk tahu domain mana yang benar-benar muncul di kartu; bila
+   deterministik, tambah satu cek di blok rekomendasi yang sudah ada
+   (`scripts/smoke.mjs` sekitar baris 1121–1156, pola cek "names, not ids")
+   bahwa teks kartu memuat label ramah (mis. `Mathematics`) tanpa id mentah
+   di chip — lalu perbarui penjaga jumlah baris `tests/skip-link.test.ts`
+   2127 → jumlah baru (hitung dengan `trimEnd().split('\n').length`). Bila
+   tidak deterministik, lewati smoke.
+4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+   `README.md`/`Roadmap.md` hanya bila klaim fitur berubah. Jangan menandai
+   milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `fix:`/`feat:`. Catatan mesin: sesi lain dapat membuat load
 ±8–10 di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link,
 `Failed to fetch`); ulangi `npm run ci` utuh tanpa perubahan kode setelah load
-turun (pola PR #91/#95/#111).
+turun (pola PR #91/#95/#111; sesi ini juga: percobaan pertama PR #113 gagal
+di Sign out saat load 7,6–9,0, percobaan kedua hijau penuh).
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
@@ -60,14 +61,36 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Kandidat
-   berikutnya: `/recommendations` (kartu ringkasan, pesan kosong "No new
-   concepts ready to learn right now", target sentuh) dan `/learn/$conceptId`
-   (urutan fokus setelah kuis).
+   berikutnya: kartu rekomendasi `/recommendations` (label domain ramah —
+   lihat tugas di atas), lalu empty state `/recommendations` ("All caught
+   up!" + ikon `CheckCircle2` tanpa `aria-hidden`) dan halaman `/graph`
+   (ringkasan jumlah node/status untuk pembaca layar).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #113 — **Fokus pindah ke hasil kuis setelah kuis ditutup di
+  halaman pelajaran** — `finishQuiz` di `/learn/$conceptId` menutup
+  `ConceptQuiz` lalu mengisi live region `notice`, tetapi tombol **Done** yang
+  sedang fokus ikut ter-unmount bersama kuis sehingga fokus jatuh ke `<body>`
+  (pengguna keyboard/pembaca layar harus men-Tab dari awal halaman). Kini
+  paragraf `role="status"` ber-`aria-live="polite"` juga `ref={noticeRef}` +
+  `tabIndex={-1}` + kelas `focus:outline-none` (pola heading kuis
+  `ConceptQuiz`), dan `finishQuiz` memindahkan fokus ke sana lewat
+  `requestAnimationFrame(() => noticeRef.current?.focus())` setelah
+  `await load()` — berlaku untuk kuis lulus maupun gagal (satu jalur
+  `onFinished`); teks/role/aria-live/posisi/kelas warna tak berubah, tanpa
+  fokus paksa saat mount/berganti learner/`load()` ulang/`selfReport`, dan
+  `cancelQuiz` tetap memfokuskan tombol kuis. Test baru
+  `tests/lesson-focus.test.ts` (5 penjaga statis) + satu cek smoke blok
+  lesson (`document.activeElement` = elemen `role="status"` berisi `passed`,
+  bukan `<body>`); penjaga jumlah baris smoke 2114 → 2127. Entri log
+  `docs/ROADMAP.md`; `README.md`/`Roadmap.md` tidak diubah. `npm run ci`
+  hijau penuh pada percobaan kedua tanpa perubahan kode (percobaan pertama
+  gagal hanya di cek Sign out terakhir saat load mesin 7,6–9,0 dari sesi
+  lain — pola flaky PR #91/#95/#111; diulang setelah load turun).
 
 - 2026-11-17: PR #112 — **Tab halaman Recommendations bisa dipakai pembaca
   layar dan keyboard** — tiga tombol tab (**Recommendations**,

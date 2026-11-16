@@ -933,6 +933,19 @@ try {
     const result = await answerQuiz(lesson, { right: true });
     await closeQuiz(lesson);
     await lesson.getByTestId('lesson-progress').filter({ hasText: 'From quizzes' }).waitFor({ timeout: 15000 }).catch(() => {});
+    // The Done button unmounts with the quiz, so focus must land on the result
+    // notice (a live region) instead of falling back to <body>.
+    const noticeFocused = await page
+      .waitForFunction(
+        () => {
+          const el = document.activeElement;
+          return el instanceof HTMLElement && el.getAttribute('role') === 'status' && /passed/.test(el.textContent ?? '');
+        },
+        null,
+        { timeout: 15000 },
+      )
+      .then(() => true, () => false);
+    check(noticeFocused, 'lesson: closing the quiz moves focus to the result notice, not <body>');
     const progress = await lesson.getByTestId('lesson-progress').innerText().catch(() => '');
     const nextStep = await lesson.getByRole('navigation', { name: 'Next step' }).getByRole('link', { name: /^Next: / }).count();
     const minutes = (Date.now() - started) / 60000;
