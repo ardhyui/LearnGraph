@@ -789,13 +789,15 @@ function GraphPage() {
                             <GitBranch size={16} className="text-muted-foreground" />
                             <h4 className="text-sm font-semibold text-foreground">Prerequisites ({selectedConcept.prerequisites.length})</h4>
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
+                          <ul aria-label="Prerequisites" className="flex flex-wrap gap-1.5">
                             {selectedConcept.prerequisites.map((prereq, i) => (
-                              <span key={i} className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs px-2.5 py-1 rounded-lg">
-                                {prereq}
-                              </span>
+                              <li key={i}>
+                                <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs px-2.5 py-1 rounded-lg">
+                                  {prereq}
+                                </span>
+                              </li>
                             ))}
-                          </div>
+                          </ul>
                         </div>
                       )}
 
@@ -806,13 +808,15 @@ function GraphPage() {
                             <Clock size={16} className="text-muted-foreground" />
                             <h4 className="text-sm font-semibold text-foreground">Unlocks ({selectedConcept.dependents.length})</h4>
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
+                          <ul aria-label="Unlocks" className="flex flex-wrap gap-1.5">
                             {selectedConcept.dependents.map((dep, i) => (
-                              <span key={i} className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs px-2.5 py-1 rounded-lg">
-                                {dep}
-                              </span>
+                              <li key={i}>
+                                <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs px-2.5 py-1 rounded-lg">
+                                  {dep}
+                                </span>
+                              </li>
                             ))}
-                          </div>
+                          </ul>
                         </div>
                       )}
 
