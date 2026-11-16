@@ -1,63 +1,109 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 57: test unit langsung gerbang akses lokal `src/lib/auth/local-access.ts`, PR #96; berikutnya: test unit langsung judul tab & label halaman `src/lib/page-titles.ts`)
+Terakhir diperbarui: 2026-11-16 (siklus 58: test unit langsung judul tab & label halaman `src/lib/page-titles.ts`, PR #97; berikutnya: test unit langsung nilai default context data & tema `src/lib/db-context.ts` + `src/lib/theme-context.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung judul tab & label halaman `src/lib/page-titles.ts`**
-— `APP_NAME`/`PAGE_LABELS`/`pageTitle`/`titleForPath`/`pageHead`/
-`NOT_FOUND_TITLE`/`ERROR_TITLE`/`navigationAnnouncement`. File baru
-`tests/page-titles.test.ts` **tidak boleh menimpa** test lama bernama sama:
-beri nama baru `tests/page-titles-direct.test.ts` (node:test murni, impor
-modul langsung, tanpa PGlite/DOM), modul **tidak diubah**; modul hanya
-mengimpor `NAV_SECTIONS` dari `./navigation.ts`, jadi jangan klaim bebas
-impor. Probe dulu perilaku aktual, kunci yang belum tercakup:
+Penguatan tes: **test unit langsung nilai default context data & tema
+`src/lib/db-context.ts` + `src/lib/theme-context.ts`** — `DBContext` dan
+`ThemeContext` (dua modul terakhir di `src/lib` yang belum punya test
+langsung; `tests/provider-split.test.ts` hanya memeriksa nama ekspor, bukan
+nilai default yang dipakai hook di luar provider). File baru
+`tests/context-defaults-direct.test.ts` (node:test murni, impor modul
+langsung, tanpa PGlite/DOM); kedua modul **tidak diubah**. Kedua modul hanya
+mengimpor `createContext` dari `react` (plus `import type` dari
+`@/lib/graph/methods` di `db-context.ts`), jadi jangan klaim bebas impor.
+Jangan mencoba mengimpor `DBContext.tsx`/`theme.tsx`/`DBProvider.tsx`:
+modul-modul itu memakai impor tanpa ekstensi dan JSX sehingga tidak bisa
+dijalankan Node murni. Nilai default dibaca dengan
+`react-dom/server` (`createElement` + `useContext` + `renderToStaticMarkup`)
+— React merender di Node tanpa DOM. Probe dulu perilaku aktual:
 
-1. `APP_NAME === 'LearnGraph'`; `NOT_FOUND_TITLE === 'Page not found ·
-   LearnGraph'`; `ERROR_TITLE === 'Something went wrong · LearnGraph'`;
-   `PAGE_LABELS` **frozen** (`Object.isFrozen`) dan tepat 25 kunci berurutan
-   persis (21 href menu dari `NAV_SECTIONS` lalu lima EXTRA_LABELS) —
-   salin eksplisit peta kunci → label (termasuk `/japanese` → `Bahasa
-   Jepang`, `/learn/$conceptId` → `Lesson`, `/` → `Dashboard`, dan lima
-   halaman ekstra `/sign-in`/`/privacy`/`/forgot-password`/
-   `/reset-password`/`/learn/$conceptId`); tidak ada label kosong dan tiap
-   label sama dengan label menu untuk href menu.
-2. `pageTitle` — `'<label> · LearnGraph'`; label kosong/`null`/`undefined`/
-   hanya spasi → `LearnGraph`; whitespace `\s+` di-collapse jadi satu spasi
-   dan di-trim (tab `'A\tB'` → `'A B'`, NBSP `'A\u00a0B'` → `'A B'`, baris
-   baru di tengah); rough edge: karakter kontrol **non-whitespace** tidak
-   dibuang (`'A\u0000B\u202eC'` tetap utuh) — kunci perilaku aktual.
-3. `titleForPath` — href menu dikenal (contoh `/` → `Dashboard · LearnGraph`,
-   `/gaps` → `Gap Analysis · LearnGraph`, `/japanese` → `Bahasa Jepang ·
-   LearnGraph`); trailing slash dibuang bila panjang > 1 (`/gaps/`,
-   `/gaps//`, `/gaps///` → label; rough edge `//`/`///` → path menjadi `''`
-   → `LearnGraph`); query/hash/case/kurang garis miring (`/gaps?x=1`,
-   `/gaps#x`, `/GAPS`, `gaps`) → `LearnGraph`; rute parameter hanya satu
-   segmen (`/learn/fractions` dan literal `/learn/$conceptId` → `Lesson ·
-   LearnGraph`; `/learn/`, `/learn/a/b` → `LearnGraph`); kunci prototipe
-   aman (`toString`, `/toString`, `/hasOwnProperty`, `__proto__`,
-   `constructor`) → `LearnGraph`; `''` → `LearnGraph`.
-4. `pageHead('/gaps')` persis `{ meta: [{ title: 'Gap Analysis ·
-   LearnGraph' }] }`; `navigationAnnouncement` delegasi ke `titleForPath`
-   (halaman dikenal, `/learn/x`, dan path tak dikenal → `LearnGraph`).
-5. Penjaga statis — `page-titles.ts` tepat satu impor
-   `import { NAV_SECTIONS } from './navigation.ts';`, tanpa `require`, dan
-   mengekspor tepat delapan nama berurutan `APP_NAME`/`PAGE_LABELS`/
-   `pageTitle`/`titleForPath`/`pageHead`/`NOT_FOUND_TITLE`/`ERROR_TITLE`/
-   `navigationAnnouncement`; `src/components/RouteAnnouncer.tsx` mengimpor
-   `navigationAnnouncement` dari `@/lib/page-titles` dan memanggilnya dengan
-   `pathname` (probe teks aktual), dan rute halaman memakai
-   `pageHead('<path>')` (sudah dikunci test lama — cukup rujuk satu contoh
-   nyata, jangan duplikasi seluruh loop). Test lama `tests/page-titles.test.ts`
-   (86 baris, tujuh `it` — cek judulnya dulu) tetap utuh: rujuk judul dan
-   jumlah barisnya sebagai anchor, jangan pindahkan asersinya.
+1. `DBContext` default: tepat empat kunci `db`/`isLoading`/`error`/`isReady`
+   dengan nilai `null`/`true`/`null`/`false`; `db` bukan objek, `error`
+   bukan `Error`. `theme-context` default: tepat tiga kunci
+   `theme`/`resolvedTheme`/`setTheme`; `theme === 'system'`,
+   `resolvedTheme === 'light'`, `setTheme` berupa fungsi yang mengembalikan
+   `undefined` dan tidak melempar (JSON.stringify membuang fungsi, jadi baca
+   objeknya langsung di komponen dan kembalikan field satu per satu).
+2. Provider tetap bisa menimpa default: render
+   `DBContext.Provider value={custom}` lalu `useContext(DBContext)` →
+   objek custom utuh (termasuk `db` objek tiruan, `isLoading` false,
+   `error` `Error` asli, `isReady` true); `ThemeContext.Provider` dengan
+   `{theme:'dark',resolvedTheme:'dark',setTheme}` → nilai custom utuh dan
+   fungsi yang dipanggil memanggil tiruan `setTheme` (bukan no-op default).
+   Ini mengunci bahwa `DBProvider.tsx`/`ThemeProvider.tsx` memakai context
+   yang sama (identity), tanpa merender komponen providernya.
+3. Penjaga statis — `db-context.ts` hanya `import { createContext } from
+   'react'` + satu `import type { RemoteGraphDB } from '@/lib/graph/methods'`,
+   tanpa `require`, mengekspor `DBContextValue` (interface) dan `DBContext`
+   berurutan; `theme-context.ts` hanya impor `createContext` dari `react`,
+   mengekspor `Theme`, `ThemeContextValue`, `ThemeContext` berurutan;
+   `DBProvider.tsx` mengimpor `DBContext` dari `@/lib/db-context` dan
+   mengoper `{ db, isLoading, error, isReady }` ke `DBContext.Provider`;
+   `ThemeProvider.tsx` mengimpor `ThemeContext` dari `@/lib/theme-context`
+   dan mengoper `{ theme, resolvedTheme, setTheme }`; `theme.tsx` masih
+   `return useContext(ThemeContext)`; `DBContext.tsx` masih mengekspor
+   kedelapan hook (rujuk, jangan salin seluruh daftar test lama).
+   `tests/provider-split.test.ts` (5 `it`, 68 baris) dan
+   `tests/theme-script.test.ts` (12 `it`) tetap utuh: rujuk satu judul +
+   jumlah baris sebagai anchor, jangan pindahkan asersinya.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 12–20). Commit pola
-`test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 5–8). Commit pola
+`test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi
+dan tanpa perubahan `docs/ROADMAP.md` (tidak ada baris backlog tersentuh).
 Bila smoke flaky karena beban mesin bersama (pola PR #84/#91/#95), tunggu
 load turun lalu ulangi gerbang utuh tanpa mengubah kode.
 
 ## Riwayat
+
+- 2026-11-16: PR #97 — test: test unit langsung judul tab & label halaman
+  `src/lib/page-titles.ts` — `APP_NAME`/`PAGE_LABELS`/`pageTitle`/
+  `titleForPath`/`pageHead`/`NOT_FOUND_TITLE`/`ERROR_TITLE`/
+  `navigationAnnouncement` (18 test di `tests/page-titles-direct.test.ts`,
+  node:test murni, impor modul langsung, tanpa PGlite/DOM), modul tidak
+  diubah; `tests/page-titles.test.ts` (86 baris, tujuh `it`) tetap utuh
+  (judul-judul lamanya dirujuk penjaga statis, bukan dipindah). Dikunci:
+  `APP_NAME`/`NOT_FOUND_TITLE`/`ERROR_TITLE` persis; `PAGE_LABELS` **frozen**
+  dengan **26** kunci berurutan — **catatan probe: spesifikasi tugas menulis
+  25, kode aktual 26** (21 href menu + lima halaman ekstra; 21+5=26) —
+  salinan eksplisit peta kunci → label termasuk `/japanese` → `Bahasa
+  Jepang`, `/learn/$conceptId` → `Lesson`, `/` → `Dashboard`; tiap label
+  non-kosong, ter-trim, dan sama dengan label menu untuk href menu.
+  `pageTitle` — `'<label> · LearnGraph'`; kosong/`null`/`undefined`/
+  whitespace → `LearnGraph`; `\s+` di-collapse dan di-trim (tab, NBSP
+  `\u00a0`, baris baru, campuran); rough edge karakter kontrol
+  non-whitespace tidak dibuang (`'A\u0000B\u202eC'` utuh; label
+  `'\u0000'` tetap menghasilkan `'\u0000 · LearnGraph'`).
+  `titleForPath` — href menu dikenal; trailing slash dibuang bila panjang
+  > 1 (`/gaps/`, `/gaps//`, `/gaps///`, `/about//`, `/sign-in/`; rough edge
+  `//`/`///` → path `''` → `LearnGraph`); query/hash/case/kurang garis
+  miring (`/gaps?x=1`, `/gaps#x`, `/GAPS`, `gaps`, `/gaps /`) →
+  `LearnGraph`; rute parameter satu segmen (`/learn/fractions`, literal
+  `/learn/$conceptId`, `/learn/x/`, `/learn/$conceptId/` → `Lesson ·
+  LearnGraph`; `/learn/`, `/learn//`, `/learn/a/b` → `LearnGraph`); kunci
+  prototipe aman (`toString`, `/toString`, `/hasOwnProperty`, `__proto__`,
+  `/__proto__`, `constructor`, `/constructor`, `''`) → `LearnGraph`.
+  `pageHead('/gaps')`/`pageHead('/profile')` persis bentuk `{ meta: [{ title
+  }] }`, path tak dikenal → `LearnGraph`; `navigationAnnouncement`
+  delegasi ke `titleForPath` (`/gaps`, `/`, `/learn/x`, `/nope`). Penjaga
+  statis: `page-titles.ts` tepat satu impor
+  `import { NAV_SECTIONS } from './navigation.ts';`, tanpa `require`, dan
+  mengekspor tepat delapan nama berurutan; `RouteAnnouncer.tsx` mengimpor
+  `navigationAnnouncement` dari `@/lib/page-titles` dan memanggil
+  `navigationAnnouncement(pathname)`; `src/routes/gaps.tsx` memakai
+  `head: () => pageHead('/gaps')`; anchor tujuh judul `it` + jumlah baris
+  86 `tests/page-titles.test.ts` tetap utuh. Catatan proses: `node_modules`
+  belum ada di worktree sehingga `npm ci` lebih dulu (probe modul sendiri
+  bisa tanpa `node_modules` karena `page-titles.ts` hanya mengimpor
+  `navigation.ts` tanpa dependensi eksternal); probe menemukan 26 kunci
+  (bukan 25) dan itu yang dikunci; prettier merapikan format; typecheck/
+  lint 0/0 dan `npm run ci` utuh hijau pada percobaan pertama (install,
+  typecheck, lint 0/0, 1065/1065 unit = 1047 + 18, build, anggaran bundel,
+  CSP build produksi, smoke Playwright + PGlite). Tanpa perubahan
+  aplikasi/perilaku/skema/RPC/migrasi/dependensi dan tanpa perubahan
+  `docs/ROADMAP.md` (tidak ada baris backlog yang tersentuh, pola
+  PR #77/#78/#90/#92–#96).
 
 - 2026-11-16: PR #96 — test: test unit langsung gerbang akses lokal
   `src/lib/auth/local-access.ts` — `LOCAL_OWNER_ID`/`permitsLocalUser`
