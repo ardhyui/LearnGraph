@@ -1,45 +1,89 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 60: test unit langsung penjaga CSP `src/lib/zod-config.ts`, PR #99; berikutnya: test unit langsung komponen `src/components/SubjectChoices.tsx`)
+Terakhir diperbarui: 2026-11-16 (siklus 61: test unit langsung komponen `src/components/SubjectChoices.tsx`, PR #100; berikutnya: test unit langsung komponen `src/components/SkipLink.tsx`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung komponen `src/components/SubjectChoices.tsx`**
-— checkbox subjek presentasional ("Mathematics · 6 concepts") yang dipakai
-`src/components/Onboarding.tsx` dan `src/components/FocusEditor.tsx`; belum
-pernah dites langsung (hanya lewat smoke). File baru
-`tests/subject-choices.test.ts` (node:test murni, render server dengan
-`react-dom/server` `createElement`/`renderToStaticMarkup`, tanpa
-PGlite/DOM/Playwright); komponen **tidak diubah**.
+Penguatan tes: **test unit langsung komponen `src/components/SkipLink.tsx`**
+— tautan "Skip to content" (WCAG 2.4.1) yang dirender sebagai anak pertama
+`<body>` di `src/routes/__root.tsx`; belum pernah dites langsung (hanya smoke).
+File baru `tests/skip-link.test.ts` (node:test murni, transpilasi `.tsx`
+in-memory seperti `tests/subject-choices.test.ts`, `react-dom/server`
+`createElement`/`renderToStaticMarkup`, tanpa PGlite/Playwright); komponen
+**tidak diubah**.
 
-1. Render dengan tiga domain (`mathematics` 6, `computer-science` 1,
-   `art_history` 0) dan `chosen=['computer-science']`: tepat tiga `<label>`,
-   urutan masukan dipertahankan, tiap label memuat `domainLabel` (`Mathematics`,
-   `Computer science`, `Art history`), teks hitungan persis `6 concepts`,
-   `1 concept`, `0 concepts` (singular hanya untuk 1), dan checkbox
-   `computer-science` ber-atribut `checked` sedangkan dua lainnya tidak.
-2. `disabled` — tanpa prop / `false` tidak menghasilkan atribut `disabled`;
-   `true` memberi `disabled` pada **semua** checkbox. `chosen` kosong → tanpa
-   `checked`; `chosen` duplikat tidak menggandakan label; `domains` kosong →
-   tanpa `<label>`; `onToggle` tidak dipanggil saat render server.
-3. Escaping SSR: domain berisi karakter HTML (`<b>x</b>`, `&`) tampil
-   ter-escape (`&lt;b&gt;`, `&amp;`), bukan HTML mentah; label `domainLabel`
-   dengan pemisah `-`/`_` dan huruf pertama dikapitalkan tetap terbaca.
-4. Penjaga statis: `SubjectChoices.tsx` hanya mengimpor `domainLabel` dari
-   `@/lib/onboarding` (tanpa hook/router/DB), `onChange={(e) =>
-   onToggle(domain, e.target.checked)}` tetap ada, dan kedua pemakai
-   mengimpor `SubjectChoices` dari `@/components/SubjectChoices`; anchor
-   `tests/onboarding.test.ts` (281 baris) tetap utuh. Catatan probe: konfirmasi
-   dulu bentuk markup aktual (`checked`/`disabled` adalah atribut boolean yang
-   hanya muncul saat true, bukan `checked=""`).
+1. Markup: render `SkipLink()` → tepat satu `<a>` dengan `href="#main"` dan
+   teks persis `Skip to content`; kelas `sr-only` + `focus:not-sr-only`
+   (tampil saat fokus) tetap ada; tanpa `target`/`role`/`tabIndex`/`onKeyDown`.
+2. Handler: ambil `props.onClick` dari `SkipLink()` (React 19 mengembalikan
+   elemen; panggil komponen langsung, bukan lewat DOM) lalu pasang
+   `globalThis.document` tiruan dan pulihkan di `finally`. Tanpa `<main>`
+   (`querySelector` → null) → `preventDefault` **tidak** dipanggil dan tidak
+   ada `setAttribute`/`focus`/`scrollIntoView`; `querySelector` dipanggil
+   dengan selector persis `'main'`. `<main>` tanpa `tabindex` →
+   `preventDefault` sekali, urutan `hasAttribute('tabindex')` false →
+   `setAttribute('tabindex','-1')` → `focus()` → `scrollIntoView({ block:
+   'start' })`. `<main>` yang sudah ber-`tabindex` (`'0'`/`'-1'`) tidak
+   ditimpa (`setAttribute` tidak dipanggil) tetapi tetap fokus+scroll.
+3. Penjaga statis: `SkipLink.tsx` hanya `import type { MouseEvent } from
+   'react';`, tanpa hook/router/DB/`require`, mengekspor tepat `SkipLink`;
+   `__root.tsx` mengimpor dari `@/components/SkipLink` dan merender
+   `<SkipLink />` tepat setelah `<body ...>` sebelum `<ThemeProvider>`/
+   `<RouteAnnouncer>`; `scripts/smoke.mjs` tetap memuat cek
+   `a11y: "Skip to content" is the first Tab stop` (jangan diubah); asersi
+   baru tidak boleh memindahkan anchor lama — konfirmasi dulu jumlah baris
+   aktual berkas yang dirujuk (pola catatan probe siklus 60).
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 5–8). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 4–6). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi
 dan tanpa perubahan `docs/ROADMAP.md` (tidak ada baris backlog tersentuh).
 Bila smoke flaky karena beban mesin bersama (pola PR #84/#91/#95), tunggu
 load turun lalu ulangi gerbang utuh tanpa mengubah kode.
 
 ## Riwayat
+
+- 2026-11-16: PR #100 — test: test unit langsung komponen
+  `src/components/SubjectChoices.tsx` (7 test di `tests/subject-choices.test.ts`,
+  node:test murni, `react-dom/server` `createElement`/`renderToStaticMarkup`,
+  tanpa PGlite/DOM/Playwright), komponen tidak diubah. Catatan pendekatan: Node
+  tidak bisa mengimpor `.tsx` langsung (type stripping tidak mengubah JSX), jadi
+  test mentranspilasi berkas asli in-memory dengan `ts.transpileModule`
+  (`jsx: ReactJSX`) lalu mengimpornya dari `data:` URL; alias
+  `@/lib/onboarding` dan `react/jsx-runtime` ditulis ulang ke URL absolut
+  (`import.meta.resolve`/`pathToFileURL`). Dikunci: tiga domain (`mathematics`
+  6, `computer-science` 1, `art_history` 0) + `chosen=['computer-science']` →
+  tepat tiga `<label>` berurutan, teks persis `Mathematics6 concepts`/
+  `Computer science1 concept`/`Art history0 concepts`, hitungan `6 concepts`/
+  `1 concept`/`0 concepts`, `type="checkbox"` di semua, dan `checked=""` hanya
+  di `computer-science` — **catatan probe: React SSR menulis atribut boolean
+  sebagai `checked=""`/`disabled=""`, bukan `checked`/`disabled` telanjang
+  seperti tertulis di spesifikasi tugas**. `chosen` kosong/asing → tanpa
+  `checked`; duplikat `['alpha','alpha','not-a-domain']` tidak menggandakan
+  label; `domains: []` → markup persis
+  `<div class="mt-2 flex flex-wrap gap-2"></div>` tanpa `<label>`; `disabled`
+  absen/`false` → tanpa atribut, `true` → `disabled=""` di semua checkbox;
+  `onToggle` tidak dipanggil saat render server. Escaping: domain `<b>x</b>`
+  → `&lt;b&gt;x&lt;/b&gt;` (tanpa `<b>` mentah), `a&b` → `A&amp;b`,
+  `computer-science` → `Computer science`, `art_history` → `Art history`,
+  `_music_` → `Music`, domain kosong → teks label kosong + hitungan. Penjaga
+  statis: `SubjectChoices.tsx` tepat satu impor
+  `import { domainLabel } from '@/lib/onboarding';`, tanpa `require`, tanpa
+  hook/router/DB/`fetch`, tepat satu `<input`/`<label>`, dan
+  `onChange={(e) => onToggle(domain, e.target.checked)}`; `Onboarding.tsx` dan
+  `FocusEditor.tsx` sama-sama mengimpor `SubjectChoices` dari
+  `@/components/SubjectChoices` (Onboarding tanpa `disabled`, FocusEditor
+  `disabled={saving}`); anchor lima judul lama tetap utuh + jumlah baris
+  `tests/onboarding.test.ts` **280** (spesifikasi menulis 281; berkas
+  ber-trailing newline sehingga `trimEnd().split('\n').length` = 280 —
+  catatan probe). Catatan proses: `node_modules` belum ada di worktree sehingga
+  `npm ci` lebih dulu; probe render lebih dulu mengonfirmasi seluruh markup
+  termasuk `checked=""`/`disabled=""`; satu run `node --test` langsung hijau;
+  typecheck/lint 0/0 dan `npm run ci` utuh hijau pada percobaan pertama.
+  Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi dan tanpa
+  perubahan `docs/ROADMAP.md` (tidak ada baris backlog tersentuh, pola
+  PR #77/#78/#90/#92–#99). `npm run ci` hijau (install, typecheck, lint 0/0,
+  1085/1085 unit = 1078 + 7, build, anggaran bundel, CSP build produksi,
+  smoke Playwright + PGlite).
 
 - 2026-11-16: PR #99 — test: test unit langsung penjaga CSP
   `src/lib/zod-config.ts` (6 test di `tests/zod-config.test.ts`, node:test
