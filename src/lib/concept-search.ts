@@ -4,7 +4,8 @@
  * "Learn next" lists. Pure — no React, database or clock — so the matching and
  * ordering are unit-tested directly. Same match fields as the graph engine's
  * `searchConcepts` (name, description, id, domain, tags), but one character is
- * too little to be useful.
+ * too little to be useful. The result list and the count summary share one
+ * ranked-match path, so they can never disagree.
  */
 import type { ConceptNode } from './graph/types.ts';
 
@@ -38,18 +39,17 @@ function matches(concept: ConceptNode, needle: string): boolean {
   );
 }
 
+/** Clamp a result limit the way the list always has: finite, floored, ≥ 0. */
+const resultLimit = (limit: number) => (Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0);
+
 /**
- * Up to `limit` concepts matching a query, unique by concept id: an exact name
- * first, then names that contain it, then matches found in other fields — each
- * group ordered by name. Empty for a blank or too-short query.
+ * Every concept matching a cleaned query, unique by concept id (first
+ * occurrence wins) and ranked as the result list ranks them: an exact name
+ * first, then names that contain the query, then matches in other fields —
+ * each group ordered by name. Shared by the result list and the summary line
+ * so the announced count can never disagree with the list.
  */
-export function conceptSearchResults(
-  concepts: readonly ConceptNode[],
-  query: string,
-  limit = 8,
-): ConceptNode[] {
-  const cleaned = searchQuery(query);
-  if (!cleaned) return [];
+function rankedMatches(concepts: readonly ConceptNode[], cleaned: string): ConceptNode[] {
   const needle = cleaned.toLowerCase();
   const seen = new Set<string>();
   const found: ConceptNode[] = [];
@@ -72,6 +72,44 @@ export function conceptSearchResults(
     return idA < idB ? -1 : idA > idB ? 1 : 0;
   };
   found.sort((a, b) => rank(a) - rank(b) || byName(a, b));
-  const cap = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
-  return found.slice(0, cap);
+  return found;
+}
+
+/**
+ * Up to `limit` concepts matching a query, unique by concept id: an exact name
+ * first, then names that contain it, then matches found in other fields — each
+ * group ordered by name. Empty for a blank or too-short query.
+ */
+export function conceptSearchResults(
+  concepts: readonly ConceptNode[],
+  query: string,
+  limit = 8,
+): ConceptNode[] {
+  const cleaned = searchQuery(query);
+  if (!cleaned) return [];
+  return rankedMatches(concepts, cleaned).slice(0, resultLimit(limit));
+}
+
+/**
+ * One quiet line under the search box: how many concepts matched, and whether
+ * the list was cut short by the limit. A screen reader hears nothing when the
+ * result list itself changes, so this polite status line is the announcement.
+ * `null` means "say nothing": a blank or too-short query (the list is hidden
+ * anyway), no matches (the existing "No concepts match" line already speaks
+ * for that case), or a non-positive limit (nothing is displayed at all).
+ */
+export function conceptSearchSummary(
+  concepts: readonly ConceptNode[],
+  query: string,
+  limit = 8,
+): string | null {
+  const cleaned = searchQuery(query);
+  if (!cleaned) return null;
+  const cap = resultLimit(limit);
+  if (cap <= 0) return null;
+  const total = rankedMatches(concepts, cleaned).length;
+  if (total === 0) return null;
+  if (total === 1) return '1 concept found';
+  if (total <= cap) return `${total} concepts found`;
+  return `${cap} of ${total} concepts shown`;
 }

@@ -12,7 +12,12 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { MIN_SEARCH_LENGTH, conceptSearchResults, searchQuery } from '../src/lib/concept-search.ts';
+import {
+  MIN_SEARCH_LENGTH,
+  conceptSearchResults,
+  conceptSearchSummary,
+  searchQuery,
+} from '../src/lib/concept-search.ts';
 import type { ConceptNode } from '../src/lib/graph/types.ts';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -204,6 +209,82 @@ describe('conceptSearchResults: unique results and the limit', () => {
   });
 });
 
+describe('conceptSearchSummary: the quiet count line', () => {
+  const many = Array.from({ length: 10 }, (_, i) =>
+    concept({
+      conceptId: `concept:c${i}`,
+      name: `Concept ${String(i + 1).padStart(2, '0')}`,
+      description: 'Practice',
+    }),
+  );
+
+  it('says nothing for a blank or too-short query, where the list is hidden anyway', () => {
+    assert.equal(conceptSearchSummary(many, ''), null);
+    assert.equal(conceptSearchSummary(many, '   '), null);
+    assert.equal(conceptSearchSummary(many, 'c'), null);
+  });
+
+  it('says nothing when nothing matches, so the no-match line stays the only message', () => {
+    assert.equal(conceptSearchSummary(many, 'geometry'), null);
+    assert.equal(conceptSearchSummary([], 'concept'), null);
+  });
+
+  it('announces a single match in the singular', () => {
+    assert.equal(conceptSearchSummary([concept()], 'fractions'), '1 concept found');
+  });
+
+  it('announces the total when every match fits under the limit', () => {
+    assert.equal(conceptSearchSummary(many.slice(0, 3), 'concept'), '3 concepts found');
+    // Exactly at the default limit: still a plain count.
+    assert.equal(conceptSearchSummary(many.slice(0, 8), 'concept'), '8 concepts found');
+    assert.equal(conceptSearchSummary(many.slice(0, 3), 'concept', 99), '3 concepts found');
+  });
+
+  it('announces the cut when the matches exceed the limit', () => {
+    assert.equal(conceptSearchSummary(many, 'concept'), '8 of 10 concepts shown');
+    assert.equal(conceptSearchSummary(many, 'concept', 3), '3 of 10 concepts shown');
+  });
+
+  it('says nothing for a non-positive or non-finite limit, where nothing is displayed', () => {
+    assert.equal(conceptSearchSummary(many, 'concept', 0), null);
+    assert.equal(conceptSearchSummary(many, 'concept', -1), null);
+    assert.equal(conceptSearchSummary(many, 'concept', Number.NaN), null);
+    assert.equal(conceptSearchSummary(many, 'concept', Number.POSITIVE_INFINITY), null);
+  });
+
+  it('counts duplicate concept ids once, like the result list does', () => {
+    const duplicated = [
+      concept({ conceptId: 'concept:a', name: 'Alpha plan' }),
+      concept({ conceptId: 'concept:a', name: 'Beta plan' }),
+      concept({ conceptId: 'concept:b', name: 'Gamma plan' }),
+    ];
+    assert.equal(conceptSearchSummary(duplicated, 'plan'), '2 concepts found');
+    assert.equal(conceptSearchResults(duplicated, 'plan').length, 2);
+  });
+
+  it('always agrees with the result list it sits above', () => {
+    const cases: Array<[string, number | undefined]> = [
+      ['concept', undefined],
+      ['concept', 3],
+      ['concept', 0],
+      ['concept', -2],
+      ['concept 01', undefined],
+      ['geometry', undefined],
+    ];
+    for (const [query, limit] of cases) {
+      const summary = conceptSearchSummary(many, query, limit);
+      const shown = conceptSearchResults(many, query, limit).length;
+      if (summary === null) {
+        assert.equal(shown, 0, `${query}/${limit}: summary silent but list shows ${shown}`);
+        continue;
+      }
+      const match = /^(\d+)(?: of \d+ concepts shown| concepts? found)$/.exec(summary);
+      assert.ok(match, `unrecognised summary: ${summary}`);
+      assert.equal(shown, Number(match[1]), `${query}/${limit}: ${summary} but list shows ${shown}`);
+    }
+  });
+});
+
 describe('wiring guards (static)', () => {
   const source = (file: string) => readFileSync(file, 'utf8');
 
@@ -216,12 +297,15 @@ describe('wiring guards (static)', () => {
     assert.match(search, /export const MIN_SEARCH_LENGTH = 2;/);
     assert.match(search, /export function searchQuery\(/);
     assert.match(search, /export function conceptSearchResults\(/);
+    assert.match(search, /export function conceptSearchSummary\(/);
   });
 
   it('searches the already-loaded concepts and links to each lesson page', () => {
     const today = source(COMPONENT_FILE);
     assert.ok(
-      today.includes("import { conceptSearchResults, searchQuery } from '@/lib/concept-search';"),
+      today.includes(
+        "import { conceptSearchResults, conceptSearchSummary, searchQuery } from '@/lib/concept-search';",
+      ),
     );
     assert.ok(today.includes('concepts: allConcepts,'));
     assert.ok(today.includes('current.concepts.length > 0'));
@@ -242,6 +326,25 @@ describe('wiring guards (static)', () => {
     assert.equal(/createServerFn/.test(today), false);
     assert.equal(/graphCall/.test(today), false);
     assert.equal(/db\.searchConcepts/.test(today), false);
+  });
+
+  it('announces the match count in a polite status line between the input and the list', () => {
+    const today = source(COMPONENT_FILE);
+    assert.match(today, /const summary = conceptSearchSummary\(concepts, query\);/);
+    assert.match(today, /\{summary && \(/);
+    assert.match(
+      today,
+      /<p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">\s*\{summary\}\s*<\/p>/,
+    );
+    // The line sits below the search input and above the result list.
+    const inputAt = today.indexOf('placeholder="Name, topic or tag"');
+    const summaryAt = today.indexOf('<p role="status" aria-live="polite"');
+    const listAt = today.indexOf('<ul aria-label="Concept search results"');
+    assert.ok(inputAt !== -1, 'search input not found');
+    assert.ok(summaryAt !== -1, 'summary line not found');
+    assert.ok(listAt !== -1, 'result list not found');
+    assert.ok(inputAt < summaryAt, 'summary must come after the input');
+    assert.ok(summaryAt < listAt, 'summary must come before the result list');
   });
 
   it('does not add a migration or a new RPC method for the search', () => {
