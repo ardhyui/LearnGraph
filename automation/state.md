@@ -1,49 +1,48 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (fokus semantik daftar antrean review di `/gaps`; siklus berikutnya: semantik daftar prasyarat/unlocks di panel detail `/graph`)
+Terakhir diperbarui: 2026-11-17 (fokus semantik daftar prasyarat/unlocks di panel detail `/graph`; siklus berikutnya: status terpilih tombol panjang & tata letak kuis di `/profile`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **semantik daftar prasyarat dan unlocks di panel detail
-Knowledge Graph** — kandidat fitur (a); tanpa migrasi skema, dependensi, server
-function, RPC, atau method RPC baru. Konteks: panel detail konsep di
-`src/routes/graph.tsx` (sekitar baris 785–817) merender **Prerequisites** dan
-**Unlocks** sebagai deretan `<span>` di dalam
-`<div className="flex flex-wrap gap-1.5">`, sehingga pembaca layar tidak tahu
-chip-chip itu satu daftar konsep dan tidak bisa melompat per item, padahal
-setiap chip adalah satu konsep prasyarat/penerus. Judul `h4` yang sudah memuat
-hitungan (`Prerequisites (n)` / `Unlocks (n)`) tetap seperti sekarang.
+Poles aksesibilitas **tombol pilihan panjang kuis dan tata letak kuis di
+`/profile`** — kandidat fitur (a); tanpa migrasi skema, dependensi, server
+function, RPC, atau method RPC baru. Konteks: di `src/routes/profile.tsx`
+sekitar baris 1183–1239 ada dua pasang tombol toggle di dalam kartu **Short
+questionnaires**:
 
-Rancangan (baca kode dulu: `selectedConcept.prerequisites`,
-`selectedConcept.dependents`, `key={i}`, kelas chip biru/hijau, dan
-`src/routes/graph.tsx` di sekitar kedua blok):
+- **Quick** / **Full** mengubah `assessmentType`,
+- **Cards** / **All questions** mengubah `assessmentViewMode`.
 
-1. Ganti wadah `div` pada **Prerequisites** menjadi
-   `<ul aria-label="Prerequisites" className="flex flex-wrap gap-1.5">` dan
-   tiap `span` hasil `map` menjadi `<li key={i}>` yang membungkus `span` dengan
-   kelas visual persis sama (`bg-blue-500/10 text-blue-600 dark:text-blue-400
-   text-xs px-2.5 py-1 rounded-lg`). Lakukan hal yang sama untuk **Unlocks**:
-   `<ul aria-label="Unlocks" ...>` dan `<li key={i}>` berisi span kelas
-   `bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs px-2.5
-   py-1 rounded-lg`. Tidak ada `<div>` tambahan di antara `<ul>` dan `<li>`;
-   Tailwind preflight sudah menghapus marker sehingga tidak perlu kelas marker
-   baru. Isi (`{prereq}`, `{dep}`), urutan, `key={i}`, ikon `GitBranch`/`Clock`
-   ber-`aria-hidden`, teks judul + hitungan, dan seluruh bagian panel lain
-   (mastery, badge ZPD/overdue, ID konsep, `GraphDetailPanel`) tidak berubah.
-2. Jangan memindahkan fokus, menambah live region, atau mengubah pemilihan
-   node/ReactFlow; hanya semantik daftar di panel detail.
-3. **Test**: file baru `tests/graph-detail-lists.test.ts` (penjaga statis
-   `src/routes/graph.tsx`) — tepat satu `<ul aria-label="Prerequisites">` dan
-   satu `<ul aria-label="Unlocks">` dengan kelas flex-wrap yang sama, hasil
-   `map` langsung berupa `<li>` (tanpa pembungkus perantara), kedua chip `span`
-   mempertahankan kelas/isi/urutan, judul `h4` beserta hitungannya tetap,
-   kedua daftar berada di cabang `selectedConcept.prerequisites.length > 0` /
-   `dependents.length > 0`, dan tidak ada `createServerFn`/`graphCall`/
-   `rpc-schemas`/migrasi baru di halaman. Tidak perlu cek smoke baru: panel
-   detail baru muncul setelah node ReactFlow diklik, dan interaksi kanvas itu
-   flaky di mesin bersama — penjaga statis cukup. Tidak ada perubahan
-   `tests/skip-link.test.ts` karena jumlah baris smoke tidak berubah.
-4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+Keempatnya `<button>` biasa tanpa `aria-pressed` dan wadahnya `<div>` tanpa
+nama, sehingga pembaca layar tidak tahu opsi mana yang sedang terpilih (pilihan
+hanya tampak dari warna) dan tidak tahu kedua tombol itu satu grup pilihan.
+Seluruh label teks, `onClick`, kelas visual, urutan, dan perilaku tetap sama.
+
+Rancangan (baca kode dulu: `assessmentType`/`assessmentViewMode`, kedua
+`<div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-xl">`,
+ikon `Zap`/`FileText`/`LayoutGrid`/`List`, dan blok penjelasan
+`assessmentType === 'quick' ? …` di bawahnya):
+
+1. Beri wadah pasangan pertama `role="group"` +
+   `aria-label="Quiz length"` dan wadah pasangan kedua `role="group"` +
+   `aria-label="Quiz layout"`; kelas wadah tidak berubah.
+2. Tiap tombol mendapat `aria-pressed={assessmentType === 'quick'}`,
+   `aria-pressed={assessmentType === 'full'}`,
+   `aria-pressed={assessmentViewMode === 'cards'}`,
+   `aria-pressed={assessmentViewMode === 'all'}`. Jangan menambah `role`
+   tombol lain, `aria-label` pengganti teks, atau perubahan `onClick`.
+3. Ikon dekoratif di keempat tombol diberi `aria-hidden="true"` (pola ikon
+   lain di halaman), tanpa mengubah ukuran/kelas atau teks tombol.
+4. **Test**: file baru `tests/profile-quiz-toggles.test.ts` (penjaga statis
+   `src/routes/profile.tsx`) — tepat dua `role="group"` dengan `aria-label`
+   yang disebut, tepat empat `aria-pressed` dengan ekspresi persis di atas,
+   label teks `Quick`/`Full`/`Cards`/`All questions` dan urutan tetap, kelas
+   wadah/tombol tetap, ikon keempat tombol `aria-hidden`, tidak ada
+   `aria-label` yang mengganti nama tombol, dan tidak ada `createServerFn`/
+   `graphCall`/`rpc-schemas`/migrasi baru di halaman. Tidak perlu cek smoke
+   baru (perubahan semantik saja); jumlah baris smoke tidak berubah sehingga
+   `tests/skip-link.test.ts` tidak disentuh.
+5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
 
@@ -60,13 +59,36 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Setelah
-   antrean review `/gaps` dan panel detail `/graph`: `/profile` dan
-   `/learn/$conceptId` (mis. urutan fokus setelah aksi lain).
+   antrean review `/gaps`, panel detail `/graph`, dan toggle kuis `/profile`:
+   `/learn/$conceptId` (mis. urutan fokus setelah aksi lain), lalu sisa
+   `/profile` (mis. ringkasan statistik, label grup).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #117 — **Prasyarat dan unlocks di panel detail Knowledge
+  Graph menjadi daftar bernama** — panel detail konsep di `/graph` sebelumnya
+  merender **Prerequisites** dan **Unlocks** sebagai deretan `<span>` di dalam
+  `<div className="flex flex-wrap gap-1.5">`, sehingga pembaca layar tidak tahu
+  chip-chip itu satu daftar konsep dan tidak bisa melompat per item. Kini
+  wadahnya `<ul aria-label="Prerequisites">` / `<ul aria-label="Unlocks">`
+  dengan kelas flex-wrap yang sama, dan tiap hasil `map` langsung
+  `<li key={i}>` yang membungkus chip `span` dengan kelas visual persis sama
+  (biru `bg-blue-500/10 …` untuk prasyarat, hijau `bg-emerald-500/10 …` untuk
+  unlocks). Tidak ada `<div>` perantara antara `<ul>` dan `<li>`; tanpa kelas
+  marker baru (Tailwind preflight sudah menghapus penanda). Isi (`{prereq}`,
+  `{dep}`), urutan, `key={i}`, ikon `GitBranch`/`Clock`, judul `h4` beserta
+  hitungan, syarat cabang non-kosong, dan seluruh bagian panel lain tidak
+  berubah; tanpa live region/fokus baru dan tanpa perubahan pemilihan
+  node/ReactFlow; UI bahasa Inggris (D2). Test baru
+  `tests/graph-detail-lists.test.ts` (11 penjaga statis) dan entri log
+  `docs/ROADMAP.md`. Tidak ada cek smoke baru karena panel detail baru muncul
+  setelah node ReactFlow diklik dan interaksi kanvas flaky di mesin bersama;
+  penjaga jumlah baris smoke tidak berubah. `README.md` dan `Roadmap.md` tidak
+  diubah. `npm run ci` hijau penuh (1289/1289 unit = 1278 + 11; smoke lulus
+  pada percobaan pertama).
 
 - 2026-11-17: PR #116 — **Antrean review di `/gaps` menjadi satu daftar
   bernama** — kartu **Reviews** sebelumnya merender `reviewQueue.queue.map`
