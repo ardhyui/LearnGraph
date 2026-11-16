@@ -24,6 +24,7 @@ import {
 } from '@/lib/study';
 import { evidenceMode, quizResultNotice } from '@/lib/evidence/labels';
 import { weekRecapLines, type WeekRecap } from '@/lib/evidence/week';
+import { streakLine, type LearningStreak } from '@/lib/evidence/streak';
 import { getQuizOverview, getWeekRecap, recordStudyOutcome } from '@/server/evidence.functions';
 import { getContentOverview } from '@/server/content.functions';
 import {
@@ -83,8 +84,8 @@ interface TodayData {
   quizCounts: Record<string, number>;
   /** Minutes of lesson material per concept id (absent = no lesson yet). */
   lessonMinutes: Record<string, number>;
-  /** Reviews, passed quizzes and new concepts in the last seven days. */
-  week: WeekRecap;
+  /** Reviews, passed quizzes and new concepts in the last seven days, plus the daily streak. */
+  week: WeekRecap & { streak: LearningStreak };
 }
 
 /** The quiz open in one of the lists (one at a time). */
@@ -631,7 +632,7 @@ export function StudyToday() {
       </div>
 
       {/* Your week: what the last seven days added up to, from the event log. */}
-      {current && <WeekRecapCard recap={current.week} />}
+      {current && <WeekRecapCard week={current.week} />}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         {/* Reviews due */}
@@ -931,11 +932,13 @@ const NOTICES: Record<StudyOutcome | ReviewOutcome | SnoozeOutcome, (name: strin
 
 /**
  * "Your week": the last seven days at a glance, counted from the event log by
- * `weekRecap`. Quiet when nothing happened yet — no rows of noisy zeros.
+ * `weekRecap`, plus the current daily streak. Quiet when nothing happened yet —
+ * no rows of noisy zeros.
  */
-function WeekRecapCard({ recap }: { recap: WeekRecap }) {
+function WeekRecapCard({ week }: { week: WeekRecap & { streak: LearningStreak } }) {
   const headingId = useId();
-  const lines = weekRecapLines(recap);
+  const lines = weekRecapLines(week);
+  const streak = streakLine(week.streak);
   return (
     <section
       aria-labelledby={headingId}
@@ -946,15 +949,20 @@ function WeekRecapCard({ recap }: { recap: WeekRecap }) {
         Your week
       </h3>
       <p className="text-xs text-muted-foreground">Last 7 days</p>
-      {recap.active ? (
+      {week.active ? (
         <ul className="mt-2 space-y-1 text-sm text-foreground">
           {lines.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
-      ) : (
+      ) : streak ? null : (
         <p className="mt-2 text-sm text-muted-foreground">
           Nothing yet this week — your first review will show up here.
+        </p>
+      )}
+      {streak && (
+        <p className="mt-2 text-sm font-medium text-foreground" data-testid="learning-streak">
+          {streak}
         </p>
       )}
     </section>
