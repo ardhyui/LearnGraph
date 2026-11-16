@@ -1106,7 +1106,7 @@ try {
     check(await toDashboard.isVisible().catch(() => false), 'gaps: overdue reviews link to the dashboard');
 
     await page.goto(`${BASE}/recommendations`, { waitUntil: 'networkidle' });
-    const zonesTab = page.getByRole('button', { name: 'Ready / not yet' });
+    const zonesTab = page.getByRole('tab', { name: 'Ready / not yet' });
     await zonesTab.waitFor({ timeout: 30000 }).catch(() => {});
     await zonesTab.click().catch(() => {});
     await page.getByRole('heading', { name: /^Not yet/ }).waitFor({ timeout: 15000 }).catch(() => {});
@@ -1120,7 +1120,7 @@ try {
 
     // "Ways to learn it" says where each suggestion comes from: the universal
     // worked example is always suggested, the rest follow the learner's answers.
-    await page.getByRole('button', { name: /^Recommendations \(/ }).click().catch(() => {});
+    await page.getByRole('tab', { name: /^Recommendations \(/ }).click().catch(() => {});
     const waysToLearn = page.getByText('Ways to learn it', { exact: true }).first();
     const waysShown = await waysToLearn.waitFor({ timeout: 30000 }).then(() => true, () => false);
     const sariWays = await page.locator('main').innerText().catch(() => '');
@@ -2111,4 +2111,4 @@ try {
 }
 
 console.log(results.join('\n'));
-process.exit(failed ? 1 : 0);
+process.exitCode = failed ? 1 : 0;

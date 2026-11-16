@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useId, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useId, useMemo, useRef, type KeyboardEvent } from 'react';
 import { pageHead } from '@/lib/page-titles';
+import { nextTabIndex } from '@/lib/tabs';
 import { createFileRoute } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -122,6 +123,9 @@ const tabVariants = {
   active: { scale: 1.02 },
 };
 
+const TAB_IDS = ['recommendations', 'zones', 'path'] as const;
+type TabId = (typeof TAB_IDS)[number];
+
 function RecommendationsPage() {
   const { db, isLoading: dbLoading, error: dbError, isReady } = useDB();
   const { learners, loading: learnersLoading } = useLearners();
@@ -135,7 +139,17 @@ function RecommendationsPage() {
   const [zpd, setZpd] = useState<ZPDResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'recommendations' | 'zones' | 'path'>('recommendations');
+  const [activeTab, setActiveTab] = useState<TabId>('recommendations');
+
+  // Each tab button is focused by index when the arrow keys move the selection.
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const next = nextTabIndex(index, event.key, TAB_IDS.length);
+    if (next === null) return;
+    event.preventDefault();
+    setActiveTab(TAB_IDS[next]);
+    tabRefs.current[next]?.focus();
+  };
 
   // Only the latest request may update the page (switching learners while a
   // load is in flight must not show the previous learner's recommendations).
@@ -399,34 +413,48 @@ function RecommendationsPage() {
 
               {/* Tabs */}
               <motion.div
+                role="tablist"
+                aria-label="Recommendation views"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
                 className="flex flex-wrap gap-2 mb-6"
               >
-                {[
+                {([
                   { id: 'recommendations', icon: Target, label: `Recommendations (${zpd.recommendations.length})` },
                   { id: 'zones', icon: TrendingUp, label: 'Ready / not yet' },
                   { id: 'path', icon: RouteIcon, label: 'Learning Path' },
-                ].map((tab) => (
-                  <motion.button
-                    key={tab.id}
-                    variants={tabVariants}
-                    animate={activeTab === tab.id ? 'active' : 'inactive'}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                    className={cn(
-                      'px-4 py-2.5 rounded-xl font-medium transition-all duration-200 flex items-center gap-2',
-                      activeTab === tab.id
-                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25'
-                        : 'bg-secondary hover:bg-secondary/80 text-secondary-foreground'
-                    )}
-                  >
-                    <tab.icon className="w-4 h-4" />
-                    {tab.label}
-                  </motion.button>
-                ))}
+                ] as const).map((tab, index) => {
+                  const selected = activeTab === tab.id;
+                  return (
+                    <motion.button
+                      key={tab.id}
+                      ref={(node) => {
+                        tabRefs.current[index] = node;
+                      }}
+                      role="tab"
+                      id={`rec-tab-${tab.id}`}
+                      aria-selected={selected}
+                      aria-controls={selected ? `rec-panel-${tab.id}` : undefined}
+                      tabIndex={selected ? 0 : -1}
+                      variants={tabVariants}
+                      animate={selected ? 'active' : 'inactive'}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setActiveTab(tab.id)}
+                      onKeyDown={(event) => handleTabKeyDown(event, index)}
+                      className={cn(
+                        'px-4 py-2.5 rounded-xl font-medium transition-all duration-200 flex items-center gap-2',
+                        selected
+                          ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25'
+                          : 'bg-secondary hover:bg-secondary/80 text-secondary-foreground'
+                      )}
+                    >
+                      <tab.icon className="w-4 h-4" />
+                      {tab.label}
+                    </motion.button>
+                  );
+                })}
               </motion.div>
 
               {/* Recommendations Tab */}
@@ -434,6 +462,10 @@ function RecommendationsPage() {
                 {activeTab === 'recommendations' && (
                   <motion.div
                     key="recommendations"
+                    role="tabpanel"
+                    id="rec-panel-recommendations"
+                    aria-labelledby="rec-tab-recommendations"
+                    tabIndex={0}
                     variants={containerVariants}
                     initial="hidden"
                     animate="visible"
@@ -563,6 +595,10 @@ function RecommendationsPage() {
                 {activeTab === 'zones' && (
                   <motion.div
                     key="zones"
+                    role="tabpanel"
+                    id="rec-panel-zones"
+                    aria-labelledby="rec-tab-zones"
+                    tabIndex={0}
                     variants={containerVariants}
                     initial="hidden"
                     animate="visible"
@@ -653,6 +689,10 @@ function RecommendationsPage() {
                 {activeTab === 'path' && (
                   <motion.div
                     key="path"
+                    role="tabpanel"
+                    id="rec-panel-path"
+                    aria-labelledby="rec-tab-path"
+                    tabIndex={0}
                     variants={containerVariants}
                     initial="hidden"
                     animate="visible"
