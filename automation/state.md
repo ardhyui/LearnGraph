@@ -1,65 +1,117 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (siklus 54: test unit langsung ukuran keberhasilan belajar `src/lib/evidence/measures.ts`, PR #93; berikutnya: test unit langsung data & helper navigasi `src/lib/navigation.ts`)
+Terakhir diperbarui: 2026-11-16 (siklus 55: test unit langsung data & helper navigasi utama `src/lib/navigation.ts`, PR #94; berikutnya: test unit langsung sapaan & tautan pintasan dashboard `src/lib/dashboard.ts`)
 
 ## Tugas berikutnya
 
-Penguatan tes: **test unit langsung data & helper navigasi utama
-`src/lib/navigation.ts`**. File baru `tests/navigation-direct.test.ts`
+Penguatan tes: **test unit langsung sapaan & tautan pintasan dashboard
+`src/lib/dashboard.ts`**. File baru `tests/dashboard-direct.test.ts`
 (node:test murni, impor modul langsung, tanpa PGlite/DOM;
-`tests/navigation.test.ts` yang lama 63 baris tetap utuh — **jangan
+`tests/dashboard.test.ts` yang lama 48 baris tetap utuh — **jangan
 diduplikasi/dipindah**; lima judul `it` lamanya dirujuk penjaga statis).
 Modul **tidak diubah** dan murni tanpa impor. Probe dulu perilaku aktual,
 kunci yang belum tercakup:
 
-1. `NAV_SECTIONS` — tepat empat section dengan id/urutan persis
-   `learn`/`explore`/`manage`/`developer`, title persis
-   `Learn`/`Explore`/`Manage data`/`Developer tools`, `collapsible`
-   false/false/true/true; jumlah item 6/4/9/2 dan daftar 21 href persis
-   (salinan eksplisit) unik; tiap item label/description non-kosong ter-trim
-   dan `icon` salah satu dari union `NavIcon` (20 nilai, salinan eksplisit);
-   `/japanese` di grup Learn berlabel `Bahasa Jepang` dengan deskripsi
-   bahasa Indonesia `Jalur N5 sampai N1 dan latihan` (D2); partisi grup
-   sesuai test lama: learn+explore tanpa `/admin*`/`/tests`/`/status`/
-   `/data-entry`, manage hanya `/admin*`+`/data-entry`, developer hanya
-   `/status`+`/tests`; section pertama `learn` dan item pertamanya `/`.
-2. `isNavItemActive` — `/` hanya exact (`/` true, `/gaps` false); href lain
-   exact true, prefix segmen true (`/admin/learners` vs `/admin/learners/x`),
-   prefix kata lain false (`/graph` vs `/graphs`); probe trailing slash
-   (`/graph/`) dan kunci sesuai perilaku aktual.
-3. `sectionHasActive`/`isSectionOpen` — section non-collapsible selalu true
-   walau `saved` false; collapsible: halaman di dalamnya selalu true walau
-   `saved` false (grup halaman aktif tak bisa disembunyikan); `saved` true →
-   true walau di halaman lain; tanpa `saved` → false (`?? false`).
-4. `NAV_STORAGE_KEY === 'learngraph:nav-open'`.
-5. `parseNavOpenState` — `null`/`undefined`/`''`/bukan JSON (`'not json'`)/
-   array (`'[true]'`)/`'null'`/number/string JSON (`'42'`, `'"x"'`) → `{}`;
-   hanya boolean untuk section collapsible yang diambil
-   (`{"manage":true,"developer":false}` utuh); kunci section non-collapsible
-   (`learn`/`explore`) dan kunci asing diabaikan; nilai non-boolean per kunci
-   (`"yes"`, 1, null) dibuang tanpa menggugurkan kunci lain; `'{}'` → `{}`.
-6. Penjaga statis — `navigation.ts` tanpa impor/`require` dan mengekspor
-   tepat `NAV_SECTIONS`, `isNavItemActive`, `sectionHasActive`,
-   `isSectionOpen`, `NAV_STORAGE_KEY`, `parseNavOpenState` (+ tipe
-   `NavIcon`/`NavItem`/`NavSection`/`NavOpenState`); `Sidebar.tsx` mengimpor
-   `NAV_SECTIONS`/`NAV_STORAGE_KEY`/`isSectionOpen`/`parseNavOpenState`
-   dari `@/lib/navigation` dan memakai `localStorage.getItem`/`setItem`
-   dengan `NAV_STORAGE_KEY` + `JSON.stringify` saat menyimpan;
-   `page-titles.ts` membangun peta judul dari `NAV_SECTIONS` (`flatMap`
-   items → `[href, label]`); string `description` item tidak disalin di
-   `src/` lain — pakai literal ter-kutip penuh dan probe dulu (aman mis.
-   `'Your plan for today'`, `'What to learn next'`, `'Draft a course with
-   AI'`, `'Run engine checks'`, `'Quick add forms'`; hindari substring
-   `'See how concepts connect'` yang melekat di `dashboard.ts` serta label
-   `'Functional Tests'`/`'Manage data'`/`'Bahasa Jepang'` yang punya
-   kecocokan sah di rute); anchor lima judul `it` + jumlah baris 63
-   `tests/navigation.test.ts` tetap utuh.
+1. `LEARNER_SHORTCUTS` — tepat empat tautan dengan urutan href persis
+   `/recommendations`/`/gaps`/`/graph`/`/profile` beserta label dan
+   description persis (salinan eksplisit: `Recommendations`/`Gap Analysis`/
+   `Knowledge Graph`/`My Profile`); `MANAGE_LINKS` — tepat lima dengan
+   urutan href persis `/admin/learners`/`/admin/concepts`/
+   `/admin/prerequisites`/`/admin/states`/`/data-entry` beserta label
+   (`Learners`/`Concepts`/`Prerequisites`/`Knowledge States`/
+   `Data Entry Guide`) dan description persis; tiap label/description
+   non-kosong ter-trim; partisi sesuai test lama: learner tanpa `/admin*`
+   dan `/data-entry`, manage hanya `/admin*`+`/data-entry`, gabungan
+   sembilan href unik.
+2. `greetingName` — kata pertama nama dengan spasi liar di-collapse
+   (`'  Muhammad   Lazuardi '` → `Muhammad`), fallback local-part email
+   (`ardhy.ui@example.test` → `ardhy.ui`), `null`/`undefined`/objek kosong/
+   nama dan email kosong → `null`; karakter kontrol/format (Unicode Cc/Cf)
+   dibuang dari nama maupun email sebelum split — probe nama yang hanya
+   berisi kontrol → jatuh ke email; batas `MAX_NAME` 40 dihitung per code
+   point: tepat 40 utuh, 41 → 40 code point + `…` (panjang 41), emoji
+   astral tidak terpotong dua (39 `a` + 2 emoji → 39 `a` + emoji pertama +
+   `…`); probe tepat 40 code point yang berisi emoji di tepi batas.
+3. `dashboardHeading` — `Hi, <nama>` bila `greetingName` non-null,
+   persis `Your learning today` bila null.
+4. Penjaga statis — `dashboard.ts` tanpa impor/`require` dan mengekspor
+   tepat `DashboardLink`/`LEARNER_SHORTCUTS`/`MANAGE_LINKS`/`greetingName`/
+   `dashboardHeading` (urut); `src/routes/index.tsx` mengimpor
+   `LEARNER_SHORTCUTS`/`MANAGE_LINKS`/`dashboardHeading` dari
+   `@/lib/dashboard` dan merender `{dashboardHeading(user)}`/
+   `LEARNER_SHORTCUTS.map`/`MANAGE_LINKS.map`; string description tautan
+   tidak disalin di `src/` lain — pakai literal ter-kutip penuh dan probe
+   dulu (aman mis. `'More concepts you are ready to learn next'`,
+   `'Find shaky foundations and what to review'`,
+   `'How to structure your content'`; hindari label `Recommendations`/
+   `Gap Analysis`/`Knowledge Graph`/`My Profile`/`Learners` yang punya
+   kecocokan sah di `navigation.ts`/rute); anchor lima judul `it` + jumlah
+   baris 48 `tests/dashboard.test.ts` tetap utuh.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 10–14). Commit pola
+Gerbang: `npm run ci` utuh hijau sebelum PR (unit naik ± 6–10). Commit pola
 `test: ...`. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/dependensi.
-UI pelajar tetap bahasa Inggris; halaman `/japanese` berbahasa Indonesia (D2).
+UI pelajar tetap bahasa Inggris (D2).
 
 ## Riwayat
+
+- 2026-11-16: PR #94 — test: test unit langsung data & helper navigasi utama
+  `src/lib/navigation.ts` (15 test di `tests/navigation-direct.test.ts`,
+  node:test murni, impor modul langsung, tanpa PGlite/DOM), modul tidak
+  diubah; `tests/navigation.test.ts` (63 baris) tetap utuh (lima judul `it`
+  lamanya dirujuk penjaga statis, bukan dipindah). Dikunci: `NAV_SECTIONS` —
+  tepat empat section dengan id/urutan persis `learn`/`explore`/`manage`/
+  `developer`, title persis `Learn`/`Explore`/`Manage data`/
+  `Developer tools`, `collapsible` false/false/true/true, jumlah item
+  6/4/9/2; daftar 21 href persis (salinan eksplisit per grup) unik; tiap
+  item label/description non-kosong ter-trim dan `icon` anggota union 20
+  nilai (salinan eksplisit); `/japanese` di grup Learn berlabel
+  `Bahasa Jepang` ber-deskripsi `Jalur N5 sampai N1 dan latihan` (D2);
+  partisi learn+explore tanpa `/admin*`/`/tests`/`/status`/`/data-entry`,
+  manage hanya `/admin*`+`/data-entry`, developer hanya `/status`+`/tests`,
+  section pertama `learn` dan item pertamanya `/`. `isNavItemActive` — `/`
+  hanya exact (`/` true, `/gaps`/`//` false); href lain exact true, prefix
+  segmen true (`/admin/learners` vs `/admin/learners/x`), prefix kata lain
+  false (`/graph` vs `/graphs`); rough edge trailing slash: `/graph/` →
+  true (memenuhi prefix `${href}/`) dan `/gaps/` → true. `sectionHasActive`
+  — tiap section di halaman miliknya (learn `/`/`/graph`, explore
+  `/about`, manage `/admin/concepts`/`/data-entry`, developer
+  `/status`/`/tests`) dan false di halaman lain. `isSectionOpen` — section
+  non-collapsible selalu true walau `saved` false; collapsible: halaman di
+  dalamnya selalu true walau `saved` false, `saved` true → true walau di
+  halaman lain, tanpa `saved` (termasuk `{ manage: undefined }`) → false
+  (`?? false`), kunci mandiri (`developer:false`+`manage:true` → false).
+  `NAV_STORAGE_KEY === 'learngraph:nav-open'`. `parseNavOpenState` —
+  `null`/`undefined`/`''`/bukan JSON (`'not json'`)/array (`'[true]'`)/
+  `'null'`/number/string JSON (`'42'`, `'"x"'`)/boolean JSON (`'true'`)/
+  `'{}'` → `{}`; hanya boolean section collapsible yang diambil
+  (`{"manage":true,"developer":false}` utuh); boolean untuk section
+  non-collapsible (`learn`/`explore`) dan kunci asing diabaikan; nilai
+  non-boolean per kunci (`"yes"`, 1, null) dibuang tanpa menggugurkan
+  kunci lain; rough edge kunci duplikat JSON last-wins
+  (`{"manage":true,"manage":false}` → `{manage:false}`). Penjaga statis:
+  `navigation.ts` tanpa impor/`require` dan mengekspor tepat enam helper
+  runtime + empat tipe (urut persis); `Sidebar.tsx` mengimpor keenam nama
+  itu dari `@/lib/navigation`, memakai
+  `window.localStorage.getItem(NAV_STORAGE_KEY)` dan
+  `window.localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify(next))`
+  serta `isSectionOpen(section, pathname, savedOpen)`; `page-titles.ts`
+  mengimpor `NAV_SECTIONS` dari `./navigation.ts` dan membangun peta judul
+  lewat `NAV_SECTIONS.flatMap((s) => s.items.map((i) => [i.href, i.label]))`;
+  lima string description (`'Your plan for today'`, `'What to learn next'`,
+  `'Draft a course with AI'`, `'Run engine checks'`, `'Quick add forms'`)
+  tidak disalin di `src/` lain (scan rekursif; probe lebih dulu — hindari
+  `'See how concepts connect'` yang melekat di `dashboard.ts` serta label
+  `'Functional Tests'`/`'Manage data'`/`'Bahasa Jepang'` yang punya
+  kecocokan sah di rute); anchor lima judul `it` + jumlah baris 63
+  `tests/navigation.test.ts` tetap utuh. Catatan proses: `node_modules`
+  belum ada di worktree sehingga `npm ci` lebih dulu; probe modul
+  mengonfirmasi seluruh cabang sebelum menulis test (trailing slash dan
+  duplikat kunci ditemukan di probe); prettier merapikan format;
+  typecheck/lint 0/0. Tanpa perubahan aplikasi/perilaku/skema/RPC/migrasi/
+  dependensi dan tanpa perubahan `docs/ROADMAP.md` (tidak ada baris backlog
+  yang tersentuh, pola PR #77/#78/#90/#92/#93). `npm run ci` hijau
+  (install, typecheck, lint 0/0, 1018/1018 unit = 1003 + 15, build,
+  anggaran bundel, CSP build produksi, smoke Playwright + PGlite).
 
 - 2026-11-16: PR #93 — test: test unit langsung ukuran keberhasilan belajar
   `src/lib/evidence/measures.ts` (16 test di
