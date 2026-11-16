@@ -1,73 +1,102 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-16 (pencarian konsep di PR #107; siklus berikutnya: kartu penguasaan per subjek di Profile)
+Terakhir diperbarui: 2026-11-16 (kartu penguasaan per subjek di PR #108; siklus berikutnya: "Continue your last lesson" di Today)
 
 ## Tugas berikutnya
 
-Fitur **kartu penguasaan per subjek di My Profile** (kandidat fitur (c);
-tanpa migrasi skema, dependensi, server function, atau RPC baru). Tujuan:
-pelajar melihat subjek mana yang sudah dikuasai dan mana yang masih perlu
-dikerjakan tanpa membuka Knowledge Graph atau Gap Analysis.
+Fitur **"Continue your last lesson" di panel Today** (kandidat fitur (a) di
+daftar bawah; tanpa migrasi skema, dependensi, RPC, atau method RPC baru).
+Tujuan: pelajar yang sempat membuka/menyelesaikan pelajaran bisa langsung
+melanjutkan konsep terakhir tanpa mencari di daftar **Learn next** atau kotak
+pencarian.
 
-Rancangan (baca kode dulu: `src/components/LearningOverview.tsx` — khususnya
-`load()` yang sudah memuat `concepts` + `states` + antrean review,
-`src/lib/study.ts` bagian `summarizeProgress`/`isMastered`, dan
-`src/lib/onboarding.ts` bagian `focusDomains`/`inFocus`/`domainLabel`):
+Catatan hasil probe kode: kind `lesson` di `LearningEventKind` **tidak pernah
+ditulis** oleh kode saat ini (`SELF_REPORT_KIND` memetakan `got-it`/`started`
+→ `study`; `/japanese` menulis source `japanese`), jadi jangan menunggu event
+`lesson`. Pakai event yang benar-benar ada.
 
-1. **Helper murni** `src/lib/subject-mastery.ts` (tanpa React/DB):
-   - `subjectMastery(concepts, states, focus = [])` → array baris
-     `{ domain, label, total, mastered, percent }`; hitung "mastered" dengan
-     aturan yang sama dengan `summarizeProgress` (impor helper/threshold yang
-     sudah ada, jangan menyalin ambang penguasaan).
-   - Bila `focus` tidak kosong: hanya domain di `focus` yang punya konsep; bila
-     kosong: semua domain yang punya konsep. Domain tanpa konsep tidak
-     ditampilkan.
-   - Urutan: domain fokus sesuai urutan pilihan pelajar, lalu domain lain
-     menurut label; label memakai `domainLabel`; `percent` bulat 0–100
-     (`mastered/total`, total 0 → 0) dan tidak pernah NaN.
-   - Konsep tanpa knowledge state dihitung belum dikuasai; state tanpa konsep
-     diabaikan; state milik learner lain tidak pernah ikut (filter
-     `state.userId` bila field itu tersedia).
-2. **UI di `LearningOverview.tsx`** — di bawah bar progres keseluruhan dan
-   sebelum tombol langkah berikutnya, hanya bila ada minimal satu baris:
-   - `<ul aria-label="Mastery by subject">` (boleh dengan `<h3>` kecil);
-     tiap `<li>` memuat nama subjek, teks `"<mastered> of <total> mastered"`
-     dengan bentuk tunggal/jamak yang benar, dan bar `role="progressbar"`
-     ber-`aria-label` menyebut subjek serta `aria-valuenow`.
-   - Bahasa Inggris (D2), tanpa tautan/tombol baru, tanpa animasi/fokus paksa.
-   - Data tetap dari `load()` yang sudah ada; jangan menambah panggilan baca
-     atau tulis. Baris ikut berganti saat learner/subjek berganti.
-3. **Test** `tests/subject-mastery.test.ts` (node:test murni): hitungan
-   mastered/learning/not-started sama dengan `summarizeProgress`, ambang
-   penguasaan, focus terurut vs semua domain, domain tanpa konsep, state tanpa
-   konsep/learner lain, persen 0/50/100 tanpa NaN, bentuk tunggal/jamak, serta
-   penjaga statis `LearningOverview` memakai helper + `role="progressbar"` +
-   tidak menambah `createServerFn`/`graphCall`/RPC/migrasi.
-4. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
-   `README.md` hanya bila daftar fitur berubah; `Roadmap.md` hanya bila klaim
-   berubah. Jangan menandai milestone selesai.
+Rancangan (baca kode dulu: `src/components/StudyToday.tsx` — `load()` memanggil
+`getWeekRecap` dalam `Promise.all` dan menyimpannya sebagai `week`;
+`WeekRecapCard`; `src/server/evidence.functions.ts` bagian `getWeekRecap`;
+`src/lib/evidence/events.ts`; `src/lib/evidence/week.ts`; `src/lib/gaps.ts`
+bagian `conceptNameMap`; halaman `src/routes/learn.$conceptId.tsx`):
+
+1. **Helper murni** `src/lib/evidence/last-lesson.ts` (tanpa React/DB):
+   - `lastLesson(events)` → `{ conceptId, at } | null` dari event belajar
+     terbaru: hanya kind `study`/`quiz`/`practice`/`lesson`; `review`/
+     `snooze`/`unsnooze`/`tutor` diabaikan. Hanya source `app` (event
+     `source: 'japanese'` dilewati) supaya tautannya selalu sah ke
+     `/learn/$conceptId`.
+   - `conceptId` kosong dilewati; `createdAt` rusak/tidak bisa diparse
+     diabaikan tanpa melempar; tidak ada event → `null`.
+   - Urutan array tidak berpengaruh (bandingkan `Date.parse`); bila waktunya
+     seri, kemunculan terakhir dalam array menang; `at` = ISO asli event.
+2. **Server**: perluas `getWeekRecap` yang sudah ada — **bukan** server
+   function baru — dengan `lastLesson: lastLesson(events)` dari `listEvents`
+   yang sama; `authMiddleware`, validator `z.object({ learnerId: lookupId })`,
+   dan isolasi akun tidak berubah. Sesuaikan `tests/week-recap.test.ts` yang
+   mengunci bentuk balikan.
+3. **UI di `StudyToday.tsx`**: di bawah bar progres/`ConceptSearch` dan di
+   atas kartu **Your week**, hanya bila `week.lastLesson` ada **dan** konsep
+   itu masih ada di `current.concepts` (konsep terhapus → sembunyikan):
+   - satu baris tenang berbahasa Inggris (D2), mis. judul kecil **Continue
+     your last lesson** + `Link` ke `/learn/$conceptId` berisi nama konsep
+     dari `conceptNameMap(current.concepts)`, target sentuh ≥ 40 px dan
+     focus ring yang sudah dipakai tautan lain;
+   - tanpa tombol baru, tanpa animasi/fokus paksa, tanpa panggilan baca/tulis
+     tambahan (data ikut `load()` dan berganti bersama learner).
+4. **Test** `tests/last-lesson.test.ts` (node:test murni): kind yang dihitung
+   vs diabaikan, source `japanese`, event terbaru vs urutan array acak, seri,
+   `createdAt` rusak, `conceptId` kosong, kosong → `null`; penjaga statis
+   `getWeekRecap` memakai satu `listEvents` + helper, dan panel merender
+   `Link` ke `/learn/$conceptId` tanpa `createServerFn`/`graphCall`/RPC/
+   migrasi. Sesuaikan juga penjaga `tests/week-recap.test.ts`.
+5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+   `README.md` hanya bila baris fitur Today berubah; `Roadmap.md` hanya bila
+   klaim berubah. Jangan menandai milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
-Indonesia pola `feat:`. Catatan dari siklus #107: **jangan memakai nilai id
+Indonesia pola `feat:`. Catatan dari siklus #107/#108: jangan memakai nilai id
 learner mentah sebagai `key` komponen di halaman yang juga memakai id itu
-sebagai key daftar lain** — React 19 memperingatkan duplikat key dan editor
-subjek bisa tertinggal terbuka; pakai namespace seperti `search-<id>`. Penjaga
-jumlah baris smoke tetap 2114.
+sebagai key daftar lain (`search-<id>`); penjaga jumlah baris smoke tetap
+2114.
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
-Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
-baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
+Tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis; baca
+kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. **Ringkasan pelajaran terakhir di Today** — "lanjutkan pelajaran terakhir"
-   dari event `lesson` + halaman `/learn/...`; tautkan langsung.
-2. **Poles copy/aksesibilitas halaman pelajar** — satu halaman per sesi,
+1. **Poles copy/aksesibilitas halaman pelajar** — satu halaman per sesi,
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-16: PR #108 — **Kartu penguasaan per subjek di My Profile** — pelajar
+  melihat subjek mana yang sudah dikuasai dan mana yang masih perlu dikerjakan
+  tanpa membuka Knowledge Graph atau Gap Analysis: di kartu **My learning**,
+  setelah bar progres keseluruhan, satu baris per subjek memuat nama subjek,
+  teks `"<mastered> of <total> concepts mastered"` (bentuk tunggal/jamak) dan
+  bar `role="progressbar"` ber-`aria-label` subjek + `aria-valuenow`. Helper
+  murni baru `src/lib/subject-mastery.ts` (`subjectMastery`) menghitung
+  `{ domain, label, total, mastered, percent }` dari konsep + knowledge state
+  yang **sudah** dimuat `load()` (tanpa panggilan baca/tulis, server function,
+  RPC, atau migrasi baru): penguasaan dan persen memakai ulang
+  `summarizeProgress` (`percentMastered`, ambang 80, clamp, NaN → 0), label
+  `domainLabel`; hanya subjek fokus yang punya konsep, atau semua subjek
+  ber-konsep bila tanpa fokus, urut pilihan pelajar; subjek tanpa konsep tidak
+  ditampilkan, state tanpa konsep diabaikan, konsep tanpa state belum dikuasai,
+  dan state learner lain dibuang lewat `learnerId` yang dioper panel. Kartu
+  hanya tampil bila minimal satu baris, bahasa Inggris (D2), tanpa tautan/
+  tombol/animasi. Test baru `tests/subject-mastery.test.ts` (17). Catatan
+  proses: dua asersi test pertama mengira domain lain tetap ditampilkan saat
+  fokus diisi; spek menetapkan hanya domain fokus, jadi helper diperbaiki
+  (bukan test dilonggarkan) sebelum gerbang. `README.md` menyebut penguasaan
+  per subjek di baris Progress Tracking; `Roadmap.md` tidak diubah dan tidak
+  ada milestone yang ditandai selesai. `npm run ci` hijau (1214/1214 unit,
+  smoke penjaga 2114 tetap).
 
 - 2026-11-16: PR #107 — **Pencarian konsep di panel Today** — pelajar yang
   sudah tahu nama konsep kini punya kotak **Find a concept** di bawah bar
