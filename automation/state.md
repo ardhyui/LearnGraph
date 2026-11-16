@@ -69,6 +69,33 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-16: PR #106 — **MCP resources baca-saja (lanjutan M4)** — server
+  `POST /api/mcp` kini juga melayani `resources/list` dan `resources/read`.
+  `initialize` mengiklankan `capabilities: { tools: {}, resources: {} }`;
+  versi protokol, `serverInfo`, `ping`, `tools/list`, `tools/call`, notifikasi
+  202, dan galat lama tidak berubah. Dua bentuk URI:
+  `learngraph://learner/<encodeURIComponent(id)>` (nama, mastery per konsep +
+  persen + sumber lewat `masterySourceLabel`, review yang jatuh tempo saat ini
+  dengan tanggal; "No concepts yet." / "Nothing due right now." dengan kalimat
+  tenang) dan `learngraph://concept/<encodeURIComponent(id)>` (nama, domain,
+  deskripsi, estimasi `timeEstimates`, prasyarat langsung dengan nama).
+  `resources/list` learner dulu lalu konsep, masing-masing urut nama
+  deterministik; params URI kosong/bukan string/>512 → `-32602`; URI tak
+  dikenal atau milik akun lain → `-32002` "Resource not found: <uri>". Helper
+  murni baru `src/lib/mcp/resources.ts` (encode/decode + Markdown, memakai
+  ulang `conceptNameMap`/`conceptLabel`/`humanizeConceptId`) dan
+  `src/lib/mcp/tools.ts` membaca hanya lewat `graphForOwner(owner)` API key
+  (`listLearnerProfiles`, `listConcepts`, `getLearnerKnowledgeStates`,
+  `getPrerequisites`) — tanpa dependensi, tabel/kolom, RPC, server function,
+  atau migrasi baru; route tidak menambah autentikasi/rate limit. Test baru
+  `tests/mcp-resources.test.ts` (24, murni) + 5 test PGlite di
+  `tests/mcp-api.test.ts` (resources/list hanya akun sendiri, mastery & review
+  jatuh tempo, prasyarat bernama, URI akun lain → `-32002`, jumlah baris graph
+  tetap); smoke tidak berubah (penjaga 2114 tetap). `README.md` dan kalimat
+  klaim M4 di `Roadmap.md` menyebut resources; milestone M4 tetap tidak
+  ditandai selesai. Unit 1181/1181. `npm run ci` hijau (percobaan kedua setelah
+  smoke flaky karena load mesin ~7 di 4 core; tanpa perubahan kode).
+
 - 2026-11-16: PR #105 — **Streak harian di kartu "Your week"** — pelajar melihat
   berapa hari berturut-turut mereka belajar ("5-day streak"), dengan ajakan
   "study today to keep it going" bila hari ini belum ada aktivitas tetapi streak
