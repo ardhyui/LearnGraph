@@ -43,15 +43,15 @@ Probe dulu perilaku aktual, kunci yang belum tercakup:
    `quizzes 50% of 2, self-reports 50% of 2`); kalibrasi `null` / `0` →
    `Self-reports match quiz results` / positif `N points higher` / negatif
    `N points lower` (bentuk tunggal `1 point`); returning `null` / `0 of 2
-   learners ... (0%)` dan bentuk tunggal `1 of 1 learner ... (100%)`; aktivasi
+learners ... (0%)` dan bentuk tunggal `1 of 1 learner ... (100%)`; aktivasi
    `No concept finished yet` / `Finished, but the account’s start date is
-   unknown` / `N minutes` / `1 hour` (60 menit) / `2 hours` (90 menit,
+unknown` / `N minutes` / `1 hour` (60 menit) / `2 hours` (90 menit,
    dibulatkan) / `3 days` (≥ 48 jam); session string tetap; personalisasi
    `No blind comparisons yet` / `... preferred in 2 of 3 comparisons (the
-   other: 1, no difference: 0)` dan bentuk tunggal `1 comparison`.
+other: 1, no difference: 0)` dan bentuk tunggal `1 comparison`.
 6. Penjaga statis — `measures.ts` tepat satu impor
    `import { dueReviewRetention, tutorPreference, type LearningEvent, type
-   RetentionStat } from './events.ts';`, tanpa impor lain/`require`; mengekspor
+RetentionStat } from './events.ts';`, tanpa impor lain/`require`; mengekspor
    lima fungsi + empat tipe. `src/server/evidence.functions.ts` memakai
    `import('@/lib/evidence/measures')` dinamis dan memanggil `learningMeasures`
    dengan `created ? new Date(created).toISOString() : null` + `new Date()`;
