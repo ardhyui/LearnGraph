@@ -219,7 +219,8 @@ describe('wiring guards (static)', () => {
       block,
       /service\.listEvents\(db, context\.userId, \{ learnerId: data\.learnerId \}\)/,
     );
-    assert.match(block, /weekRecap\(events, new Date\(\)\.toISOString\(\)\)/);
+    assert.match(block, /const now = new Date\(\)\.toISOString\(\);/);
+    assert.match(block, /weekRecap\(events, now\)/);
   });
 
   it('shows the recap in the Today panel without a server function of its own', () => {
@@ -229,7 +230,7 @@ describe('wiring guards (static)', () => {
     );
     assert.ok(today.includes('getWeekRecap'));
     assert.ok(today.includes('getWeekRecap({ data: { learnerId } })'));
-    assert.match(today, /\{current && <WeekRecapCard recap=\{current\.week\} \/>\}/);
+    assert.match(today, /\{current && <WeekRecapCard week=\{current\.week\} \/>\}/);
     assert.match(today, />\s*Your week\s*</);
     assert.ok(today.includes('Nothing yet this week — your first review will show up here.'));
     assert.equal(/createServerFn/.test(today), false);

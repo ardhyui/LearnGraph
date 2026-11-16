@@ -107,15 +107,19 @@ export const getLearningStats = createServerFn({ method: 'GET' })
     return { events: events.length, retention: dueReviewRetention(events) };
   });
 
-/** "Your week" for one learner: what they finished in the last seven days. */
+/** "Your week" for one learner: the last seven days and the current daily streak. */
 export const getWeekRecap = createServerFn({ method: 'GET' })
   .middleware([authMiddleware])
   .validator(z.object({ learnerId: lookupId }))
   .handler(async ({ data, context }) => {
     const { db, service } = await services(context.userId);
-    const { weekRecap } = await import('@/lib/evidence/week');
+    const [{ weekRecap }, { learningStreak }] = await Promise.all([
+      import('@/lib/evidence/week'),
+      import('@/lib/evidence/streak'),
+    ]);
     const events = await service.listEvents(db, context.userId, { learnerId: data.learnerId });
-    return weekRecap(events, new Date().toISOString());
+    const now = new Date().toISOString();
+    return { ...weekRecap(events, now), streak: learningStreak(events, now) };
   });
 
 /** The roadmap's measures of success for this workspace (all of its learners). */
