@@ -1,52 +1,50 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (label form `/data-entry`; siklus berikutnya: banner pesan `/data-entry`)
+Terakhir diperbarui: 2026-11-17 (banner pesan `/data-entry`; siklus berikutnya: status pending `/sign-in`)
 
 ## Tugas berikutnya
 
-Jadikan **banner pesan hasil aksi di `/data-entry`** diumumkan pembaca layar —
-kandidat fitur (a) lanjutan halaman yang sama; tanpa migrasi skema, dependensi,
-server function, RPC, atau method RPC baru. Konteks: `src/routes/data-entry.tsx`
-(±1760 baris) punya satu banner `message` di bawah header
-(`{/* Message Banner */}`, ±baris 442–464) yang dirender `motion.div` di dalam
-`AnimatePresence` tanpa `role`/`aria-live`; ikon `Check` (sukses) dan
-`AlertCircle` (galat) juga ikut dibacakan. Pesan berasal dari `showMessage(...)`
-(±baris 242, auto-dismiss 5000 ms) dan berbunyi mis. `Learner added
-successfully!`, `Invalid JSON format`, `Failed to add learner`. Akibatnya
-pembaca layar tidak mendengar hasil simpan maupun galat sama sekali.
+Jadikan **status proses tombol submit `/sign-in`** diumumkan pembaca layar —
+kandidat fitur (a) halaman pelajar yang tersisa; tanpa migrasi skema,
+dependensi, server function, RPC, atau method RPC baru. Konteks:
+`src/routes/sign-in.tsx` (±200 baris). Form masuk/daftar punya tombol
+`<button type="submit" disabled={pending} className={cn('btn btn-primary w-full
+flex items-center justify-center gap-2')}>` yang saat `pending` hanya
+menampilkan `<Loader2 className="h-4 w-4 animate-spin" />` sementara nama
+tombolnya tetap **Sign in**/**Create account**; tidak ada `aria-busy` maupun
+teks status, jadi pengguna pembaca layar tidak tahu proses masuk sedang
+berjalan, dan ikon spinner ikut dibacakan. Galat sudah benar lewat
+`<p role="alert" className="form-error">{error}</p>` — jangan diubah.
 
-Rancangan (baca kode dulu; jangan mengubah teks, kelas, animasi, atau timing):
+Rancangan (baca kode dulu; jangan mengubah teks tombol, label, kelas, alur
+`onSubmit`, validasi Zod, atau copy):
 
-1. Pada `<motion.div>` banner, tambahkan `role` dan `aria-live` yang diturunkan
-   dari `message.type`: sukses → `role="status"` + `aria-live="polite"`,
-   galat → `role="alert"` + `aria-live="assertive"`. Pertahankan
-   `initial`/`animate`/`exit` dan `className` persis; `aria-atomic="true"`
-   boleh bila perlu. Jangan menjadikan banner selalu hadir di DOM (tetap
-   kondisional `message &&`, karena role harus ada saat elemen dipasang).
-2. Beri `aria-hidden="true"` pada `Check` dan `AlertCircle` tanpa mengubah
-   `className="w-5 h-5"`. Jangan menambah tombol tutup, fokus paksa, atau
-   mengubah `showMessage`/`setTimeout`.
-3. Jangan menyentuh tab/tablist, 26 pasangan label form (PR sebelumnya),
-   `handleAdd*`, skema Zod, DBContext, isolasi akun, atau copy. UI bahasa
-   Inggris (D2).
-4. **Test**: file baru `tests/data-entry-message-banner.test.ts` (penjaga
-   statis, pola `tests/data-entry-form-labels.test.ts` +
-   `tests/status-a11y.test.ts`): dua ekspresi `role`/`aria-live` yang tepat
-   diturunkan dari `message.type`, banner tetap `motion.div` di dalam
-   `AnimatePresence` dengan tiga animasi dan kelas yang sama, kedua ikon
-   `aria-hidden` dengan kelas tetap, `message.text` tetap dirender sekali,
-   `showMessage` + 5000 ms tidak berubah, total `role=`/`aria-live` di halaman
-   hanya milik banner (tablist/tabpanel lama tidak membawa `aria-live`),
-   tanpa `aria-label` pengganti, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-5. **Smoke**: di blok `if (path === '/data-entry')` yang sudah ada, setelah cek
-   label **Concept ID**, kembali ke tab **Learners**, klik tombol **JSON**, isi
-   textarea `data-entry-learner-json` dengan `{invalid`, klik **Submit JSON**,
-   lalu pastikan `getByRole('alert')` terlihat dan memuat `Invalid JSON
-   format`. Bila interaksi ini flaky di mesin bersama, boleh tanpa cek smoke
-   baru + catat alasannya; penjaga jumlah baris smoke di
-   `tests/skip-link.test.ts` disesuaikan bila smoke berubah.
-6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+1. Pada tombol submit, tambahkan `aria-busy={pending}`. Pertahankan
+   `disabled={pending}`, `className`, dan isi label persis.
+2. Beri `aria-hidden="true"` pada `Loader2` tanpa mengubah
+   `className="h-4 w-4 animate-spin"`.
+3. Tambahkan **tepat satu** baris status tak terlihat tepat setelah tombol
+   submit, masih di dalam `<form>`:
+   `<p role="status" aria-live="polite" className="sr-only">{pending ? (mode === 'sign-in' ? 'Signing in…' : 'Creating account…') : ''}</p>`.
+   Jangan menambah tombol, fokus paksa, atau mengubah `<p role="alert">`
+   galat. Teks Inggris (D2).
+4. Jangan menyentuh tiga label/`htmlFor` (`name`/`email`/`password`), tombol
+   tukar mode **Create one**/**Sign in**, tautan lupa kata sandi/privasi,
+   `safeRedirect`, `rateLimitMessage`, atau `authClient`.
+5. **Test**: file baru `tests/sign-in-pending-status.test.ts` (penjaga statis,
+   pola `tests/data-entry-message-banner.test.ts`): `aria-busy={pending}`
+   tepat satu, `Loader2` ber-`aria-hidden` dengan kelas tetap, satu baris
+   `role="status"` + `aria-live="polite"` + `sr-only` dengan dua cabang teks
+   persis dan posisinya setelah tombol submit di dalam form, `<p role="alert"
+   className="form-error">` galat tetap satu-satunya alert, tiga pasangan
+   label/kontrol utuh, tombol dan tautan mode/tema tetap, tanpa `aria-label`
+   pengganti nama tombol, serta tanpa `createServerFn`/`graphCall`/
+   `rpc-schemas`/migrasi.
+6. **Smoke**: tidak ada cek baru (status pending hanya sesaat dan alur masuk
+   smoke memakai sesi tersimpan); penjaga jumlah baris smoke 2417 tetap.
+   Bila ternyata murah dan stabil, cek `aria-busy` boleh ditambahkan sekaligus
+   menyesuaikan penjaga baris.
+7. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
 
@@ -71,17 +69,44 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    fokus pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`,
    daftar zona `/recommendations`, daftar isi `/about`, toolbar & kartu
    angka `/domains`, toolbar `/combined-graph`, accordion
-   `/edu-psychology`, status kartu `/status`, grup uji `/tests`, dan tab
-   `/data-entry`: halaman pelajar lain (`/data-entry` form, `/sign-in`;
-   `/admin/*` bukan prioritas). Catatan: tab dan label form `/data-entry` sudah selesai;
-   tugas berikutnya adalah banner pesan halaman yang sama, lalu pesan
-   kosong/status dan `/sign-in` bisa jadi siklus terpisah. `tests/` adalah berkas test,
-   bukan halaman.
+   `/edu-psychology`, status kartu `/status`, grup uji `/tests`, tab
+   `/data-entry`, dan banner pesan `/data-entry`: halaman pelajar lain
+   (`/sign-in`; `/admin/*` bukan prioritas). Catatan: tab, label form, dan
+   banner pesan `/data-entry` sudah selesai; tugas berikutnya adalah status
+   pending `/sign-in`, lalu daftar data/pesan kosong `/data-entry` bisa jadi
+   siklus terpisah. `tests/` adalah berkas test, bukan halaman.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #130 — **Banner pesan hasil aksi `/data-entry` diumumkan
+  pembaca layar** — satu banner `message` di bawah header halaman (dipakai
+  semua `showMessage(...)`, mis. `Learner added successfully!`, `Invalid JSON
+  format`, `Failed to add learner`) sebelumnya `motion.div` polos tanpa
+  `role`/`aria-live`, sehingga pembaca layar tidak mendengar hasil simpan
+  maupun galat, dan ikon `Check`/`AlertCircle` ikut dibacakan. Kini banner
+  membawa `role={message.type === 'success' ? 'status' : 'alert'}` +
+  `aria-live={message.type === 'success' ? 'polite' : 'assertive'}`; kedua
+  ikon `aria-hidden="true"` tanpa mengubah kelas `w-5 h-5`. Banner tetap
+  kondisional `message &&` di dalam `AnimatePresence` (role ada saat elemen
+  dipasang); `initial`/`animate`/`exit`, kelas sukses/galat, `message.text`,
+  `showMessage` + auto-dismiss 5000 ms, tab/tablist, 26 pasangan label form,
+  `handleAdd*`, skema Zod, DBContext, isolasi akun, dan copy Inggris (D2)
+  tidak berubah; tanpa tombol tutup, fokus paksa, atau `aria-label` pengganti.
+  Test baru `tests/data-entry-message-banner.test.ts` (12 penjaga statis)
+  + satu cek smoke: tab **Learners** → tombol **JSON** → isi
+  `#data-entry-learner-json` dengan `{invalid` → **Submit JSON** →
+  `getByRole('alert')` terlihat dan memuat `Invalid JSON format`; penjaga
+  baris smoke 2399 → 2417. Penjaga lama `tests/data-entry-tabs.test.ts`
+  disesuaikan: halaman kini punya tepat satu `aria-live` (banner) dan tujuh
+  `role="` statis untuk tab, plus satu `role={` dinamis banner.
+  `README.md`/`Roadmap.md` tidak diubah; `docs/ROADMAP.md` mendapat entri log.
+  `npm run ci` hijau penuh pada percobaan ketiga tanpa perubahan kode: dua
+  percobaan pertama gagal karena race port 8081 dengan sesi lain (`vite
+  preview` sesi lain mengambil 8081 setelah probe CI) sehingga smoke tidak
+  bisa start; percobaan ulang memilih port bebas sendiri dan lulus.
 
 - 2026-11-17: PR #129 — **Setiap label form `/data-entry` menamai kontrolnya** —
   empat form di tab **Learners**, **Concepts**, **Prerequisites**, dan
