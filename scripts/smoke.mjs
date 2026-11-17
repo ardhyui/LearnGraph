@@ -1362,6 +1362,17 @@ try {
       'recommendations: each zone is a named list of concepts',
       `${zoneListCount} list(s), ${zoneItems} item(s)`,
     );
+    // The suggested learning path is one named ordered list of steps.
+    const pathTab = page.getByRole('tab', { name: 'Learning Path' });
+    await pathTab.click().catch(() => {});
+    const pathList = page.getByRole('list', { name: 'Suggested learning path' });
+    const pathListShown = await pathList.waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const pathItems = await pathList.getByRole('listitem').count().catch(() => 0);
+    check(
+      pathListShown && pathItems > 0,
+      'recommendations: the learning path is one named list of steps',
+      `${pathItems} step(s)`,
+    );
 
     // Back to my own plan for the rest of the run.
     const recSelect = page.getByLabel('Learner', { exact: true });
