@@ -147,24 +147,25 @@ function TableOfContents() {
   ];
 
   return (
-    <div className="mb-16 p-6 rounded-xl border border-border/50 bg-card/50">
-      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+    <nav aria-labelledby="about-toc-title" className="mb-16 p-6 rounded-xl border border-border/50 bg-card/50">
+      <h3 id="about-toc-title" className="text-lg font-semibold mb-4 flex items-center gap-2">
         <BookMarked className="w-5 h-5 text-primary" />
         Table of Contents
       </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {sections.map((section) => (
-          <a
-            key={section.id}
-            href={`#${section.id}`}
-            className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
-          >
-            <ChevronRight className="w-3 h-3" />
-            {section.label}
-          </a>
+          <li key={section.id}>
+            <a
+              href={`#${section.id}`}
+              className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+            >
+              <ChevronRight className="w-3 h-3" aria-hidden="true" />
+              {section.label}
+            </a>
+          </li>
         ))}
-      </div>
-    </div>
+      </ul>
+    </nav>
   );
 }
 
