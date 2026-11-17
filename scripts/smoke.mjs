@@ -409,6 +409,27 @@ try {
           ', ',
         )}, panel ${panelBeforeLabel} → ${panelAfterLabel}`,
       );
+
+      // Every form label names its control: reading the label announces the
+      // field and clicking it focuses the input.
+      const nameField = page.getByLabel(/^Name/);
+      const nameTag = await nameField.evaluate((node) => node.tagName).catch(() => null);
+      const nameVisible = await nameField.isVisible().catch(() => false);
+      check(
+        nameTag === 'INPUT' && nameVisible,
+        'data-entry: learner form label names its input',
+        `label Name → ${nameTag ?? 'missing'}${nameVisible ? '' : ' (hidden)'}`,
+      );
+
+      const concepts = page.getByRole('tab', { name: 'Concepts' });
+      await concepts.click().catch(() => {});
+      const conceptIdField = page.getByLabel(/^Concept ID/);
+      const conceptIdTag = await conceptIdField.evaluate((node) => node.tagName).catch(() => null);
+      check(
+        conceptIdTag === 'INPUT',
+        'data-entry: concept form label names its input',
+        `label Concept ID → ${conceptIdTag ?? 'missing'}`,
+      );
     }
   }
   // Each page names itself in the browser tab (WCAG 2.4.2), not one shared title.

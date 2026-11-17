@@ -849,8 +849,9 @@ function DataEntryPage() {
                     {learnerInputMode === 'json' ? (
                       /* JSON Input Mode */
                       <div>
-                        <label className="form-label">Paste Full Learner JSON</label>
+                        <label htmlFor="data-entry-learner-json" className="form-label">Paste Full Learner JSON</label>
                         <textarea
+                          id="data-entry-learner-json"
                           value={learnerJson}
                           onChange={(e) => setLearnerJson(e.target.value)}
                           className="form-input font-mono text-xs h-64"
@@ -869,10 +870,11 @@ function DataEntryPage() {
                         <div className="space-y-4">
                           <h3 className="text-sm font-semibold text-muted-foreground border-b border-border pb-1">Basic Information</h3>
                           <div>
-                            <label className="form-label">
+                            <label htmlFor="data-entry-learner-name" className="form-label">
                               Name <span className="text-destructive">*</span>
                             </label>
                             <input
+                              id="data-entry-learner-name"
                               type="text"
                               required
                               value={learnerForm.name}
@@ -883,8 +885,9 @@ function DataEntryPage() {
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label className="form-label">Email</label>
+                              <label htmlFor="data-entry-learner-email" className="form-label">Email</label>
                               <input
+                                id="data-entry-learner-email"
                                 type="email"
                                 value={learnerForm.email}
                                 onChange={(e) => setLearnerForm({ ...learnerForm, email: e.target.value })}
@@ -893,8 +896,9 @@ function DataEntryPage() {
                               />
                             </div>
                             <div>
-                              <label className="form-label">Custom ID</label>
+                              <label htmlFor="data-entry-learner-id" className="form-label">Custom ID</label>
                               <input
+                                id="data-entry-learner-id"
                                 type="text"
                                 value={learnerForm.userId}
                                 onChange={(e) => setLearnerForm({ ...learnerForm, userId: e.target.value })}
@@ -910,8 +914,9 @@ function DataEntryPage() {
                           <h3 className="text-sm font-semibold text-blue-500 dark:text-blue-400 border-b border-border pb-1">Learning Style (Optional)</h3>
                           <div className="grid grid-cols-3 gap-3">
                             <div>
-                              <label className="text-xs font-medium text-muted-foreground mb-1 block">Primary Modality</label>
+                              <label htmlFor="data-entry-learner-modality" className="text-xs font-medium text-muted-foreground mb-1 block">Primary Modality</label>
                               <select
+                                id="data-entry-learner-modality"
                                 value={learnerForm.learningStylePrimary}
                                 onChange={(e) => setLearnerForm({ ...learnerForm, learningStylePrimary: e.target.value as '' | 'visual' | 'auditory' | 'kinesthetic' | 'reading' })}
                                 className="form-input text-sm py-2"
@@ -924,8 +929,9 @@ function DataEntryPage() {
                               </select>
                             </div>
                             <div>
-                              <label className="text-xs font-medium text-muted-foreground mb-1 block">Social Pref</label>
+                              <label htmlFor="data-entry-learner-social" className="text-xs font-medium text-muted-foreground mb-1 block">Social Pref</label>
                               <select
+                                id="data-entry-learner-social"
                                 value={learnerForm.socialPreference}
                                 onChange={(e) => setLearnerForm({ ...learnerForm, socialPreference: e.target.value as '' | 'solo' | 'collaborative' | 'mixed' })}
                                 className="form-input text-sm py-2"
@@ -937,8 +943,9 @@ function DataEntryPage() {
                               </select>
                             </div>
                             <div>
-                              <label className="text-xs font-medium text-muted-foreground mb-1 block">Pace Pref</label>
+                              <label htmlFor="data-entry-learner-pace" className="text-xs font-medium text-muted-foreground mb-1 block">Pace Pref</label>
                               <select
+                                id="data-entry-learner-pace"
                                 value={learnerForm.pacePreference}
                                 onChange={(e) => setLearnerForm({ ...learnerForm, pacePreference: e.target.value as '' | 'self-paced' | 'structured' | 'intensive' })}
                                 className="form-input text-sm py-2"
@@ -957,8 +964,9 @@ function DataEntryPage() {
                           <h3 className="text-sm font-semibold text-purple-500 dark:text-purple-400 border-b border-border pb-1">Cognitive Profile (Optional)</h3>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label className="text-xs font-medium text-muted-foreground mb-1 block">Working Memory</label>
+                              <label htmlFor="data-entry-learner-memory" className="text-xs font-medium text-muted-foreground mb-1 block">Working Memory</label>
                               <select
+                                id="data-entry-learner-memory"
                                 value={learnerForm.workingMemoryCapacity}
                                 onChange={(e) => setLearnerForm({ ...learnerForm, workingMemoryCapacity: e.target.value as '' | 'low' | 'medium' | 'high' })}
                                 className="form-input text-sm py-2"
@@ -970,8 +978,9 @@ function DataEntryPage() {
                               </select>
                             </div>
                             <div>
-                              <label className="text-xs font-medium text-muted-foreground mb-1 block">Attention Span</label>
+                              <label htmlFor="data-entry-learner-attention" className="text-xs font-medium text-muted-foreground mb-1 block">Attention Span</label>
                               <select
+                                id="data-entry-learner-attention"
                                 value={learnerForm.attentionSpan}
                                 onChange={(e) => setLearnerForm({ ...learnerForm, attentionSpan: e.target.value as '' | 'short' | 'medium' | 'long' })}
                                 className="form-input text-sm py-2"
@@ -983,8 +992,9 @@ function DataEntryPage() {
                               </select>
                             </div>
                             <div>
-                              <label className="text-xs font-medium text-muted-foreground mb-1 block">Processing Speed</label>
+                              <label htmlFor="data-entry-learner-speed" className="text-xs font-medium text-muted-foreground mb-1 block">Processing Speed</label>
                               <select
+                                id="data-entry-learner-speed"
                                 value={learnerForm.processingSpeed}
                                 onChange={(e) => setLearnerForm({ ...learnerForm, processingSpeed: e.target.value as '' | 'slow' | 'medium' | 'fast' })}
                                 className="form-input text-sm py-2"
@@ -996,8 +1006,9 @@ function DataEntryPage() {
                               </select>
                             </div>
                             <div>
-                              <label className="text-xs font-medium text-muted-foreground mb-1 block">Abstract Thinking</label>
+                              <label htmlFor="data-entry-learner-abstract" className="text-xs font-medium text-muted-foreground mb-1 block">Abstract Thinking</label>
                               <select
+                                id="data-entry-learner-abstract"
                                 value={learnerForm.abstractThinking}
                                 onChange={(e) => setLearnerForm({ ...learnerForm, abstractThinking: e.target.value as '' | 'concrete' | 'mixed' | 'abstract' })}
                                 className="form-input text-sm py-2"
@@ -1183,10 +1194,11 @@ function DataEntryPage() {
 
                   <form onSubmit={handleAddConcept} className="space-y-4">
                     <div>
-                      <label className="form-label">
+                      <label htmlFor="data-entry-concept-id" className="form-label">
                         Concept ID <span className="text-destructive">*</span>
                       </label>
                       <input
+                        id="data-entry-concept-id"
                         type="text"
                         required
                         value={conceptForm.conceptId}
@@ -1197,10 +1209,11 @@ function DataEntryPage() {
                     </div>
 
                     <div>
-                      <label className="form-label">
+                      <label htmlFor="data-entry-concept-name" className="form-label">
                         Name <span className="text-destructive">*</span>
                       </label>
                       <input
+                        id="data-entry-concept-name"
                         type="text"
                         required
                         value={conceptForm.name}
@@ -1212,10 +1225,11 @@ function DataEntryPage() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="form-label">
+                        <label htmlFor="data-entry-concept-domain" className="form-label">
                           Domain <span className="text-destructive">*</span>
                         </label>
                         <select
+                          id="data-entry-concept-domain"
                           value={conceptForm.domain}
                           onChange={(e) => setConceptForm({ ...conceptForm, domain: e.target.value })}
                           className="form-input"
@@ -1230,8 +1244,9 @@ function DataEntryPage() {
                       </div>
 
                       <div>
-                        <label className="form-label">Subdomain</label>
+                        <label htmlFor="data-entry-concept-subdomain" className="form-label">Subdomain</label>
                         <input
+                          id="data-entry-concept-subdomain"
                           type="text"
                           value={conceptForm.subdomain}
                           onChange={(e) => setConceptForm({ ...conceptForm, subdomain: e.target.value })}
@@ -1242,10 +1257,11 @@ function DataEntryPage() {
                     </div>
 
                     <div>
-                      <label className="form-label">
+                      <label htmlFor="data-entry-concept-description" className="form-label">
                         Description <span className="text-destructive">*</span>
                       </label>
                       <textarea
+                        id="data-entry-concept-description"
                         required
                         value={conceptForm.description}
                         onChange={(e) => setConceptForm({ ...conceptForm, description: e.target.value })}
@@ -1256,10 +1272,11 @@ function DataEntryPage() {
                     </div>
 
                     <div>
-                      <label className="form-label">
+                      <label htmlFor="data-entry-concept-difficulty" className="form-label">
                         Difficulty (1-10): <span className="text-purple-500 font-bold">{conceptForm.difficulty}</span>
                       </label>
                       <input
+                        id="data-entry-concept-difficulty"
                         type="range"
                         min="1"
                         max="10"
@@ -1271,10 +1288,11 @@ function DataEntryPage() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="form-label">
+                        <label htmlFor="data-entry-concept-cognitive-load" className="form-label">
                           Cognitive Load: <span className="text-purple-500">{conceptForm.cognitiveLoad.toFixed(1)}</span>
                         </label>
                         <input
+                          id="data-entry-concept-cognitive-load"
                           type="range"
                           min="0"
                           max="1"
@@ -1286,10 +1304,11 @@ function DataEntryPage() {
                       </div>
 
                       <div>
-                        <label className="form-label">
+                        <label htmlFor="data-entry-concept-abstractness" className="form-label">
                           Abstractness: <span className="text-purple-500">{conceptForm.abstractness.toFixed(1)}</span>
                         </label>
                         <input
+                          id="data-entry-concept-abstractness"
                           type="range"
                           min="0"
                           max="1"
@@ -1408,10 +1427,11 @@ function DataEntryPage() {
 
                   <form onSubmit={handleAddPrerequisite} className="space-y-4">
                     <div>
-                      <label className="form-label">
+                      <label htmlFor="data-entry-prereq-from" className="form-label">
                         From (Prerequisite) <span className="text-destructive">*</span>
                       </label>
                       <select
+                        id="data-entry-prereq-from"
                         required
                         value={prereqForm.from}
                         onChange={(e) => setPrereqForm({ ...prereqForm, from: e.target.value })}
@@ -1437,10 +1457,11 @@ function DataEntryPage() {
                     </div>
 
                     <div>
-                      <label className="form-label">
+                      <label htmlFor="data-entry-prereq-to" className="form-label">
                         To (Dependent) <span className="text-destructive">*</span>
                       </label>
                       <select
+                        id="data-entry-prereq-to"
                         required
                         value={prereqForm.to}
                         onChange={(e) => setPrereqForm({ ...prereqForm, to: e.target.value })}
@@ -1484,8 +1505,9 @@ function DataEntryPage() {
                     </div>
 
                     <div>
-                      <label className="form-label">Reason (optional)</label>
+                      <label htmlFor="data-entry-prereq-reason" className="form-label">Reason (optional)</label>
                       <input
+                        id="data-entry-prereq-reason"
                         type="text"
                         value={prereqForm.reason}
                         onChange={(e) => setPrereqForm({ ...prereqForm, reason: e.target.value })}
@@ -1606,10 +1628,11 @@ function DataEntryPage() {
 
                   <form onSubmit={handleAddKnowledgeState} className="space-y-4">
                     <div>
-                      <label className="form-label">
+                      <label htmlFor="data-entry-state-learner" className="form-label">
                         Learner <span className="text-destructive">*</span>
                       </label>
                       <select
+                        id="data-entry-state-learner"
                         required
                         value={stateForm.userId}
                         onChange={(e) => setStateForm({ ...stateForm, userId: e.target.value })}
@@ -1625,10 +1648,11 @@ function DataEntryPage() {
                     </div>
 
                     <div>
-                      <label className="form-label">
+                      <label htmlFor="data-entry-state-concept" className="form-label">
                         Concept <span className="text-destructive">*</span>
                       </label>
                       <select
+                        id="data-entry-state-concept"
                         required
                         value={stateForm.conceptId}
                         onChange={(e) => setStateForm({ ...stateForm, conceptId: e.target.value })}
@@ -1644,7 +1668,7 @@ function DataEntryPage() {
                     </div>
 
                     <div>
-                      <label className="form-label">
+                      <label htmlFor="data-entry-state-mastery" className="form-label">
                         Mastery Level: <span className={cn(
                           'font-bold',
                           stateForm.mastery >= 80 ? 'text-emerald-500' :
@@ -1656,6 +1680,7 @@ function DataEntryPage() {
                         </span>
                       </label>
                       <input
+                        id="data-entry-state-mastery"
                         type="range"
                         min="0"
                         max="100"
@@ -1674,8 +1699,9 @@ function DataEntryPage() {
                     </div>
 
                     <div>
-                      <label className="form-label">Bloom Level Achieved</label>
+                      <label htmlFor="data-entry-state-bloom" className="form-label">Bloom Level Achieved</label>
                       <select
+                        id="data-entry-state-bloom"
                         value={stateForm.bloomLevel}
                         onChange={(e) => setStateForm({ ...stateForm, bloomLevel: parseInt(e.target.value) as 1 | 2 | 3 | 4 | 5 | 6 })}
                         className="form-input"
