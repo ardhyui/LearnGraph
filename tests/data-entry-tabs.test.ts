@@ -122,9 +122,12 @@ describe('data-entry tabs: each rendered panel is named by its tab', () => {
 });
 
 describe('data-entry tabs: no extra behaviour, data or schema', () => {
-  it('adds no live region, other role, forced focus or new button', () => {
-    assert.equal(/aria-live/.test(page), false);
+  it('adds no live region of its own, other role, forced focus or new button', () => {
+    // The message banner is the page's only live region; the tabs add none.
+    assert.equal(count(page, /aria-live=/g), 1);
+    assert.ok(page.includes("aria-live={message.type === 'success' ? 'polite' : 'assertive'}"));
     assert.equal(count(page, /role="/g), 7); // tablist + tab + five tabpanels
+    assert.equal(count(page, /role=\{/g), 1); // the banner's status/alert role
     assert.equal(/\.focus\(\)/.test(page), true); // only the helper-driven tab focus
     assert.equal(count(page, /\.focus\(\)/g), 1);
     assert.equal(/document\.|window\./.test(page), false);
