@@ -1,58 +1,62 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (accordion `/edu-psychology`; siklus berikutnya: status kartu `/status`)
+Terakhir diperbarui: 2026-11-17 (status kartu `/status`; siklus berikutnya: grup uji `/tests`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **status di kartu algoritma dan fase halaman `/status`**
-— kandidat fitur (a); tanpa migrasi skema, dependensi, server function, RPC,
-atau method RPC baru. Konteks: `src/routes/status.tsx` (611 baris, belum punya
-satu pun atribut aria/role). Dua kartu menyampaikan status **hanya lewat ikon
-berwarna**:
+Poles aksesibilitas **grup uji dan status tes di halaman `/tests`** — kandidat
+fitur (a); tanpa migrasi skema, dependensi, server function, RPC, atau method
+RPC baru. Konteks: `src/routes/tests.tsx` (1499 baris, belum punya satu pun
+atribut aria/role). Halaman ini punya dua pola yang hanya terbaca lewat
+warna/rotasi ikon:
 
-1. `AlgorithmCard` (~baris 174–208) menutup barisnya dengan
-   `{isOperational ? (<CheckCircle2 className="text-emerald-500" size={20} />)
-   : (<XCircle className="text-red-500" size={20} />)}`; nama dan deskripsi
-   kartu tidak pernah menyebut "Operational".
-2. `PhaseCard` (~baris 210–247) melakukan hal yang sama dengan
-   `CheckCircle2`/`Clock`/`XCircle` size 16 untuk status `complete`/`pending`/
-   selain itu; legenda di bawah grid (~baris 564–577) menampilkan kata
-   **Complete**/**Pending**/**Error** tetapi tidak terhubung ke kartu mana pun.
+1. Header tiap grup uji (~baris 1367–1403) adalah `<button
+   onClick={() => toggleGroup(groupIndex)} …>` hasil `testGroups.map`; isi grup
+   dibuka/tutup lewat `AnimatePresence` (~baris 1406–1457) tetapi tombolnya
+   tidak punya `aria-expanded`/`aria-controls` dan wadah isinya tidak punya
+   `id`. `ChevronRight` hanya berputar 90° saat terbuka.
+2. Setiap baris tes (~baris 1416–1453) memakai `{getStatusIcon(test.status)}`
+   (~baris 1223–1237: `CheckCircle`/`XCircle`/`RefreshCw`/`Clock`) tanpa satu
+   kata pun status; nama tes seperti "Create learner profile" tidak pernah
+   menyebut **Passed**/**Failed**/**Running**/**Not run**.
 
-Selain itu seluruh ikon halaman ini dekoratif tetapi ikut dibacakan: `Icon`
-dalam kotak berwarna (`ServiceCard`, `DataCard`, `AlgorithmCard`), `Clock`
-latensi, ikon judul `<h2>` (`Server`, `BarChart3`, `Brain`, `Sparkles`), ikon
-header (`Activity`), tombol Refresh (`RefreshCw`), spinner `Loader2`, ikon
-error (`AlertCircle`, `AlertTriangle`), ikon banner kesehatan
-(`CheckCircle2`/`AlertTriangle`/`XCircle`), tiga titik warna legenda, tiga
-ikon tautan **Quick Actions** (`Activity`, `AlertTriangle`, `Sparkles`), serta
-titik status di `StatusIndicator` (~baris 60–99) yang teksnya sudah menyebut
-status.
+Seluruh ikon halaman ini juga dekoratif tetapi ikut dibacakan: `FlaskConical`
+header, `Play` tombol **Run All Tests**, `ChevronRight` grup, empat ikon status
+di `getStatusIcon`, `Layers` kartu **Test Coverage**, dan `AlertCircle` galat
+database.
 
 Rancangan (baca kode dulu; jangan mengubah isi/urutan bagian halaman):
 
-1. Di `AlgorithmCard`, tambahkan tepat setelah ikon status
-   `<span className="sr-only">{isOperational ? 'Operational' : 'Not operational'}</span>`.
-2. Di `PhaseCard`, tambahkan tepat setelah ikon status
-   `<span className="sr-only">{isComplete ? 'Complete' : isPending ? 'Pending' : 'Error'}</span>`
-   (kata yang sama dengan legenda).
-3. Semua ikon/titik dekoratif di atas diberi `aria-hidden="true"` tanpa
-   mengubah `size`, kelas, animasi, atau posisi.
+1. Tombol header grup membawa `aria-expanded={isExpanded}` dan
+   `aria-controls={\`tests-group-${groupIndex}\`}`; `<motion.div>` isi grup di
+   dalam `AnimatePresence` membawa `id={\`tests-group-${groupIndex}\`}`
+   (atribut `id` selalu ada saat isi dirender; tidak perlu `useId`).
+2. Tambahkan helper murni kecil di modul yang sama, mis.
+   `statusLabel(status: TestResult['status'])` → `'Passed' | 'Failed' |
+   'Running' | 'Not run'`, lalu tepat setelah `{getStatusIcon(test.status)}`
+   di setiap baris tambahkan `<span className="sr-only">{statusLabel(test.status)}</span>`.
+   Jangan menyalin aturan status di dua tempat: `getStatusIcon` dan label harus
+   memakai nilai `test.status` yang sama.
+3. Semua ikon dekoratif di atas diberi `aria-hidden="true"` tanpa mengubah
+   `size`, kelas, animasi, atau posisi (termasuk keempat ikon di
+   `getStatusIcon`).
 4. Jangan menambah live region, fokus paksa, tombol, atau `role` tambahan;
-   teks yang terlihat, urutan kartu/bagian, `onClick={fetchStatus}`, auto-refresh
-   30 detik, dan `LearningMeasures` tidak berubah; UI bahasa Inggris (D2).
-5. **Test**: file baru `tests/status-a11y.test.ts` (penjaga statis, pola
-   `tests/combined-graph-toolbar.test.ts`): dua ekspresi `sr-only` persis,
-   jumlah `aria-hidden` dihitung ulang dari kode (jangan mengubah size/kelas),
-   kontrak `AlgorithmCard`/`PhaseCard` dan urutan empat algoritma/enam fase,
-   tanpa `aria-live`/`role`/`.focus()`/`tabIndex`, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-6. **Smoke**: halaman `/status` sudah dikunjungi di loop `PAGES` (baris ~32).
-   Tambahkan cek di blok itu (pola `if (path === '/status')`): heading
-   **Algorithm Health** terlihat dan tepat empat `span.sr-only` berteks
-   `Operational`; di kartu fase tepat dua `Complete` dan empat `Pending`.
-   Perbarui penjaga jumlah baris smoke di `tests/skip-link.test.ts` (kini
-   2266).
+   `runAllTests`, `toggleGroup`, urutan `testGroups`/tes, ringkasan
+   Total/Passed/Failed, copy, dan disabled state tombol Run tidak berubah; UI
+   bahasa Inggris (D2).
+5. **Test**: file baru `tests/tests-page-a11y.test.ts` (penjaga statis, pola
+   `tests/status-a11y.test.ts`): ekspresi `aria-expanded`/`aria-controls`/`id`
+   persis dan berpasangan, kontrak `onClick={() => toggleGroup(groupIndex)}`,
+   empat cabang `getStatusIcon` + empat label `sr-only` persis, semua ikon
+   dekoratif `aria-hidden` (hitung ulang dari kode), urutan `testGroups`
+   (Phase 1 … Phase 5) dan tes pertama, tanpa `aria-live`/`role`/`.focus()`/
+   `tabIndex`, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
+6. **Smoke**: `/tests` sudah dikunjungi di loop `PAGES`. Tambahkan
+   `if (path === '/tests')`: tombol **Phase 1: Database Foundation** mula-mula
+   `aria-expanded="false"` dengan `aria-controls` yang menunjuk isi
+   tersembunyi; setelah diklik menjadi `"true"` dan isi itu terlihat; di dalam
+   isi ada tepat 15 `span.sr-only` berteks `Not run`. Perbarui penjaga jumlah
+   baris smoke di `tests/skip-link.test.ts` (kini 2294).
 7. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -61,7 +65,11 @@ Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `fix:`/`feat:`. Catatan mesin: sesi lain dapat membuat load
 ±8–10 di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link,
 `Failed to fetch`); ulangi `npm run ci` utuh tanpa perubahan kode setelah load
-turun (pola PR #91/#95/#111/#124).
+turun (pola PR #91/#95/#111/#124). **Penting:** `/tmp` adalah tmpfs 4.9 GB dan
+bisa penuh (error `Unknown system error -122`/`ErrnoError errno 28` di test
+PGlite); jalankan gerbang dengan
+`TMPDIR=/home/ardhyui/.cache/ci-tmp npm run ci` (direktori itu ada dan berada
+di `/home` yang lapang).
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
 Tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis; baca
@@ -72,16 +80,51 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`,
    fokus pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`,
    daftar zona `/recommendations`, daftar isi `/about`, toolbar & kartu
-   angka `/domains`, toolbar `/combined-graph`, dan accordion
-   `/edu-psychology` (tugas berikutnya: status kartu `/status`): halaman
-   pelajar lain (`/tests`, `/data-entry`, `/sign-in`; `/admin/*` bukan
-   prioritas). Catatan: `/tests` dan `/data-entry` masih tanpa atribut
+   angka `/domains`, toolbar `/combined-graph`, accordion
+   `/edu-psychology`, dan status kartu `/status` (tugas berikutnya: grup uji
+   `/tests`): halaman pelajar lain (`/tests`, `/data-entry`, `/sign-in`;
+   `/admin/*` bukan prioritas). Catatan: `/data-entry` masih tanpa atribut
    aria/role sama sekali.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #126 — **Kartu algoritma dan fase `/status` mengumumkan
+  statusnya sebagai teks** — halaman System Status menyampaikan status hanya
+  lewat ikon berwarna: `AlgorithmCard` menutup baris dengan
+  `CheckCircle2`/`XCircle` tanpa kata "Operational", dan `PhaseCard` memakai
+  `CheckCircle2`/`Clock`/`XCircle` sementara legenda **Complete**/**Pending**/
+  **Error** di bawah grid tidak terhubung ke kartu mana pun. Kini tepat setelah
+  ikon status, `AlgorithmCard` membawa
+  `<span className="sr-only">{isOperational ? 'Operational' : 'Not operational'}</span>`
+  dan `PhaseCard` membawa
+  `<span className="sr-only">{isComplete ? 'Complete' : isPending ? 'Pending' : 'Error'}</span>`
+  — kata yang sama dengan legenda dan state yang sama dengan ikon. Seluruh 31
+  ikon/titik dekoratif halaman diberi `aria-hidden="true"` tanpa mengubah
+  size/kelas/animasi/posisi: `Icon` dalam kotak berwarna (`ServiceCard`,
+  `DataCard`, `AlgorithmCard`), `Clock` latensi, empat ikon judul `<h2>`,
+  `Activity` header, `RefreshCw`, `Loader2`, `AlertCircle`/`AlertTriangle`,
+  tiga ikon banner kesehatan, tiga titik legenda, tiga ikon **Quick Actions**,
+  empat titik `StatusIndicator`, dan lima ikon status kartu. Tanpa live
+  region, fokus paksa, tombol, atau `role` tambahan; teks, urutan, empat
+  algoritma, enam fase, `onClick={fetchStatus}`, auto-refresh 30 detik, dan
+  `LearningMeasures` tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/status-a11y.test.ts` (9 penjaga statis: dua ekspresi `sr-only` persis,
+  posisi sesudah ikon status, kontrak state, 24 ikon + 7 titik `aria-hidden`
+  dengan ukuran/kelas tetap, tepat 31 `aria-hidden`, urutan kartu dan fase,
+  jalur refresh/urutan bagian, tanpa `aria-live`/`role`/`.focus()`/`tabIndex`,
+  serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi) + satu cek
+  smoke di loop `PAGES`: heading **Algorithm Health** terlihat dan `span.sr-only`
+  memuat 4 `Operational`, 0 `Not operational`, 2 `Complete`, 4 `Pending`,
+  0 `Error`. Penjaga jumlah baris smoke 2266 → 2294. `README.md`/`Roadmap.md`
+  tidak diubah; `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau penuh
+  (1349/1349 unit = 1340 + 9; smoke lulus termasuk cek baru). Catatan mesin:
+  percobaan pertama gagal di unit test karena `/tmp` (tmpfs 4.9 GB) penuh
+  (`Unknown system error -122`/`errno 28`), lalu gerbang dijalankan dengan
+  `TMPDIR=/home/ardhyui/.cache/ci-tmp`; percobaan smoke pertama flaky di mesin
+  berload dan diulang utuh tanpa perubahan kode hingga hijau.
 
 - 2026-11-17: PR #125 — **Bagian buka/tutup `/edu-psychology` bisa dipakai
   pembaca layar** — dua pola buka/tutup di halaman dokumentasi psikologi
