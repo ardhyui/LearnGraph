@@ -1638,6 +1638,23 @@ try {
         `overlay ${sameSelect ? 'select labeled' : `matches ${overlayCount}`}, aria-pressed ${correlations}/${subscales}`,
       );
     }
+
+    // The combined graph toolbar names its learner select too: the
+    // "Select Learner:" label has to point at the first select on the page.
+    if (path === '/combined-graph') {
+      const learner = page.getByLabel('Select Learner:');
+      const learnerCount = await learner.count();
+      const sameSelect =
+        learnerCount === 1 &&
+        (await learner
+          .evaluate((el) => el === document.querySelector('select'))
+          .catch(() => false));
+      check(
+        sameSelect,
+        `${label} toolbar labels the learner select`,
+        `label ${sameSelect ? 'select labeled' : `matches ${learnerCount}`}`,
+      );
+    }
   }
 
   // The in-app "Functional Tests" page drives the whole engine (ZPD, gaps,
