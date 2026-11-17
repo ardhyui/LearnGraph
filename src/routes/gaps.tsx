@@ -536,6 +536,11 @@ function GapsDashboard() {
                               {gap.blockedConcepts && gap.blockedConcepts.length > 0 && (
                                 <p className="text-xs mt-1 opacity-60">Unlocks: {gap.blockedConcepts.map((id) => conceptLabel(id)).join(', ')}</p>
                               )}
+                              <Link to="/learn/$conceptId" params={{ conceptId: gap.conceptId }} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded">
+                                <BookOpen className="h-3 w-3" aria-hidden="true" />
+                                Open the lesson
+                                <span className="sr-only">: {conceptLabel(gap.conceptId, gap.conceptName)}</span>
+                              </Link>
                             </div>
                           </div>
                         </motion.div>
@@ -554,6 +559,11 @@ function GapsDashboard() {
                               <p className="font-medium text-foreground">{conceptLabel(gap.conceptId, gap.conceptName)}</p>
                               <p className="text-sm opacity-75">{gap.mastery}% mastered</p>
                               <p className="text-xs mt-1 opacity-60" data-testid="mastery-source">{masterySourceLabel(gap.masterySource)}</p>
+                              <Link to="/learn/$conceptId" params={{ conceptId: gap.conceptId }} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded">
+                                <BookOpen className="h-3 w-3" aria-hidden="true" />
+                                Open the lesson
+                                <span className="sr-only">: {conceptLabel(gap.conceptId, gap.conceptName)}</span>
+                              </Link>
                             </div>
                           </div>
                         </motion.div>
@@ -574,6 +584,11 @@ function GapsDashboard() {
                                 Due for a review · about {gap.predictedRetention?.toFixed(0)}% remembered · last reviewed {countLabel(Math.round(gap.daysSinceReview ?? 0), 'day')} ago
                               </p>
                               <p className="text-xs mt-1 opacity-60" data-testid="mastery-source">{masterySourceLabel(gap.masterySource)}</p>
+                              <Link to="/learn/$conceptId" params={{ conceptId: gap.conceptId }} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded">
+                                <BookOpen className="h-3 w-3" aria-hidden="true" />
+                                Open the lesson
+                                <span className="sr-only">: {conceptLabel(gap.conceptId, gap.conceptName)}</span>
+                              </Link>
                             </div>
                           </div>
                         </motion.div>
@@ -591,6 +606,11 @@ function GapsDashboard() {
                             <div className="flex-1">
                               <p className="font-medium text-foreground">{conceptLabel(gap.conceptId, gap.conceptName)}</p>
                               <p className="text-sm opacity-75">{gap.incorrectUnderstanding || 'Something here was understood the wrong way'}</p>
+                              <Link to="/learn/$conceptId" params={{ conceptId: gap.conceptId }} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded">
+                                <BookOpen className="h-3 w-3" aria-hidden="true" />
+                                Open the lesson
+                                <span className="sr-only">: {conceptLabel(gap.conceptId, gap.conceptName)}</span>
+                              </Link>
                             </div>
                           </div>
                         </motion.div>
