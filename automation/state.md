@@ -83,6 +83,35 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-17: PR #129 — **Setiap label form `/data-entry` menamai kontrolnya** —
+  empat form di tab **Learners**, **Concepts**, **Prerequisites**, dan
+  **Knowledge States** sebelumnya menampilkan label visual tanpa `htmlFor` dan
+  kontrol tanpa `id`, jadi pembaca layar mengumumkan bidang tanpa nama dan klik
+  label tidak memfokuskan kontrol. Kini tepat 26 pasangan `htmlFor`/`id`
+  berprefiks `data-entry-` tanpa mengubah urutan, label, placeholder, nilai,
+  `onChange`, validasi, atau copy: 11 di Learners
+  (`data-entry-learner-json`, `-name`, `-email`, `-id`, `-modality`, `-social`,
+  `-pace`, `-memory`, `-attention`, `-speed`, `-abstract`), 8 di Concepts
+  (`data-entry-concept-id`, `-name`, `-domain`, `-subdomain`, `-description`,
+  `-difficulty`, `-cognitive-load`, `-abstractness`), 3 di Prerequisites
+  (`data-entry-prereq-from`, `-to`, `-reason`), dan 4 di Knowledge States
+  (`data-entry-state-learner`, `-concept`, `-mastery`, `-bloom`). Label wajib
+  beserta `*` dan label slider yang menampilkan nilai tetap utuh; keempat
+  slider tetap `type="range"`. Kode aktual tidak punya checkbox psikometrik
+  (39 skor memakai input angka dengan label terpisah), jadi label itu dan grup
+  **Strength**/radio implisit sengaja tidak dipasangkan. Tanpa
+  `aria-label` pengganti, `role`, live region, fokus paksa, server function,
+  RPC, atau migrasi. Test baru `tests/data-entry-form-labels.test.ts` (10
+  penjaga statis: 26 pasangan unik, distribusi 11/8/3/4 per form, teks label
+  termasuk penanda wajib dan nilai slider, tanpa nama pengganti, grup implisit
+  utuh, tanpa data path baru) + dua cek smoke (label **Name** → `INPUT`
+  terlihat; setelah tab **Concepts**, label **Concept ID** → `INPUT`); penjaga
+  baris smoke 2378 → 2399. `README.md`/`Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau penuh pada
+  percobaan pertama (typecheck, lint 0/0, tests 415,2 s, build, anggaran
+  bundel, CSP produksi, smoke Playwright + PGlite; dijalankan dengan `TMPDIR`
+  di `/home`).
+
 - 2026-11-17: PR #128 — **Lima tab `/data-entry` bisa dipakai pembaca layar
   dan keyboard** — tab **Overview**, **Learners**, **Concepts**,
   **Prerequisites**, dan **Knowledge States** sebelumnya `motion.button` biasa
