@@ -730,7 +730,7 @@ function RecommendationsPage() {
                       {zpd.suggestedPath.length === 0 ? (
                         <p className="text-muted-foreground">No learning path available</p>
                       ) : (
-                        <div className="space-y-4">
+                        <ol aria-label="Suggested learning path" className="space-y-4">
                           {zpd.suggestedPath.map((conceptId, idx) => {
                             const rec = zpd.recommendations.find((r) => r.concept.conceptId === conceptId);
                             const zc =
@@ -738,7 +738,7 @@ function RecommendationsPage() {
                               zpd.tooHard.find((z) => z.concept.conceptId === conceptId);
 
                             return (
-                              <motion.div
+                              <motion.li
                                 key={conceptId}
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -760,12 +760,12 @@ function RecommendationsPage() {
                                   )}
                                 </div>
                                 {idx < zpd.suggestedPath.length - 1 && (
-                                  <div className="w-8 text-center text-muted-foreground text-xl">↓</div>
+                                  <div className="w-8 text-center text-muted-foreground text-xl" aria-hidden="true">↓</div>
                                 )}
-                              </motion.div>
+                              </motion.li>
                             );
                           })}
-                        </div>
+                        </ol>
                       )}
                     </motion.div>
                   </motion.div>
