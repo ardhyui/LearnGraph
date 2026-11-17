@@ -368,6 +368,48 @@ try {
         `aria-expanded ${expandedBefore} → ${expandedAfter} → ${expandedAgain}, content ${visibleBefore ? 'visible' : 'hidden'} → ${hiddenAfter ? 'hidden' : 'visible'}, Not run ${notRunBefore}`,
       );
     }
+
+    // /data-entry tabs follow the WAI-ARIA pattern: five named tabs, one tab
+    // stop, a named panel, and clicking a tab selects it and shows its panel.
+    if (path === '/data-entry') {
+      const tabs = page.getByRole('tab');
+      await untilHydrated(tabs.first(), 60000);
+      const labels = await tabs
+        .evaluateAll((nodes) => nodes.map((n) => (n.textContent ?? '').trim()))
+        .catch(() => []);
+      const selected = await tabs
+        .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('aria-selected')))
+        .catch(() => []);
+      const tabStops = await tabs
+        .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('tabindex')))
+        .catch(() => []);
+      const panelBefore = page.getByRole('tabpanel', { name: 'Overview' });
+      const panelBeforeLabel = await panelBefore.getAttribute('aria-labelledby').catch(() => null);
+      const panelBeforeVisible = await panelBefore.isVisible().catch(() => false);
+      const expected = ['Overview', 'Learners', 'Concepts', 'Prerequisites', 'Knowledge States'];
+      const tabsBefore =
+        JSON.stringify(labels) === JSON.stringify(expected) &&
+        JSON.stringify(selected) === JSON.stringify(['true', 'false', 'false', 'false', 'false']) &&
+        JSON.stringify(tabStops) === JSON.stringify(['0', '-1', '-1', '-1', '-1']) &&
+        panelBeforeLabel === 'data-entry-tab-overview' &&
+        panelBeforeVisible;
+
+      const learners = page.getByRole('tab', { name: 'Learners' });
+      await learners.click().catch(() => {});
+      const learnersSelected = await learners.getAttribute('aria-selected').catch(() => null);
+      const panelAfter = page.getByRole('tabpanel', { name: 'Learners' });
+      const panelAfterLabel = await panelAfter.getAttribute('aria-labelledby').catch(() => null);
+      const panelAfterVisible = await panelAfter
+        .waitFor({ state: 'visible', timeout: 10000 })
+        .then(() => true, () => false);
+      check(
+        tabsBefore && learnersSelected === 'true' && panelAfterLabel === 'data-entry-tab-learners' && panelAfterVisible,
+        'data-entry: tabs announce selection and switch the named panel',
+        `labels ${labels.join(', ')}, selected ${selected.join(', ')}, tab stops ${tabStops.join(
+          ', ',
+        )}, panel ${panelBeforeLabel} → ${panelAfterLabel}`,
+      );
+    }
   }
   // Each page names itself in the browser tab (WCAG 2.4.2), not one shared title.
   {

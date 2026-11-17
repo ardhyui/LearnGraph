@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { pageHead } from '@/lib/page-titles';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { useDB, useLearners, useConcepts, useEdges, useKnowledgeStates } from '@/lib/DBContext';
 import { uuidv4 } from '@/lib/uuid';
 import { WorkspaceLoading } from '@/components/WorkspaceLoading';
+import { nextTabIndex } from '@/lib/tabs';
 
 export const Route = createFileRoute('/data-entry')({
   head: () => pageHead('/data-entry'),
@@ -150,6 +151,16 @@ function DataEntryPage() {
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Each tab button is focused by index when the arrow keys move the selection.
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const next = nextTabIndex(index, event.key, TAB_CONFIG.length);
+    if (next === null) return;
+    event.preventDefault();
+    setActiveTab(TAB_CONFIG[next].id);
+    tabRefs.current[next]?.focus();
+  };
 
   // Map data to local interfaces
   const learners: Learner[] = learnersData.map(l => ({
@@ -459,14 +470,23 @@ function DataEntryPage() {
             transition={{ delay: 0.1, duration: 0.5 }}
             className="mb-8"
           >
-            <div className="flex flex-wrap gap-2 p-1 glass-card">
+            <div role="tablist" aria-label="Data entry sections" className="flex flex-wrap gap-2 p-1 glass-card">
               {TAB_CONFIG.map((tab, index) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
                 return (
                   <motion.button
                     key={tab.id}
+                    ref={(node) => {
+                      tabRefs.current[index] = node;
+                    }}
+                    role="tab"
+                    id={`data-entry-tab-${tab.id}`}
+                    aria-selected={isActive}
+                    aria-controls={isActive ? `data-entry-panel-${tab.id}` : undefined}
+                    tabIndex={isActive ? 0 : -1}
                     onClick={() => setActiveTab(tab.id)}
+                    onKeyDown={(event) => handleTabKeyDown(event, index)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     initial={{ opacity: 0, x: -20 }}
@@ -479,7 +499,7 @@ function DataEntryPage() {
                         : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                     )}
                   >
-                    <Icon className="w-4 h-4" />
+                    <Icon className="w-4 h-4" aria-hidden="true" />
                     <span>{tab.label}</span>
                   </motion.button>
                 );
@@ -493,6 +513,10 @@ function DataEntryPage() {
             {activeTab === 'overview' && (
               <motion.div
                 key="overview"
+                role="tabpanel"
+                id="data-entry-panel-overview"
+                aria-labelledby="data-entry-tab-overview"
+                tabIndex={0}
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
@@ -725,6 +749,10 @@ function DataEntryPage() {
             {activeTab === 'learners' && (
               <motion.div
                 key="learners"
+                role="tabpanel"
+                id="data-entry-panel-learners"
+                aria-labelledby="data-entry-tab-learners"
+                tabIndex={0}
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
@@ -1095,6 +1123,10 @@ function DataEntryPage() {
             {activeTab === 'concepts' && (
               <motion.div
                 key="concepts"
+                role="tabpanel"
+                id="data-entry-panel-concepts"
+                aria-labelledby="data-entry-tab-concepts"
+                tabIndex={0}
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
@@ -1298,6 +1330,10 @@ function DataEntryPage() {
             {activeTab === 'prerequisites' && (
               <motion.div
                 key="prerequisites"
+                role="tabpanel"
+                id="data-entry-panel-prerequisites"
+                aria-labelledby="data-entry-tab-prerequisites"
+                tabIndex={0}
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
@@ -1498,6 +1534,10 @@ function DataEntryPage() {
             {activeTab === 'knowledge-states' && (
               <motion.div
                 key="knowledge-states"
+                role="tabpanel"
+                id="data-entry-panel-knowledge-states"
+                aria-labelledby="data-entry-tab-knowledge-states"
+                tabIndex={0}
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
