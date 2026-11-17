@@ -564,13 +564,14 @@ function DomainsPage() {
                 onClick={buildGraph}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium shadow-lg shadow-primary/25 hover:shadow-xl transition-all"
               >
-                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
                 Refresh
               </motion.button>
 
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                aria-pressed={showCorrelations}
                 onClick={() => setShowCorrelations(!showCorrelations)}
                 className={cn(
                   'flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all',
@@ -579,13 +580,14 @@ function DomainsPage() {
                     : 'bg-secondary text-muted-foreground border border-transparent'
                 )}
               >
-                {showCorrelations ? <Eye size={18} /> : <EyeOff size={18} />}
+                {showCorrelations ? <Eye size={18} aria-hidden="true" /> : <EyeOff size={18} aria-hidden="true" />}
                 Correlations
               </motion.button>
 
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                aria-pressed={showSubscales}
                 onClick={() => setShowSubscales(!showSubscales)}
                 className={cn(
                   'flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all',
@@ -594,14 +596,15 @@ function DomainsPage() {
                     : 'bg-secondary text-muted-foreground border border-transparent'
                 )}
               >
-                {showSubscales ? <Eye size={18} /> : <EyeOff size={18} />}
+                {showSubscales ? <Eye size={18} aria-hidden="true" /> : <EyeOff size={18} aria-hidden="true" />}
                 Subscales
               </motion.button>
 
               <div className="flex items-center gap-3 flex-1">
-                <Users size={18} className="text-muted-foreground" />
-                <label className="text-sm text-muted-foreground">Overlay scores:</label>
+                <Users size={18} className="text-muted-foreground" aria-hidden="true" />
+                <label htmlFor="domains-overlay-learner" className="text-sm text-muted-foreground">Overlay scores:</label>
                 <select
+                  id="domains-overlay-learner"
                   value={selectedLearner}
                   onChange={(e) => setSelectedLearner(e.target.value)}
                   className="flex-1 max-w-xs px-4 py-2.5 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-foreground"
@@ -618,7 +621,7 @@ function DomainsPage() {
           </motion.div>
 
           {/* Stats Cards */}
-          <motion.div
+          <motion.ul
             initial="hidden"
             animate="visible"
             variants={{
@@ -630,7 +633,7 @@ function DomainsPage() {
             {statCards.map((card) => {
               const Icon = card.icon;
               return (
-                <motion.div
+                <motion.li
                   key={card.label}
                   variants={{
                     hidden: { opacity: 0, y: 20 },
@@ -644,10 +647,10 @@ function DomainsPage() {
                   </div>
                   <div className="text-2xl font-bold text-foreground">{card.value}</div>
                   <div className="text-xs text-muted-foreground">{card.label}</div>
-                </motion.div>
+                </motion.li>
               );
             })}
-          </motion.div>
+          </motion.ul>
 
           {/* Graph Container */}
           {loading ? (

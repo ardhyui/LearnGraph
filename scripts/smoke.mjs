@@ -1610,6 +1610,34 @@ try {
       `${label} renders nodes for a selected learner`,
       `${count} nodes${firstLearner ? '' : ', no learner to select'}${newErrors.length ? `, ${newErrors.join(' | ')}` : ''}`,
     );
+
+    // The domain graph toolbar must also be usable without sight: the
+    // "Overlay scores:" label has to name the first select on the page, and
+    // the Correlations/Subscales toggles have to expose their pressed state.
+    if (path === '/domains') {
+      const overlay = page.getByLabel('Overlay scores:');
+      const overlayCount = await overlay.count();
+      const sameSelect =
+        overlayCount === 1 &&
+        (await overlay
+          .evaluate((el) => el === document.querySelector('select'))
+          .catch(() => false));
+      const correlations = await page
+        .getByRole('button', { name: 'Correlations' })
+        .getAttribute('aria-pressed')
+        .catch(() => null);
+      const subscales = await page
+        .getByRole('button', { name: 'Subscales' })
+        .getAttribute('aria-pressed')
+        .catch(() => null);
+      check(
+        sameSelect &&
+          ['true', 'false'].includes(String(correlations)) &&
+          ['true', 'false'].includes(String(subscales)),
+        `${label} toolbar labels the overlay select and announces toggle states`,
+        `overlay ${sameSelect ? 'select labeled' : `matches ${overlayCount}`}, aria-pressed ${correlations}/${subscales}`,
+      );
+    }
   }
 
   // The in-app "Functional Tests" page drives the whole engine (ZPD, gaps,
