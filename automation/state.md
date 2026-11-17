@@ -69,6 +69,23 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-17: PR #121 — **Tiga zona di tab "Ready / not yet" menjadi daftar
+  bernama** — kartu **Mastered (n)**, **Ready to Learn (n)**, dan **Not yet (n)**
+  di `/recommendations` sebelumnya deretan `<motion.div>` di dalam `<div>`
+  berkelas gulir, jadi pembaca layar tidak tahu itu tiga daftar konsep per zona
+  dan tidak bisa melompat per item. Kini tiap `<h3>` ber-`id`
+  (`rec-zone-mastered`/`rec-zone-ready`/`rec-zone-notyet`), wadah pemetaannya
+  `<ul aria-labelledby>` dengan kelas gulir yang sama, dan tiap baris langsung
+  `<motion.li>` (`key`, `whileHover`, kelas visual persis sama). Tidak ada
+  `<div>` perantara atau kelas marker baru. Ketiga pesan kosong tetap di cabang
+  `length === 0` sebagai `<p>` **setelah** daftar (di luar `<ul>`), sehingga
+  urutan visual tetap; isi baris, urutan, aturan ZPD, tablist/tabpanel, copy,
+  dan fokus tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/recommendations-zones.test.ts` (7 penjaga statis) + satu cek smoke
+  (tiga `role="list"` bernama, total `listitem` > 0); penjaga jumlah baris
+  smoke 2169 → 2178. `README.md`/`Roadmap.md` tidak diubah; `docs/ROADMAP.md`
+  mendapat entri log. `npm run ci` hijau penuh pada percobaan pertama.
+
 - 2026-11-17: PR #120 — **Bar progres di My Profile mengumumkan jumlah
   penguasaan, bukan persen mentah** — dua `role="progressbar"` di kartu **My
   learning** `/profile` hanya membawa `aria-valuenow` berisi persen, padahal
