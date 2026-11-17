@@ -161,11 +161,15 @@ function SignInPage() {
           <button
             type="submit"
             disabled={pending}
+            aria-busy={pending}
             className={cn('btn btn-primary w-full flex items-center justify-center gap-2')}
           >
-            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             {mode === 'sign-in' ? 'Sign in' : 'Create account'}
           </button>
+          <p role="status" aria-live="polite" className="sr-only">
+            {pending ? (mode === 'sign-in' ? 'Signing in…' : 'Creating account…') : ''}
+          </p>
         </form>
 
         <p className="mt-6 text-sm text-center text-muted-foreground">
