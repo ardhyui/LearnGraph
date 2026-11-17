@@ -500,15 +500,22 @@ function CombinedGraphPage() {
                 onClick={buildGraph}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium shadow-lg shadow-primary/25"
               >
-                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                <RefreshCw
+                  size={18}
+                  className={loading ? 'animate-spin' : ''}
+                  aria-hidden="true"
+                />
                 Refresh
               </motion.button>
 
               {/* Learner Selector */}
               <div className="flex items-center gap-3 flex-1">
-                <User size={18} className="text-muted-foreground" />
-                <label className="text-sm text-muted-foreground">Select Learner:</label>
+                <User size={18} className="text-muted-foreground" aria-hidden="true" />
+                <label htmlFor="combined-graph-learner" className="text-sm text-muted-foreground">
+                  Select Learner:
+                </label>
                 <select
+                  id="combined-graph-learner"
                   value={selectedLearner}
                   onChange={(e) => setSelectedLearner(e.target.value)}
                   className="flex-1 max-w-xs px-4 py-2.5 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-foreground"
@@ -531,6 +538,7 @@ function CombinedGraphPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowDomains(!showDomains)}
+                aria-pressed={showDomains}
                 className={cn(
                   'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all',
                   showDomains
@@ -538,8 +546,8 @@ function CombinedGraphPage() {
                     : 'bg-secondary text-muted-foreground border border-transparent'
                 )}
               >
-                {showDomains ? <Eye size={16} /> : <EyeOff size={16} />}
-                <Brain size={14} />
+                {showDomains ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}
+                <Brain size={14} aria-hidden="true" />
                 Domains (Graph A)
               </motion.button>
 
@@ -547,6 +555,7 @@ function CombinedGraphPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowConcepts(!showConcepts)}
+                aria-pressed={showConcepts}
                 className={cn(
                   'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all',
                   showConcepts
@@ -554,8 +563,8 @@ function CombinedGraphPage() {
                     : 'bg-secondary text-muted-foreground border border-transparent'
                 )}
               >
-                {showConcepts ? <Eye size={16} /> : <EyeOff size={16} />}
-                <Network size={14} />
+                {showConcepts ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}
+                <Network size={14} aria-hidden="true" />
                 Concepts (Graph B)
               </motion.button>
 
@@ -563,6 +572,7 @@ function CombinedGraphPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowBridges(!showBridges)}
+                aria-pressed={showBridges}
                 className={cn(
                   'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all',
                   showBridges
@@ -570,8 +580,8 @@ function CombinedGraphPage() {
                     : 'bg-secondary text-muted-foreground border border-transparent'
                 )}
               >
-                {showBridges ? <Eye size={16} /> : <EyeOff size={16} />}
-                <ArrowRight size={14} />
+                {showBridges ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}
+                <ArrowRight size={14} aria-hidden="true" />
                 Knowledge States (Bridge)
               </motion.button>
             </div>
