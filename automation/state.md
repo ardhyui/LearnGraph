@@ -1,62 +1,56 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (status kartu `/status`; siklus berikutnya: grup uji `/tests`)
+Terakhir diperbarui: 2026-11-17 (grup uji `/tests`; siklus berikutnya: tab `/data-entry`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **grup uji dan status tes di halaman `/tests`** — kandidat
-fitur (a); tanpa migrasi skema, dependensi, server function, RPC, atau method
-RPC baru. Konteks: `src/routes/tests.tsx` (1499 baris, belum punya satu pun
-atribut aria/role). Halaman ini punya dua pola yang hanya terbaca lewat
-warna/rotasi ikon:
-
-1. Header tiap grup uji (~baris 1367–1403) adalah `<button
-   onClick={() => toggleGroup(groupIndex)} …>` hasil `testGroups.map`; isi grup
-   dibuka/tutup lewat `AnimatePresence` (~baris 1406–1457) tetapi tombolnya
-   tidak punya `aria-expanded`/`aria-controls` dan wadah isinya tidak punya
-   `id`. `ChevronRight` hanya berputar 90° saat terbuka.
-2. Setiap baris tes (~baris 1416–1453) memakai `{getStatusIcon(test.status)}`
-   (~baris 1223–1237: `CheckCircle`/`XCircle`/`RefreshCw`/`Clock`) tanpa satu
-   kata pun status; nama tes seperti "Create learner profile" tidak pernah
-   menyebut **Passed**/**Failed**/**Running**/**Not run**.
-
-Seluruh ikon halaman ini juga dekoratif tetapi ikut dibacakan: `FlaskConical`
-header, `Play` tombol **Run All Tests**, `ChevronRight` grup, empat ikon status
-di `getStatusIcon`, `Layers` kartu **Test Coverage**, dan `AlertCircle` galat
-database.
+Jadikan **lima tab halaman `/data-entry`** (`Overview`, `Learners`, `Concepts`,
+`Prerequisites`, `Knowledge States`) pola tab WAI-ARIA yang bisa dipakai pembaca
+layar dan keyboard — kandidat fitur (a); tanpa migrasi skema, dependensi, server
+function, RPC, atau method RPC baru. Konteks: `src/routes/data-entry.tsx`
+(±1698 baris) merender `TAB_CONFIG.map` sebagai `motion.button` biasa di dalam
+`<div className="flex flex-wrap gap-2 p-1 glass-card">` (±baris 456–488): hanya
+warna aktif (`bg-primary …` vs `text-muted-foreground …`) yang menandai tab
+terpilih, tidak ada `role`/`aria-selected`/`tabIndex`, dan lima panel di bawah
+`AnimatePresence mode="wait"` adalah cabang
+`{activeTab === '…' && <motion.div …>}` (±baris 493, 725, 1095, 1298, 1498)
+tanpa `role="tabpanel"` maupun nama.
 
 Rancangan (baca kode dulu; jangan mengubah isi/urutan bagian halaman):
 
-1. Tombol header grup membawa `aria-expanded={isExpanded}` dan
-   `aria-controls={\`tests-group-${groupIndex}\`}`; `<motion.div>` isi grup di
-   dalam `AnimatePresence` membawa `id={\`tests-group-${groupIndex}\`}`
-   (atribut `id` selalu ada saat isi dirender; tidak perlu `useId`).
-2. Tambahkan helper murni kecil di modul yang sama, mis.
-   `statusLabel(status: TestResult['status'])` → `'Passed' | 'Failed' |
-   'Running' | 'Not run'`, lalu tepat setelah `{getStatusIcon(test.status)}`
-   di setiap baris tambahkan `<span className="sr-only">{statusLabel(test.status)}</span>`.
-   Jangan menyalin aturan status di dua tempat: `getStatusIcon` dan label harus
-   memakai nilai `test.status` yang sama.
-3. Semua ikon dekoratif di atas diberi `aria-hidden="true"` tanpa mengubah
-   `size`, kelas, animasi, atau posisi (termasuk keempat ikon di
-   `getStatusIcon`).
-4. Jangan menambah live region, fokus paksa, tombol, atau `role` tambahan;
-   `runAllTests`, `toggleGroup`, urutan `testGroups`/tes, ringkasan
-   Total/Passed/Failed, copy, dan disabled state tombol Run tidak berubah; UI
-   bahasa Inggris (D2).
-5. **Test**: file baru `tests/tests-page-a11y.test.ts` (penjaga statis, pola
-   `tests/status-a11y.test.ts`): ekspresi `aria-expanded`/`aria-controls`/`id`
-   persis dan berpasangan, kontrak `onClick={() => toggleGroup(groupIndex)}`,
-   empat cabang `getStatusIcon` + empat label `sr-only` persis, semua ikon
-   dekoratif `aria-hidden` (hitung ulang dari kode), urutan `testGroups`
-   (Phase 1 … Phase 5) dan tes pertama, tanpa `aria-live`/`role`/`.focus()`/
-   `tabIndex`, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-6. **Smoke**: `/tests` sudah dikunjungi di loop `PAGES`. Tambahkan
-   `if (path === '/tests')`: tombol **Phase 1: Database Foundation** mula-mula
-   `aria-expanded="false"` dengan `aria-controls` yang menunjuk isi
-   tersembunyi; setelah diklik menjadi `"true"` dan isi itu terlihat; di dalam
-   isi ada tepat 15 `span.sr-only` berteks `Not run`. Perbarui penjaga jumlah
-   baris smoke di `tests/skip-link.test.ts` (kini 2294).
+1. Pakai helper murni yang sudah ada `nextTabIndex(current, key, count)` di
+   `src/lib/tabs.ts` (sudah diuji di `tests/recommendations-tabs.test.ts`);
+   jangan menyalin logika panah/Home/End baru.
+2. Wadah `TAB_CONFIG.map` menjadi `<div role="tablist" aria-label="Data entry
+   sections" className="flex flex-wrap gap-2 p-1 glass-card">`; tiap tombol
+   `role="tab"`, `id={\`data-entry-tab-${tab.id}\`}`, `aria-selected={isActive}`,
+   `tabIndex={isActive ? 0 : -1}`, dan `aria-controls` hanya pada tab aktif
+   (menunjuk `data-entry-panel-${tab.id}` karena panel lain tidak dirender).
+   `onClick` tetap `() => setActiveTab(tab.id)`; `onKeyDown` memakai
+   `nextTabIndex(index, e.key, TAB_CONFIG.length)`, mengabaikan `null`, lalu
+   `setActiveTab(TAB_CONFIG[next].id)` + memfokuskan tombol tujuan lewat array
+   ref (pola PR #112); `<Icon className="w-4 h-4" />` diberi
+   `aria-hidden="true"` tanpa mengubah kelas.
+3. Tiap panel `motion.div` yang dirender membawa `role="tabpanel"`,
+   `id={\`data-entry-panel-${…}\`}`, `aria-labelledby={\`data-entry-tab-${…}\`}`,
+   dan `tabIndex={0}` — id/aria harus berpasangan tepat dengan tabnya.
+4. Jangan menambah live region, tombol, atau `role` lain; urutan lima tab,
+   label, kelas aktif/tidak aktif, isi panel, copy, dan bahasa Inggris (D2)
+   tidak berubah.
+5. **Test**: file baru `tests/data-entry-tabs.test.ts` (penjaga statis, pola
+   `tests/recommendations-tabs.test.ts` + `tests/tests-page-a11y.test.ts`):
+   `role="tablist"` + `aria-label` persis, lima pasangan id tab/panel,
+   `aria-controls` hanya pada tab aktif, `aria-selected`/`tabIndex` roving,
+   kontrak `onClick`/`onKeyDown` + `nextTabIndex` + ref/fokus, ikon tab
+   `aria-hidden`, panel `role="tabpanel"` + `aria-labelledby` + `tabIndex`,
+   urutan lima label, tanpa `aria-live`/`role` lain/`createServerFn`/
+   `graphCall`/`rpc-schemas`/migrasi.
+6. **Smoke**: di loop `PAGES`, `if (path === '/data-entry')`: tepat lima
+   `role="tab"` berurutan, tab pertama `aria-selected="true"` + `tabIndex="0"`
+   sementara empat lainnya `"false"`/`"-1"`, panel yang terlihat ber-
+   `role="tabpanel"` dengan `aria-labelledby` menunjuk tab pertama; klik tab
+   **Learners** lalu tab itu `aria-selected="true"` dan panelnya terlihat.
+   Perbarui penjaga jumlah baris smoke di `tests/skip-link.test.ts`.
 7. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -70,6 +64,7 @@ bisa penuh (error `Unknown system error -122`/`ErrnoError errno 28` di test
 PGlite); jalankan gerbang dengan
 `TMPDIR=/home/ardhyui/.cache/ci-tmp npm run ci` (direktori itu ada dan berada
 di `/home` yang lapang).
+
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
 Tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis; baca
@@ -81,15 +76,50 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    fokus pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`,
    daftar zona `/recommendations`, daftar isi `/about`, toolbar & kartu
    angka `/domains`, toolbar `/combined-graph`, accordion
-   `/edu-psychology`, dan status kartu `/status` (tugas berikutnya: grup uji
-   `/tests`): halaman pelajar lain (`/tests`, `/data-entry`, `/sign-in`;
-   `/admin/*` bukan prioritas). Catatan: `/data-entry` masih tanpa atribut
-   aria/role sama sekali.
+   `/edu-psychology`, status kartu `/status`, dan grup uji `/tests`: halaman
+   pelajar lain (`/data-entry`, `/sign-in`; `/admin/*` bukan prioritas).
+   Catatan: `/data-entry` masih tanpa atribut aria/role sama sekali — tugas
+   berikutnya adalah tabnya; setelah itu label form/`htmlFor` dan pesan
+   kosong/status halaman yang sama bisa jadi siklus terpisah. `tests/`
+   adalah berkas test, bukan halaman.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #127 — **Grup uji dan status tes di `/tests` bisa dipakai
+  pembaca layar** — halaman Functional Tests menyampaikan dua hal hanya lewat
+  warna/rotasi ikon. (1) Tombol header tiap grup hasil `testGroups.map`
+  sebelumnya `<button onClick={() => toggleGroup(groupIndex)}>` tanpa
+  `aria-expanded`/`aria-controls` dan tanpa `id` pada isi grup; kini tombol
+  membawa `aria-expanded={isExpanded}` + `aria-controls={\`tests-group-${groupIndex}\`}`
+  dan `<motion.div>` isi di dalam `AnimatePresence` membawa
+  `id={\`tests-group-${groupIndex}\`}`. (2) Tiap baris tes hanya menampilkan
+  `{getStatusIcon(test.status)}`; helper murni baru `statusLabel(status)`
+  mengembalikan `'Passed'`/`'Failed'`/`'Running'`/`'Not run'` untuk empat cabang
+  yang sama dengan ikon, dan tepat setelah ikon ada
+  `<span className="sr-only">{statusLabel(test.status)}</span>` — keduanya
+  membaca `test.status` yang sama. Sembilan ikon dekoratif (`FlaskConical`,
+  `Play`, `ChevronRight`, empat ikon status, `Layers`, `AlertCircle`) diberi
+  `aria-hidden="true"` tanpa mengubah ukuran/kelas/animasi/posisi. Tanpa live
+  region, fokus paksa, tombol, atau `role` tambahan; `runAllTests`,
+  `toggleGroup`, urutan tujuh grup dan tesnya, ringkasan Total/Passed/Failed,
+  copy, dan disabled state tombol Run tidak berubah; UI bahasa Inggris (D2).
+  Test baru `tests/tests-page-a11y.test.ts` (8 penjaga statis: pasangan
+  atribut persis di cabang `isExpanded`, kontrak `onClick`/urutan tujuh
+  grup/15 tes grup pertama, empat label dan posisinya sesudah ikon, empat ikon
+  status dengan ukuran/kelas tetap, sembilan ikon `aria-hidden`, tombol
+  Run/ringkasan/urutan bagian tetap, tanpa
+  `aria-live`/`role`/`.focus()`/`tabIndex`, serta tanpa
+  `createServerFn`/`graphCall`/`rpc-schemas`/migrasi). Satu cek smoke di loop
+  `PAGES`: grup **Phase 1: Database Foundation** mula-mula
+  `aria-expanded="true"` dengan isi terlihat dan tepat 15 `span.sr-only`
+  berteks `Not run`, setelah diklik `"false"` + isi tersembunyi, lalu dibuka
+  lagi — kode aktual menginisialisasi ketujuh grup terbuka
+  (`new Set([0, 1, 2, 3, 4, 5, 6])`), bukan tertutup seperti perkiraan spek.
+  Penjaga jumlah baris smoke 2294 → 2336. `README.md`/`Roadmap.md` tidak
+  diubah; `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau.
 
 - 2026-11-17: PR #126 — **Kartu algoritma dan fase `/status` mengumumkan
   statusnya sebagai teks** — halaman System Status menyampaikan status hanya

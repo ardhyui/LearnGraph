@@ -326,6 +326,48 @@ try {
         `Operational ${operational}, Not operational ${notOperational}, Complete ${complete}, Pending ${pending}, Error ${phaseError}`,
       );
     }
+
+    // /tests group headers announce whether their list is open and name the
+    // content they control; each row states its result in words, not colour.
+    if (path === '/tests') {
+      const group = page.getByRole('button', { name: 'Phase 1: Database Foundation' });
+      await untilHydrated(group, 60000);
+      const controls = await group.getAttribute('aria-controls').catch(() => null);
+      const content = controls ? page.locator(`[id="${controls}"]`) : null;
+      const expandedBefore = await group.getAttribute('aria-expanded').catch(() => null);
+      const visibleBefore = content
+        ? await content
+            .waitFor({ state: 'visible', timeout: 10000 })
+            .then(() => true, () => false)
+        : false;
+      const notRunBefore = content
+        ? await content
+            .locator('span.sr-only')
+            .evaluateAll((nodes) => nodes.filter((n) => (n.textContent ?? '').trim() === 'Not run').length)
+            .catch(() => 0)
+        : 0;
+      await group.click().catch(() => {});
+      const expandedAfter = await group.getAttribute('aria-expanded').catch(() => null);
+      const hiddenAfter = content
+        ? await content
+            .waitFor({ state: 'hidden', timeout: 10000 })
+            .then(() => true, () => false)
+        : false;
+      // Re-open the group so the rest of the flow is unaffected.
+      await group.click().catch(() => {});
+      const expandedAgain = await group.getAttribute('aria-expanded').catch(() => null);
+      check(
+        expandedBefore === 'true' &&
+          Boolean(controls) &&
+          visibleBefore &&
+          notRunBefore === 15 &&
+          expandedAfter === 'false' &&
+          hiddenAfter &&
+          expandedAgain === 'true',
+        'tests: group headers announce open state and results are named in text',
+        `aria-expanded ${expandedBefore} → ${expandedAfter} → ${expandedAgain}, content ${visibleBefore ? 'visible' : 'hidden'} → ${hiddenAfter ? 'hidden' : 'visible'}, Not run ${notRunBefore}`,
+      );
+    }
   }
   // Each page names itself in the browser tab (WCAG 2.4.2), not one shared title.
   {
