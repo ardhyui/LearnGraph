@@ -1,58 +1,76 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (toolbar & kartu angka `/domains`; siklus berikutnya: toolbar `/combined-graph`)
+Terakhir diperbarui: 2026-11-17 (toolbar `/combined-graph`; siklus berikutnya: accordion `/edu-psychology`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **toolbar halaman `/combined-graph`** — kandidat
-fitur (a); tanpa migrasi skema, dependensi, server function, RPC, atau
-method RPC baru. Konteks: `src/routes/combined-graph.tsx` sekitar baris
-490–578. Tombol **Refresh** (~497) memakai `RefreshCw size={18}`
-dekoratif tanpa `aria-hidden`. `<label>` "Select Learner:" (~510) tidak
-dihubungkan ke `<select>` di bawahnya (tanpa `htmlFor`/`id`) sehingga
-pembaca layar tidak tahu nama select, dan ikon `User size={18}` (~509)
-dekoratif tanpa `aria-hidden`. Tiga tombol toggle di baris "Show:" (~528)
-— **Domains (Graph A)** (~530, `showDomains`), **Concepts (Graph B)**
-(~546, `showConcepts`), **Knowledge States (Bridge)** (~562,
-`showBridges`) — adalah `motion.button` yang hanya menunjukkan status
-lewat warna (`bg-purple-500/20 …`/`bg-blue-500/20 …`/`bg-pink-500/20 …`
-saat aktif) tanpa `aria-pressed`; tiap tombol memakai `Eye`/`EyeOff
-size={16}` plus ikon kedua dekoratif (`Brain size={14}`/`Network
-size={14}`/`ArrowRight size={14}`).
+Poles aksesibilitas **bagian yang bisa dibuka/tutup di halaman
+`/edu-psychology`** — kandidat fitur (a); tanpa migrasi skema, dependensi,
+server function, RPC, atau method RPC baru. Konteks:
+`src/routes/edu-psychology.tsx` (879 baris, belum punya atribut aria/role
+sama sekali). Dua pola buka/tutup di halaman ini hanya menunjukkan status
+lewat warna/rotasi ikon:
+
+1. Komponen `ExpandableSection` (~baris 471–515) dipakai berkali-kali:
+   `<button onClick={() => setIsOpen(!isOpen)} className="w-full flex
+   items-center justify-between p-6 hover:bg-muted/50 transition-colors">`
+   berisi `<h2>{title}</h2>` dan `ChevronDown` yang hanya berputar
+   (`rotate-180` saat terbuka); wadah isi `<motion.div>` di dalam
+   `AnimatePresence` tanpa `id`, jadi pembaca layar tidak tahu bagian mana
+   yang terbuka dan tombol mana yang mengendalikannya.
+2. Grid `PsychometricWheel` (~baris 336–356): tiap kategori adalah
+   `<button onClick={() => setExpandedCategory(...)}>` yang hanya
+   membedakan terpilih lewat `border-pink-500 bg-pink-500/10 ... shadow-lg
+   scale-[1.02]`; panel detail yang muncul (~baris 369) tidak punya `id`,
+   dan dua elemen dekoratif di tombol (emoji `<span className="text-2xl">`
+   dan titik warna `<div className="w-3 h-3 rounded-full">`) ikut dibacakan
+   padahal teks kategori sudah ada.
 
 Rancangan (baca kode dulu; jangan mengubah isi/urutan bagian halaman):
 
-1. Ketiga tombol toggle diberi `aria-pressed={showDomains}`/
-   `aria-pressed={showConcepts}`/`aria-pressed={showBridges}` (pola PR
-   #118/#123); teks, `onClick`, kelas, `whileHover`/`whileTap` tidak
-   berubah.
-2. Asosiasi label: `<label htmlFor="combined-learner-select" ...>` dan
-   `<select id="combined-learner-select" ...>`; `value`, `onChange`,
-   opsi (`Choose a learner...` + `learners.map`), dan kelas tidak
-   berubah.
-3. Ikon dekoratif `RefreshCw size={18}`, `User size={18}`,
-   `Eye`/`EyeOff size={16}`, serta `Brain`/`Network`/`ArrowRight
-   size={14}` diberi `aria-hidden="true"` tanpa mengubah size/kelas.
-4. **Test**: file baru `tests/combined-graph-toolbar.test.ts` (penjaga
-   statis) — tiga `aria-pressed` dengan ekspresi persis, pasangan
-   `htmlFor`/`id` select tepat satu dengan kontrak select utuh,
-   seluruh ikon dekoratif `aria-hidden`, klik/kelas/urutan tombol tetap,
-   serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-5. **Smoke**: blok graph pages (~1616, `['/combined-graph', 'combined
-   graph']`) sudah memuat halaman dan memakai `select` pertama —
-   tambahkan cek pola PR #123 (`if (path === '/combined-graph')`) bahwa
-   `getByLabel('Select Learner:')` menunjuk select pertama halaman.
-   Bila smoke bertambah baris, perbarui penjaga jumlah baris di
-   `tests/skip-link.test.ts` (kini 2220).
-6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
-   `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan
-   menandai milestone selesai.
+1. Di `ExpandableSection`, buat id isi yang unik dengan `useId()` (React 19
+   sudah dipakai; satu hook baru di komponen ini saja), lalu tombol header
+   mendapat `aria-expanded={isOpen}` dan `aria-controls={…}`; `<motion.div>`
+   isi mendapat `id={…}`. Teks judul, `onClick`, kelas tombol, ikon
+   `Icon`/`ChevronDown` beserta kelas rotasinya, `AnimatePresence`, dan
+   `initial`/`animate`/`exit` tidak berubah.
+2. Ikon dekoratif di kedua komponen (`Icon` dalam kotak berwarna,
+   `ChevronDown`, emoji kategori, dan titik warna kategori) diberi
+   `aria-hidden="true"` tanpa mengubah size/kelas.
+3. Di grid kategori, tiap tombol mendapat
+   `aria-expanded={expandedCategory === categoryName}`; panel detail
+   (~baris 369) mendapat `id="psychometric-category-detail"` dan tombol
+   memakai `aria-controls="psychometric-category-detail"` (atribut boleh
+   selalu ada walau panel belum dirender — pola `aria-controls` pada tab
+   yang panelnya bersyarat di PR #112). Klik, kelas terpilih/tidak, urutan
+   10 kategori, dan isi panel (nama domain, deskripsi, penanda, `eduRelevance`,
+   `domain.id`) tidak berubah.
+4. Jangan menambah live region, fokus paksa, tombol, atau `role` tambahan;
+   jangan mengubah `<h1>`/`<h2>`/`<h3>`/`<h4>` yang sudah ada; UI bahasa
+   Inggris (D2).
+5. **Test**: file baru `tests/edu-psychology-a11y.test.ts` (penjaga statis,
+   pola `tests/combined-graph-toolbar.test.ts`) — ekspresi `aria-expanded`
+   persis untuk kedua pola, `useId`/`id`/`aria-controls` tepat satu pasang
+   per pola dengan kontrak `onClick`/kelas/urutan judul bagian utuh, seluruh
+   ikon dekoratif `aria-hidden`, isi panel kategori lengkap, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
+6. **Smoke**: halaman `/edu-psychology` sudah dikunjungi di loop `PAGES`
+   (baris ~25). Tambahkan cek di blok itu (pola `if (path ===
+   '/edu-psychology')`): tombol bagian pertama ber-`aria-expanded="true"`,
+   setelah diklik menjadi `"false"`, dan isi bagian pertama tidak lagi
+   terlihat; lalu klik lagi bila perlu agar sisa alur tidak terpengaruh.
+   Perbarui penjaga jumlah baris smoke di `tests/skip-link.test.ts` (kini
+   2237).
+7. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+   `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
+   milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `fix:`/`feat:`. Catatan mesin: sesi lain dapat membuat load
 ±8–10 di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link,
 `Failed to fetch`); ulangi `npm run ci` utuh tanpa perubahan kode setelah load
-turun (pola PR #91/#95/#111).
+turun (pola PR #91/#95/#111; siklus #124 gagal sekali di smoke lalu hijau
+pada percobaan kedua tanpa perubahan kode).
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
@@ -63,17 +81,49 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Setelah
    antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`,
    fokus pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`,
-   daftar zona `/recommendations`, daftar isi `/about`, dan toolbar & kartu
-   angka `/domains` (tugas berikutnya: toolbar `/combined-graph`): halaman
-   pelajar lain (`/edu-psychology`, `/tests`, `/data-entry`, `/status`,
-   `/sign-in`; `/admin/*` bukan prioritas). Catatan: `/combined-graph`,
-   `/edu-psychology`, `/tests`, `/data-entry`, `/status` masih tanpa
-   atribut aria/role sama sekali.
+   daftar zona `/recommendations`, daftar isi `/about`, toolbar & kartu
+   angka `/domains`, dan toolbar `/combined-graph` (tugas berikutnya:
+   accordion `/edu-psychology`): halaman pelajar lain (`/tests`,
+   `/data-entry`, `/status`, `/sign-in`; `/admin/*` bukan prioritas).
+   Catatan: `/tests`, `/data-entry`, `/status` masih tanpa atribut aria/role
+   sama sekali.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #124 — **Toolbar halaman `/combined-graph` bisa dipakai
+  pembaca layar** — tiga toggle di baris **Show:** (**Domains (Graph A)**,
+  **Concepts (Graph B)**, **Knowledge States (Bridge)**) sebelumnya
+  `motion.button` biasa yang hanya menunjukkan status lewat warna
+  (`bg-purple-500/20 …`/`bg-blue-500/20 …`/`bg-pink-500/20 …` saat aktif)
+  tanpa `aria-pressed`, `<label>` **Select Learner:** tidak terhubung ke
+  `<select>` learner (tanpa `htmlFor`/`id`), dan seluruh ikon toolbar
+  (`RefreshCw`, `User`, `Eye`/`EyeOff`, `Brain`/`Network`/`ArrowRight`)
+  ikut dibacakan. Kini ketiga toggle membawa
+  `aria-pressed={showDomains}`/`aria-pressed={showConcepts}`/
+  `aria-pressed={showBridges}` (pola PR #118/#123) tanpa mengubah teks,
+  `onClick`, kelas, atau `whileHover`/`whileTap`; label berpasangan dengan
+  select lewat `htmlFor`/`id="combined-graph-learner"` (value/onChange/opsi
+  `Choose a learner...` + `learners.map`/kelas tetap); kesebelas ikon
+  dekoratif `aria-hidden="true"` tanpa mengubah size/kelas; tombol Refresh
+  tetap tanpa `aria-pressed` karena aksi, bukan toggle. Tanpa live region,
+  fokus paksa, `role` tambahan, atau tombol baru; urutan, isi, dan bagian
+  halaman lain tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/combined-graph-toolbar.test.ts` (5 penjaga statis: tiga
+  `aria-pressed` ekspresi persis dan total tiga di halaman, kontrak
+  `onClick`/`whileHover`/`whileTap`/kelas aktif-tidak aktif/label berurutan,
+  pasangan `htmlFor`/`id` dengan kontrak select dan opsi utuh, sebelas ikon
+  `aria-hidden` + Refresh tanpa `aria-pressed`, serta tanpa
+  `createServerFn`/`graphCall`/`rpc-schemas`/migrasi) + satu cek smoke di
+  blok graph pages (`getByLabel('Select Learner:')` menunjuk select pertama
+  halaman: `combined graph toolbar labels the learner select — label select
+  labeled`); penjaga jumlah baris smoke 2220 → 2237. `README.md`/`Roadmap.md`
+  tidak diubah; `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau
+  penuh pada percobaan kedua tanpa perubahan kode (1336 + 6 = 1342/1342
+  unit; percobaan pertama gagal hanya di smoke `Failed to fetch` saat mesin
+  berload dari sesi lain).
 
 - 2026-11-17: PR #123 — **Toolbar dan kartu angka `/domains` dapat dibaca
   pembaca layar** — tombol **Correlations** dan **Subscales** sebelumnya
