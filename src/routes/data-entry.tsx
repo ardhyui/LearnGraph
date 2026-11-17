@@ -683,9 +683,9 @@ function DataEntryPage() {
                     <div>
                       <h3 className="font-medium text-sm text-muted-foreground mb-3">Recent Learners</h3>
                       {learners.length > 0 ? (
-                        <div className="space-y-2">
+                        <ul aria-label="Recent learners" className="space-y-2">
                           {learners.slice(0, 3).map((l) => (
-                            <div key={l.userId} className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                            <li key={l.userId} className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
                               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white font-bold text-sm">
                                 {(l.name || l.userId).charAt(0).toUpperCase()}
                               </div>
@@ -693,9 +693,9 @@ function DataEntryPage() {
                                 <div className="text-sm font-medium text-foreground truncate">{l.name || 'Unnamed'}</div>
                                 <div className="text-xs text-muted-foreground font-mono truncate">{l.userId}</div>
                               </div>
-                            </div>
+                            </li>
                           ))}
-                        </div>
+                        </ul>
                       ) : (
                         <div className="text-center py-6 rounded-xl bg-accent/30">
                           <p className="text-muted-foreground text-sm mb-2">No learners yet</p>
@@ -703,7 +703,7 @@ function DataEntryPage() {
                             onClick={() => setActiveTab('learners')}
                             className="text-emerald-500 text-sm hover:underline flex items-center gap-1 mx-auto"
                           >
-                            <Plus className="w-3 h-3" />
+                            <Plus className="w-3 h-3" aria-hidden="true" />
                             Add your first learner
                           </button>
                         </div>
@@ -713,9 +713,9 @@ function DataEntryPage() {
                     <div>
                       <h3 className="font-medium text-sm text-muted-foreground mb-3">Recent Concepts</h3>
                       {concepts.length > 0 ? (
-                        <div className="space-y-2">
+                        <ul aria-label="Recent concepts" className="space-y-2">
                           {concepts.slice(0, 3).map((c) => (
-                            <div key={c.conceptId} className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                            <li key={c.conceptId} className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
                               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm">
                                 {c.name.charAt(0).toUpperCase()}
                               </div>
@@ -726,9 +726,9 @@ function DataEntryPage() {
                               <span className="text-xs px-2 py-1 rounded-lg bg-purple-500/10 text-purple-500 font-mono">
                                 {c.conceptId}
                               </span>
-                            </div>
+                            </li>
                           ))}
-                        </div>
+                        </ul>
                       ) : (
                         <div className="text-center py-6 rounded-xl bg-accent/30">
                           <p className="text-muted-foreground text-sm mb-2">No concepts yet</p>
@@ -736,7 +736,7 @@ function DataEntryPage() {
                             onClick={() => setActiveTab('concepts')}
                             className="text-purple-500 text-sm hover:underline flex items-center gap-1 mx-auto"
                           >
-                            <Plus className="w-3 h-3" />
+                            <Plus className="w-3 h-3" aria-hidden="true" />
                             Add your first concept
                           </button>
                         </div>
@@ -1115,18 +1115,18 @@ function DataEntryPage() {
                     <h3 className="text-sm font-medium text-muted-foreground mb-2">
                       Existing Learners ({learners.length})
                     </h3>
-                    <div className="max-h-32 overflow-y-auto rounded-xl bg-accent/50 p-2">
-                      {learners.length === 0 ? (
-                        <p className="text-muted-foreground text-sm text-center py-2">No learners yet</p>
-                      ) : (
-                        learners.map((l) => (
-                          <div key={l.userId} className="text-sm text-foreground py-1.5 px-2 rounded-lg hover:bg-accent">
+                    {learners.length === 0 ? (
+                      <p className="text-muted-foreground text-sm text-center py-2">No learners yet</p>
+                    ) : (
+                      <ul aria-label="Existing learners" className="max-h-32 overflow-y-auto rounded-xl bg-accent/50 p-2">
+                        {learners.map((l) => (
+                          <li key={l.userId} className="text-sm text-foreground py-1.5 px-2 rounded-lg hover:bg-accent">
                             {l.name || l.userId}
                             <span className="text-muted-foreground ml-2">({l.userId})</span>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </motion.div>
               </motion.div>
@@ -1334,14 +1334,18 @@ function DataEntryPage() {
                     <h3 className="text-sm font-medium text-muted-foreground mb-2">
                       Existing Concepts ({concepts.length})
                     </h3>
-                    <div className="max-h-40 overflow-y-auto rounded-xl bg-accent/50 p-2">
-                      {concepts.map((c) => (
-                        <div key={c.conceptId} className="text-sm text-foreground py-1.5 px-2 rounded-lg hover:bg-accent">
-                          {c.name}
-                          <span className="text-muted-foreground ml-2">({c.domain})</span>
-                        </div>
-                      ))}
-                    </div>
+                    {concepts.length === 0 ? (
+                      <p className="text-muted-foreground text-sm text-center py-2">No concepts yet</p>
+                    ) : (
+                      <ul aria-label="Existing concepts" className="max-h-40 overflow-y-auto rounded-xl bg-accent/50 p-2">
+                        {concepts.map((c) => (
+                          <li key={c.conceptId} className="text-sm text-foreground py-1.5 px-2 rounded-lg hover:bg-accent">
+                            {c.name}
+                            <span className="text-muted-foreground ml-2">({c.domain})</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </motion.div>
               </motion.div>
