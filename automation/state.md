@@ -1,67 +1,51 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (tab `/data-entry`; siklus berikutnya: label form `/data-entry`)
+Terakhir diperbarui: 2026-11-17 (label form `/data-entry`; siklus berikutnya: banner pesan `/data-entry`)
 
 ## Tugas berikutnya
 
-Pasangkan **setiap label form di `/data-entry`** dengan kontrolnya lewat
-`htmlFor`/`id` — kandidat fitur (a) lanjutan halaman yang sama; tanpa migrasi
-skema, dependensi, server function, RPC, atau method RPC baru. Konteks:
-`src/routes/data-entry.tsx` (±1728 baris) punya empat form di tab **Learners**,
-**Concepts**, **Prerequisites**, dan **Knowledge States**; hampir semua
-`<label className="form-label">…</label>` / `<label className="text-xs …">…</label>`
-tidak punya `htmlFor`, dan `<input>`/`<select>`/`<textarea>` tidak punya `id`.
-Akibatnya membaca layar tidak mengumumkan nama kontrol dan klik label tidak
-memfokuskan kontrol. Pengecualian yang **jangan diubah**: tiga radio
-**Strength** (±baris 1465) dan checkbox psikometrik yang sudah membungkus
-input di dalam `<label>` (pelabelan implisit). Konfirmasi jumlah/nama kontrol
-dengan `grep -n '<label\\|<input\\|<select\\|<textarea' src/routes/data-entry.tsx`
-sebelum menyunting; perkiraan 26 pasangan: 11 di Learners (Paste Full Learner
-JSON, Name, Email, Custom ID, Primary Modality, Social Pref, Pace Pref, Working
-Memory, Attention Span, Processing Speed, Abstract Thinking), 8 di Concepts
-(Concept ID, Name, Domain, Subdomain, Description, Difficulty, Cognitive Load,
-Abstractness), 3 di Prerequisites (From (Prerequisite), To (Dependent), Reason
-(optional)), dan 4 di Knowledge States (Learner, Concept, Mastery Level, Bloom
-Level Achieved).
+Jadikan **banner pesan hasil aksi di `/data-entry`** diumumkan pembaca layar —
+kandidat fitur (a) lanjutan halaman yang sama; tanpa migrasi skema, dependensi,
+server function, RPC, atau method RPC baru. Konteks: `src/routes/data-entry.tsx`
+(±1760 baris) punya satu banner `message` di bawah header
+(`{/* Message Banner */}`, ±baris 442–464) yang dirender `motion.div` di dalam
+`AnimatePresence` tanpa `role`/`aria-live`; ikon `Check` (sukses) dan
+`AlertCircle` (galat) juga ikut dibacakan. Pesan berasal dari `showMessage(...)`
+(±baris 242, auto-dismiss 5000 ms) dan berbunyi mis. `Learner added
+successfully!`, `Invalid JSON format`, `Failed to add learner`. Akibatnya
+pembaca layar tidak mendengar hasil simpan maupun galat sama sekali.
 
-Rancangan (baca kode dulu; jangan mengubah urutan bagian, label, placeholder,
-nilai, `onChange`, validasi, atau copy):
+Rancangan (baca kode dulu; jangan mengubah teks, kelas, animasi, atau timing):
 
-1. Beri `id` stabil berprefiks `data-entry-` pada tiap kontrol dan `htmlFor`
-   dengan nilai yang sama persis pada label pembungkusnya. Usulkan:
-   `data-entry-learner-json`, `-learner-name`, `-learner-email`,
-   `-learner-id`, `-learner-modality`, `-learner-social`, `-learner-pace`,
-   `-learner-memory`, `-learner-attention`, `-learner-speed`,
-   `-learner-abstract`; `data-entry-concept-id`, `-concept-name`,
-   `-concept-domain`, `-concept-subdomain`, `-concept-description`,
-   `-concept-difficulty`, `-concept-cognitive-load`, `-concept-abstractness`;
-   `data-entry-prereq-from`, `-prereq-to`, `-prereq-reason`; dan
-   `data-entry-state-learner`, `-state-concept`, `-state-mastery`,
-   `-state-bloom`. Id harus unik di seluruh halaman (hanya satu panel dirender,
-   tetapi tetap jangan memakai id yang sama dua kali di berkas).
-2. Label yang teksnya berisi penanda wajib (`Name <span>*</span>`) tetap utuh;
-   `htmlFor` ditambahkan sebagai atribut, bukan mengganti isi label. Label
-   slider yang menampilkan nilai (`Difficulty (1-10): 5`) juga utuh dan tetap
-   menamai input `type="range"`.
-3. Jangan menambah `aria-label`/`aria-labelledby` pengganti nama label,
-   `role`, live region, fokus paksa, atau membungkus ulang markup; tidak ada
-   perubahan pada logika `handleAdd*`, skema Zod, DBContext, atau isolasi akun.
-   UI bahasa Inggris (D2).
-4. **Test**: file baru `tests/data-entry-form-labels.test.ts` (penjaga statis,
-   pola `tests/combined-graph-toolbar.test.ts` + `tests/data-entry-tabs.test.ts`):
-   hitung tepat 26 pasangan `htmlFor`/`id` berprefiks yang sama, setiap
-   `htmlFor` menunjuk `id` yang ada dan tidak ada `id` ganda, 11/8/3/4 pasangan
-   berada di blok form yang benar, label wajib/slider tetap berisi teks
-   aslinya, tidak ada `aria-label` pengganti, radio Strength dan checkbox
-   psikometrik tetap implisit (tanpa `htmlFor` baru), serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan longgarkan
-   `tests/data-entry-tabs.test.ts`; bila hitungan `role`/`<label` di sana
-   terpengaruh, sesuaikan hanya bila memang perilakunya berubah.
-5. **Smoke**: di blok `if (path === '/data-entry')` yang sudah ada (setelah
-   klik tab **Learners**), pastikan label **Name** (`getByLabel(/^Name/)`)
-   menunjuk elemen `INPUT` dan terlihat; lalu klik tab **Concepts** dan
-   pastikan label **Concept ID** (`getByLabel(/^Concept ID/)`) menunjuk
-   `INPUT`. Perbarui penjaga jumlah baris smoke di `tests/skip-link.test.ts`.
+1. Pada `<motion.div>` banner, tambahkan `role` dan `aria-live` yang diturunkan
+   dari `message.type`: sukses → `role="status"` + `aria-live="polite"`,
+   galat → `role="alert"` + `aria-live="assertive"`. Pertahankan
+   `initial`/`animate`/`exit` dan `className` persis; `aria-atomic="true"`
+   boleh bila perlu. Jangan menjadikan banner selalu hadir di DOM (tetap
+   kondisional `message &&`, karena role harus ada saat elemen dipasang).
+2. Beri `aria-hidden="true"` pada `Check` dan `AlertCircle` tanpa mengubah
+   `className="w-5 h-5"`. Jangan menambah tombol tutup, fokus paksa, atau
+   mengubah `showMessage`/`setTimeout`.
+3. Jangan menyentuh tab/tablist, 26 pasangan label form (PR sebelumnya),
+   `handleAdd*`, skema Zod, DBContext, isolasi akun, atau copy. UI bahasa
+   Inggris (D2).
+4. **Test**: file baru `tests/data-entry-message-banner.test.ts` (penjaga
+   statis, pola `tests/data-entry-form-labels.test.ts` +
+   `tests/status-a11y.test.ts`): dua ekspresi `role`/`aria-live` yang tepat
+   diturunkan dari `message.type`, banner tetap `motion.div` di dalam
+   `AnimatePresence` dengan tiga animasi dan kelas yang sama, kedua ikon
+   `aria-hidden` dengan kelas tetap, `message.text` tetap dirender sekali,
+   `showMessage` + 5000 ms tidak berubah, total `role=`/`aria-live` di halaman
+   hanya milik banner (tablist/tabpanel lama tidak membawa `aria-live`),
+   tanpa `aria-label` pengganti, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
+5. **Smoke**: di blok `if (path === '/data-entry')` yang sudah ada, setelah cek
+   label **Concept ID**, kembali ke tab **Learners**, klik tombol **JSON**, isi
+   textarea `data-entry-learner-json` dengan `{invalid`, klik **Submit JSON**,
+   lalu pastikan `getByRole('alert')` terlihat dan memuat `Invalid JSON
+   format`. Bila interaksi ini flaky di mesin bersama, boleh tanpa cek smoke
+   baru + catat alasannya; penjaga jumlah baris smoke di
+   `tests/skip-link.test.ts` disesuaikan bila smoke berubah.
 6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -89,15 +73,44 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    angka `/domains`, toolbar `/combined-graph`, accordion
    `/edu-psychology`, status kartu `/status`, grup uji `/tests`, dan tab
    `/data-entry`: halaman pelajar lain (`/data-entry` form, `/sign-in`;
-   `/admin/*` bukan prioritas). Catatan: tab `/data-entry` sudah selesai;
-   tugas berikutnya adalah label form `htmlFor`/`id` halaman yang sama, lalu
-   pesan kosong/status bisa jadi siklus terpisah. `tests/` adalah berkas test,
+   `/admin/*` bukan prioritas). Catatan: tab dan label form `/data-entry` sudah selesai;
+   tugas berikutnya adalah banner pesan halaman yang sama, lalu pesan
+   kosong/status dan `/sign-in` bisa jadi siklus terpisah. `tests/` adalah berkas test,
    bukan halaman.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #129 — **Setiap label form `/data-entry` menamai kontrolnya** —
+  empat form di tab **Learners**, **Concepts**, **Prerequisites**, dan
+  **Knowledge States** sebelumnya menampilkan label visual tanpa `htmlFor` dan
+  kontrol tanpa `id`, jadi pembaca layar mengumumkan bidang tanpa nama dan klik
+  label tidak memfokuskan kontrol. Kini tepat 26 pasangan `htmlFor`/`id`
+  berprefiks `data-entry-` tanpa mengubah urutan, label, placeholder, nilai,
+  `onChange`, validasi, atau copy: 11 di Learners
+  (`data-entry-learner-json`, `-name`, `-email`, `-id`, `-modality`, `-social`,
+  `-pace`, `-memory`, `-attention`, `-speed`, `-abstract`), 8 di Concepts
+  (`data-entry-concept-id`, `-name`, `-domain`, `-subdomain`, `-description`,
+  `-difficulty`, `-cognitive-load`, `-abstractness`), 3 di Prerequisites
+  (`data-entry-prereq-from`, `-to`, `-reason`), dan 4 di Knowledge States
+  (`data-entry-state-learner`, `-concept`, `-mastery`, `-bloom`). Label wajib
+  beserta `*` dan label slider yang menampilkan nilai tetap utuh; keempat
+  slider tetap `type="range"`. Kode aktual tidak punya checkbox psikometrik
+  (39 skor memakai input angka dengan label terpisah), jadi label itu dan grup
+  **Strength**/radio implisit sengaja tidak dipasangkan. Tanpa
+  `aria-label` pengganti, `role`, live region, fokus paksa, server function,
+  RPC, atau migrasi. Test baru `tests/data-entry-form-labels.test.ts` (10
+  penjaga statis: 26 pasangan unik, distribusi 11/8/3/4 per form, teks label
+  termasuk penanda wajib dan nilai slider, tanpa nama pengganti, grup implisit
+  utuh, tanpa data path baru) + dua cek smoke (label **Name** → `INPUT`
+  terlihat; setelah tab **Concepts**, label **Concept ID** → `INPUT`); penjaga
+  baris smoke 2378 → 2399. `README.md`/`Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau penuh pada
+  percobaan pertama (typecheck, lint 0/0, tests 415,2 s, build, anggaran
+  bundel, CSP produksi, smoke Playwright + PGlite; dijalankan dengan `TMPDIR`
+  di `/home`).
 
 - 2026-11-17: PR #128 — **Lima tab `/data-entry` bisa dipakai pembaca layar
   dan keyboard** — tab **Overview**, **Learners**, **Concepts**,
