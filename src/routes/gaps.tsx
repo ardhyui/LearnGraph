@@ -661,6 +661,11 @@ function GapsDashboard() {
                             <p className="text-sm text-muted-foreground">
                               {reviewSummary(item.nextReviewDate, item.predictedRetention, now)}
                             </p>
+                            <Link to="/learn/$conceptId" params={{ conceptId: item.conceptId }} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded">
+                              <BookOpen className="h-3 w-3" aria-hidden="true" />
+                              Open the lesson
+                              <span className="sr-only">: {conceptLabel(item.conceptId, item.conceptName)}</span>
+                            </Link>
                           </div>
                           <span className={cn(
                             'px-2.5 py-1 text-xs rounded-full font-medium whitespace-nowrap',
