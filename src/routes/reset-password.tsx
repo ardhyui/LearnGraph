@@ -94,10 +94,18 @@ function ResetPasswordPage() {
                 {error}
               </p>
             )}
-            <button type="submit" disabled={pending} className="btn btn-primary flex w-full items-center justify-center gap-2">
+            <button
+              type="submit"
+              disabled={pending}
+              aria-busy={pending}
+              className="btn btn-primary flex w-full items-center justify-center gap-2"
+            >
               {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               Save the new password
             </button>
+            <p role="status" aria-live="polite" className="sr-only">
+              {pending ? 'Saving the new password…' : ''}
+            </p>
           </form>
         )}
       </main>
