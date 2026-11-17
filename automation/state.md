@@ -1,57 +1,68 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (grup uji `/tests`; siklus berikutnya: tab `/data-entry`)
+Terakhir diperbarui: 2026-11-17 (tab `/data-entry`; siklus berikutnya: label form `/data-entry`)
 
 ## Tugas berikutnya
 
-Jadikan **lima tab halaman `/data-entry`** (`Overview`, `Learners`, `Concepts`,
-`Prerequisites`, `Knowledge States`) pola tab WAI-ARIA yang bisa dipakai pembaca
-layar dan keyboard — kandidat fitur (a); tanpa migrasi skema, dependensi, server
-function, RPC, atau method RPC baru. Konteks: `src/routes/data-entry.tsx`
-(±1698 baris) merender `TAB_CONFIG.map` sebagai `motion.button` biasa di dalam
-`<div className="flex flex-wrap gap-2 p-1 glass-card">` (±baris 456–488): hanya
-warna aktif (`bg-primary …` vs `text-muted-foreground …`) yang menandai tab
-terpilih, tidak ada `role`/`aria-selected`/`tabIndex`, dan lima panel di bawah
-`AnimatePresence mode="wait"` adalah cabang
-`{activeTab === '…' && <motion.div …>}` (±baris 493, 725, 1095, 1298, 1498)
-tanpa `role="tabpanel"` maupun nama.
+Pasangkan **setiap label form di `/data-entry`** dengan kontrolnya lewat
+`htmlFor`/`id` — kandidat fitur (a) lanjutan halaman yang sama; tanpa migrasi
+skema, dependensi, server function, RPC, atau method RPC baru. Konteks:
+`src/routes/data-entry.tsx` (±1728 baris) punya empat form di tab **Learners**,
+**Concepts**, **Prerequisites**, dan **Knowledge States**; hampir semua
+`<label className="form-label">…</label>` / `<label className="text-xs …">…</label>`
+tidak punya `htmlFor`, dan `<input>`/`<select>`/`<textarea>` tidak punya `id`.
+Akibatnya membaca layar tidak mengumumkan nama kontrol dan klik label tidak
+memfokuskan kontrol. Pengecualian yang **jangan diubah**: tiga radio
+**Strength** (±baris 1465) dan checkbox psikometrik yang sudah membungkus
+input di dalam `<label>` (pelabelan implisit). Konfirmasi jumlah/nama kontrol
+dengan `grep -n '<label\\|<input\\|<select\\|<textarea' src/routes/data-entry.tsx`
+sebelum menyunting; perkiraan 26 pasangan: 11 di Learners (Paste Full Learner
+JSON, Name, Email, Custom ID, Primary Modality, Social Pref, Pace Pref, Working
+Memory, Attention Span, Processing Speed, Abstract Thinking), 8 di Concepts
+(Concept ID, Name, Domain, Subdomain, Description, Difficulty, Cognitive Load,
+Abstractness), 3 di Prerequisites (From (Prerequisite), To (Dependent), Reason
+(optional)), dan 4 di Knowledge States (Learner, Concept, Mastery Level, Bloom
+Level Achieved).
 
-Rancangan (baca kode dulu; jangan mengubah isi/urutan bagian halaman):
+Rancangan (baca kode dulu; jangan mengubah urutan bagian, label, placeholder,
+nilai, `onChange`, validasi, atau copy):
 
-1. Pakai helper murni yang sudah ada `nextTabIndex(current, key, count)` di
-   `src/lib/tabs.ts` (sudah diuji di `tests/recommendations-tabs.test.ts`);
-   jangan menyalin logika panah/Home/End baru.
-2. Wadah `TAB_CONFIG.map` menjadi `<div role="tablist" aria-label="Data entry
-   sections" className="flex flex-wrap gap-2 p-1 glass-card">`; tiap tombol
-   `role="tab"`, `id={\`data-entry-tab-${tab.id}\`}`, `aria-selected={isActive}`,
-   `tabIndex={isActive ? 0 : -1}`, dan `aria-controls` hanya pada tab aktif
-   (menunjuk `data-entry-panel-${tab.id}` karena panel lain tidak dirender).
-   `onClick` tetap `() => setActiveTab(tab.id)`; `onKeyDown` memakai
-   `nextTabIndex(index, e.key, TAB_CONFIG.length)`, mengabaikan `null`, lalu
-   `setActiveTab(TAB_CONFIG[next].id)` + memfokuskan tombol tujuan lewat array
-   ref (pola PR #112); `<Icon className="w-4 h-4" />` diberi
-   `aria-hidden="true"` tanpa mengubah kelas.
-3. Tiap panel `motion.div` yang dirender membawa `role="tabpanel"`,
-   `id={\`data-entry-panel-${…}\`}`, `aria-labelledby={\`data-entry-tab-${…}\`}`,
-   dan `tabIndex={0}` — id/aria harus berpasangan tepat dengan tabnya.
-4. Jangan menambah live region, tombol, atau `role` lain; urutan lima tab,
-   label, kelas aktif/tidak aktif, isi panel, copy, dan bahasa Inggris (D2)
-   tidak berubah.
-5. **Test**: file baru `tests/data-entry-tabs.test.ts` (penjaga statis, pola
-   `tests/recommendations-tabs.test.ts` + `tests/tests-page-a11y.test.ts`):
-   `role="tablist"` + `aria-label` persis, lima pasangan id tab/panel,
-   `aria-controls` hanya pada tab aktif, `aria-selected`/`tabIndex` roving,
-   kontrak `onClick`/`onKeyDown` + `nextTabIndex` + ref/fokus, ikon tab
-   `aria-hidden`, panel `role="tabpanel"` + `aria-labelledby` + `tabIndex`,
-   urutan lima label, tanpa `aria-live`/`role` lain/`createServerFn`/
-   `graphCall`/`rpc-schemas`/migrasi.
-6. **Smoke**: di loop `PAGES`, `if (path === '/data-entry')`: tepat lima
-   `role="tab"` berurutan, tab pertama `aria-selected="true"` + `tabIndex="0"`
-   sementara empat lainnya `"false"`/`"-1"`, panel yang terlihat ber-
-   `role="tabpanel"` dengan `aria-labelledby` menunjuk tab pertama; klik tab
-   **Learners** lalu tab itu `aria-selected="true"` dan panelnya terlihat.
-   Perbarui penjaga jumlah baris smoke di `tests/skip-link.test.ts`.
-7. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+1. Beri `id` stabil berprefiks `data-entry-` pada tiap kontrol dan `htmlFor`
+   dengan nilai yang sama persis pada label pembungkusnya. Usulkan:
+   `data-entry-learner-json`, `-learner-name`, `-learner-email`,
+   `-learner-id`, `-learner-modality`, `-learner-social`, `-learner-pace`,
+   `-learner-memory`, `-learner-attention`, `-learner-speed`,
+   `-learner-abstract`; `data-entry-concept-id`, `-concept-name`,
+   `-concept-domain`, `-concept-subdomain`, `-concept-description`,
+   `-concept-difficulty`, `-concept-cognitive-load`, `-concept-abstractness`;
+   `data-entry-prereq-from`, `-prereq-to`, `-prereq-reason`; dan
+   `data-entry-state-learner`, `-state-concept`, `-state-mastery`,
+   `-state-bloom`. Id harus unik di seluruh halaman (hanya satu panel dirender,
+   tetapi tetap jangan memakai id yang sama dua kali di berkas).
+2. Label yang teksnya berisi penanda wajib (`Name <span>*</span>`) tetap utuh;
+   `htmlFor` ditambahkan sebagai atribut, bukan mengganti isi label. Label
+   slider yang menampilkan nilai (`Difficulty (1-10): 5`) juga utuh dan tetap
+   menamai input `type="range"`.
+3. Jangan menambah `aria-label`/`aria-labelledby` pengganti nama label,
+   `role`, live region, fokus paksa, atau membungkus ulang markup; tidak ada
+   perubahan pada logika `handleAdd*`, skema Zod, DBContext, atau isolasi akun.
+   UI bahasa Inggris (D2).
+4. **Test**: file baru `tests/data-entry-form-labels.test.ts` (penjaga statis,
+   pola `tests/combined-graph-toolbar.test.ts` + `tests/data-entry-tabs.test.ts`):
+   hitung tepat 26 pasangan `htmlFor`/`id` berprefiks yang sama, setiap
+   `htmlFor` menunjuk `id` yang ada dan tidak ada `id` ganda, 11/8/3/4 pasangan
+   berada di blok form yang benar, label wajib/slider tetap berisi teks
+   aslinya, tidak ada `aria-label` pengganti, radio Strength dan checkbox
+   psikometrik tetap implisit (tanpa `htmlFor` baru), serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan longgarkan
+   `tests/data-entry-tabs.test.ts`; bila hitungan `role`/`<label` di sana
+   terpengaruh, sesuaikan hanya bila memang perilakunya berubah.
+5. **Smoke**: di blok `if (path === '/data-entry')` yang sudah ada (setelah
+   klik tab **Learners**), pastikan label **Name** (`getByLabel(/^Name/)`)
+   menunjuk elemen `INPUT` dan terlihat; lalu klik tab **Concepts** dan
+   pastikan label **Concept ID** (`getByLabel(/^Concept ID/)`) menunjuk
+   `INPUT`. Perbarui penjaga jumlah baris smoke di `tests/skip-link.test.ts`.
+6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
 
@@ -76,17 +87,38 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    fokus pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`,
    daftar zona `/recommendations`, daftar isi `/about`, toolbar & kartu
    angka `/domains`, toolbar `/combined-graph`, accordion
-   `/edu-psychology`, status kartu `/status`, dan grup uji `/tests`: halaman
-   pelajar lain (`/data-entry`, `/sign-in`; `/admin/*` bukan prioritas).
-   Catatan: `/data-entry` masih tanpa atribut aria/role sama sekali — tugas
-   berikutnya adalah tabnya; setelah itu label form/`htmlFor` dan pesan
-   kosong/status halaman yang sama bisa jadi siklus terpisah. `tests/`
-   adalah berkas test, bukan halaman.
+   `/edu-psychology`, status kartu `/status`, grup uji `/tests`, dan tab
+   `/data-entry`: halaman pelajar lain (`/data-entry` form, `/sign-in`;
+   `/admin/*` bukan prioritas). Catatan: tab `/data-entry` sudah selesai;
+   tugas berikutnya adalah label form `htmlFor`/`id` halaman yang sama, lalu
+   pesan kosong/status bisa jadi siklus terpisah. `tests/` adalah berkas test,
+   bukan halaman.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #128 — **Lima tab `/data-entry` bisa dipakai pembaca layar
+  dan keyboard** — tab **Overview**, **Learners**, **Concepts**,
+  **Prerequisites**, dan **Knowledge States** sebelumnya `motion.button` biasa
+  di dalam `<div>` tanpa peran WAI-ARIA: hanya warna aktif yang menandai tab
+  terpilih, panel tak punya nama, dan panah tidak berpindah tab. Wadah kini
+  `role="tablist"` + `aria-label="Data entry sections"` dengan kelas yang sama;
+  tiap tombol `role="tab"`, `id={`data-entry-tab-${tab.id}`}`,
+  `aria-selected={isActive}`, `tabIndex={isActive ? 0 : -1}`, `aria-controls`
+  hanya pada tab aktif; tiap panel `role="tabpanel"`,
+  `id="data-entry-panel-<id>"`, `aria-labelledby="data-entry-tab-<id>"`,
+  `tabIndex={0}`. Keyboard memakai helper murni `nextTabIndex` yang sudah ada
+  (`onKeyDown` → abaikan `null` → `setActiveTab(TAB_CONFIG[next].id)` + fokus
+  lewat array ref); `onClick` tetap; ikon tab `aria-hidden` tanpa ubah kelas.
+  Tanpa live region/tombol/`role` lain; urutan, label, kelas, isi panel, copy,
+  dan bahasa Inggris (D2) tetap. Test baru `tests/data-entry-tabs.test.ts` (13
+  penjaga statis) + satu cek smoke (lima tab berurutan, roving tab stop, panel
+  bernama, klik **Learners**); penjaga baris smoke 2336 → 2378.
+  `README.md`/`Roadmap.md` tidak diubah; `docs/ROADMAP.md` mendapat entri log.
+  `npm run ci` hijau penuh pada percobaan pertama (1384/1384 unit = 1371 + 13;
+  smoke lulus termasuk cek tab baru; dijalankan dengan `TMPDIR` di `/home`).
 
 - 2026-11-17: PR #127 — **Grup uji dan status tes di `/tests` bisa dipakai
   pembaca layar** — halaman Functional Tests menyampaikan dua hal hanya lewat
