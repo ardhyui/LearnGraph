@@ -1210,16 +1210,29 @@ function TestsPage() {
     setIsRunning(false);
   }
 
+  function statusLabel(status: TestResult['status']): string {
+    switch (status) {
+      case 'passed':
+        return 'Passed';
+      case 'failed':
+        return 'Failed';
+      case 'running':
+        return 'Running';
+      default:
+        return 'Not run';
+    }
+  }
+
   function getStatusIcon(status: TestResult['status']) {
     switch (status) {
       case 'passed':
-        return <CheckCircle size={16} className="text-emerald-500" />;
+        return <CheckCircle size={16} className="text-emerald-500" aria-hidden="true" />;
       case 'failed':
-        return <XCircle size={16} className="text-red-500" />;
+        return <XCircle size={16} className="text-red-500" aria-hidden="true" />;
       case 'running':
-        return <RefreshCw size={16} className="text-blue-500 animate-spin" />;
+        return <RefreshCw size={16} className="text-blue-500 animate-spin" aria-hidden="true" />;
       default:
-        return <Clock size={16} className="text-muted-foreground" />;
+        return <Clock size={16} className="text-muted-foreground" aria-hidden="true" />;
     }
   }
 
@@ -1239,7 +1252,7 @@ function TestsPage() {
     return (
       <div className="flex min-h-screen bg-background items-center justify-center">
         <div className="text-center text-destructive">
-          <AlertCircle className="w-8 h-8 mx-auto mb-3" />
+          <AlertCircle className="w-8 h-8 mx-auto mb-3" aria-hidden="true" />
           <p>Database error: {dbError.message}</p>
         </div>
       </div>
@@ -1275,7 +1288,7 @@ function TestsPage() {
                 transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
                 className="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg shadow-emerald-500/25"
               >
-                <FlaskConical className="w-6 h-6 text-white" />
+                <FlaskConical className="w-6 h-6 text-white" aria-hidden="true" />
               </motion.div>
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -1307,7 +1320,7 @@ function TestsPage() {
                   : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/25 hover:shadow-xl hover:shadow-emerald-600/30'
               )}
             >
-              <Play size={20} className={isRunning ? 'animate-pulse' : ''} />
+              <Play size={20} className={isRunning ? 'animate-pulse' : ''} aria-hidden="true" />
               {isRunning ? 'Running Tests...' : 'Run All Tests'}
             </motion.button>
           </motion.div>
@@ -1366,6 +1379,8 @@ function TestsPage() {
                   {/* Group Header */}
                   <button
                     onClick={() => toggleGroup(groupIndex)}
+                    aria-expanded={isExpanded}
+                    aria-controls={`tests-group-${groupIndex}`}
                     className="w-full px-5 py-4 flex items-center justify-between hover:bg-secondary/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">
@@ -1373,7 +1388,7 @@ function TestsPage() {
                         animate={{ rotate: isExpanded ? 90 : 0 }}
                         transition={{ duration: 0.2 }}
                       >
-                        <ChevronRight size={18} className="text-muted-foreground" />
+                        <ChevronRight size={18} className="text-muted-foreground" aria-hidden="true" />
                       </motion.div>
                       <div className="text-left">
                         <h2 className="font-semibold text-foreground">{group.name}</h2>
@@ -1406,6 +1421,7 @@ function TestsPage() {
                   <AnimatePresence>
                     {isExpanded && (
                       <motion.div
+                        id={`tests-group-${groupIndex}`}
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
@@ -1423,6 +1439,7 @@ function TestsPage() {
                             >
                               <div className="flex items-center gap-3">
                                 {getStatusIcon(test.status)}
+                                <span className="sr-only">{statusLabel(test.status)}</span>
                                 <span
                                   className={cn(
                                     'text-sm',
@@ -1468,7 +1485,7 @@ function TestsPage() {
             className="glass-card p-6 mt-8"
           >
             <div className="flex items-start gap-3">
-              <Layers className="w-5 h-5 text-muted-foreground mt-0.5" />
+              <Layers className="w-5 h-5 text-muted-foreground mt-0.5" aria-hidden="true" />
               <div>
                 <h3 className="font-semibold text-foreground mb-2">Test Coverage</h3>
                 <p className="text-sm text-muted-foreground mb-4">
