@@ -11,10 +11,10 @@ export const Route = createFileRoute('/privacy')({
   component: PrivacyPage,
 });
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+    <section id={id} className="mt-8 scroll-mt-4">
+      <h2 id={`${id}-title`} className="text-lg font-semibold text-foreground">{title}</h2>
       <div className="mt-2 space-y-2 text-sm leading-relaxed text-foreground">{children}</div>
     </section>
   );
@@ -32,7 +32,43 @@ function PrivacyPage() {
         operator) may add terms of their own.
       </p>
 
-      <Section title="What is stored">
+      <nav aria-labelledby="privacy-toc-title" className="mt-6 p-4 rounded-xl border border-border/50 bg-card/50">
+        <h2 id="privacy-toc-title" className="text-sm font-semibold text-foreground">On this page</h2>
+        <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+          <li>
+            <a href="#privacy-what-is-stored" className="text-sm font-medium text-primary hover:underline">
+              What is stored
+            </a>
+          </li>
+          <li>
+            <a href="#privacy-who-can-see-it" className="text-sm font-medium text-primary hover:underline">
+              Who can see it
+            </a>
+          </li>
+          <li>
+            <a href="#privacy-cookies-and-tracking" className="text-sm font-medium text-primary hover:underline">
+              Cookies and tracking
+            </a>
+          </li>
+          <li>
+            <a href="#privacy-ai-services" className="text-sm font-medium text-primary hover:underline">
+              AI services
+            </a>
+          </li>
+          <li>
+            <a href="#privacy-personal-topics" className="text-sm font-medium text-primary hover:underline">
+              Personal topics
+            </a>
+          </li>
+          <li>
+            <a href="#privacy-deleting-your-data" className="text-sm font-medium text-primary hover:underline">
+              Deleting your data
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <Section id="privacy-what-is-stored" title="What is stored">
         <ul className="list-disc space-y-1 pl-5">
           <li>Your account: name, email address and a hash of your password (never the password itself).</li>
           <li>
@@ -54,7 +90,7 @@ function PrivacyPage() {
         </ul>
       </Section>
 
-      <Section title="Who can see it">
+      <Section id="privacy-who-can-see-it" title="Who can see it">
         <p>
           Everything in a workspace belongs to one account and is only shown to that account when signed in. Other
           accounts cannot read it. The operator of this copy has access to the database it runs on.
@@ -65,7 +101,7 @@ function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="Cookies and tracking">
+      <Section id="privacy-cookies-and-tracking" title="Cookies and tracking">
         <p>
           LearnGraph sets sign-in cookies and nothing else: the session itself, and a signed copy of it that saves a
           database lookup for up to five minutes. There are no advertising or analytics cookies and no third-party
@@ -78,7 +114,7 @@ function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="AI services">
+      <Section id="privacy-ai-services" title="AI services">
         <p>
           LearnGraph sends nothing to AI services on its own. “Ask an AI tutor” shows you a short brief that you can
           copy yourself. If you choose to ask Claude on a lesson page with your own Anthropic API key, your question and
@@ -95,7 +131,7 @@ function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="Personal topics">
+      <Section id="privacy-personal-topics" title="Personal topics">
         <p>
           My Profile only asks about topics the study plan uses. Other topics, some of them personal (feelings and
           relationships, values and beliefs, difficult traits), stay hidden unless you agree to see them, and you can
@@ -103,7 +139,7 @@ function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="Deleting your data">
+      <Section id="privacy-deleting-your-data" title="Deleting your data">
         <p>
           On My Profile, “Delete my account” removes your account and everything in your workspace from the database
           straight away. You can also delete single learners, concepts and progress under Manage data. Copies in backups
