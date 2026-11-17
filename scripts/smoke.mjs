@@ -1149,6 +1149,15 @@ try {
     const recText = await page.locator('main').innerText().catch(() => '');
     check(/Not yet \(\d+\)/.test(recText) && !/concept:/.test(recText), 'recommendations: not-ready concepts list names, not ids', (recText.match(/concept:[\w-]+/) ?? [''])[0]);
     check(!/Computed in \d+ms/.test(recText), 'recommendations: no debug timing shown');
+    // Screen readers hear each zone as its own named list of concepts.
+    const zoneLists = page.getByRole('list', { name: /^(Mastered|Ready to Learn|Not yet) \(/ });
+    const zoneListCount = await zoneLists.count().catch(() => 0);
+    const zoneItems = await zoneLists.getByRole('listitem').count().catch(() => 0);
+    check(
+      zoneListCount === 3 && zoneItems > 0,
+      'recommendations: each zone is a named list of concepts',
+      `${zoneListCount} list(s), ${zoneItems} item(s)`,
+    );
 
     // Back to my own plan for the rest of the run.
     const recSelect = page.getByLabel('Learner', { exact: true });
