@@ -1408,6 +1408,25 @@ try {
     check(fromProfile, 'recommendations: suggestions based on the learner’s answers say so');
     await recSelect.selectOption({ label: 'Sari Smoke' });
 
+    // Every step of the plan opens its lesson, so the plan can be started.
+    await page.getByRole('tab', { name: 'Learning Path' }).click().catch(() => {});
+    const lessonLink = page.getByRole('link', { name: /^Open the lesson\s*: / }).first();
+    const lessonLinkShown = await lessonLink.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    await lessonLink.click().catch(() => {});
+    const onLesson = await page
+      .waitForURL((u) => u.pathname.startsWith('/learn/'), { timeout: 15000 })
+      .then(() => true, () => false);
+    const lessonHeading = await page
+      .getByRole('heading', { level: 1 })
+      .first()
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    check(
+      lessonLinkShown && onLesson && lessonHeading,
+      'recommendations: each learning-path step opens its lesson',
+      new URL(page.url()).pathname,
+    );
+
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'readable gaps/recommendations have no page errors', newErrors.join(' | '));
   }
