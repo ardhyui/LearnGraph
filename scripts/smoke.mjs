@@ -1202,6 +1202,16 @@ try {
     const mastered = await card.getByTestId('profile-mastered').innerText().catch(() => '');
     check(h1 === 'My Profile' && focusText === 'Focus: Computer science', 'profile: opens with My Profile and the learner’s subjects', `"${h1}", "${focusText}"`);
     check(/^\d+ of \d+ concepts? mastered$/.test(mastered), 'profile: shows progress in the chosen subjects', `"${mastered}"`);
+    // Screen readers hear the same mastered counts as the visible lines, not a
+    // bare percentage on the progress bars.
+    const valuetexts = await card
+      .getByRole('progressbar')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('aria-valuetext')));
+    check(
+      valuetexts.length > 0 && valuetexts[0] === mastered && valuetexts.every((text) => / mastered$/.test(text ?? '')),
+      'profile: progress bars announce the mastered counts to screen readers',
+      valuetexts.join(' | '),
+    );
     const nextLink = card.getByRole('link', { name: /Do your \d+ reviews?|Keep learning|Start learning|Go to today’s plan/ });
     check(await nextLink.isVisible().catch(() => false), 'profile: offers one clear next step to the dashboard');
     const mainText = await page.locator('main').innerText().catch(() => '');
