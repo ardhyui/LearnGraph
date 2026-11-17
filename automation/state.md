@@ -1,86 +1,77 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (PR #133; siklus berikutnya: daftar isi `/privacy`)
+Terakhir diperbarui: 2026-11-17 (PR #134; siklus berikutnya: daftar ringkasan & modul `/japanese`)
 
 ## Tugas berikutnya
 
-Beri halaman **`/privacy`** sebuah **daftar isi bernavigasi** agar pembaca
-layar dan pengguna keyboard bisa melompat ke salah satu dari enam bagian
-panjang tanpa menelusuri seluruh teks — kandidat fitur (a) halaman pelajar,
-pola PR #122 (`/about`), tanpa migrasi skema, dependensi, server function,
-RPC, atau method RPC baru.
+Ubah **ringkasan dan daftar modul di `/japanese`** menjadi daftar bernama agar
+pembaca layar tahu kedua kelompok kartu itu satu daftar dan bisa melompat per
+item — kandidat fitur (a) untuk halaman pelajar terakhir yang belum dipoles
+(selain `/admin/*`), tanpa migrasi skema, dependensi, server function, RPC,
+atau method RPC baru.
 
-Konteks: `src/routes/privacy.tsx` (120 baris, publik, tidak perlu login).
-Halaman menyusun isinya lewat komponen lokal `Section({ title, children })`
-yang merender `<section className="mt-8">` + `<h2>` **tanpa `id`**, dan
-memanggilnya enam kali: **What is stored**, **Who can see it**, **Cookies and
-tracking**, **AI services**, **Personal topics**, **Deleting your data**.
-Tidak ada daftar isi maupun landmark navigasi, jadi pembaca layar tidak tahu
-enam bagian itu ada dan tidak bisa melompat ke **Deleting your data**.
+Konteks: `src/routes/japanese.tsx` (±375 baris, perlu sesi). Dua kelompok kartu
+masih memakai `<div>` polos:
 
-Rancangan (baca kode dulu; jangan mengubah satu kata pun isi kebijakan,
-urutan bagian, atau gaya kartu/teks):
+1. Blok ringkasan tepat setelah status **Menyiapkan peta belajar…**:
+   `<section className="grid gap-4 sm:grid-cols-3" aria-label="Ringkasan">`
+   berisi tiga `<div className="rounded-2xl border border-border bg-card p-5">`
+   (**Topik dengan bukti latihan ≥80%**, **Kanji Michi mulai dipelajari**,
+   **Kanji jatuh tempo** beserta tautan **Review di Michi →**).
+2. Grid modul di bagian **Peta kemampuan**:
+   `<div className="grid gap-3 sm:grid-cols-2">` berisi
+   `data.modules.filter((m) => m.level === level).map((m) => <article key={m.id}
+   className="rounded-2xl border border-border bg-card p-4">…)` dengan `<h3>`,
+   deskripsi, persen penguasaan, saran prasyarat, dan tombol/tautan per modul.
 
-1. Ubah `Section` agar menerima `id` (mis. `{ id, title, children }`) dan
-   merender `<section id={id} className="mt-8 scroll-mt-4">` +
-   `<h2 id={`${id}-title`} …>` dengan kelas `<h2>` persis tetap; teks judul
-   tetap dari `title`. Enam id stabil: `privacy-what-is-stored`,
-   `privacy-who-can-see-it`, `privacy-cookies-and-tracking`,
-   `privacy-ai-services`, `privacy-personal-topics`,
-   `privacy-deleting-your-data` (urutan pemanggilan tidak berubah).
-2. Tepat setelah paragraf pembuka (di bawah `<p className="mt-2 text-sm
-   text-muted-foreground">…</p>` dan di atas bagian pertama) tambahkan satu
-   blok daftar isi: `<nav aria-labelledby="privacy-toc-title"
-   className="mt-6 p-4 rounded-xl border border-border/50 bg-card/50">`
-   berisi `<h2 id="privacy-toc-title" className="text-sm font-semibold
-   text-foreground">On this page</h2>` dan `<ul className="mt-2 grid
-   grid-cols-1 sm:grid-cols-2 gap-1">`; tiap `<li>` membungkus
-   `<a href={`#${id}`} className="text-sm font-medium text-primary
-   hover:underline">` berisi label yang sama persis dengan judul bagian.
-   Tanpa ikon, tanpa tombol, tanpa `role` tambahan, tanpa `aria-current`.
-3. Jangan menambah live region, fokus paksa, `aria-label` pengganti teks,
-   atau mengubah `ScrollRestoration`/router; `<h1>`, tautan **← LearnGraph**,
-   paragraf pembuka, seluruh isi enam `<section>`, dan `pageHead('/privacy')`
-   tidak berubah. UI bahasa Inggris (D2).
-4. **Test**: file baru `tests/privacy-toc.test.ts` (penjaga statis): tepat
-   satu `<nav aria-labelledby="privacy-toc-title">` dengan kelas persis, satu
-   `<h2 id="privacy-toc-title">On this page</h2>`, `<ul>` dengan kelas grid
-   dan enam `<li>` berisi `<a href="#privacy-…">` berurutan dengan label
-   persis, enam `<Section id="privacy-…">` dan enam `<h2
-   id="privacy-…-title">` yang cocok dengan tautan, isi kebijakan lama tetap
-   (enam judul berurutan, kalimat kunci seperti **never the password
-   itself**, **no advertising or analytics cookies**, **Delete my account**),
-   tanpa `role="list"`/kelas marker/live region/fokus paksa/`aria-label`
-   pengganti, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-5. **Smoke**: tambahkan ke blok privasi yang sudah ada di
-   `scripts/smoke.mjs` (± baris 203–216, konteks publik): `navigation`
-   bernama **On this page** terlihat dan memuat tepat enam `link`; klik tautan
-   **Deleting your data** lalu pastikan heading tingkat 2 dengan nama itu
-   terlihat di viewport. Perbarui penjaga jumlah baris smoke di
-   `tests/skip-link.test.ts` (2417 → jumlah baru, biasanya 2430-an).
+Rancangan (baca kode dulu; jangan mengubah satu kata pun copy, urutan, kelas
+visual, atau bagian halaman lain):
+
+1. Blok ringkasan menjadi
+   `<ul aria-label="Ringkasan" className="grid gap-4 sm:grid-cols-3">` dengan
+   ketiga kartu langsung `<li className="rounded-2xl border border-border
+   bg-card p-5">` (tanpa `key` karena statis, tanpa `<section>` pembungkus dan
+   tanpa `<div>` perantara). Isi ketiga kartu, termasuk tautan
+   `http://127.0.0.1:17831/ulang` dan teks `Snapshot …`/`Buka Michi untuk
+   memulai sinkron lokal.`, tidak berubah.
+2. Grid modul menjadi `<ul>` dengan `aria-label` template
+   `Modul ${level}` dan kelas `grid gap-3 sm:grid-cols-2`, dan tiap hasil `map` langsung
+   `<li key={m.id} className="rounded-2xl border border-border bg-card p-4">`
+   (menggantikan `<article>`; tanpa `<li>`+`<article>` bersarang dan tanpa
+   `<div>` perantara). `<h3>`, copy, urutan modul, tombol **Latihan kuis**,
+   tautan **Latihan di Michi**/**Buka sumber**, dan tombol **Catat praktik**
+   tidak berubah.
+3. Jangan menyentuh `MichiSkillEvidence`, `src/components/michi/`,
+   `src/lib/michi/`, `docs/MICHI-SKILL-EVIDENCE.md`, atau
+   `src/server/michi-evidence.functions.ts`; jangan menambah live region,
+   fokus paksa, `role` tambahan, kelas marker (`list-*`), ikon, atau tombol
+   baru; tanpa `aria-label` pengganti teks yang terlihat; bahasa Indonesia
+   (D2).
+4. **Test**: file baru `tests/japanese-lists.test.ts` (penjaga statis): tepat
+   satu `<ul aria-label="Ringkasan">` bergrid dengan tiga `<li>` langsung
+   berkelas sama dan isi kunci tiap kartu berurutan, tepat satu grid modul
+   `<ul>` ber-`aria-label` `Modul ${level}` dengan `map` langsung ke `<li
+   key={m.id}>` berkelas sama (tanpa `<article>`/`<div>` perantara), urutan
+   tiga teks ringkasan dan empat bagian **Sesi hari ini**, **Peta kemampuan**,
+   form **Catat praktik**, serta footer tetap, tanpa kelas marker/`role`
+   tambahan/live region/fokus paksa, tanpa perubahan impor server function
+   (`japaneseDashboard`, `startJapaneseQuiz`, `submitJapaneseQuiz`,
+   `recordJapanesePractice` tetap empat), serta tanpa `rpc-schemas`/migrasi
+   baru.
+5. **Smoke**: tidak ada cek baru (halaman butuh sesi + dashboard Jepang;
+   perubahan hanya semantik). Penjaga jumlah baris smoke 2441 tetap.
 6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
-Indonesia pola `feat:`/`fix:`. Catatan mesin: sesi lain dapat membuat load
-±8–10 di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link,
-`Failed to fetch`); ulangi `npm run ci` utuh tanpa perubahan kode setelah load
-turun (pola PR #91/#95/#111/#124). **Penting:** `/tmp` adalah tmpfs 4.9 GB dan
-bisa penuh (error `Unknown system error -122`/`ErrnoError errno 28` di test
-PGlite); jalankan gerbang dengan
-`TMPDIR=/home/ardhyui/.cache/ci-tmp npm run ci` (direktori itu ada dan berada
-di `/home` yang lapang).
-
-Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
-Indonesia pola `fix:`/`feat:`. Catatan mesin: sesi lain dapat membuat load
-±8–10 di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link,
-`Failed to fetch`); ulangi `npm run ci` utuh tanpa perubahan kode setelah load
-turun (pola PR #91/#95/#111/#124). **Penting:** `/tmp` adalah tmpfs 4.9 GB dan
-bisa penuh (error `Unknown system error -122`/`ErrnoError errno 28` di test
-PGlite); jalankan gerbang dengan
-`TMPDIR=/home/ardhyui/.cache/ci-tmp npm run ci` (direktori itu ada dan berada
-di `/home` yang lapang).
+Indonesia pola `feat:`/`fix:`. Catatan mesin: sesi lain dapat membuat load ±8–10
+di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link, `Failed
+to fetch`); ulangi `npm run ci` utuh tanpa perubahan kode setelah load turun
+(pola PR #91/#95/#111/#124). **Penting:** `/tmp` adalah tmpfs 4.9 GB dan bisa
+penuh (error `Unknown system error -122`/`ErrnoError errno 28` di test PGlite);
+jalankan gerbang dengan `TMPDIR=/home/ardhyui/.cache/ci-tmp npm run ci`
+(direktori itu ada dan berada di `/home` yang lapang).
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
@@ -94,16 +85,43 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `/profile`, daftar zona `/recommendations`, daftar isi `/about`, toolbar &
    kartu angka `/domains`, toolbar `/combined-graph`, accordion
    `/edu-psychology`, status kartu `/status`, grup uji `/tests`, tab, label
-   form, daftar data, dan banner pesan `/data-entry`, serta status pending
-   `/sign-in`, `/forgot-password`, dan `/reset-password`. Tugas berikutnya
-   adalah daftar isi bernavigasi `/privacy`; setelah itu halaman pelajar yang
-   tersisa (`/admin/*` bukan prioritas). `tests/` adalah berkas test, bukan
-   halaman.
+   form, daftar data, dan banner pesan `/data-entry`, status pending
+   `/sign-in`, `/forgot-password`, dan `/reset-password`, daftar isi
+   `/privacy`, serta (setelah tugas ini) ringkasan dan daftar modul
+   `/japanese`. Halaman pelajar yang tersisa hanya `/admin/*` (bukan
+   prioritas), jadi sesi berikutnya sebaiknya memilih item roadmap/kandidat
+   fitur lain sesuai prioritas 2–4 di `TASK_PROMPT.md`, bukan memoles ulang
+   halaman yang sama. `tests/` adalah berkas test, bukan halaman.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #134 — **Halaman `/privacy` punya daftar isi bernavigasi** —
+  enam bagian panjang kebijakan ini sebelumnya `<section className="mt-8">` +
+  `<h2>` tanpa `id`, tanpa daftar isi, dan tanpa landmark navigasi, sehingga
+  pembaca layar tidak tahu enam bagian itu ada dan tidak bisa melompat ke
+  **Deleting your data**. Kini `Section` menerima `id`, merender `<section
+  id={id} className="mt-8 scroll-mt-4">` dan `<h2 id={`${id}-title`}
+  className="text-lg font-semibold text-foreground">`, dan keenam pemanggilan
+  memakai id stabil `privacy-what-is-stored`, `privacy-who-can-see-it`,
+  `privacy-cookies-and-tracking`, `privacy-ai-services`,
+  `privacy-personal-topics`, `privacy-deleting-your-data` dengan urutan tetap.
+  Tepat setelah paragraf pembuka ada satu `<nav
+  aria-labelledby="privacy-toc-title">` berkelas kartu, `<h2
+  id="privacy-toc-title">On this page</h2>`, dan `<ul>` bergrid berisi enam
+  `<li>` yang membungkus `<a href="#privacy-…">` berlabel sama persis dengan
+  judul bagian. Tanpa ikon, tombol, `role` tambahan, `aria-current`, live
+  region, fokus paksa, atau perubahan `ScrollRestoration`/router; isi
+  kebijakan, urutan, gaya kartu/teks, `<h1>`, tautan **← LearnGraph**, dan
+  `pageHead('/privacy')` tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/privacy-toc.test.ts` (7 penjaga statis) + satu cek smoke: `navigation`
+  bernama **On this page** dengan tepat enam `link`, klik **Deleting your
+  data** membuat heading tingkat 2 itu berada di viewport; penjaga baris smoke
+  2417 → 2441. `README.md`/`Roadmap.md` tidak diubah; `docs/ROADMAP.md`
+  mendapat entri log. `npm run ci` hijau penuh pada percobaan pertama
+  (1451/1451 unit = 1444 + 7; smoke lulus termasuk cek baru).
 
 - 2026-11-17: PR #133 — **Status proses tombol submit halaman lupa/reset kata
   sandi diumumkan pembaca layar** — saat `pending`, kedua tombol submit hanya
