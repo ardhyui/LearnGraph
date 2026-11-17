@@ -1,47 +1,51 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (fokus tiga daftar zona `/recommendations`; siklus berikutnya: daftar isi `/about`)
+Terakhir diperbarui: 2026-11-17 (fokus daftar isi `/about`; siklus berikutnya: toolbar & kartu angka `/domains`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **daftar isi halaman `/about`** — kandidat fitur (a); tanpa
-migrasi skema, dependensi, server function, RPC, atau method RPC baru. Konteks:
-`src/routes/about.tsx` fungsi `TableOfContents` (sekitar baris 129–169)
-merender `<h3 className="text-lg font-semibold mb-4 flex items-center gap-2">`
-tanpa `id`, lalu
-`<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">` berisi
-15 `<a href="#...">` hasil `sections.map`, sehingga pembaca layar tidak tahu
-15 tautan itu satu daftar tujuan di halaman ini dan tidak bisa melompat per
-item.
+Poles aksesibilitas **toolbar dan kartu angka halaman `/domains`** — kandidat
+fitur (a); tanpa migrasi skema, dependensi, server function, RPC, atau method
+RPC baru. Konteks: `src/routes/domains.tsx` sekitar baris 560–650. Tombol
+toggle **Correlations** (~571) dan **Subscales** (~586) adalah `motion.button`
+biasa yang hanya menunjukkan status lewat warna (`bg-emerald-500/20 …` saat
+aktif vs `bg-secondary …` saat tidak) tanpa `aria-pressed`, dan ikon
+`Eye`/`EyeOff` dekoratif tanpa `aria-hidden`. `<label>` "Overlay scores:"
+(~603) tidak dihubungkan ke `<select>` overlay di bawahnya (tanpa
+`htmlFor`/`id`) sehingga pembaca layar tidak tahu nama select. Empat kartu
+angka hasil `statCards.map` (~630) dirender `motion.div` di dalam grid
+`motion.div` tanpa daftar.
 
 Rancangan (baca kode dulu; jangan mengubah isi/urutan bagian halaman):
 
-1. Bungkus seluruh blok daftar isi dengan
-   `<nav aria-labelledby="about-toc-title" className="mb-16 p-6 rounded-xl border border-border/50 bg-card/50">`
-   menggantikan `<div>` luar; beri `<h3>` `id="about-toc-title"` (teks
-   **Table of Contents**, ikon `BookMarked`, dan kelas tidak berubah).
-2. Ganti wadah grid menjadi
-   `<ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">` dan
-   tiap hasil `sections.map` langsung `<li key={section.id}>` yang membungkus
-   `<a>` yang sudah ada (`href={`#${section.id}`}`, kelas, ikon
-   `ChevronRight` `aria-hidden` bila belum, dan `{section.label}`). Tidak ada
-   `<div>` perantara antara `<ul>` dan `<li>`; tanpa kelas marker baru
-   (Tailwind preflight sudah menghapus penanda).
-3. Urutan 15 tujuan (`what-is` … `bottom-line`), label, `href`, dan tampilan
-   tidak berubah; tanpa live region, fokus paksa, `role` tambahan, atau
-   tombol baru; UI bahasa Inggris (D2).
-4. **Test**: file baru `tests/about-toc.test.ts` (penjaga statis) — tepat satu
-   `<nav aria-labelledby="about-toc-title">`, tepat satu
-   `id="about-toc-title"` pada `<h3>` berteks `Table of Contents`, hasil `map`
-   langsung `<li key={section.id}>` tanpa pembungkus, daftar 15 pasangan
-   label→href berurutan persis (salinan eksplisit), `<a>` mempertahankan
-   kelas dan ikon, tanpa kelas marker/`role="list"`/live region, serta tanpa
+1. Tombol **Correlations** diberi `aria-pressed={showCorrelations}` dan
+   **Subscales** `aria-pressed={showSubscales}` (pola PR #118); teks,
+   `onClick`, kelas, `whileHover`/`whileTap` tidak berubah; ikon
+   `Eye`/`EyeOff` (dan `RefreshCw` pada tombol Refresh bila belum) diberi
+   `aria-hidden="true"` tanpa mengubah `size={18}`.
+2. Asosiasi label: `<label htmlFor="domains-overlay-learner" ...>` dan
+   `<select id="domains-overlay-learner" ...>`; `value`, `onChange`, opsi
+   (`No overlay` + `learners.map`), dan kelas tidak berubah; ikon `Users`
+   dekoratif diberi `aria-hidden`.
+3. Kartu angka: wadah grid `motion.div` (~621) menjadi `<motion.ul>` dengan
+   `variants` stagger dan kelas `grid grid-cols-2 md:grid-cols-4 gap-4 mb-6`
+   yang sama; tiap hasil `statCards.map` langsung
+   `<motion.li key={card.label}>` dengan `variants`/`whileHover`/kelas
+   `glass-card p-4 text-center` persis sama; tanpa `<div>` perantara, tanpa
+   kelas marker baru (Tailwind preflight sudah menghapus penanda).
+4. **Test**: file baru `tests/domains-toolbar.test.ts` (penjaga statis) —
+   dua `aria-pressed` dengan ekspresi persis, `htmlFor`/`id` select
+   berpasangan tepat satu, ikon dekoratif `aria-hidden`, hasil `map`
+   langsung `<motion.li>` tanpa pembungkus, empat label kartu
+   (`Domains`/`Categories`/`Correlations`/`Subscale Groups`) berurutan,
+   tanpa kelas marker/`role="list"`/live region, serta tanpa
    `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-5. **Smoke**: di daftar halaman publik sekitar baris 1420
-   (`for (const path of [... '/about'])`), setelah `/about` dimuat pastikan
-   `getByRole('navigation', { name: 'Table of Contents' })` terlihat dan
-   berisi 15 `listitem`/`link`. Bila smoke bertambah baris, perbarui penjaga
-   jumlah baris di `tests/skip-link.test.ts`.
+5. **Smoke**: blok graph pages (~1589, `['/domains', 'domain graph']`) sudah
+   memuat halaman dan memakai `select` pertama — tambahkan cek bahwa
+   `getByLabel('Overlay scores:')` menunjuk select yang sama serta tombol
+   Correlations/Subscales memiliki atribut `aria-pressed`. Bila smoke
+   bertambah baris, perbarui penjaga jumlah baris di
+   `tests/skip-link.test.ts` (kini 2192).
 6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -61,13 +65,39 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Setelah
    antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`, fokus
    pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`, dan daftar
-   zona `/recommendations` (tugas berikutnya): halaman pelajar lain
-   (`/admin/*` bukan prioritas).
+   zona `/recommendations` plus daftar isi `/about` (tugas berikutnya: toolbar
+   & kartu angka `/domains`): halaman pelajar lain (`/edu-psychology`,
+   `/tests`, `/data-entry`, `/status`, `/sign-in`; `/admin/*` bukan
+   prioritas). Catatan: `/domains`, `/combined-graph`, `/edu-psychology`,
+   `/tests`, `/data-entry`, `/status` masih tanpa atribut aria/role sama
+   sekali.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #122 — **Daftar isi halaman `/about` menjadi landmark
+  navigasi bernama** — blok **Table of Contents** sebelumnya `<div>` polos
+  berisi 15 tautan `#…` hasil `sections.map` dalam grid `<div>`, jadi pembaca
+  layar tidak tahu 15 tautan itu satu daftar tujuan di halaman ini dan tidak
+  bisa melompat per item. Kini bloknya `<nav aria-labelledby="about-toc-title">`
+  dengan kelas kartu yang sama, `<h3>`-nya ber-`id="about-toc-title"` (teks
+  **Table of Contents**, ikon `BookMarked`, kelas tidak berubah), wadah grid
+  menjadi `<ul>` berkelas `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3
+  gap-2`, dan tiap hasil `map` langsung `<li key={section.id}>` yang membungkus
+  `<a>` lama (`href`, kelas, label tetap) dengan ikon `ChevronRight` kini
+  `aria-hidden="true"`. Tanpa `<div>` perantara, kelas marker baru, live
+  region, fokus paksa, `role` tambahan, atau tombol baru; urutan 15 tujuan,
+  label, `href`, dan tampilan tidak berubah; UI bahasa Inggris (D2). Test
+  baru `tests/about-toc.test.ts` (7 penjaga statis; penjaga
+  `createServerFn`/`graphCall`/`rpc-schemas` dibatasi ke blok TOC karena isi
+  dokumentasi halaman memang menyebut `graphCall` di tabel API) + satu cek
+  smoke di blok halaman publik mobile (`navigation` bernama **Table of
+  Contents** terlihat, tepat 15 `listitem` dan 15 `link`); penjaga jumlah
+  baris smoke 2178 → 2192. `README.md`/`Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau penuh pada
+  percobaan pertama (1327/1327 unit = 1320 + 7).
 
 - 2026-11-17: PR #121 — **Tiga zona di tab "Ready / not yet" menjadi daftar
   bernama** — kartu **Mastered (n)**, **Ready to Learn (n)**, dan **Not yet (n)**
