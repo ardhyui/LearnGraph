@@ -100,7 +100,7 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
-- 2026-11-17: PR (menunggu nomor) — **Status proses tombol submit
+- 2026-11-17: PR #131 — **Status proses tombol submit
   `/sign-in` diumumkan pembaca layar** — tombol `<button type="submit"
   disabled={pending}>` form masuk/daftar sebelumnya saat `pending` hanya
   menampilkan `Loader2` berputar sementara nama aksesibelnya tetap **Sign
