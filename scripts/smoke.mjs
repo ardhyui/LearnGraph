@@ -211,6 +211,30 @@ try {
       'privacy: the data-handling page is public and linked from sign-in',
       `${new URL(pp.url()).pathname}, "${h1}"`,
     );
+    // The long policy page offers a table of contents that jumps to each section.
+    const toc = pp.getByRole('navigation', { name: 'On this page' });
+    const tocLinks = await toc.getByRole('link').count();
+    await toc.getByRole('link', { name: 'Deleting your data' }).click();
+    const headingInView = await pp
+      .waitForFunction(
+        () => {
+          const heading = document.getElementById('privacy-deleting-your-data-title');
+          if (!heading) return false;
+          const box = heading.getBoundingClientRect();
+          return box.top >= 0 && box.top < window.innerHeight;
+        },
+        null,
+        { timeout: 5000 },
+      )
+      .then(
+        () => true,
+        () => false,
+      );
+    check(
+      (await toc.count()) === 1 && tocLinks === 6 && headingInView,
+      'privacy: the table of contents has six links that jump to their section',
+      `${tocLinks} links, heading ${headingInView ? 'in view' : 'not in view'}`,
+    );
     await ctxP.close();
   }
 
