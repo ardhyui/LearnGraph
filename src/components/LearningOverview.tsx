@@ -173,6 +173,7 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={current.progress.percentMastered}
+              aria-valuetext={masteredLine(current.progress)}
               className="mt-2 h-2 overflow-hidden rounded-full bg-primary/10"
             >
               <div
@@ -208,6 +209,7 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
                         aria-valuemin={0}
                         aria-valuemax={100}
                         aria-valuenow={row.percent}
+                        aria-valuetext={masteredLine(row)}
                         className="mt-1 h-1.5 overflow-hidden rounded-full bg-primary/10"
                       >
                         <div

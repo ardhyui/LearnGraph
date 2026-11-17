@@ -1,50 +1,50 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (fokus judul pelajaran setelah pindah konsep di `/learn/$conceptId`; siklus berikutnya: nilai bar progres `aria-valuetext` di `/profile`)
+Terakhir diperbarui: 2026-11-17 (fokus nilai bar progres `/profile`; siklus berikutnya: daftar zona di `/recommendations`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **nilai bar progres di kartu "My learning" halaman
-`/profile`** — kandidat fitur (a); tanpa migrasi skema, dependensi, server
-function, RPC, atau method RPC baru. Konteks: `LearningOverview` di
-`src/components/LearningOverview.tsx` merender dua `role="progressbar"`. Bar
-keseluruhan (sekitar baris 170–182) ber-`aria-label="Concepts mastered"` dan
-`aria-valuenow={current.progress.percentMastered}`; bar per subjek (sekitar
-baris 205–217) ber-`aria-label={`${row.label} mastery`}` dan
-`aria-valuenow={row.percent}`. Pembaca layar hanya menerima persen mentah,
-padahal tepat di atas tiap bar ada baris teks yang menyebut jumlah nyata
-("3 of 10 concepts mastered"), dan untuk bar per subjek penyebutnya tidak
-pernah terdengar sama sekali.
+Poles aksesibilitas **tiga daftar zona di tab "Ready / not yet" halaman
+`/recommendations`** — kandidat fitur (a); tanpa migrasi skema, dependensi,
+server function, RPC, atau method RPC baru. Konteks: `src/routes/recommendations.tsx`
+merender tiga kartu zona **Mastered (n)**, **Ready to Learn (n)**, dan
+**Not yet (n)** (sekitar baris 614–690). Tiap kartu berisi `<h3>` (baris
+616–619, 639–642, 665–668) lalu
+`<div className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide">` yang
+memetakan `zpd.tooEasy` / `zpd.zpd` / `zpd.tooHard` menjadi deretan
+`<motion.div>` dengan `key={zc.concept.conceptId}`, `whileHover={{ scale: 1.02 }}`,
+dan kelas `p-3 bg-background/80 rounded-xl shadow-sm`. Pembaca layar tidak tahu
+baris-baris itu satu daftar konsep per zona dan tidak bisa melompat per item.
 
-Rancangan (baca kode dulu: `masteredLine` di `src/lib/profile.ts`,
-`ProgressSummary` di `src/lib/study.ts`, `SubjectMasteryRow` di
-`src/lib/subject-mastery.ts`):
+Rancangan (baca kode dulu; jangan mengubah aturan engine/ZPD):
 
-1. Tambah `aria-valuetext={masteredLine(current.progress)}` pada bar
-   keseluruhan dan `aria-valuetext={masteredLine(row)}` pada bar per subjek.
-   Jangan menyalin kalimatnya: pakai helper `masteredLine` yang sudah dipakai
-   baris teks `data-testid="profile-mastered"` dan baris per subjek, sehingga
-   teks yang diumumkan tidak bisa berbeda dari yang terlihat. `aria-label`,
-   `aria-valuemin`, `aria-valuemax`, `aria-valuenow`, kelas, lebar `style`,
-   `<dl>` tiga kartu angka (Learning / Not started / To review), daftar
-   **Mastery by subject**, urutan, dan elemen lain tidak berubah.
-2. Kasus `total === 0` tetap aman: `masteredLine` mengembalikan `No concepts in
-   your subjects yet`; jangan menambah cabang baru, menyembunyikan bar, atau
-   mengubah copy yang terlihat.
-3. Jangan menambah live region, fokus paksa, tombol, atau panggilan baca/tulis;
-   UI bahasa Inggris (D2).
-4. **Test**: file baru `tests/profile-progress-valuetext.test.ts` (penjaga
-   statis) — tepat dua `role="progressbar"` di komponen, keduanya membawa
-   `aria-valuetext` dengan `masteredLine(...)` yang tepat (keseluruhan:
-   `current.progress`; per subjek: `row`), atribut dan kelas lama utuh,
-   `masteredLine` tetap dipakai untuk baris teks yang terlihat sehingga tidak
-   ada kalimat "concepts mastered" baru yang disalin di komponen, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Tambah **satu cek
-   smoke** di alur `/profile` yang sudah ada (sekitar baris 1196–1204): baca
-   `aria-valuetext` semua `role="progressbar"` di kartu, pastikan yang pertama
-   persis sama dengan teks `data-testid="profile-mastered"` dan semuanya
-   berakhiran `mastered`; bila smoke bertambah baris, perbarui penjaga jumlah
-   baris di `tests/skip-link.test.ts`.
+1. Beri tiap `<h3>` `id` stabil: `rec-zone-mastered`, `rec-zone-ready`,
+   `rec-zone-notyet` (judul, ikon, hitungan `(n)`, dan kelas tidak berubah).
+   Ganti wadah pemetaan tiap zona menjadi
+   `<ul aria-labelledby="<id>" className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide">`
+   dan tiap baris menjadi `<motion.li>` dengan `key`, `whileHover`, serta kelas
+   visual persis sama. Tidak ada `<div>` perantara antara `<ul>` dan `<li>`;
+   tanpa kelas marker baru (Tailwind preflight sudah menghapus penanda).
+2. Pesan kosong **No mastered concepts yet**, **Nothing ready right now**, dan
+   **All concepts are accessible!** tetap di cabang `length === 0` masing-masing
+   dan **bukan** item daftar (di dalam wadah yang sama tetapi di luar `<ul>`,
+   atau tetap `<p>` setelah daftar — pilih yang menjaga urutan visual dan
+   struktur; jelaskan di riwayat). Isi baris (nama konsep, `zc.reason`,
+   `Readiness: …%`, `learnFirstLabel(...)`), urutan, dan kondisi
+   `missingPrerequisites.length > 0` tidak berubah. Tablist/tab/tabpanel
+   (`aria-labelledby` yang sudah ada), tab **Recommendations**/**Learning Path**,
+   `AnimatePresence`, copy, dan fokus tidak berubah; UI bahasa Inggris (D2).
+3. **Test**: file baru `tests/recommendations-zones.test.ts` (penjaga statis) —
+   tepat tiga `<ul>` ber-`aria-labelledby` yang menunjuk ketiga `id` h3 yang
+   ada, hasil `map` langsung `<motion.li>` tanpa pembungkus, `key`/`whileHover`/
+   kelas/isi/urutan baris ketiga zona, ketiga pesan kosong di luar `<ul>`, tanpa
+   kelas marker/`role="list"`/live region baru, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
+4. **Smoke**: di alur `/recommendations` yang sudah ada (sekitar baris
+   1168–1184), setelah tab **Ready / not yet** dibuka, pastikan ketiga daftar
+   ber-`aria-labelledby` terdeteksi (`getByRole('list', { name: /^(Mastered|Ready to Learn|Not yet) \(/ })`
+   berjumlah 3) dan total `listitem` di ketiganya > 0. Bila smoke bertambah
+   baris, perbarui penjaga jumlah baris di `tests/skip-link.test.ts`.
 5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -63,14 +63,34 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Setelah
    antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`, fokus
-   pindah konsep `/learn/$conceptId`, dan nilai bar progres `/profile` (tugas
-   berikutnya): halaman pelajar lain (`/recommendations` selain tab,
-   `/admin/*` bukan prioritas).
+   pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`, dan daftar
+   zona `/recommendations` (tugas berikutnya): halaman pelajar lain
+   (`/admin/*` bukan prioritas).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #120 — **Bar progres di My Profile mengumumkan jumlah
+  penguasaan, bukan persen mentah** — dua `role="progressbar"` di kartu **My
+  learning** `/profile` hanya membawa `aria-valuenow` berisi persen, padahal
+  tepat di atasnya ada teks "3 of 10 concepts mastered", dan bar per subjek
+  tidak pernah menyebut penyebutnya. Kini bar keseluruhan
+  `aria-valuetext={masteredLine(current.progress)}` dan bar per subjek
+  `aria-valuetext={masteredLine(row)}`, memakai helper yang sama dengan baris
+  teks `data-testid="profile-mastered"` dan baris tiap subjek sehingga teks
+  yang diumumkan tidak bisa berbeda dari yang terlihat. `aria-label`,
+  `aria-valuemin`/`max`/`now`, kelas, lebar `style`, `<dl>` tiga kartu angka,
+  daftar **Mastery by subject**, urutan, dan elemen lain tidak berubah; kasus
+  `total === 0` tetap aman lewat `No concepts in your subjects yet` tanpa
+  cabang baru. Tanpa live region/fokus paksa/tombol/panggilan baca-tulis; UI
+  bahasa Inggris (D2). Test baru `tests/profile-progress-valuetext.test.ts`
+  (10 penjaga statis) + satu cek smoke di alur `/profile` (bar pertama sama
+  persis dengan teks `profile-mastered`, semuanya berakhiran `mastered`);
+  penjaga jumlah baris smoke 2159 → 2169. `README.md` dan `Roadmap.md` tidak
+  diubah; `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau penuh pada
+  percobaan pertama (1313/1313 unit = 1303 + 10; smoke lulus).
 
 - 2026-11-17: PR #119 — **Fokus judul pelajaran setelah pindah konsep** —
   tautan **Builds on** dan **Next: <konsep>** di `/learn/$conceptId` mengganti
