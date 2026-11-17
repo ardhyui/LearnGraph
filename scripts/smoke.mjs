@@ -1408,6 +1408,28 @@ try {
     check(fromProfile, 'recommendations: suggestions based on the learner’s answers say so');
     await recSelect.selectOption({ label: 'Sari Smoke' });
 
+    // Every recommendation card opens its lesson, so a suggestion can be
+    // started straight from the card.
+    await page.getByRole('tab', { name: /^Recommendations \(/ }).click().catch(() => {});
+    const recLessonLink = page.getByRole('link', { name: /^Open the lesson\s*: / }).first();
+    const recLessonShown = await recLessonLink.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    await recLessonLink.click().catch(() => {});
+    const onRecLesson = await page
+      .waitForURL((u) => u.pathname.startsWith('/learn/'), { timeout: 15000 })
+      .then(() => true, () => false);
+    const recLessonHeading = await page
+      .getByRole('heading', { level: 1 })
+      .first()
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    check(
+      recLessonShown && onRecLesson && recLessonHeading,
+      'recommendations: each recommendation card opens its lesson',
+      new URL(page.url()).pathname,
+    );
+
+    await page.goto(`${BASE}/recommendations`, { waitUntil: 'networkidle' });
+
     // Every step of the plan opens its lesson, so the plan can be started.
     await page.getByRole('tab', { name: 'Learning Path' }).click().catch(() => {});
     const lessonLink = page.getByRole('link', { name: /^Open the lesson\s*: / }).first();
