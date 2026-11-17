@@ -1,66 +1,58 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (toolbar `/combined-graph`; siklus berikutnya: accordion `/edu-psychology`)
+Terakhir diperbarui: 2026-11-17 (accordion `/edu-psychology`; siklus berikutnya: status kartu `/status`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **bagian yang bisa dibuka/tutup di halaman
-`/edu-psychology`** — kandidat fitur (a); tanpa migrasi skema, dependensi,
-server function, RPC, atau method RPC baru. Konteks:
-`src/routes/edu-psychology.tsx` (879 baris, belum punya atribut aria/role
-sama sekali). Dua pola buka/tutup di halaman ini hanya menunjukkan status
-lewat warna/rotasi ikon:
+Poles aksesibilitas **status di kartu algoritma dan fase halaman `/status`**
+— kandidat fitur (a); tanpa migrasi skema, dependensi, server function, RPC,
+atau method RPC baru. Konteks: `src/routes/status.tsx` (611 baris, belum punya
+satu pun atribut aria/role). Dua kartu menyampaikan status **hanya lewat ikon
+berwarna**:
 
-1. Komponen `ExpandableSection` (~baris 471–515) dipakai berkali-kali:
-   `<button onClick={() => setIsOpen(!isOpen)} className="w-full flex
-   items-center justify-between p-6 hover:bg-muted/50 transition-colors">`
-   berisi `<h2>{title}</h2>` dan `ChevronDown` yang hanya berputar
-   (`rotate-180` saat terbuka); wadah isi `<motion.div>` di dalam
-   `AnimatePresence` tanpa `id`, jadi pembaca layar tidak tahu bagian mana
-   yang terbuka dan tombol mana yang mengendalikannya.
-2. Grid `PsychometricWheel` (~baris 336–356): tiap kategori adalah
-   `<button onClick={() => setExpandedCategory(...)}>` yang hanya
-   membedakan terpilih lewat `border-pink-500 bg-pink-500/10 ... shadow-lg
-   scale-[1.02]`; panel detail yang muncul (~baris 369) tidak punya `id`,
-   dan dua elemen dekoratif di tombol (emoji `<span className="text-2xl">`
-   dan titik warna `<div className="w-3 h-3 rounded-full">`) ikut dibacakan
-   padahal teks kategori sudah ada.
+1. `AlgorithmCard` (~baris 174–208) menutup barisnya dengan
+   `{isOperational ? (<CheckCircle2 className="text-emerald-500" size={20} />)
+   : (<XCircle className="text-red-500" size={20} />)}`; nama dan deskripsi
+   kartu tidak pernah menyebut "Operational".
+2. `PhaseCard` (~baris 210–247) melakukan hal yang sama dengan
+   `CheckCircle2`/`Clock`/`XCircle` size 16 untuk status `complete`/`pending`/
+   selain itu; legenda di bawah grid (~baris 564–577) menampilkan kata
+   **Complete**/**Pending**/**Error** tetapi tidak terhubung ke kartu mana pun.
+
+Selain itu seluruh ikon halaman ini dekoratif tetapi ikut dibacakan: `Icon`
+dalam kotak berwarna (`ServiceCard`, `DataCard`, `AlgorithmCard`), `Clock`
+latensi, ikon judul `<h2>` (`Server`, `BarChart3`, `Brain`, `Sparkles`), ikon
+header (`Activity`), tombol Refresh (`RefreshCw`), spinner `Loader2`, ikon
+error (`AlertCircle`, `AlertTriangle`), ikon banner kesehatan
+(`CheckCircle2`/`AlertTriangle`/`XCircle`), tiga titik warna legenda, tiga
+ikon tautan **Quick Actions** (`Activity`, `AlertTriangle`, `Sparkles`), serta
+titik status di `StatusIndicator` (~baris 60–99) yang teksnya sudah menyebut
+status.
 
 Rancangan (baca kode dulu; jangan mengubah isi/urutan bagian halaman):
 
-1. Di `ExpandableSection`, buat id isi yang unik dengan `useId()` (React 19
-   sudah dipakai; satu hook baru di komponen ini saja), lalu tombol header
-   mendapat `aria-expanded={isOpen}` dan `aria-controls={…}`; `<motion.div>`
-   isi mendapat `id={…}`. Teks judul, `onClick`, kelas tombol, ikon
-   `Icon`/`ChevronDown` beserta kelas rotasinya, `AnimatePresence`, dan
-   `initial`/`animate`/`exit` tidak berubah.
-2. Ikon dekoratif di kedua komponen (`Icon` dalam kotak berwarna,
-   `ChevronDown`, emoji kategori, dan titik warna kategori) diberi
-   `aria-hidden="true"` tanpa mengubah size/kelas.
-3. Di grid kategori, tiap tombol mendapat
-   `aria-expanded={expandedCategory === categoryName}`; panel detail
-   (~baris 369) mendapat `id="psychometric-category-detail"` dan tombol
-   memakai `aria-controls="psychometric-category-detail"` (atribut boleh
-   selalu ada walau panel belum dirender — pola `aria-controls` pada tab
-   yang panelnya bersyarat di PR #112). Klik, kelas terpilih/tidak, urutan
-   10 kategori, dan isi panel (nama domain, deskripsi, penanda, `eduRelevance`,
-   `domain.id`) tidak berubah.
+1. Di `AlgorithmCard`, tambahkan tepat setelah ikon status
+   `<span className="sr-only">{isOperational ? 'Operational' : 'Not operational'}</span>`.
+2. Di `PhaseCard`, tambahkan tepat setelah ikon status
+   `<span className="sr-only">{isComplete ? 'Complete' : isPending ? 'Pending' : 'Error'}</span>`
+   (kata yang sama dengan legenda).
+3. Semua ikon/titik dekoratif di atas diberi `aria-hidden="true"` tanpa
+   mengubah `size`, kelas, animasi, atau posisi.
 4. Jangan menambah live region, fokus paksa, tombol, atau `role` tambahan;
-   jangan mengubah `<h1>`/`<h2>`/`<h3>`/`<h4>` yang sudah ada; UI bahasa
-   Inggris (D2).
-5. **Test**: file baru `tests/edu-psychology-a11y.test.ts` (penjaga statis,
-   pola `tests/combined-graph-toolbar.test.ts`) — ekspresi `aria-expanded`
-   persis untuk kedua pola, `useId`/`id`/`aria-controls` tepat satu pasang
-   per pola dengan kontrak `onClick`/kelas/urutan judul bagian utuh, seluruh
-   ikon dekoratif `aria-hidden`, isi panel kategori lengkap, serta tanpa
+   teks yang terlihat, urutan kartu/bagian, `onClick={fetchStatus}`, auto-refresh
+   30 detik, dan `LearningMeasures` tidak berubah; UI bahasa Inggris (D2).
+5. **Test**: file baru `tests/status-a11y.test.ts` (penjaga statis, pola
+   `tests/combined-graph-toolbar.test.ts`): dua ekspresi `sr-only` persis,
+   jumlah `aria-hidden` dihitung ulang dari kode (jangan mengubah size/kelas),
+   kontrak `AlgorithmCard`/`PhaseCard` dan urutan empat algoritma/enam fase,
+   tanpa `aria-live`/`role`/`.focus()`/`tabIndex`, serta tanpa
    `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-6. **Smoke**: halaman `/edu-psychology` sudah dikunjungi di loop `PAGES`
-   (baris ~25). Tambahkan cek di blok itu (pola `if (path ===
-   '/edu-psychology')`): tombol bagian pertama ber-`aria-expanded="true"`,
-   setelah diklik menjadi `"false"`, dan isi bagian pertama tidak lagi
-   terlihat; lalu klik lagi bila perlu agar sisa alur tidak terpengaruh.
+6. **Smoke**: halaman `/status` sudah dikunjungi di loop `PAGES` (baris ~32).
+   Tambahkan cek di blok itu (pola `if (path === '/status')`): heading
+   **Algorithm Health** terlihat dan tepat empat `span.sr-only` berteks
+   `Operational`; di kartu fase tepat dua `Complete` dan empat `Pending`.
    Perbarui penjaga jumlah baris smoke di `tests/skip-link.test.ts` (kini
-   2237).
+   2266).
 7. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -69,9 +61,7 @@ Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `fix:`/`feat:`. Catatan mesin: sesi lain dapat membuat load
 ±8–10 di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link,
 `Failed to fetch`); ulangi `npm run ci` utuh tanpa perubahan kode setelah load
-turun (pola PR #91/#95/#111; siklus #124 gagal sekali di smoke lalu hijau
-pada percobaan kedua tanpa perubahan kode).
-
+turun (pola PR #91/#95/#111/#124).
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
 Tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis; baca
@@ -82,16 +72,54 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`,
    fokus pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`,
    daftar zona `/recommendations`, daftar isi `/about`, toolbar & kartu
-   angka `/domains`, dan toolbar `/combined-graph` (tugas berikutnya:
-   accordion `/edu-psychology`): halaman pelajar lain (`/tests`,
-   `/data-entry`, `/status`, `/sign-in`; `/admin/*` bukan prioritas).
-   Catatan: `/tests`, `/data-entry`, `/status` masih tanpa atribut aria/role
-   sama sekali.
+   angka `/domains`, toolbar `/combined-graph`, dan accordion
+   `/edu-psychology` (tugas berikutnya: status kartu `/status`): halaman
+   pelajar lain (`/tests`, `/data-entry`, `/sign-in`; `/admin/*` bukan
+   prioritas). Catatan: `/tests` dan `/data-entry` masih tanpa atribut
+   aria/role sama sekali.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #125 — **Bagian buka/tutup `/edu-psychology` bisa dipakai
+  pembaca layar** — dua pola buka/tutup di halaman dokumentasi psikologi
+  pendidikan ini hanya menunjukkan status lewat warna/rotasi ikon. Enam bagian
+  `ExpandableSection` (**Zone of Proximal Development (ZPD)**, **Bloom's
+  Taxonomy**, **Scaffolding Strategies**, **Forgetting Curve & Spaced
+  Repetition**, **Psychometric Profiling (39 Domains)**, **Knowledge Graph &
+  Prerequisites**) sebelumnya `<button>` tanpa `aria-expanded`/`aria-controls`
+  dan wadah isi `<motion.div>` tanpa `id`; kini komponen memakai
+  `const contentId = useId();` sekali, tombol header membawa
+  `aria-expanded={isOpen}` + `aria-controls={contentId}`, dan isi di dalam
+  `AnimatePresence` membawa `id={contentId}`. Dua belas tombol kategori
+  `PsychometricWheel` membawa `aria-expanded={expandedCategory === categoryName}`
+  + `aria-controls="psychometric-category-detail"` (atribut selalu ada walau
+  panel bersyarat), dan panel detailnya membawa
+  `id="psychometric-category-detail"`. Ikon dekoratif di kedua komponen —
+  `Icon` dalam kotak berwarna, `ChevronDown`, emoji kategori di tombol dan
+  header panel, dua titik warna kategori (grid dan quick reference) — diberi
+  `aria-hidden="true"` tanpa mengubah ukuran/kelas; total enam di halaman.
+  Teks judul, `onClick`, kelas tombol, ikon beserta kelas rotasinya,
+  `initial`/`animate`/`exit`, urutan enam bagian dan dua belas kategori (kode
+  aktual berisi 12 kategori, bukan 10 seperti perkiraan spek), isi panel (nama
+  domain, deskripsi, penanda, `eduRelevance`, `domain.id`), serta bagian
+  halaman lain tidak berubah; tanpa live region, fokus paksa, tombol, atau
+  `role` tambahan; UI bahasa Inggris (D2). Test baru
+  `tests/edu-psychology-a11y.test.ts` (10 penjaga statis: dua ekspresi
+  `aria-expanded` persis dan total dua di halaman, satu `useId` + satu pasang
+  `aria-controls`/`id` per pola, kontrak `onClick`/kelas/`AnimatePresence`/
+  animasi/urutan enam judul, kontrak kategori dan urutan dua belas kategori,
+  kelengkapan isi panel, enam ikon dekoratif `aria-hidden`, tanpa
+  `aria-live`/`role`/`.focus()`/`tabIndex`, serta tanpa
+  `createServerFn`/`graphCall`/`rpc-schemas`/migrasi) + satu cek smoke di loop
+  `PAGES`: bagian pertama ber-`aria-expanded="true"` dengan `aria-controls`
+  yang menunjuk isi terlihat, setelah diklik menjadi `"false"` dan isi itu
+  tersembunyi, lalu dibuka lagi. Penjaga jumlah baris smoke 2237 → 2266.
+  `README.md`/`Roadmap.md` tidak diubah; `docs/ROADMAP.md` mendapat entri log.
+  `npm run ci` hijau penuh pada percobaan pertama (1352/1352 unit = 1342 + 10;
+  smoke lulus termasuk cek baru).
 
 - 2026-11-17: PR #124 — **Toolbar halaman `/combined-graph` bisa dipakai
   pembaca layar** — tiga toggle di baris **Show:** (**Domains (Graph A)**,

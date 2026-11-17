@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { pageHead } from '@/lib/page-titles';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
 import { EtherealShadow } from '@/components/ui/ethereal-shadow';
@@ -338,6 +338,8 @@ function PsychometricWheel() {
           <button
             key={categoryName}
             onClick={() => setExpandedCategory(expandedCategory === categoryName ? null : categoryName)}
+            aria-expanded={expandedCategory === categoryName}
+            aria-controls="psychometric-category-detail"
             className={`text-left p-4 rounded-xl border-2 transition-all duration-200 ${
               expandedCategory === categoryName
                 ? 'border-pink-500 bg-pink-500/10 dark:bg-pink-500/20 shadow-lg scale-[1.02]'
@@ -345,9 +347,10 @@ function PsychometricWheel() {
             }`}
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">{category.icon}</span>
+              <span className="text-2xl" aria-hidden="true">{category.icon}</span>
               <div
                 className="w-3 h-3 rounded-full"
+                aria-hidden="true"
                 style={{ backgroundColor: category.color }}
               />
             </div>
@@ -361,12 +364,12 @@ function PsychometricWheel() {
 
       {/* Expanded Category Details */}
       {expandedCategory && (
-        <div className="mt-6 glass-card rounded-xl border border-border shadow-lg overflow-hidden">
+        <div id="psychometric-category-detail" className="mt-6 glass-card rounded-xl border border-border shadow-lg overflow-hidden">
           <div
             className="px-6 py-4 flex items-center gap-3"
             style={{ backgroundColor: ALL_PSYCHOMETRIC_DOMAINS[expandedCategory as keyof typeof ALL_PSYCHOMETRIC_DOMAINS].color + '15' }}
           >
-            <span className="text-3xl">{ALL_PSYCHOMETRIC_DOMAINS[expandedCategory as keyof typeof ALL_PSYCHOMETRIC_DOMAINS].icon}</span>
+            <span className="text-3xl" aria-hidden="true">{ALL_PSYCHOMETRIC_DOMAINS[expandedCategory as keyof typeof ALL_PSYCHOMETRIC_DOMAINS].icon}</span>
             <div>
               <h3 className="text-lg font-bold text-foreground">{expandedCategory}</h3>
               <p className="text-sm text-muted-foreground">
@@ -426,6 +429,7 @@ function PsychometricWheel() {
                 >
                   <div
                     className="w-2 h-2 rounded-full flex-shrink-0"
+                    aria-hidden="true"
                     style={{ backgroundColor: category.color }}
                   />
                   <span className="text-muted-foreground truncate" title={domain.name}>{domain.name}</span>
@@ -473,6 +477,7 @@ function ExpandableSection({
   children: React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(true);
+  const contentId = useId();
 
   return (
     <motion.div
@@ -483,19 +488,22 @@ function ExpandableSection({
     >
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+        aria-controls={contentId}
         className="w-full flex items-center justify-between p-6 hover:bg-muted/50 transition-colors"
       >
         <div className="flex items-center gap-4">
           <div className={`p-3 rounded-xl ${color}`}>
-            <Icon size={24} className="text-white" />
+            <Icon size={24} className="text-white" aria-hidden="true" />
           </div>
           <h2 className="text-xl font-bold text-foreground">{title}</h2>
         </div>
-        <ChevronDown size={24} className={`text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={24} aria-hidden="true" className={`text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            id={contentId}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

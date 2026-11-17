@@ -269,6 +269,35 @@ try {
     const h1 = await page.locator('h1').count();
     if (h1 !== 1) h1Counts.push(`${path}: ${h1}`);
     titles.push([path, await page.title()]);
+
+    // The expandable sections on /edu-psychology show their state to screen
+    // readers: the first section button announces aria-expanded, names the
+    // content it controls, and collapsing it hides that content.
+    if (path === '/edu-psychology') {
+      const section = page.getByRole('button', { name: 'Zone of Proximal Development (ZPD)' });
+      const controls = await section.getAttribute('aria-controls').catch(() => null);
+      const expandedBefore = await section.getAttribute('aria-expanded').catch(() => null);
+      const content = controls ? page.locator(`[id="${controls}"]`) : null;
+      const visibleBefore = content ? await content.isVisible().catch(() => false) : false;
+      await section.click().catch(() => {});
+      const expandedAfter = await section.getAttribute('aria-expanded').catch(() => null);
+      const hiddenAfter = content
+        ? await content
+            .waitFor({ state: 'hidden', timeout: 10000 })
+            .then(() => true, () => false)
+        : false;
+      check(
+        expandedBefore === 'true' &&
+          Boolean(controls) &&
+          visibleBefore &&
+          expandedAfter === 'false' &&
+          hiddenAfter,
+        'edu-psychology accordions announce and toggle their content',
+        `aria-expanded ${expandedBefore} → ${expandedAfter}, content ${hiddenAfter ? 'hidden' : 'still visible'}`,
+      );
+      // Re-open the first section so the rest of the flow is unaffected.
+      await section.click().catch(() => {});
+    }
   }
   // Each page names itself in the browser tab (WCAG 2.4.2), not one shared title.
   {
