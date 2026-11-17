@@ -1,50 +1,76 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (PR #132; siklus berikutnya: status pending `/forgot-password` & `/reset-password`)
+Terakhir diperbarui: 2026-11-17 (PR #133; siklus berikutnya: daftar isi `/privacy`)
 
 ## Tugas berikutnya
 
-Jadikan **status proses tombol submit halaman lupa/reset kata sandi
-diumumkan pembaca layar** — kandidat fitur (a) halaman pelajar, pola PR #131,
-tanpa migrasi skema, dependensi, server function, RPC, atau method RPC baru.
-Konteks: `src/routes/forgot-password.tsx` (90 baris) dan
-`src/routes/reset-password.tsx` (106 baris). Dua tombol
-`<button type="submit" disabled={pending}>` hanya menampilkan `Loader2`
-berputar saat `pending`, sementara nama aksesibelnya tetap **Send the reset
-link** / **Save the new password**, tanpa `aria-busy` dan tanpa teks status;
-pembaca layar tidak tahu permintaan sedang berjalan.
+Beri halaman **`/privacy`** sebuah **daftar isi bernavigasi** agar pembaca
+layar dan pengguna keyboard bisa melompat ke salah satu dari enam bagian
+panjang tanpa menelusuri seluruh teks — kandidat fitur (a) halaman pelajar,
+pola PR #122 (`/about`), tanpa migrasi skema, dependensi, server function,
+RPC, atau method RPC baru.
 
-Rancangan (baca kode dulu; jangan mengubah alur, validasi, copy yang ada,
-`role="status"`/`role="alert"` yang sudah ada, atau tata letak):
+Konteks: `src/routes/privacy.tsx` (120 baris, publik, tidak perlu login).
+Halaman menyusun isinya lewat komponen lokal `Section({ title, children })`
+yang merender `<section className="mt-8">` + `<h2>` **tanpa `id`**, dan
+memanggilnya enam kali: **What is stored**, **Who can see it**, **Cookies and
+tracking**, **AI services**, **Personal topics**, **Deleting your data**.
+Tidak ada daftar isi maupun landmark navigasi, jadi pembaca layar tidak tahu
+enam bagian itu ada dan tidak bisa melompat ke **Deleting your data**.
 
-1. Kedua tombol submit membawa `aria-busy={pending}`; `disabled`, kelas
-   `btn btn-primary ...`, dan label persis tetap. `Loader2` sudah
-   `aria-hidden="true"` — biarkan kelas `h-4 w-4 animate-spin` apa adanya.
-2. Tepat setelah tombol dan masih di dalam `<form>` sebagai anak terakhir,
-   tambahkan satu `<p role="status" aria-live="polite" className="sr-only">`
-   yang membacakan `Sending the reset link…` (`/forgot-password`) atau
-   `Saving the new password…` (`/reset-password`) saat `pending`, dan kosong
-   saat idle. Jangan memakai `aria-label` pengganti nama tombol, jangan
-   menambah tombol/fokus/live region lain.
-3. Galat tetap satu-satunya `<p role="alert" className="form-error">`; pesan
-   sukses `sent`/`done` dan cabang `!features.passwordReset`/link tidak valid
-   tidak berubah. Dua pasangan label/kontrol `/reset-password` dan satu
-   pasangan `/forgot-password` tetap utuh; `onSubmit`, `safeParse`/panjang
-   sandi, `authClient`, `rateLimitMessage`, dan `noValidate` tidak berubah.
-   UI bahasa Inggris (D2).
-4. **Test**: file baru `tests/password-reset-pending-status.test.ts` (penjaga
-   statis, pola `tests/sign-in-pending-status.test.ts`): dua
-   `aria-busy={pending}` persis, `disabled`/kelas/label tombol utuh, dua
-   paragraf status `sr-only` dengan teks persis dan posisi setelah tombol
-   sebagai anak terakhir form, `Loader2` tetap `aria-hidden`, galat tetap satu
-   `role="alert"`, pasangan label/kontrol dan alur submit utuh, tanpa
-   `aria-label`/`aria-labelledby`/`aria-atomic`, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-5. **Smoke**: tidak ada cek baru (status pending hanya sesaat dan alur
-   lupa/reset butuh email/token); penjaga jumlah baris smoke 2417 tetap.
+Rancangan (baca kode dulu; jangan mengubah satu kata pun isi kebijakan,
+urutan bagian, atau gaya kartu/teks):
+
+1. Ubah `Section` agar menerima `id` (mis. `{ id, title, children }`) dan
+   merender `<section id={id} className="mt-8 scroll-mt-4">` +
+   `<h2 id={`${id}-title`} …>` dengan kelas `<h2>` persis tetap; teks judul
+   tetap dari `title`. Enam id stabil: `privacy-what-is-stored`,
+   `privacy-who-can-see-it`, `privacy-cookies-and-tracking`,
+   `privacy-ai-services`, `privacy-personal-topics`,
+   `privacy-deleting-your-data` (urutan pemanggilan tidak berubah).
+2. Tepat setelah paragraf pembuka (di bawah `<p className="mt-2 text-sm
+   text-muted-foreground">…</p>` dan di atas bagian pertama) tambahkan satu
+   blok daftar isi: `<nav aria-labelledby="privacy-toc-title"
+   className="mt-6 p-4 rounded-xl border border-border/50 bg-card/50">`
+   berisi `<h2 id="privacy-toc-title" className="text-sm font-semibold
+   text-foreground">On this page</h2>` dan `<ul className="mt-2 grid
+   grid-cols-1 sm:grid-cols-2 gap-1">`; tiap `<li>` membungkus
+   `<a href={`#${id}`} className="text-sm font-medium text-primary
+   hover:underline">` berisi label yang sama persis dengan judul bagian.
+   Tanpa ikon, tanpa tombol, tanpa `role` tambahan, tanpa `aria-current`.
+3. Jangan menambah live region, fokus paksa, `aria-label` pengganti teks,
+   atau mengubah `ScrollRestoration`/router; `<h1>`, tautan **← LearnGraph**,
+   paragraf pembuka, seluruh isi enam `<section>`, dan `pageHead('/privacy')`
+   tidak berubah. UI bahasa Inggris (D2).
+4. **Test**: file baru `tests/privacy-toc.test.ts` (penjaga statis): tepat
+   satu `<nav aria-labelledby="privacy-toc-title">` dengan kelas persis, satu
+   `<h2 id="privacy-toc-title">On this page</h2>`, `<ul>` dengan kelas grid
+   dan enam `<li>` berisi `<a href="#privacy-…">` berurutan dengan label
+   persis, enam `<Section id="privacy-…">` dan enam `<h2
+   id="privacy-…-title">` yang cocok dengan tautan, isi kebijakan lama tetap
+   (enam judul berurutan, kalimat kunci seperti **never the password
+   itself**, **no advertising or analytics cookies**, **Delete my account**),
+   tanpa `role="list"`/kelas marker/live region/fokus paksa/`aria-label`
+   pengganti, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
+5. **Smoke**: tambahkan ke blok privasi yang sudah ada di
+   `scripts/smoke.mjs` (± baris 203–216, konteks publik): `navigation`
+   bernama **On this page** terlihat dan memuat tepat enam `link`; klik tautan
+   **Deleting your data** lalu pastikan heading tingkat 2 dengan nama itu
+   terlihat di viewport. Perbarui penjaga jumlah baris smoke di
+   `tests/skip-link.test.ts` (2417 → jumlah baru, biasanya 2430-an).
 6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
+
+Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
+Indonesia pola `feat:`/`fix:`. Catatan mesin: sesi lain dapat membuat load
+±8–10 di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link,
+`Failed to fetch`); ulangi `npm run ci` utuh tanpa perubahan kode setelah load
+turun (pola PR #91/#95/#111/#124). **Penting:** `/tmp` adalah tmpfs 4.9 GB dan
+bisa penuh (error `Unknown system error -122`/`ErrnoError errno 28` di test
+PGlite); jalankan gerbang dengan
+`TMPDIR=/home/ardhyui/.cache/ci-tmp npm run ci` (direktori itu ada dan berada
+di `/home` yang lapang).
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `fix:`/`feat:`. Catatan mesin: sesi lain dapat membuat load
@@ -69,15 +95,49 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    kartu angka `/domains`, toolbar `/combined-graph`, accordion
    `/edu-psychology`, status kartu `/status`, grup uji `/tests`, tab, label
    form, daftar data, dan banner pesan `/data-entry`, serta status pending
-   `/sign-in`. Tugas berikutnya adalah status pending `/forgot-password` &
-   `/reset-password`; setelah itu halaman pelajar yang tersisa (`/privacy`;
-   `/admin/*` bukan prioritas). `tests/` adalah berkas test, bukan halaman.
+   `/sign-in`, `/forgot-password`, dan `/reset-password`. Tugas berikutnya
+   adalah daftar isi bernavigasi `/privacy`; setelah itu halaman pelajar yang
+   tersisa (`/admin/*` bukan prioritas). `tests/` adalah berkas test, bukan
+   halaman.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-17: PR #133 — **Status proses tombol submit halaman lupa/reset kata
+  sandi diumumkan pembaca layar** — saat `pending`, kedua tombol submit hanya
+  menampilkan `Loader2` berputar sementara nama aksesibelnya tetap **Send the
+  reset link**/**Save the new password**, tanpa `aria-busy` dan tanpa teks
+  status, sehingga pembaca layar tidak tahu permintaan sedang berjalan dan
+  ikon spinner ikut dibacakan. Kini kedua tombol membawa `aria-busy={pending}`
+  (`disabled={pending}`, kelas `btn btn-primary flex w-full items-center
+  justify-center gap-2`, dan label persis tetap), `Loader2` tetap
+  `aria-hidden="true"` dengan kelas `h-4 w-4 animate-spin`, dan tepat setelah
+  tombol — masih di dalam `<form>` dan menjadi anak terakhirnya — ada satu
+  `<p role="status" aria-live="polite" className="sr-only">` yang membacakan
+  `Sending the reset link…` (`/forgot-password`) atau `Saving the new
+  password…` (`/reset-password`), kosong saat idle. Galat tetap satu-satunya
+  `<p role="alert" className="form-error">` di `/forgot-password` dan tetap
+  dua alert di `/reset-password` (tautan tidak valid + galat form); pesan
+  sukses `sent`/`done`, cabang `!features.passwordReset`, satu pasangan
+  label/kontrol email, dua pasangan sandi baru, `onSubmit`, `safeParse`/panjang
+  sandi, `authClient`, `rateLimitMessage`, dan `noValidate` tidak berubah;
+  tanpa `aria-label` pengganti, tombol/fokus/live region lain; UI bahasa
+  Inggris (D2). Test baru `tests/password-reset-pending-status.test.ts` (18
+  penjaga statis: satu `aria-busy={pending}` per halaman pada tombol submit
+  dengan `disabled`/kelas/label utuh, `Loader2` ber-`aria-hidden` dengan kelas
+  tetap dan satu-satunya elemen tersembunyi di form, satu `aria-live="polite"`
+  per halaman sementara `role="status"` tetap dua (cabang sukses + baris
+  pending), teks status persis dan kosong saat idle, posisi sesudah tombol
+  sebagai anak terakhir form, galat/alert dan pasangan label/kontrol serta alur
+  submit utuh, tanpa `aria-label`/`aria-labelledby`/`aria-atomic`, serta tanpa
+  `createServerFn`/`graphCall`/`rpc-schemas`/migrasi). Tidak ada cek smoke baru
+  (status pending hanya sesaat; alur lupa/reset butuh email/token), penjaga
+  jumlah baris smoke 2417 tetap. `README.md`/`Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau penuh pada
+  percobaan pertama (typecheck, lint 0/0, unit, build, anggaran bundel, CSP
+  produksi, smoke Playwright + PGlite).
 - 2026-11-17: PR #132 — **Empat daftar data `/data-entry` menjadi daftar
   bernama dan pesan kosongnya lengkap** — **Recent Learners** dan **Recent
   Concepts** di blok Live Data Preview, serta **Existing Learners (n)** dan
