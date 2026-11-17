@@ -1,76 +1,70 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (PR #138; siklus berikutnya: tautan pelajaran di daftar zona "Ready to Learn" `/recommendations`)
+Terakhir diperbarui: 2026-11-17 (PR #139; siklus berikutnya: tautan pelajaran di daftar "Reviews due" `/gaps`)
 
 ## Tugas berikutnya
 
-Beri **tiap baris daftar "Ready to Learn (n)"** di tab **Ready / not yet**
-`/recommendations` satu tautan **Open the lesson** ke `/learn/$conceptId`,
-melanjutkan pola tautan yang sudah dipakai kartu **Recommended concepts**
-(PR #138) dan tab **Learning Path** (PR #137), supaya konsep yang sudah siap
-dipelajari bisa langsung dikerjakan. Fitur kecil, tanpa migrasi skema,
+Beri **tiap baris daftar "Reviews due"** di `/gaps` (kartu **Reviews**) satu
+tautan **Open the lesson** ke `/learn/$conceptId`, sehingga review yang jatuh
+tempo bisa langsung dipelajari ulang, melanjutkan pola tautan di
+`/recommendations` (PR #137/#138/#139). Fitur kecil, tanpa migrasi skema,
 dependensi, server function, RPC, atau method RPC baru.
 
-Konteks: `src/routes/recommendations.tsx`. Cabang `activeTab === 'zones'`
-merender tiga kartu zona; yang dituju **hanya kartu tengah**, bukan **Mastered**
-dan bukan **Not yet**. Kartu tengah berisi `<h3 id="rec-zone-ready">` (ikon
-`Target`, teks **Ready to Learn ({zpd.zpd.length})`), lalu
-`<ul aria-labelledby="rec-zone-ready" className="space-y-2 max-h-96
-overflow-y-auto scrollbar-hide">` yang memetakan `zpd.zpd.map((zc) => ...)` ke
-`<motion.li key={zc.concept.conceptId} whileHover={{ scale: 1.02 }}
-className="p-3 bg-background/80 rounded-xl shadow-sm">`. Isi tiap baris
-berurutan: `<div className="font-medium text-sm text-foreground">{zc.concept.
-name}</div>`, `<div className="text-xs text-muted-foreground mt-1">{zc.reason}
-</div>`, lalu `<div className="text-xs text-purple-600 dark:text-purple-400
-mt-1 font-medium">Readiness: {Math.round(zc.readiness * 100)}%</div>`. Di luar
-`<ul>`, cabang kosong merender `<p className="text-sm text-purple-600
-dark:text-purple-400">Nothing ready right now</p>`.
+Konteks: `src/routes/gaps.tsx`, blok `<ul aria-label="Reviews due">` (sekitar
+baris 651–675). `Link` dari `@tanstack/react-router` dan `BookOpen` dari
+`lucide-react` **sudah diimpor** (dipakai tautan ke `/` dan ikon galat); jangan
+menambah impor kedua. Hasil `reviewQueue.queue.map((item, i) => (` saat ini
+langsung `<motion.li key={i} whileHover={{ scale: 1.01 }} className="p-4
+bg-secondary/50 rounded-xl border border-border/50 flex items-center gap-3">`
+berisi berurutan: titik prioritas `<div aria-hidden="true" className={cn('w-3
+h-3 rounded-full shrink-0', getPriorityColor(item.priority))} />`, `<div
+className="flex-1 min-w-0">` berisi `<p className="font-medium
+text-foreground">{conceptLabel(item.conceptId, item.conceptName)}</p>` lalu
+`<p className="text-sm text-muted-foreground">{reviewSummary(item.nextReviewDate,
+item.predictedRetention, now)}</p>`, kemudian badge prioritas `<span
+className={cn(...)}>{priorityLabel(item.priority)}</span>`.
 
 Rancangan (baca kode dulu; jangan mengubah copy/urutan/kelas visual/animasi yang
 sudah ada):
 
-1. `Link` dari `@tanstack/react-router` dan `BookOpen` dari `lucide-react`
-   **sudah diimpor** (dipakai PR #137/#138); jangan menambah impor kedua.
-2. Jadikan tautan **anak terakhir** `<motion.li>` daftar Ready to Learn, tepat
-   setelah baris **Readiness**: `<Link to="/learn/$conceptId" params={{
-   conceptId: zc.concept.conceptId }} className="mt-1 inline-flex items-center
-   gap-1 text-xs font-medium text-primary hover:underline
+1. Jadikan tautan **anak terakhir** `<div className="flex-1 min-w-0">`, tepat
+   setelah `<p>` reviewSummary: `<Link to="/learn/$conceptId" params={{
+   conceptId: item.conceptId }} className="mt-1 inline-flex items-center gap-1
+   text-xs font-medium text-primary hover:underline
    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500
    rounded">` berisi `BookOpen` (`className="h-3 w-3"`, `aria-hidden="true"`),
-   teks terlihat **Open the lesson**, lalu
-   `<span className="sr-only">: {zc.concept.name}</span>` supaya tiap tautan
-   punya nama aksesibel unik.
-3. Nama konsep, `zc.reason`, baris **Readiness**, `whileHover`, kelas baris,
-   `<h3 id="rec-zone-ready">`, `<ul aria-labelledby>`, kedua zona lain
-   (**Mastered**, **Not yet**) beserta isinya, ketiga empty state, tablist/tab/
-   tabpanel, animasi, urutan, dan pemilih learner tidak berubah. Jangan
-   membungkus nama/whole row dengan tautan dan jangan menambah tombol, live
-   region, fokus paksa, atau `role` tambahan; UI bahasa Inggris (D2).
-4. **Test**: file baru `tests/recommendations-ready-zone-lesson-links.test.ts`
-   (penjaga statis): tepat satu `<Link to="/learn/$conceptId" params={{
-   conceptId: zc.concept.conceptId }}>` per hasil `map` di daftar Ready to Learn
-   (total satu di blok itu), posisinya sesudah baris **Readiness** dan menjadi
-   anak terakhir `<motion.li>`, kelas persis, teks **Open the lesson** +
-   `sr-only` nama, `BookOpen` `aria-hidden` dengan kelas tetap, nama/`zc.reason`/
-   Readiness tetap teks biasa, `<h3 id="rec-zone-ready">`/`<ul
-   aria-labelledby>`/`whileHover`/kelas baris/empty state utuh, dua zona lain
-   tidak mendapat tautan, tanpa
+   teks terlihat **Open the lesson**, lalu `<span className="sr-only">:
+   {conceptLabel(item.conceptId, item.conceptName)}</span>`. Panggil
+   `conceptLabel` langsung di tautan; jangan mengubah `<p>` nama yang ada dan
+   jangan mengubah `map` menjadi blok `{ ... return }`, supaya penjaga
+   `tests/gaps-review-list.test.ts` (pola `(item, i) => (` dan urutan
+   titik→nama→summary→badge) tetap berlaku tanpa dilonggarkan.
+2. Nama, reviewSummary, titik prioritas, badge prioritas, `key={i}`,
+   `whileHover`, kelas baris, `<ul aria-label="Reviews due">` beserta kelas
+   gulirnya, empty state **Nothing due right now**/**Nothing to review yet**,
+   daftar **Snoozed reviews**, banner overdue, kartu angka/ringkasan, tab,
+   pemilih learner, urutan, dan copy lain tidak berubah. Jangan membungkus
+   nama/whole row dengan tautan; jangan menambah tombol, live region, fokus
+   paksa, atau `role` tambahan; UI bahasa Inggris (D2).
+3. **Test**: file baru `tests/gaps-review-lesson-links.test.ts` (penjaga
+   statis): tepat satu `<Link to="/learn/$conceptId" params={{ conceptId:
+   item.conceptId }}>` per hasil `map` di daftar Reviews due (total satu di blok
+   itu), posisinya sesudah baris reviewSummary dan menjadi anak terakhir
+   `flex-1 min-w-0`, kelas persis, teks **Open the lesson** + `sr-only` nama,
+   `BookOpen` `aria-hidden` dengan kelas tetap, nama/reviewSummary/badge tetap
+   teks biasa, `<ul aria-label>`/`whileHover`/kelas baris/empty state utuh,
+   daftar **Snoozed reviews** tanpa tautan pelajaran, tanpa
    `createServerFn`/`graphCall`/`rpc-schemas`/migrasi, serta `Link`/`BookOpen`
-   tidak diimpor ulang.
-   **Penting**: penjaga PR #138 `tests/recommendations-concept-lesson-links.test.ts`
-   mengunci jumlah `<Link>` dan `<BookOpen>` di **seluruh halaman** (masing-masing
-   2); setelah tugas ini jumlahnya menjadi 3, jadi batasi hitungan itu ke blok
-   **Recommended concepts** sambil tetap mengunci hitungan blok Learning Path
-   (1) dan impor tepat sekali. Jangan menghapus penjaga mana pun.
-5. **Smoke**: di blok `/recommendations` yang sudah ada, tepat setelah cek tiga
-   zona bernama (sebelum cek **Learning Path**), tambahkan: klik tab **Ready /
-   not yet**, ambil tautan pertama bernama `/^Open the lesson\s*: /` di daftar
-   **Ready to Learn (…)**, klik, lalu pastikan URL berakhir di `/learn/` dan
-   heading pelajaran (`h1`) terlihat; setelah itu `page.goto` kembali ke
-   `${BASE}/recommendations` agar cek Learning Path tetap berjalan. Sesuaikan
-   penjaga jumlah baris smoke (2493 → jumlah baris aktual; hitung dengan
-   `wc -l scripts/smoke.mjs`).
-6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+   tidak diimpor ulang. Jangan menghapus atau melenturkan penjaga
+   `tests/gaps-review-list.test.ts`.
+4. **Smoke**: di blok `/gaps` yang sudah ada, tepat setelah cek **Reviews due**
+   bernama dengan `listitem` > 0, ambil tautan pertama bernama
+   `/^Open the lesson\s*: /` di daftar itu, klik, lalu pastikan URL berakhir di
+   `/learn/` dan heading pelajaran (`h1`) terlihat. Cek berikutnya sudah
+   `page.goto` ke `/recommendations`, jadi tidak perlu kembali lebih dulu.
+   Sesuaikan penjaga jumlah baris smoke (`tests/skip-link.test.ts`, 2517 →
+   jumlah baris aktual; hitung dengan `wc -l scripts/smoke.mjs`).
+5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
 
@@ -84,6 +78,7 @@ TMPDIR=/home/ardhyui/.cache/ci-tmp npm run ci` (pola PR #91/#95/#111/#124).
 **Penting:** `/tmp` adalah tmpfs 4.9 GB dan bisa penuh (error `Unknown system
 error -122`/`ErrnoError errno 28` di test PGlite), jadi `TMPDIR` harus di
 `/home` yang lapang.
+
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
@@ -109,6 +104,39 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #139 — **Tiap konsep di zona "Ready to Learn"
+  `/recommendations` membuka pelajarannya** — kartu tengah tab **Ready / not
+  yet** sebelumnya hanya menampilkan nama konsep, `zc.reason`, dan baris
+  **Readiness: …%** tanpa jalan masuk ke `/learn/$conceptId`, sehingga konsep
+  yang sudah siap dipelajari tetap harus dicari manual padahal tab **Learning
+  Path** (PR #137) dan kartu **Recommended concepts** (PR #138) sudah punya
+  tautan yang sama. Kini tiap `<motion.li>` zona **Ready to Learn
+  ({zpd.zpd.length})** berakhir dengan satu `<Link to="/learn/$conceptId"
+  params={{ conceptId: zc.concept.conceptId }}>` (kelas `mt-1 inline-flex
+  items-center gap-1 text-xs font-medium text-primary hover:underline
+  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500
+  rounded`) berisi `BookOpen` `h-3 w-3` yang `aria-hidden="true"`, teks terlihat
+  **Open the lesson**, dan `<span className="sr-only">: {zc.concept.name}</span>`
+  agar tiap tautan punya nama aksesibel unik; tautan menjadi anak terakhir baris
+  tepat setelah baris **Readiness**, nama dan `zc.reason` tetap teks biasa.
+  Zona **Mastered** dan **Not yet**, ketiga empty state, `<h3
+  id="rec-zone-ready">`, `<ul aria-labelledby>`, `key`/`whileHover`/kelas baris,
+  tablist/tab/tabpanel, animasi, urutan, pemilih learner, dan copy lain tidak
+  berubah; tanpa tombol, live region, fokus paksa, atau `role` tambahan; UI
+  bahasa Inggris (D2). `Link`/`BookOpen` tetap diimpor tepat sekali. Test baru
+  `tests/recommendations-ready-zone-lesson-links.test.ts` (11 penjaga statis);
+  penjaga PR #138 `tests/recommendations-concept-lesson-links.test.ts` dibatasi
+  ke blok **Recommended concepts** (dan tetap mengunci blok Learning Path)
+  karena hitungan `<Link>`/`<BookOpen>` halaman kini 3, tanpa menghapus penjaga
+  mana pun. Satu cek smoke: setelah cek tiga zona bernama, klik tab **Ready /
+  not yet**, klik tautan pertama **Open the lesson: …** di daftar **Ready to
+  Learn (…)**, pastikan URL `/learn/` dan heading `h1` terlihat, lalu kembali ke
+  `/recommendations` sebelum cek Learning Path; penjaga baris smoke 2493 → 2517
+  (`tests/skip-link.test.ts`). `README.md`/`Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` dijalankan utuh dengan
+  `CI_PORT=8191 CI_PREVIEW_PORT=8193` dan `TMPDIR` di `/home`, **hijau penuh
+  pada percobaan pertama** (termasuk cek smoke baru `/learn/quadratic-equations`).
 
 - 2026-11-17: PR #138 — **Tiap kartu "Recommended concepts"
   `/recommendations` membuka pelajarannya** — kartu rekomendasi sebelumnya hanya

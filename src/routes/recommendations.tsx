@@ -675,6 +675,15 @@ function RecommendationsPage() {
                             <div className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
                               Readiness: {Math.round(zc.readiness * 100)}%
                             </div>
+                            <Link
+                              to="/learn/$conceptId"
+                              params={{ conceptId: zc.concept.conceptId }}
+                              className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+                            >
+                              <BookOpen className="h-3 w-3" aria-hidden="true" />
+                              Open the lesson
+                              <span className="sr-only">: {zc.concept.name}</span>
+                            </Link>
                           </motion.li>
                         ))}
                       </ul>
