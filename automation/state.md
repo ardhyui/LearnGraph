@@ -1,67 +1,65 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (PR #136; siklus berikutnya: tautan pelajaran di tiap langkah Learning Path `/recommendations`)
+Terakhir diperbarui: 2026-11-17 (PR #137; siklus berikutnya: tautan pelajaran di kartu Recommended concepts `/recommendations`)
 
 ## Tugas berikutnya
 
-Buat **tiap langkah di tab "Learning Path" `/recommendations`** bisa membuka
-halaman pelajarannya, sehingga rencana belajar bisa langsung dikerjakan.
-Sebelumnya langkah hanya menampilkan nama konsep tanpa tautan, padahal
-`/learn/$conceptId` sudah ada. Fitur kecil, tanpa migrasi skema, dependensi,
-server function, RPC, atau method RPC baru.
+Beri **tiap kartu di tab "Recommendations" `/recommendations`** satu tautan
+**Open the lesson** ke `/learn/$conceptId`, melanjutkan pola tautan yang sudah
+dipakai tab **Learning Path** (PR #137), supaya kartu rekomendasi juga bisa
+langsung dikerjakan. Fitur kecil, tanpa migrasi skema, dependensi, server
+function, RPC, atau method RPC baru.
 
-Konteks: `src/routes/recommendations.tsx` (±780 baris). Setelah PR #136, di
-cabang `activeTab === 'path'`, wadah `<ol aria-label="Suggested learning path"
-className="space-y-4">` berisi hasil `map` langsung `<motion.li key={conceptId}
-initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-transition={{ delay: idx * 0.1 }} className="flex items-center gap-4">` dengan:
+Konteks: `src/routes/recommendations.tsx`. Cabang `activeTab ===
+'recommendations'` merender `zpd.recommendations.map((rec, idx) => ...)` sebagai
+`<motion.li>` di dalam `<motion.ol aria-label="Recommended concepts">`. Di dalam
+tiap kartu ada `<div className="flex items-start gap-4">` berisi badge angka dan
+`<div className="flex-1">` yang isinya berurutan: baris `<h3>` + badge
+**Level**/domain, `<p className="text-muted-foreground mb-4">` deskripsi, blok
+metrik (**Readiness**/**Est. time**/**Profile match**), blok **Why this
+concept?** (bila ada), blok **Builds on** (bila ada), lalu blok terakhir
+**Ways to learn it** (div berisi chip `rec.scaffoldingStrategies.map`).
 
-- badge angka `<div className="w-10 h-10 rounded-xl bg-gradient-to-br
-  from-purple-500 to-pink-500 text-white flex items-center justify-center
-  font-bold shadow-lg shadow-purple-500/25">{idx + 1}</div>`;
-- `<div className="flex-1 p-4 bg-secondary/50 rounded-xl">` berisi
-  `<div className="font-medium text-foreground">{name}</div>` dan (bila `rec`
-  ada) `<div className="text-sm text-muted-foreground mt-1">Est. … •
-  Readiness …%</div>`;
-- panah `↓` ber-`aria-hidden="true"` di antara langkah.
+Rancangan (baca kode dulu; jangan mengubah copy/urutan/kelas visual/animasi yang
+sudah ada):
 
-Rancangan (baca kode dulu; jangan mengubah copy/urutan/kelas visual/animasi
-yang sudah ada):
-
-1. Impor `Link` dari `@tanstack/react-router` (file sudah mengimpor
-   `createFileRoute` dari paket yang sama) dan `BookOpen` dari `lucide-react`.
-2. Di dalam `<div className="flex-1 p-4 bg-secondary/50 rounded-xl">`, tepat
-   **setelah** baris nama dan baris **Est./Readiness** (jadi anak terakhir),
-   tambahkan satu `<Link to="/learn/$conceptId" params={{ conceptId }}
-   className="mt-1 inline-flex items-center gap-1 text-xs font-medium
-   text-primary hover:underline focus-visible:outline-none focus-visible:ring-2
-   focus-visible:ring-violet-500 rounded">` berisi `BookOpen` (`className="h-3
-   w-3"`, `aria-hidden="true"`), teks terlihat **Open the lesson**, lalu
-   `<span className="sr-only">: {name}</span>` dengan `name` variabel nama yang
-   sama, supaya tiap tautan punya nama aksesibel unik.
-3. Nama konsep, badge, baris **Est./Readiness**, panah, animasi, kelas langkah,
-   `<ol aria-label>`, empty state **No learning path available**,
-   tablist/tab/tabpanel, pemilih learner, dan bagian lain tidak berubah.
-   Jangan membungkus nama konsep/whole card dengan tautan dan jangan menambah
-   tombol, live region, fokus paksa, atau `role` tambahan; UI bahasa Inggris
-   (D2).
-4. **Test**: file baru `tests/recommendations-learning-path-links.test.ts`
+1. `Link` dari `@tanstack/react-router` dan `BookOpen` dari `lucide-react`
+   **sudah diimpor** setelah PR #137; jangan menambah impor kedua.
+2. Jadikan tautan **anak terakhir** `<div className="flex-1">` — tepat setelah
+   blok **Ways to learn it** selesai (setelah `</div>` penutup wadah chip), masih
+   di dalam kartu: `<Link to="/learn/$conceptId" params={{ conceptId:
+   rec.concept.conceptId }} className="mt-4 inline-flex items-center gap-1
+   text-sm font-medium text-primary hover:underline focus-visible:outline-none
+   focus-visible:ring-2 focus-visible:ring-violet-500 rounded">` berisi
+   `BookOpen` (`className="h-4 w-4"`, `aria-hidden="true"`), teks terlihat
+   **Open the lesson**, lalu `<span className="sr-only">: {rec.concept.name}</span>`
+   supaya tiap tautan punya nama aksesibel unik.
+3. Judul `<h3>`, deskripsi, badge, metrik, **Why this concept?**, **Builds on**,
+   chip **Ways to learn it**, empty state **All caught up!**, urutan, animasi
+   `motion.ol`/`motion.li`, tab, pemilih learner, dan bagian lain tidak berubah.
+   Jangan membungkus judul/whole card dengan tautan dan jangan menambah tombol,
+   live region, fokus paksa, atau `role` tambahan; UI bahasa Inggris (D2).
+4. **Test**: file baru `tests/recommendations-concept-lesson-links.test.ts`
    (penjaga statis): tepat satu `<Link to="/learn/$conceptId" params={{
-   conceptId }}>` per hasil `map` dan total satu di blok langkah, posisinya
-   setelah baris **Est./Readiness** serta menjadi anak terakhir blok
-   `flex-1 p-4 bg-secondary/50 rounded-xl`, teks **Open the lesson** +
-   `sr-only` nama, `BookOpen` `aria-hidden` dengan kelas tetap, nama konsep
-   tetap teks biasa (bukan tautan), `<ol>`/badge/panah/animasi/empty state
-   utuh, tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi, serta
-   `Link`/`BookOpen` diimpor tepat sekali.
-5. **Smoke**: di **akhir** blok `/recommendations` yang sudah ada (setelah cek
-   kartu rekomendasi dan `recSelect.selectOption({ label: 'Sari Smoke' })`),
-   klik tab **Learning Path**, ambil tautan pertama di daftar bernama
-   **Suggested learning path** (mis. `getByRole('link', { name: /^Open the
-   lesson: / })`), klik, lalu pastikan URL berakhir di `/learn/` dan heading
-   pelajaran (`h1`) terlihat. Taruh di akhir blok supaya tidak perlu kembali
-   ke `/recommendations`. Sesuaikan penjaga jumlah baris smoke (2452 → jumlah
-   baris aktual; hitung dengan `wc -l scripts/smoke.mjs`).
+   conceptId: rec.concept.conceptId }}>` per hasil `map` di blok **Recommended
+   concepts** (total satu di blok itu), posisinya setelah blok **Ways to learn
+   it** dan menjadi anak terakhir `flex-1`, kelas persis, teks **Open the
+   lesson** + `sr-only` nama, `BookOpen` `aria-hidden` dengan kelas tetap, judul
+   `<h3>` tetap teks biasa, `<motion.ol aria-label>`/badge/metrik/alasan/
+   prasyarat/scaffolding/empty state utuh, tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi, serta `Link`/`BookOpen`
+   tidak diimpor ulang (tetap satu impor masing-masing).
+   **Penting**: penjaga PR #137 `tests/recommendations-learning-path-links.test.ts`
+   menghitung `<Link>` dan `<BookOpen>` di **seluruh halaman** (masing-masing 1);
+   setelah tugas ini jumlahnya menjadi 2, jadi batasi hitungan itu ke blok
+   `listBlock` (tab Learning Path) sambil tetap mengunci impor tepat sekali.
+   Jangan menghapus penjaga itu.
+5. **Smoke**: di blok `/recommendations` yang sudah ada, sebelum cek yang
+   berakhir di `/learn/` (PR #137), tambahkan: klik tab **Recommendations**,
+   ambil tautan pertama bernama `/^Open the lesson\s*: /` di daftar **Recommended
+   concepts**, klik, lalu pastikan URL berakhir di `/learn/` dan heading
+   pelajaran (`h1`) terlihat. Sesuaikan penjaga jumlah baris smoke (2471 →
+   jumlah baris aktual; hitung dengan `wc -l scripts/smoke.mjs`).
 6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -92,19 +90,50 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    form, daftar data, dan banner pesan `/data-entry`, status pending
    `/sign-in`, `/forgot-password`, dan `/reset-password`, daftar isi
    `/privacy`, ringkasan dan daftar modul `/japanese`, serta daftar langkah tab
-   **Learning Path** `/recommendations` (PR #136). Halaman pelajar yang tersisa
+   **Learning Path** `/recommendations` beserta tautan pelajarannya (PR #136,
+   #137). Halaman pelajar yang tersisa
    hanya `/admin/*` (bukan prioritas), jadi setelah itu pilih item
    roadmap/kandidat fitur lain sesuai prioritas 2–4 di `TASK_PROMPT.md`, bukan
    memoles ulang halaman yang sama. `tests/` adalah berkas test, bukan halaman.
-2. **Tautan ke pelajaran dari kartu Recommended concepts** — setelah Learning
-   Path, kartu rekomendasi di tab pertama `/recommendations` juga belum punya
-   jalan masuk ke `/learn/$conceptId`; pakai pola tautan **Open the lesson**
-   yang sama, satu PR kecil dengan test statis + cek smoke.
+2. **Tautan ke pelajaran dari daftar zona "Ready to Learn"** — setelah kartu
+   **Recommended concepts**, daftar **Ready to Learn (n)** di tab "Ready / not
+   yet" juga belum punya jalan masuk ke `/learn/$conceptId`; pakai pola tautan
+   **Open the lesson** yang sama, satu PR kecil dengan test statis + cek smoke.
+   (Kerjakan hanya setelah tugas kartu rekomendasi selesai.)
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #137 — **Tiap langkah tab "Learning Path" `/recommendations`
+  membuka pelajarannya** — kartu **Suggested Learning Path** sebelumnya hanya
+  menampilkan badge angka, nama konsep, dan baris **Est./Readiness** tanpa jalan
+  masuk ke `/learn/$conceptId`, sehingga rencana belajar bisa dibaca tetapi
+  tidak bisa dikerjakan. Kini tiap `<motion.li>` berakhir dengan satu `<Link
+  to="/learn/$conceptId" params={{ conceptId }}>` (kelas `mt-1 inline-flex
+  items-center gap-1 text-xs font-medium text-primary hover:underline
+  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500
+  rounded`) berisi `BookOpen` `h-3 w-3` yang `aria-hidden="true"`, teks terlihat
+  **Open the lesson**, dan `<span className="sr-only">: {name}</span>` agar tiap
+  tautan punya nama aksesibel unik; nama konsep dihitung sekali (`const name`)
+  dan tetap teks biasa, tautan menjadi anak terakhir blok teks langkah setelah
+  **Est./Readiness**. Badge, panah `↓`, animasi, kelas langkah,
+  `<ol aria-label="Suggested learning path">`, empty state **No learning path
+  available**, tab, pemilih learner, dan copy lain tidak berubah; tanpa tombol,
+  live region, fokus paksa, atau `role` tambahan; UI bahasa Inggris (D2).
+  `Link`/`BookOpen` diimpor tepat sekali. Test baru
+  `tests/recommendations-learning-path-links.test.ts` (10 penjaga statis);
+  penjaga lama `tests/recommendations-learning-path.test.ts` disesuaikan untuk
+  nama yang dihitung sekali dan dua ikon dekoratif. Satu cek smoke: klik tab
+  **Learning Path**, klik tautan pertama **Open the lesson: …**, pastikan URL
+  `/learn/` dan heading `h1` terlihat; penjaga baris smoke 2452 → 2471
+  (`tests/skip-link.test.ts`). `README.md`/`Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau penuh pada percobaan
+  pertama (1478/1478 unit = 1468 + 10; typecheck, lint 0/0, build, anggaran
+  bundel, CSP produksi, smoke Playwright + PGlite; cek baru lulus
+  `/learn/decimals`), dijalankan dengan `CI_PORT=8191 CI_PREVIEW_PORT=8193` dan
+  `TMPDIR` di `/home`.
 
 - 2026-11-17: PR #136 — **Daftar langkah tab "Learning Path" `/recommendations`
   menjadi daftar berurut bernama** — kartu **Suggested Learning Path**
