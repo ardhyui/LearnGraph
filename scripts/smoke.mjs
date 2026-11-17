@@ -1365,6 +1365,34 @@ try {
       new URL(page.url()).pathname,
     );
 
+    // Every shaky spot opens its lesson too, so a weak concept can be studied
+    // again straight from the list.
+    await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
+    const shakySelect = page.getByLabel('Learner', { exact: true });
+    await shakySelect.waitFor({ timeout: 30000 });
+    await shakySelect.selectOption({ label: 'Carol Kim' }).catch(() => {});
+    const shakyCard = page
+      .locator('.glass-card')
+      .filter({ has: page.getByRole('heading', { name: 'Shaky spots' }) });
+    const shakyLessonLink = shakyCard
+      .getByRole('link', { name: /^Open the lesson\s*: / })
+      .first();
+    const shakyLessonShown = await shakyLessonLink.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    await shakyLessonLink.click().catch(() => {});
+    const onShakyLesson = await page
+      .waitForURL((u) => u.pathname.startsWith('/learn/'), { timeout: 15000 })
+      .then(() => true, () => false);
+    const shakyLessonHeading = await page
+      .getByRole('heading', { level: 1 })
+      .first()
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    check(
+      shakyLessonShown && onShakyLesson && shakyLessonHeading,
+      'gaps: each shaky spot opens its lesson',
+      new URL(page.url()).pathname,
+    );
+
     await page.goto(`${BASE}/recommendations`, { waitUntil: 'networkidle' });
     const zonesTab = page.getByRole('tab', { name: 'Ready / not yet' });
     await zonesTab.waitFor({ timeout: 30000 }).catch(() => {});
