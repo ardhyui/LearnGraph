@@ -65,6 +65,7 @@ function StatusIndicator({ status }: { status: string }) {
           className="w-3 h-3 rounded-full bg-emerald-500"
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 2, repeat: Infinity }}
+          aria-hidden="true"
         />
         <span className="text-emerald-600 dark:text-emerald-400 font-medium capitalize">{status}</span>
       </div>
@@ -73,7 +74,7 @@ function StatusIndicator({ status }: { status: string }) {
   if (status === 'pending') {
     return (
       <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded-full bg-slate-400" />
+        <div className="w-3 h-3 rounded-full bg-slate-400" aria-hidden="true" />
         <span className="text-slate-500 font-medium">Pending</span>
       </div>
     );
@@ -85,6 +86,7 @@ function StatusIndicator({ status }: { status: string }) {
           className="w-3 h-3 rounded-full bg-amber-500"
           animate={{ opacity: [1, 0.5, 1] }}
           transition={{ duration: 1, repeat: Infinity }}
+          aria-hidden="true"
         />
         <span className="text-amber-600 dark:text-amber-400 font-medium capitalize">{status}</span>
       </div>
@@ -92,7 +94,7 @@ function StatusIndicator({ status }: { status: string }) {
   }
   return (
     <div className="flex items-center gap-2">
-      <div className="w-3 h-3 rounded-full bg-red-500" />
+      <div className="w-3 h-3 rounded-full bg-red-500" aria-hidden="true" />
       <span className="text-red-600 dark:text-red-400 font-medium capitalize">{status || 'Error'}</span>
     </div>
   );
@@ -122,7 +124,7 @@ function ServiceCard({
           <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
             status === 'up' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 text-red-600 dark:text-red-400'
           }`}>
-            <Icon size={24} />
+            <Icon size={24} aria-hidden="true" />
           </div>
           <div>
             <h3 className="font-semibold text-foreground">{title}</h3>
@@ -133,7 +135,7 @@ function ServiceCard({
       </div>
       {latency !== undefined && latency >= 0 && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock size={14} />
+          <Clock size={14} aria-hidden="true" />
           <span>Latency: <span className="font-mono text-foreground">{latency}ms</span></span>
         </div>
       )}
@@ -160,7 +162,7 @@ function DataCard({
     >
       <div className="flex items-center gap-3">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon size={20} className="text-white" />
+          <Icon size={20} className="text-white" aria-hidden="true" />
         </div>
         <div>
           <p className="text-2xl font-bold text-foreground">{count}</p>
@@ -191,7 +193,7 @@ function AlgorithmCard({
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
           isOperational ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 text-red-600'
         }`}>
-          <Icon size={20} />
+          <Icon size={20} aria-hidden="true" />
         </div>
         <div>
           <p className="font-medium text-foreground">{name}</p>
@@ -199,10 +201,11 @@ function AlgorithmCard({
         </div>
       </div>
       {isOperational ? (
-        <CheckCircle2 className="text-emerald-500" size={20} />
+        <CheckCircle2 className="text-emerald-500" size={20} aria-hidden="true" />
       ) : (
-        <XCircle className="text-red-500" size={20} />
+        <XCircle className="text-red-500" size={20} aria-hidden="true" />
       )}
+      <span className="sr-only">{isOperational ? 'Operational' : 'Not operational'}</span>
     </div>
   );
 }
@@ -236,12 +239,13 @@ function PhaseCard({
         <p className="text-sm font-medium text-foreground">{name}</p>
       </div>
       {isComplete ? (
-        <CheckCircle2 className="text-emerald-500" size={16} />
+        <CheckCircle2 className="text-emerald-500" size={16} aria-hidden="true" />
       ) : isPending ? (
-        <Clock className="text-slate-400" size={16} />
+        <Clock className="text-slate-400" size={16} aria-hidden="true" />
       ) : (
-        <XCircle className="text-red-500" size={16} />
+        <XCircle className="text-red-500" size={16} aria-hidden="true" />
       )}
+      <span className="sr-only">{isComplete ? 'Complete' : isPending ? 'Pending' : 'Error'}</span>
     </div>
   );
 }
@@ -339,7 +343,7 @@ function StatusPage() {
     return (
       <div className="flex min-h-screen bg-background items-center justify-center">
         <div className="text-center text-destructive">
-          <AlertCircle className="w-8 h-8 mx-auto mb-3" />
+          <AlertCircle className="w-8 h-8 mx-auto mb-3" aria-hidden="true" />
           <p>Database error: {dbError.message}</p>
         </div>
       </div>
@@ -358,7 +362,7 @@ function StatusPage() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/25">
-                <Activity className="w-7 h-7 text-white" />
+                <Activity className="w-7 h-7 text-white" aria-hidden="true" />
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-foreground">System Status</h1>
@@ -370,7 +374,7 @@ function StatusPage() {
               disabled={loading}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
               Refresh
             </button>
           </div>
@@ -379,7 +383,7 @@ function StatusPage() {
         {/* Loading State */}
         {loading && !statusData && (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary" aria-hidden="true" />
           </div>
         )}
 
@@ -391,7 +395,7 @@ function StatusPage() {
             className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6 mb-8"
           >
             <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
-              <AlertTriangle size={24} />
+              <AlertTriangle size={24} aria-hidden="true" />
               <div>
                 <p className="font-semibold">Error fetching status</p>
                 <p className="text-sm">{error}</p>
@@ -421,12 +425,12 @@ function StatusPage() {
                       animate={{ scale: [1, 1.1, 1] }}
                       transition={{ duration: 2, repeat: Infinity }}
                     >
-                      <CheckCircle2 className="w-12 h-12 text-emerald-500" />
+                      <CheckCircle2 className="w-12 h-12 text-emerald-500" aria-hidden="true" />
                     </motion.div>
                   ) : statusData.status === 'degraded' ? (
-                    <AlertTriangle className="w-12 h-12 text-amber-500" />
+                    <AlertTriangle className="w-12 h-12 text-amber-500" aria-hidden="true" />
                   ) : (
-                    <XCircle className="w-12 h-12 text-red-500" />
+                    <XCircle className="w-12 h-12 text-red-500" aria-hidden="true" />
                   )}
                   <div>
                     <h2 className="text-2xl font-bold text-foreground">
@@ -450,7 +454,7 @@ function StatusPage() {
 
             {/* Core Services */}
             <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Server size={20} />
+              <Server size={20} aria-hidden="true" />
               Core Services
             </h2>
             <div className="grid md:grid-cols-2 gap-4 mb-8">
@@ -472,7 +476,7 @@ function StatusPage() {
 
             {/* Data Status */}
             <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-              <BarChart3 size={20} />
+              <BarChart3 size={20} aria-hidden="true" />
               Data Status
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -506,7 +510,7 @@ function StatusPage() {
 
             {/* Algorithm Health */}
             <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Brain size={20} />
+              <Brain size={20} aria-hidden="true" />
               Algorithm Health
             </h2>
             <div className="grid md:grid-cols-2 gap-4 mb-8">
@@ -538,7 +542,7 @@ function StatusPage() {
 
             {/* Phase Status */}
             <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Sparkles size={20} />
+              <Sparkles size={20} aria-hidden="true" />
               Development Phases
             </h2>
             <motion.div
@@ -563,15 +567,15 @@ function StatusPage() {
                   </span>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                      <div className="w-3 h-3 rounded-full bg-emerald-500" aria-hidden="true" />
                       <span className="text-muted-foreground">Complete</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-slate-400" />
+                      <div className="w-3 h-3 rounded-full bg-slate-400" aria-hidden="true" />
                       <span className="text-muted-foreground">Pending</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-red-500" />
+                      <div className="w-3 h-3 rounded-full bg-red-500" aria-hidden="true" />
                       <span className="text-muted-foreground">Error</span>
                     </div>
                   </div>
@@ -585,21 +589,21 @@ function StatusPage() {
                 href="/tests"
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
               >
-                <Activity size={16} />
+                <Activity size={16} aria-hidden="true" />
                 Run Functional Tests
               </a>
               <a
                 href="/gaps"
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
               >
-                <AlertTriangle size={16} />
+                <AlertTriangle size={16} aria-hidden="true" />
                 View Gap Analysis
               </a>
               <a
                 href="/recommendations"
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-colors"
               >
-                <Sparkles size={16} />
+                <Sparkles size={16} aria-hidden="true" />
                 View Recommendations
               </a>
             </div>

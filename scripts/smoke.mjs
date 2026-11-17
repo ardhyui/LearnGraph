@@ -298,6 +298,34 @@ try {
       // Re-open the first section so the rest of the flow is unaffected.
       await section.click().catch(() => {});
     }
+
+    // /status states each card's status in text: the coloured status icons are
+    // decorative, and the phase words match the legend under the grid.
+    if (path === '/status') {
+      await page
+        .getByRole('heading', { name: 'Algorithm Health' })
+        .waitFor({ timeout: 30000 })
+        .catch(() => {});
+      const announced = await page
+        .locator('span.sr-only')
+        .evaluateAll((nodes) => nodes.map((n) => (n.textContent ?? '').trim()))
+        .catch(() => []);
+      const times = (word) => announced.filter((text) => text === word).length;
+      const operational = times('Operational');
+      const notOperational = times('Not operational');
+      const complete = times('Complete');
+      const pending = times('Pending');
+      const phaseError = times('Error');
+      check(
+        operational === 4 &&
+          notOperational === 0 &&
+          complete === 2 &&
+          pending === 4 &&
+          phaseError === 0,
+        'status: algorithm and phase status is announced in text',
+        `Operational ${operational}, Not operational ${notOperational}, Complete ${complete}, Pending ${pending}, Error ${phaseError}`,
+      );
+    }
   }
   // Each page names itself in the browser tab (WCAG 2.4.2), not one shared title.
   {
