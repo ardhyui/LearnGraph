@@ -1344,6 +1344,26 @@ try {
       'gaps: due reviews are a named list of review items',
       `${reviewItems} item(s)`,
     );
+    // Every due review opens its lesson, so a review that comes up can be
+    // studied again straight from the list.
+    const reviewLessonLink = reviewList
+      .getByRole('link', { name: /^Open the lesson\s*: / })
+      .first();
+    const reviewLessonShown = await reviewLessonLink.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    await reviewLessonLink.click().catch(() => {});
+    const onReviewLesson = await page
+      .waitForURL((u) => u.pathname.startsWith('/learn/'), { timeout: 15000 })
+      .then(() => true, () => false);
+    const reviewLessonHeading = await page
+      .getByRole('heading', { level: 1 })
+      .first()
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    check(
+      reviewLessonShown && onReviewLesson && reviewLessonHeading,
+      'gaps: each due review opens its lesson',
+      new URL(page.url()).pathname,
+    );
 
     await page.goto(`${BASE}/recommendations`, { waitUntil: 'networkidle' });
     const zonesTab = page.getByRole('tab', { name: 'Ready / not yet' });

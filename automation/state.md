@@ -1,69 +1,86 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (PR #139; siklus berikutnya: tautan pelajaran di daftar "Reviews due" `/gaps`)
+Terakhir diperbarui: 2026-11-17 (PR #140; siklus berikutnya: tautan pelajaran di kartu "Shaky spots" `/gaps`)
 
 ## Tugas berikutnya
 
-Beri **tiap baris daftar "Reviews due"** di `/gaps` (kartu **Reviews**) satu
-tautan **Open the lesson** ke `/learn/$conceptId`, sehingga review yang jatuh
-tempo bisa langsung dipelajari ulang, melanjutkan pola tautan di
-`/recommendations` (PR #137/#138/#139). Fitur kecil, tanpa migrasi skema,
-dependensi, server function, RPC, atau method RPC baru.
+Beri **tiap kartu daftar "Shaky spots"** di `/gaps` (kartu **Shaky spots**)
+satu tautan **Open the lesson** ke `/learn/$conceptId`, sehingga konsep yang
+goyah bisa langsung dipelajari ulang, melanjutkan deret tautan di
+`/recommendations` (PR #137/#138/#139) dan daftar **Reviews due** (PR #140).
+Fitur kecil, tanpa migrasi skema, dependensi, server function, RPC, atau
+method RPC baru.
 
-Konteks: `src/routes/gaps.tsx`, blok `<ul aria-label="Reviews due">` (sekitar
-baris 651–675). `Link` dari `@tanstack/react-router` dan `BookOpen` dari
-`lucide-react` **sudah diimpor** (dipakai tautan ke `/` dan ikon galat); jangan
-menambah impor kedua. Hasil `reviewQueue.queue.map((item, i) => (` saat ini
-langsung `<motion.li key={i} whileHover={{ scale: 1.01 }} className="p-4
-bg-secondary/50 rounded-xl border border-border/50 flex items-center gap-3">`
-berisi berurutan: titik prioritas `<div aria-hidden="true" className={cn('w-3
-h-3 rounded-full shrink-0', getPriorityColor(item.priority))} />`, `<div
-className="flex-1 min-w-0">` berisi `<p className="font-medium
-text-foreground">{conceptLabel(item.conceptId, item.conceptName)}</p>` lalu
-`<p className="text-sm text-muted-foreground">{reviewSummary(item.nextReviewDate,
-item.predictedRetention, now)}</p>`, kemudian badge prioritas `<span
-className={cn(...)}>{priorityLabel(item.priority)}</span>`.
+Konteks: `src/routes/gaps.tsx`, kartu **Shaky spots** (sekitar baris
+506–599). `Link` dari `@tanstack/react-router` dan `BookOpen` dari
+`lucide-react` **sudah diimpor** (dipakai tautan ke `/`, ikon galat, dan
+tautan **Reviews due**); jangan menambah impor kedua. Ada empat hasil `map`
+terpisah dengan bentuk sama: `gaps.missing.map((gap, i) => (`,
+`gaps.partial.map((gap, i) => (`, `gaps.forgotten.map((gap, i) => (`, dan
+`gaps.misconceptions.map((gap, i) => (`. Tiap `map` langsung `<motion.div
+key={`missing-${i}`} whileHover={{ scale: 1.01 }} className={cn('p-4
+rounded-xl border', getSeverityColor(gap.severity))}>` (key mengikuti daftar:
+`missing-`/`partial-`/`forgotten-`/`misconception-`), berisi `<div
+className="flex items-start gap-3">`, ikon `getGapIcon('<jenis>')`, lalu
+`<div className="flex-1">` berisi `<p className="font-medium
+text-foreground">{conceptLabel(gap.conceptId, gap.conceptName)}</p>` dan satu
+atau dua `<p>` keterangan: missing → `Ready to learn — not started yet` +
+opsional `<p className="text-xs mt-1 opacity-60">Unlocks: …</p>`; partial →
+`{gap.mastery}% mastered` + `<p className="text-xs mt-1 opacity-60"
+data-testid="mastery-source">`; forgotten → baris `Due for a review · about
+…% remembered · last reviewed … ago` + `mastery-source`; misconceptions →
+`{gap.incorrectUnderstanding || 'Something here was understood the wrong
+way'}`.
 
-Rancangan (baca kode dulu; jangan mengubah copy/urutan/kelas visual/animasi yang
-sudah ada):
+Rancangan (baca kode dulu; jangan mengubah copy/urutan/kelas visual/animasi
+yang sudah ada):
 
-1. Jadikan tautan **anak terakhir** `<div className="flex-1 min-w-0">`, tepat
-   setelah `<p>` reviewSummary: `<Link to="/learn/$conceptId" params={{
-   conceptId: item.conceptId }} className="mt-1 inline-flex items-center gap-1
-   text-xs font-medium text-primary hover:underline
-   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500
-   rounded">` berisi `BookOpen` (`className="h-3 w-3"`, `aria-hidden="true"`),
-   teks terlihat **Open the lesson**, lalu `<span className="sr-only">:
-   {conceptLabel(item.conceptId, item.conceptName)}</span>`. Panggil
-   `conceptLabel` langsung di tautan; jangan mengubah `<p>` nama yang ada dan
-   jangan mengubah `map` menjadi blok `{ ... return }`, supaya penjaga
-   `tests/gaps-review-list.test.ts` (pola `(item, i) => (` dan urutan
-   titik→nama→summary→badge) tetap berlaku tanpa dilonggarkan.
-2. Nama, reviewSummary, titik prioritas, badge prioritas, `key={i}`,
-   `whileHover`, kelas baris, `<ul aria-label="Reviews due">` beserta kelas
-   gulirnya, empty state **Nothing due right now**/**Nothing to review yet**,
-   daftar **Snoozed reviews**, banner overdue, kartu angka/ringkasan, tab,
-   pemilih learner, urutan, dan copy lain tidak berubah. Jangan membungkus
-   nama/whole row dengan tautan; jangan menambah tombol, live region, fokus
-   paksa, atau `role` tambahan; UI bahasa Inggris (D2).
-3. **Test**: file baru `tests/gaps-review-lesson-links.test.ts` (penjaga
+1. Jadikan tautan **anak terakhir tiap `<div className="flex-1">`**, tepat
+   setelah `<p>` keterangan terakhir blok itu: `<Link
+   to="/learn/$conceptId" params={{ conceptId: gap.conceptId }}
+   className="mt-1 inline-flex items-center gap-1 text-xs font-medium
+   text-primary hover:underline focus-visible:outline-none
+   focus-visible:ring-2 focus-visible:ring-violet-500 rounded">` berisi
+   `BookOpen` (`className="h-3 w-3"`, `aria-hidden="true"`), teks terlihat
+   **Open the lesson**, lalu `<span className="sr-only">:
+   {conceptLabel(gap.conceptId, gap.conceptName)}</span>`. Panggil
+   `conceptLabel` langsung di tautan; jangan mengubah `<p>` nama/keterangan
+   yang ada dan jangan mengubah `map` menjadi blok `{ ... return }`, supaya
+   penjaga `tests/gaps.test.ts` (posisi `shakySummary`, satu
+   `gapSummaryLine`) dan `tests/gaps-review-lesson-links.test.ts` (satu
+   tautan di daftar Reviews due) tetap berlaku tanpa dilonggarkan.
+2. Nama, keterangan, `data-testid="mastery-source"`, ikon `getGapIcon`,
+   warna severity lewat `getSeverityColor(gap.severity)`, `key`,
+   `whileHover`, kelas baris, wadah `space-y-3 max-h-96 overflow-y-auto
+   scrollbar-hide`, urutan empat kelompok (missing → partial → forgotten →
+   misconceptions), empty state **No shaky spots right now — nice work!**,
+   `<p className="text-sm text-muted-foreground mb-3">{shakySummary}</p>`,
+   judul **Shaky spots**, kartu angka, tab, pemilih learner, urutan, dan copy
+   lain tidak berubah. Jangan membungkus nama/kartu dengan tautan; jangan
+   menambah tombol, live region, fokus paksa, atau `role` tambahan; UI bahasa
+   Inggris (D2).
+3. **Test**: file baru `tests/gaps-shaky-spots-lesson-links.test.ts` (penjaga
    statis): tepat satu `<Link to="/learn/$conceptId" params={{ conceptId:
-   item.conceptId }}>` per hasil `map` di daftar Reviews due (total satu di blok
-   itu), posisinya sesudah baris reviewSummary dan menjadi anak terakhir
-   `flex-1 min-w-0`, kelas persis, teks **Open the lesson** + `sr-only` nama,
-   `BookOpen` `aria-hidden` dengan kelas tetap, nama/reviewSummary/badge tetap
-   teks biasa, `<ul aria-label>`/`whileHover`/kelas baris/empty state utuh,
-   daftar **Snoozed reviews** tanpa tautan pelajaran, tanpa
+   gap.conceptId }}>` per hasil `map` (total empat di kartu ini), posisinya
+   sesudah `<p>` keterangan terakhir dan menjadi anak terakhir tiap
+   `flex-1`, kelas persis, teks **Open the lesson** + `sr-only` nama,
+   `BookOpen` `aria-hidden` dengan kelas tetap, nama/keterangan/`mastery-source`
+   tetap teks biasa, keempat `key`+`whileHover`+kelas severity utuh, empty
+   state dan `shakySummary` utuh, tanpa
    `createServerFn`/`graphCall`/`rpc-schemas`/migrasi, serta `Link`/`BookOpen`
    tidak diimpor ulang. Jangan menghapus atau melenturkan penjaga
-   `tests/gaps-review-list.test.ts`.
-4. **Smoke**: di blok `/gaps` yang sudah ada, tepat setelah cek **Reviews due**
-   bernama dengan `listitem` > 0, ambil tautan pertama bernama
-   `/^Open the lesson\s*: /` di daftar itu, klik, lalu pastikan URL berakhir di
-   `/learn/` dan heading pelajaran (`h1`) terlihat. Cek berikutnya sudah
-   `page.goto` ke `/recommendations`, jadi tidak perlu kembali lebih dulu.
-   Sesuaikan penjaga jumlah baris smoke (`tests/skip-link.test.ts`, 2517 →
-   jumlah baris aktual; hitung dengan `wc -l scripts/smoke.mjs`).
+   `tests/gaps.test.ts`, `tests/gaps-review-list.test.ts`, maupun
+   `tests/gaps-review-lesson-links.test.ts`.
+4. **Smoke**: di blok `/gaps` yang sudah ada, setelah cek tautan pelajaran
+   daftar **Reviews due** (PR #140) tambahkan blok kecil: `page.goto` kembali
+   ke `/gaps`, bila perlu pilih lagi **Carol Kim** lewat `getByLabel('Learner',
+   { exact: true })` (pilihan learner biasanya bertahan), lalu di kartu
+   **Shaky spots** klik tautan pertama bernama `/^Open the lesson\s*: /` dan
+   pastikan URL berakhir di `/learn/` serta heading `h1` terlihat. Cek
+   berikutnya sudah `page.goto` ke `/recommendations`, jadi tidak perlu
+   kembali dulu. Sesuaikan penjaga jumlah baris smoke
+   (`tests/skip-link.test.ts`, 2537 → jumlah baris aktual; hitung dengan
+   `wc -l scripts/smoke.mjs`).
 5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -104,6 +121,37 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #140 — **Tiap baris daftar "Reviews due" `/gaps` membuka
+  pelajarannya** — kartu **Reviews** di Gap Analysis sebelumnya hanya
+  menampilkan nama konsep, baris kapan review jatuh tempo, dan badge prioritas
+  tanpa jalan masuk ke `/learn/$conceptId`, sehingga review yang jatuh tempo
+  tetap harus dicari manual padahal tab **Learning Path** (PR #137), kartu
+  **Recommended concepts** (PR #138), dan zona **Ready to Learn** (PR #139)
+  sudah punya tautan yang sama. Kini tiap `<motion.li>` daftar **Reviews due**
+  berakhir dengan satu `<Link to="/learn/$conceptId" params={{ conceptId:
+  item.conceptId }}>` (kelas `mt-1 inline-flex items-center gap-1 text-xs
+  font-medium text-primary hover:underline focus-visible:outline-none
+  focus-visible:ring-2 focus-visible:ring-violet-500 rounded`) berisi
+  `BookOpen` `h-3 w-3` yang `aria-hidden="true"`, teks terlihat **Open the
+  lesson**, dan `<span className="sr-only">: {conceptLabel(item.conceptId,
+  item.conceptName)}</span>` agar tiap tautan punya nama aksesibel unik;
+  tautan menjadi anak terakhir `<div className="flex-1 min-w-0">` tepat
+  setelah baris `reviewSummary`, sementara nama, ringkasan, titik prioritas,
+  dan badge prioritas tetap teks biasa. `key={i}`, `whileHover`, kelas baris,
+  `<ul aria-label="Reviews due">` beserta kelas gulirnya, kedua empty state,
+  daftar **Snoozed reviews** (tetap hanya **Review it now**), banner overdue,
+  kartu angka/ringkasan, tab, pemilih learner, urutan, dan copy lain tidak
+  berubah; tanpa tombol, live region, fokus paksa, atau `role` tambahan; UI
+  bahasa Inggris (D2). `Link`/`BookOpen` tetap diimpor tepat sekali. Test baru
+  `tests/gaps-review-lesson-links.test.ts` (11 penjaga statis);
+  `tests/gaps-review-list.test.ts` tidak diubah dan tetap hijau. Satu cek
+  smoke: setelah cek **Reviews due** bernama dengan `listitem` > 0, klik
+  tautan pertama **Open the lesson: …** di daftar itu, lalu pastikan URL
+  `/learn/` dan heading `h1` terlihat; penjaga baris smoke 2517 → 2537
+  (`tests/skip-link.test.ts`). `README.md`/`Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` dijalankan utuh dengan
+  `CI_PORT=8191 CI_PREVIEW_PORT=8193` dan `TMPDIR` di `/home`.
 
 - 2026-11-17: PR #139 — **Tiap konsep di zona "Ready to Learn"
   `/recommendations` membuka pelajarannya** — kartu tengah tab **Ready / not
