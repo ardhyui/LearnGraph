@@ -72,6 +72,30 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-17: PR #119 — **Fokus judul pelajaran setelah pindah konsep** —
+  tautan **Builds on** dan **Next: <konsep>** di `/learn/$conceptId` mengganti
+  seluruh pelajaran sehingga tautan yang sedang fokus ter-unmount dan fokus
+  jatuh ke `<body>`; pengguna keyboard/pembaca layar harus men-Tab dari awal.
+  Kini `<h1 id="lesson-title">` memakai `ref={lessonTitleRef}`,
+  `tabIndex={-1}`, dan `focus:outline-none` (teks/ukuran/warna/posisi tetap),
+  dan effect baru memindahkan fokus lewat
+  `requestAnimationFrame(() => lessonTitleRef.current?.focus())` hanya ketika
+  `lesson` untuk `conceptId` yang diminta sudah dimuat
+  (`lesson.concept.conceptId === conceptId`, jadi lesson lama yang belum
+  ter-reset tidak pernah difokuskan) dan `conceptId` berbeda dari ref
+  `titleConceptId` yang diinisialisasi dengan `conceptId` saat mount; mount
+  pertama, ganti learner, `load()` ulang setelah kuis/laporan diri, dan
+  `quizOpen` tidak memindahkan fokus, dan `finishQuiz`/`cancelQuiz` tetap.
+  `Link`/`nav`, urutan tab, `article`, judul, `ConceptQuiz`, copy, dan isolasi
+  akun tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/lesson-navigation-focus.test.ts` (6 penjaga statis) + penyesuaian
+  penjaga `.focus()` di `tests/lesson-focus.test.ts` (2 → 3); satu cek smoke
+  baru mengikuti **Next:** lalu memastikan `document.activeElement` adalah
+  `h1#lesson-title` berisi nama konsep baru, penjaga baris smoke 2142 → 2159.
+  `README.md` dan `Roadmap.md` tidak diubah; `docs/ROADMAP.md` mendapat entri
+  log. `npm run ci` hijau penuh (1303/1303 unit = 1297 + 6; smoke lulus pada
+  percobaan pertama).
+
 - 2026-11-17: PR #118 — **Tombol panjang dan tata letak kuis di `/profile`
   menjadi grup pilihan bernama** — dua pasang toggle di kartu **Short
   questionnaires** sebelumnya `<button>` biasa di dalam `<div>` tanpa nama,
