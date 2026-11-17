@@ -1362,6 +1362,30 @@ try {
       'recommendations: each zone is a named list of concepts',
       `${zoneListCount} list(s), ${zoneItems} item(s)`,
     );
+    // Every concept in the ready zone opens its lesson, so a learner can start
+    // what they are ready for straight from the list.
+    const readyLessonLink = page
+      .getByRole('list', { name: /^Ready to Learn \(/ })
+      .getByRole('link', { name: /^Open the lesson\s*: / })
+      .first();
+    const readyLessonShown = await readyLessonLink.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    await readyLessonLink.click().catch(() => {});
+    const onReadyLesson = await page
+      .waitForURL((u) => u.pathname.startsWith('/learn/'), { timeout: 15000 })
+      .then(() => true, () => false);
+    const readyLessonHeading = await page
+      .getByRole('heading', { level: 1 })
+      .first()
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    check(
+      readyLessonShown && onReadyLesson && readyLessonHeading,
+      'recommendations: each ready-to-learn concept opens its lesson',
+      new URL(page.url()).pathname,
+    );
+
+    await page.goto(`${BASE}/recommendations`, { waitUntil: 'networkidle' });
+
     // The suggested learning path is one named ordered list of steps.
     const pathTab = page.getByRole('tab', { name: 'Learning Path' });
     await pathTab.click().catch(() => {});

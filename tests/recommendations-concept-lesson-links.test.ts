@@ -119,16 +119,17 @@ describe('recommendations concept cards: each card opens its lesson', () => {
     assert.equal(/<button\b/.test(listBlock), false);
   });
 
-  it('imports Link and BookOpen exactly once and keeps one learning-path link', () => {
+  it('imports Link and BookOpen exactly once and keeps one link per list', () => {
     assert.equal((page.match(/from '@tanstack\/react-router'/g) ?? []).length, 1);
     assert.match(page, /import \{ createFileRoute, Link \} from '@tanstack\/react-router';/);
-    assert.equal((page.match(/<Link\b/g) ?? []).length, 2);
-    assert.equal((page.match(/<BookOpen\b/g) ?? []).length, 2);
+    assert.equal((listBlock.match(/<Link\b/g) ?? []).length, 1);
+    assert.equal((listBlock.match(/<BookOpen\b/g) ?? []).length, 1);
 
     const pathStart = page.indexOf('<ol aria-label="Suggested learning path"');
     const pathEnd = page.indexOf('</ol>', pathStart);
     const pathBlock = pathStart >= 0 && pathEnd > pathStart ? page.slice(pathStart, pathEnd) : '';
     assert.equal((pathBlock.match(/<Link\b/g) ?? []).length, 1);
+    assert.equal((pathBlock.match(/<BookOpen\b/g) ?? []).length, 1);
 
     const lucideImport = page.slice(page.indexOf("from 'lucide-react'") - 400, page.indexOf("from 'lucide-react'"));
     assert.equal((lucideImport.match(/\bBookOpen\b/g) ?? []).length, 1);
