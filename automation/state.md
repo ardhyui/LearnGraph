@@ -1,54 +1,52 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (fokus daftar isi `/about`; siklus berikutnya: toolbar & kartu angka `/domains`)
+Terakhir diperbarui: 2026-11-17 (toolbar & kartu angka `/domains`; siklus berikutnya: toolbar `/combined-graph`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **toolbar dan kartu angka halaman `/domains`** — kandidat
-fitur (a); tanpa migrasi skema, dependensi, server function, RPC, atau method
-RPC baru. Konteks: `src/routes/domains.tsx` sekitar baris 560–650. Tombol
-toggle **Correlations** (~571) dan **Subscales** (~586) adalah `motion.button`
-biasa yang hanya menunjukkan status lewat warna (`bg-emerald-500/20 …` saat
-aktif vs `bg-secondary …` saat tidak) tanpa `aria-pressed`, dan ikon
-`Eye`/`EyeOff` dekoratif tanpa `aria-hidden`. `<label>` "Overlay scores:"
-(~603) tidak dihubungkan ke `<select>` overlay di bawahnya (tanpa
-`htmlFor`/`id`) sehingga pembaca layar tidak tahu nama select. Empat kartu
-angka hasil `statCards.map` (~630) dirender `motion.div` di dalam grid
-`motion.div` tanpa daftar.
+Poles aksesibilitas **toolbar halaman `/combined-graph`** — kandidat
+fitur (a); tanpa migrasi skema, dependensi, server function, RPC, atau
+method RPC baru. Konteks: `src/routes/combined-graph.tsx` sekitar baris
+490–578. Tombol **Refresh** (~497) memakai `RefreshCw size={18}`
+dekoratif tanpa `aria-hidden`. `<label>` "Select Learner:" (~510) tidak
+dihubungkan ke `<select>` di bawahnya (tanpa `htmlFor`/`id`) sehingga
+pembaca layar tidak tahu nama select, dan ikon `User size={18}` (~509)
+dekoratif tanpa `aria-hidden`. Tiga tombol toggle di baris "Show:" (~528)
+— **Domains (Graph A)** (~530, `showDomains`), **Concepts (Graph B)**
+(~546, `showConcepts`), **Knowledge States (Bridge)** (~562,
+`showBridges`) — adalah `motion.button` yang hanya menunjukkan status
+lewat warna (`bg-purple-500/20 …`/`bg-blue-500/20 …`/`bg-pink-500/20 …`
+saat aktif) tanpa `aria-pressed`; tiap tombol memakai `Eye`/`EyeOff
+size={16}` plus ikon kedua dekoratif (`Brain size={14}`/`Network
+size={14}`/`ArrowRight size={14}`).
 
 Rancangan (baca kode dulu; jangan mengubah isi/urutan bagian halaman):
 
-1. Tombol **Correlations** diberi `aria-pressed={showCorrelations}` dan
-   **Subscales** `aria-pressed={showSubscales}` (pola PR #118); teks,
-   `onClick`, kelas, `whileHover`/`whileTap` tidak berubah; ikon
-   `Eye`/`EyeOff` (dan `RefreshCw` pada tombol Refresh bila belum) diberi
-   `aria-hidden="true"` tanpa mengubah `size={18}`.
-2. Asosiasi label: `<label htmlFor="domains-overlay-learner" ...>` dan
-   `<select id="domains-overlay-learner" ...>`; `value`, `onChange`, opsi
-   (`No overlay` + `learners.map`), dan kelas tidak berubah; ikon `Users`
-   dekoratif diberi `aria-hidden`.
-3. Kartu angka: wadah grid `motion.div` (~621) menjadi `<motion.ul>` dengan
-   `variants` stagger dan kelas `grid grid-cols-2 md:grid-cols-4 gap-4 mb-6`
-   yang sama; tiap hasil `statCards.map` langsung
-   `<motion.li key={card.label}>` dengan `variants`/`whileHover`/kelas
-   `glass-card p-4 text-center` persis sama; tanpa `<div>` perantara, tanpa
-   kelas marker baru (Tailwind preflight sudah menghapus penanda).
-4. **Test**: file baru `tests/domains-toolbar.test.ts` (penjaga statis) —
-   dua `aria-pressed` dengan ekspresi persis, `htmlFor`/`id` select
-   berpasangan tepat satu, ikon dekoratif `aria-hidden`, hasil `map`
-   langsung `<motion.li>` tanpa pembungkus, empat label kartu
-   (`Domains`/`Categories`/`Correlations`/`Subscale Groups`) berurutan,
-   tanpa kelas marker/`role="list"`/live region, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-5. **Smoke**: blok graph pages (~1589, `['/domains', 'domain graph']`) sudah
-   memuat halaman dan memakai `select` pertama — tambahkan cek bahwa
-   `getByLabel('Overlay scores:')` menunjuk select yang sama serta tombol
-   Correlations/Subscales memiliki atribut `aria-pressed`. Bila smoke
-   bertambah baris, perbarui penjaga jumlah baris di
-   `tests/skip-link.test.ts` (kini 2192).
+1. Ketiga tombol toggle diberi `aria-pressed={showDomains}`/
+   `aria-pressed={showConcepts}`/`aria-pressed={showBridges}` (pola PR
+   #118/#123); teks, `onClick`, kelas, `whileHover`/`whileTap` tidak
+   berubah.
+2. Asosiasi label: `<label htmlFor="combined-learner-select" ...>` dan
+   `<select id="combined-learner-select" ...>`; `value`, `onChange`,
+   opsi (`Choose a learner...` + `learners.map`), dan kelas tidak
+   berubah.
+3. Ikon dekoratif `RefreshCw size={18}`, `User size={18}`,
+   `Eye`/`EyeOff size={16}`, serta `Brain`/`Network`/`ArrowRight
+   size={14}` diberi `aria-hidden="true"` tanpa mengubah size/kelas.
+4. **Test**: file baru `tests/combined-graph-toolbar.test.ts` (penjaga
+   statis) — tiga `aria-pressed` dengan ekspresi persis, pasangan
+   `htmlFor`/`id` select tepat satu dengan kontrak select utuh,
+   seluruh ikon dekoratif `aria-hidden`, klik/kelas/urutan tombol tetap,
+   serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
+5. **Smoke**: blok graph pages (~1616, `['/combined-graph', 'combined
+   graph']`) sudah memuat halaman dan memakai `select` pertama —
+   tambahkan cek pola PR #123 (`if (path === '/combined-graph')`) bahwa
+   `getByLabel('Select Learner:')` menunjuk select pertama halaman.
+   Bila smoke bertambah baris, perbarui penjaga jumlah baris di
+   `tests/skip-link.test.ts` (kini 2220).
 6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
-   `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
-   milestone selesai.
+   `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan
+   menandai milestone selesai.
 
 Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
 Indonesia pola `fix:`/`feat:`. Catatan mesin: sesi lain dapat membuat load
@@ -63,19 +61,53 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Setelah
-   antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`, fokus
-   pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`, dan daftar
-   zona `/recommendations` plus daftar isi `/about` (tugas berikutnya: toolbar
-   & kartu angka `/domains`): halaman pelajar lain (`/edu-psychology`,
-   `/tests`, `/data-entry`, `/status`, `/sign-in`; `/admin/*` bukan
-   prioritas). Catatan: `/domains`, `/combined-graph`, `/edu-psychology`,
-   `/tests`, `/data-entry`, `/status` masih tanpa atribut aria/role sama
-   sekali.
+   antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`,
+   fokus pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`,
+   daftar zona `/recommendations`, daftar isi `/about`, dan toolbar & kartu
+   angka `/domains` (tugas berikutnya: toolbar `/combined-graph`): halaman
+   pelajar lain (`/edu-psychology`, `/tests`, `/data-entry`, `/status`,
+   `/sign-in`; `/admin/*` bukan prioritas). Catatan: `/combined-graph`,
+   `/edu-psychology`, `/tests`, `/data-entry`, `/status` masih tanpa
+   atribut aria/role sama sekali.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #123 — **Toolbar dan kartu angka `/domains` dapat dibaca
+  pembaca layar** — tombol **Correlations** dan **Subscales** sebelumnya
+  `motion.button` biasa yang hanya menunjukkan status lewat warna
+  (`bg-emerald-500/20 …` aktif vs `bg-secondary …` tidak) tanpa
+  `aria-pressed`, `<label>` **Overlay scores:** tidak terhubung ke
+  `<select>` overlay (tanpa `htmlFor`/`id`), ikon dekoratif
+  `RefreshCw`/`Eye`/`EyeOff`/`Users` tanpa `aria-hidden`, dan empat kartu
+  angka hasil `statCards.map` dirender `motion.div` di dalam grid
+  `motion.div` tanpa daftar. Kini kedua toggle membawa
+  `aria-pressed={showCorrelations}`/`aria-pressed={showSubscales}` (pola PR
+  #118) tanpa mengubah teks/`onClick`/kelas/`whileHover`/`whileTap`; label
+  berpasangan dengan select lewat
+  `htmlFor`/`id="domains-overlay-learner"` (value/onChange/opsi No overlay +
+  `learners.map`/kelas tetap); keenam ikon dekoratif `aria-hidden="true"`
+  tanpa mengubah `size={18}`/kelas; grid kartu angka menjadi `<motion.ul>`
+  pembawa `variants` stagger dan kelas `grid grid-cols-2 md:grid-cols-4
+  gap-4 mb-6` yang sama dengan tiap hasil map langsung `<motion.li
+  key={card.label}>` (`variants`/`whileHover`/kelas `glass-card p-4
+  text-center` persis sama, tanpa `<div>` perantara, tanpa kelas marker
+  baru — Tailwind preflight sudah menghapus penanda). Tanpa live region,
+  fokus paksa, `role` tambahan, atau tombol baru; urutan, isi, dan bagian
+  halaman lain tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/domains-toolbar.test.ts` (9 penjaga statis: dua `aria-pressed`
+  ekspresi persis, pasangan `htmlFor`/`id` tepat satu dengan kontrak select
+  utuh, enam ikon `aria-hidden`, hasil `map` langsung `<motion.li>` tanpa
+  pembungkus, empat label kartu berurutan, tanpa kelas
+  marker/`role="list"`/live region, tanpa `createServerFn`/`graphCall`/
+  `rpc-schemas`/migrasi) + satu cek smoke di blok graph pages
+  (`getByLabel('Overlay scores:')` menunjuk select pertama halaman, tombol
+  Correlations/Subscales ber-`aria-pressed`); penjaga jumlah baris smoke
+  2192 → 2220. `README.md`/`Roadmap.md` tidak diubah; `docs/ROADMAP.md`
+  mendapat entri log. `npm run ci` hijau penuh pada percobaan pertama
+  (1336/1336 unit = 1327 + 9).
 
 - 2026-11-17: PR #122 — **Daftar isi halaman `/about` menjadi landmark
   navigasi bernama** — blok **Table of Contents** sebelumnya `<div>` polos
