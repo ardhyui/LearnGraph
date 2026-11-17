@@ -1410,7 +1410,7 @@ try {
 
     // Every step of the plan opens its lesson, so the plan can be started.
     await page.getByRole('tab', { name: 'Learning Path' }).click().catch(() => {});
-    const lessonLink = page.getByRole('link', { name: /^Open the lesson: / }).first();
+    const lessonLink = page.getByRole('link', { name: /^Open the lesson\s*: / }).first();
     const lessonLinkShown = await lessonLink.waitFor({ timeout: 30000 }).then(() => true, () => false);
     await lessonLink.click().catch(() => {});
     const onLesson = await page
