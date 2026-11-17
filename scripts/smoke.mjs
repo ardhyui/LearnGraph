@@ -976,6 +976,23 @@ try {
     await chat.getByRole('button', { name: 'Ask Claude' }).click();
     const refused = await chat.getByRole('alert').filter({ hasText: 'starts with sk-ant-' }).waitFor({ timeout: 10000 }).then(() => true, () => false);
     check(refused, 'tutor chat: asks for the learner’s own Anthropic key and refuses a malformed one before sending');
+    // Following "Next:" replaces the lesson; focus must land on the new title
+    // instead of dropping back to the document body.
+    const nextLink = lesson.getByRole('navigation', { name: 'Next step' }).getByRole('link', { name: /^Next: / });
+    const nextName = (await nextLink.innerText().catch(() => '')).replace(/^Next:\s*/, '').trim();
+    await nextLink.click().catch(() => {});
+    const titleFocused = await page
+      .waitForFunction(() => document.activeElement?.id === 'lesson-title', null, { timeout: 15000 })
+      .then(() => true, () => false);
+    const nextFocus = await page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? '',
+      text: (document.activeElement?.textContent ?? '').trim(),
+    }));
+    check(
+      titleFocused && nextName.length > 0 && nextFocus.tag === 'H1' && nextFocus.text === nextName,
+      'lesson: following "Next:" moves focus to the new lesson title',
+      `${nextFocus.tag.toLowerCase()} "${nextFocus.text.slice(0, 60)}" (expected "${nextName}")`,
+    );
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'lessons have no page errors', newErrors.join(' | '));
     // The next checks start from the dashboard.

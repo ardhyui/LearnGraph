@@ -57,6 +57,8 @@ function LessonPage() {
   const logged = useRef<string | null>(null);
   const quizButtonRef = useRef<HTMLButtonElement>(null);
   const noticeRef = useRef<HTMLParagraphElement>(null);
+  const lessonTitleRef = useRef<HTMLHeadingElement>(null);
+  const titleConceptId = useRef(conceptId);
   const ids = { learner: useId(), format: useId(), check: useId() };
 
   const load = useCallback(async () => {
@@ -85,6 +87,18 @@ function LessonPage() {
     setShownSolutions(new Set());
     void load();
   }, [load]);
+
+  // Following "Builds on" or "Next:" replaces the whole lesson, so the link
+  // that had focus is unmounted and focus falls back to <body>. Once the new
+  // lesson for that concept is rendered, move focus to its title instead.
+  // Never on the first load, a learner change or a quiz reload: those keep
+  // the same concept and leave focus where the learner put it.
+  useEffect(() => {
+    if (!lesson || lesson.concept.conceptId !== conceptId) return;
+    if (titleConceptId.current === conceptId) return;
+    titleConceptId.current = conceptId;
+    requestAnimationFrame(() => lessonTitleRef.current?.focus());
+  }, [lesson, conceptId]);
 
   // Log the lesson once per learner and concept, with the order it was shown in.
   useEffect(() => {
@@ -200,7 +214,12 @@ function LessonPage() {
             <article aria-labelledby="lesson-title" data-testid="lesson">
               <header className="mt-4">
                 <p className="text-sm font-medium text-primary">{domainLabel(lesson.concept.domain)}</p>
-                <h1 id="lesson-title" className="mt-1 text-3xl font-bold text-foreground">
+                <h1
+                  id="lesson-title"
+                  ref={lessonTitleRef}
+                  tabIndex={-1}
+                  className="mt-1 text-3xl font-bold text-foreground focus:outline-none"
+                >
                   {lesson.concept.name}
                 </h1>
                 <p className="mt-2 text-sm text-muted-foreground">

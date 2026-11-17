@@ -1,51 +1,50 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (grup pilihan panjang & tata letak kuis di `/profile`; siklus berikutnya: fokus judul pelajaran setelah pindah konsep di `/learn/$conceptId`)
+Terakhir diperbarui: 2026-11-17 (fokus judul pelajaran setelah pindah konsep di `/learn/$conceptId`; siklus berikutnya: nilai bar progres `aria-valuetext` di `/profile`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **fokus setelah berpindah konsep di halaman pelajaran
-`/learn/$conceptId`** — kandidat fitur (a); tanpa migrasi skema, dependensi,
-server function, RPC, atau method RPC baru. Konteks: `LessonPage` di
-`src/routes/learn.$conceptId.tsx` melayani rute parameter yang sama. Tautan
-**Next: <konsep>** di `<nav aria-label="Next step">` (sekitar baris 437–450)
-dan chip **Builds on** (sekitar baris 257–279) menavigasi ke `conceptId` lain.
-`useEffect` yang bergantung pada `load` (sekitar baris 81–87) mengosongkan
-`lesson`, sehingga seluruh `<article>` beserta tautan yang sedang fokus
-ter-unmount dan fokus jatuh ke `<body>`. Pemakai keyboard/pembaca layar harus
-men-Tab dari awal halaman; `RouteAnnouncer` hanya mengumumkan judul halaman,
-bukan memindahkan fokus.
+Poles aksesibilitas **nilai bar progres di kartu "My learning" halaman
+`/profile`** — kandidat fitur (a); tanpa migrasi skema, dependensi, server
+function, RPC, atau method RPC baru. Konteks: `LearningOverview` di
+`src/components/LearningOverview.tsx` merender dua `role="progressbar"`. Bar
+keseluruhan (sekitar baris 170–182) ber-`aria-label="Concepts mastered"` dan
+`aria-valuenow={current.progress.percentMastered}`; bar per subjek (sekitar
+baris 205–217) ber-`aria-label={`${row.label} mastery`}` dan
+`aria-valuenow={row.percent}`. Pembaca layar hanya menerima persen mentah,
+padahal tepat di atas tiap bar ada baris teks yang menyebut jumlah nyata
+("3 of 10 concepts mastered"), dan untuk bar per subjek penyebutnya tidak
+pernah terdengar sama sekali.
 
-Rancangan (baca kode dulu: `load`, effect reset, `<article
-aria-labelledby="lesson-title">`, `<h1 id="lesson-title">`, `noticeRef`, dan
-`requestAnimationFrame` yang sudah ada di `finishQuiz`/`cancelQuiz`):
+Rancangan (baca kode dulu: `masteredLine` di `src/lib/profile.ts`,
+`ProgressSummary` di `src/lib/study.ts`, `SubjectMasteryRow` di
+`src/lib/subject-mastery.ts`):
 
-1. Beri `<h1 id="lesson-title">` `ref={lessonTitleRef}`, `tabIndex={-1}`, dan
-   tambahkan `focus:outline-none` pada kelasnya; teks, ukuran, warna, dan
-   posisi judul tidak berubah.
-2. Deteksi perpindahan konsep **setelah mount**: simpan `conceptId` sebelumnya
-   di ref (nilai awal `conceptId` saat mount, bukan `null` yang langsung
-   memicu fokus). Saat `lesson` baru sudah dirender dan `conceptId` berbeda
-   dari nilai ref, pindahkan fokus dengan
-   `requestAnimationFrame(() => lessonTitleRef.current?.focus())`, lalu
-   perbarui ref. Jangan memindahkan fokus saat mount pertama, saat learner
-   berganti, saat `load()` diulang (setelah kuis/laporan diri), atau saat
-   `quizOpen` berubah — `finishQuiz`/`cancelQuiz` tetap seperti sekarang.
-3. Jangan mengubah `Link`/`nav`, urutan tab, `article`, isi judul, atau
-   `ConceptQuiz`; tanpa live region baru dan tanpa fokus paksa pada elemen
-   lain.
-4. **Test**: file baru `tests/lesson-navigation-focus.test.ts` (penjaga statis)
-   — `lessonTitleRef` + `tabIndex={-1}` + `focus:outline-none` pada `h1`,
-   effect hanya memindahkan fokus ketika `lesson` ada dan `conceptId` berbeda
-   dari ref sebelumnya, urutan `requestAnimationFrame` → `lessonTitleRef
-   .current?.focus()`, tepat satu `.focus()` baru untuk judul (dua `.focus()`
-   lama di `finishQuiz`/`cancelQuiz` tetap), serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Bila memungkinkan,
-   tambah **satu cek smoke** setelah tautan **Next:** muncul di alur pelajaran:
-   klik tautan itu, tunggu `data-testid="lesson"` baru, lalu pastikan
-   `document.activeElement` adalah `h1#lesson-title` berisi nama konsep baru,
-   bukan `<body>`; bila smoke bertambah baris, perbarui penjaga jumlah baris
-   di `tests/skip-link.test.ts`.
+1. Tambah `aria-valuetext={masteredLine(current.progress)}` pada bar
+   keseluruhan dan `aria-valuetext={masteredLine(row)}` pada bar per subjek.
+   Jangan menyalin kalimatnya: pakai helper `masteredLine` yang sudah dipakai
+   baris teks `data-testid="profile-mastered"` dan baris per subjek, sehingga
+   teks yang diumumkan tidak bisa berbeda dari yang terlihat. `aria-label`,
+   `aria-valuemin`, `aria-valuemax`, `aria-valuenow`, kelas, lebar `style`,
+   `<dl>` tiga kartu angka (Learning / Not started / To review), daftar
+   **Mastery by subject**, urutan, dan elemen lain tidak berubah.
+2. Kasus `total === 0` tetap aman: `masteredLine` mengembalikan `No concepts in
+   your subjects yet`; jangan menambah cabang baru, menyembunyikan bar, atau
+   mengubah copy yang terlihat.
+3. Jangan menambah live region, fokus paksa, tombol, atau panggilan baca/tulis;
+   UI bahasa Inggris (D2).
+4. **Test**: file baru `tests/profile-progress-valuetext.test.ts` (penjaga
+   statis) — tepat dua `role="progressbar"` di komponen, keduanya membawa
+   `aria-valuetext` dengan `masteredLine(...)` yang tepat (keseluruhan:
+   `current.progress`; per subjek: `row`), atribut dan kelas lama utuh,
+   `masteredLine` tetap dipakai untuk baris teks yang terlihat sehingga tidak
+   ada kalimat "concepts mastered" baru yang disalin di komponen, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Tambah **satu cek
+   smoke** di alur `/profile` yang sudah ada (sekitar baris 1196–1204): baca
+   `aria-valuetext` semua `role="progressbar"` di kartu, pastikan yang pertama
+   persis sama dengan teks `data-testid="profile-mastered"` dan semuanya
+   berakhiran `mastered`; bila smoke bertambah baris, perbarui penjaga jumlah
+   baris di `tests/skip-link.test.ts`.
 5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -63,16 +62,39 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
    fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Setelah
-   antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`, dan
-   fokus pindah konsep `/learn/$conceptId` (tugas berikutnya): sisa `/profile`
-   (mis. label grup dan semantik bar progres ringkasan statistik), lalu
-   halaman pelajar lain (`/recommendations` selain tab, `/admin/*` bukan
-   prioritas).
+   antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`, fokus
+   pindah konsep `/learn/$conceptId`, dan nilai bar progres `/profile` (tugas
+   berikutnya): halaman pelajar lain (`/recommendations` selain tab,
+   `/admin/*` bukan prioritas).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #119 — **Fokus judul pelajaran setelah pindah konsep** —
+  tautan **Builds on** dan **Next: <konsep>** di `/learn/$conceptId` mengganti
+  seluruh pelajaran sehingga tautan yang sedang fokus ter-unmount dan fokus
+  jatuh ke `<body>`; pengguna keyboard/pembaca layar harus men-Tab dari awal.
+  Kini `<h1 id="lesson-title">` memakai `ref={lessonTitleRef}`,
+  `tabIndex={-1}`, dan `focus:outline-none` (teks/ukuran/warna/posisi tetap),
+  dan effect baru memindahkan fokus lewat
+  `requestAnimationFrame(() => lessonTitleRef.current?.focus())` hanya ketika
+  `lesson` untuk `conceptId` yang diminta sudah dimuat
+  (`lesson.concept.conceptId === conceptId`, jadi lesson lama yang belum
+  ter-reset tidak pernah difokuskan) dan `conceptId` berbeda dari ref
+  `titleConceptId` yang diinisialisasi dengan `conceptId` saat mount; mount
+  pertama, ganti learner, `load()` ulang setelah kuis/laporan diri, dan
+  `quizOpen` tidak memindahkan fokus, dan `finishQuiz`/`cancelQuiz` tetap.
+  `Link`/`nav`, urutan tab, `article`, judul, `ConceptQuiz`, copy, dan isolasi
+  akun tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/lesson-navigation-focus.test.ts` (6 penjaga statis) + penyesuaian
+  penjaga `.focus()` di `tests/lesson-focus.test.ts` (2 → 3); satu cek smoke
+  baru mengikuti **Next:** lalu memastikan `document.activeElement` adalah
+  `h1#lesson-title` berisi nama konsep baru, penjaga baris smoke 2142 → 2159.
+  `README.md` dan `Roadmap.md` tidak diubah; `docs/ROADMAP.md` mendapat entri
+  log. `npm run ci` hijau penuh (1303/1303 unit = 1297 + 6; smoke lulus pada
+  percobaan pertama).
 
 - 2026-11-17: PR #118 — **Tombol panjang dan tata letak kuis di `/profile`
   menjadi grup pilihan bernama** — dua pasang toggle di kartu **Short
