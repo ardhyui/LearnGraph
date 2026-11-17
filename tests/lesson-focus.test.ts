@@ -79,8 +79,8 @@ describe('lesson quiz focus wiring (static)', () => {
     assert.equal(selfReport.includes('.focus()'), false, 'self-reports do not steal focus');
     const load = between(page, 'const load = useCallback', 'useEffect(() => {');
     assert.equal(load.includes('.focus()'), false, 'loading a lesson does not steal focus');
-    // Exactly the two intended moves: cancel and finish.
-    assert.equal((page.match(/\.focus\(\)/g) ?? []).length, 2);
+    // Exactly the three intended moves: cancel, finish, and the new lesson title.
+    assert.equal((page.match(/\.focus\(\)/g) ?? []).length, 3);
   });
 
   it('adds no server function, RPC or migration for the focus move', () => {
