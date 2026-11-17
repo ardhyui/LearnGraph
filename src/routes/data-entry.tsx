@@ -443,6 +443,8 @@ function DataEntryPage() {
           <AnimatePresence>
             {message && (
               <motion.div
+                role={message.type === 'success' ? 'status' : 'alert'}
+                aria-live={message.type === 'success' ? 'polite' : 'assertive'}
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -454,9 +456,9 @@ function DataEntryPage() {
                 )}
               >
                 {message.type === 'success' ? (
-                  <Check className="w-5 h-5" />
+                  <Check className="w-5 h-5" aria-hidden="true" />
                 ) : (
-                  <AlertCircle className="w-5 h-5" />
+                  <AlertCircle className="w-5 h-5" aria-hidden="true" />
                 )}
                 <span className="font-medium">{message.text}</span>
               </motion.div>

@@ -430,6 +430,24 @@ try {
         'data-entry: concept form label names its input',
         `label Concept ID → ${conceptIdTag ?? 'missing'}`,
       );
+
+      // Action results are live regions: submitting invalid JSON announces the
+      // error as an alert instead of leaving a screen reader silent.
+      await learners.click().catch(() => {});
+      await page.getByRole('button', { name: 'JSON', exact: true }).click().catch(() => {});
+      const learnerJson = page.locator('#data-entry-learner-json');
+      await learnerJson.fill('{invalid').catch(() => {});
+      await page.getByRole('button', { name: 'Submit JSON' }).click().catch(() => {});
+      const alertBanner = page.getByRole('alert');
+      const alertVisible = await alertBanner
+        .waitFor({ state: 'visible', timeout: 10000 })
+        .then(() => true, () => false);
+      const alertText = alertVisible ? ((await alertBanner.textContent().catch(() => '')) ?? '') : '';
+      check(
+        alertVisible && alertText.includes('Invalid JSON format'),
+        'data-entry: action errors are announced as an alert',
+        `alert ${alertVisible ? 'visible' : 'missing'}${alertText ? `: "${alertText.trim()}"` : ''}`,
+      );
     }
   }
   // Each page names itself in the browser tab (WCAG 2.4.2), not one shared title.
