@@ -63,9 +63,10 @@ describe('recommendations learning path: one named ordered list', () => {
 
   it('keeps the step content order: number, name, estimate, arrow', () => {
     const badge = listBlock.indexOf('{idx + 1}');
-    const name = listBlock.indexOf(
-      '{zc?.concept.name || conceptNames.get(conceptId) || conceptLabel(conceptId)}',
+    const nameSource = listBlock.indexOf(
+      'const name =',
     );
+    const name = listBlock.indexOf('{name}');
     const estimate = listBlock.indexOf(
       'Est. {formatDuration(rec.estimatedMasteryTime)} •',
     );
@@ -73,6 +74,7 @@ describe('recommendations learning path: one named ordered list', () => {
     const arrow = listBlock.indexOf('↓');
 
     assert.ok(badge > 0, 'the step number is shown');
+    assert.ok(nameSource > 0, 'the step name is resolved once');
     assert.ok(name > badge, 'the concept name follows the number');
     assert.ok(estimate > name, 'the estimate follows the name');
     assert.ok(readiness > estimate, 'readiness follows the estimate');
@@ -88,11 +90,11 @@ describe('recommendations learning path: one named ordered list', () => {
     assert.ok(listBlock.includes('className="text-sm text-muted-foreground mt-1"'));
   });
 
-  it('hides only the decorative connector arrow', () => {
+  it('hides only the decorative icons', () => {
     const arrowDiv = listBlock.lastIndexOf('<div', listBlock.indexOf('↓'));
     const arrowTag = listBlock.slice(arrowDiv, listBlock.indexOf('>', arrowDiv) + 1);
     assert.equal(arrowTag, '<div className="w-8 text-center text-muted-foreground text-xl" aria-hidden="true">');
-    assert.equal((listBlock.match(/aria-hidden="true"/g) ?? []).length, 1);
+    assert.equal((listBlock.match(/aria-hidden="true"/g) ?? []).length, 2);
     assert.ok(listBlock.includes('{idx < zpd.suggestedPath.length - 1 && ('));
   });
 

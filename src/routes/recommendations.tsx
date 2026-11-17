@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useId, useMemo, useRef, type KeyboardEvent } from 'react';
 import { pageHead } from '@/lib/page-titles';
 import { nextTabIndex } from '@/lib/tabs';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -14,6 +14,7 @@ import {
   Brain,
   Route as RouteIcon,
   AlertCircle,
+  BookOpen,
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
@@ -736,6 +737,8 @@ function RecommendationsPage() {
                             const zc =
                               zpd.zpd.find((z) => z.concept.conceptId === conceptId) ||
                               zpd.tooHard.find((z) => z.concept.conceptId === conceptId);
+                            const name =
+                              zc?.concept.name || conceptNames.get(conceptId) || conceptLabel(conceptId);
 
                             return (
                               <motion.li
@@ -750,7 +753,7 @@ function RecommendationsPage() {
                                 </div>
                                 <div className="flex-1 p-4 bg-secondary/50 rounded-xl">
                                   <div className="font-medium text-foreground">
-                                    {zc?.concept.name || conceptNames.get(conceptId) || conceptLabel(conceptId)}
+                                    {name}
                                   </div>
                                   {rec && (
                                     <div className="text-sm text-muted-foreground mt-1">
@@ -758,6 +761,15 @@ function RecommendationsPage() {
                                       Readiness {Math.round(rec.readinessScore * 100)}%
                                     </div>
                                   )}
+                                  <Link
+                                    to="/learn/$conceptId"
+                                    params={{ conceptId }}
+                                    className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+                                  >
+                                    <BookOpen className="h-3 w-3" aria-hidden="true" />
+                                    Open the lesson
+                                    <span className="sr-only">: {name}</span>
+                                  </Link>
                                 </div>
                                 {idx < zpd.suggestedPath.length - 1 && (
                                   <div className="w-8 text-center text-muted-foreground text-xl" aria-hidden="true">↓</div>
