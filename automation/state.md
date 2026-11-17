@@ -1,69 +1,48 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (status pending `/sign-in`; siklus berikutnya: daftar data `/data-entry`)
+Terakhir diperbarui: 2026-11-17 (PR #132; siklus berikutnya: status pending `/forgot-password` & `/reset-password`)
 
 ## Tugas berikutnya
 
-Jadikan **empat daftar data di `/data-entry` sebagai daftar bernama** dan
-lengkapi satu pesan kosong yang hilang — kandidat fitur (a) halaman pelajar,
-pola PR #115–#117/#121/#128; tanpa migrasi skema, dependensi, server function,
-RPC, atau method RPC baru. Konteks: `src/routes/data-entry.tsx` (±1.766
-baris). Halaman ini merender baris data sebagai deretan `<div>` di dalam
-`<div>`, jadi pembaca layar tidak tahu baris-baris itu satu daftar dan tidak
-bisa melompat per item:
+Jadikan **status proses tombol submit halaman lupa/reset kata sandi
+diumumkan pembaca layar** — kandidat fitur (a) halaman pelajar, pola PR #131,
+tanpa migrasi skema, dependensi, server function, RPC, atau method RPC baru.
+Konteks: `src/routes/forgot-password.tsx` (90 baris) dan
+`src/routes/reset-password.tsx` (106 baris). Dua tombol
+`<button type="submit" disabled={pending}>` hanya menampilkan `Loader2`
+berputar saat `pending`, sementara nama aksesibelnya tetap **Send the reset
+link** / **Save the new password**, tanpa `aria-busy` dan tanpa teks status;
+pembaca layar tidak tahu permintaan sedang berjalan.
 
-1. Blok **Live Data Preview** → **Recent Learners** (±baris 684–710):
-   wadah `<div className="space-y-2">` hasil `learners.slice(0, 3).map`
-   (baris `key={l.userId}`, kelas `flex items-center gap-3 p-3 rounded-xl
-   bg-accent/50`).
-2. Blok yang sama → **Recent Concepts** (±baris 713–743): wadah
-   `<div className="space-y-2">` hasil `concepts.slice(0, 3).map` (baris
-   `key={c.conceptId}`, kelas yang sama).
-3. Tab **Learners** → **Existing Learners (n)** (±baris 1114–1130): wadah
-   `<div className="max-h-32 overflow-y-auto rounded-xl bg-accent/50 p-2">`
-   hasil `learners.map` (baris `key={l.userId}`, kelas `text-sm text-foreground
-   py-1.5 px-2 rounded-lg hover:bg-accent`). Pesan **No learners yet** sudah
-   ada di cabang `learners.length === 0`.
-4. Tab **Concepts** → **Existing Concepts (n)** (±baris 1333–1345): wadah
-   `<div className="max-h-40 overflow-y-auto rounded-xl bg-accent/50 p-2">`
-   hasil `concepts.map` (baris `key={c.conceptId}`, kelas seperti di atas).
-   Blok ini **sama sekali tidak punya pesan kosong**: bila `concepts.length
-   === 0`, kotak abu-abu tampil kosong tanpa penjelasan.
+Rancangan (baca kode dulu; jangan mengubah alur, validasi, copy yang ada,
+`role="status"`/`role="alert"` yang sudah ada, atau tata letak):
 
-Rancangan (baca kode dulu; jangan mengubah data, urutan, `key`, kelas visual,
-tinggi/gulir, judul + hitungan, `onClick` tombol, atau copy yang sudah ada):
-
-1. Ubah keempat wadah baris menjadi `<ul>` dengan kelas wadah yang persis
-   sama dan `aria-label` Inggris: **Recent learners**, **Recent concepts**,
-   **Existing learners**, **Existing concepts**.
-2. Ubah tiap baris hasil `map` menjadi `<li>` langsung di dalam `<ul>`
-   (tanpa `<div>` perantara), membawa `key`, seluruh kelas visual, dan isi
-   yang persis sama. Tailwind preflight sudah menghapus penanda bullet, jadi
-   jangan menambah kelas marker/`role="list"`.
-3. Untuk **Existing Concepts**, tambahkan cabang `concepts.length === 0`
-   dengan `<p className="text-muted-foreground text-sm text-center py-2">No
-   concepts yet</p>` (menyalin pola **Existing Learners** baris 1120, copy
-   sama dengan empty state **Recent Concepts**), dirender **di luar** `<ul>`
-   seperti pola **Existing Learners**; jangan menambah tombol.
-4. Ikon `Plus` di dua tombol empty state **Add your first learner**/**Add your
-   first concept** beri `aria-hidden="true"` tanpa mengubah `className="w-3
-   h-3"`.
-5. Jangan menyentuh tab/tablist, 26 pasangan label form, banner pesan,
-   `handleAdd*`, skema Zod, DBContext, isolasi akun, atau copy lain; UI
-   bahasa Inggris (D2).
-6. **Test**: file baru `tests/data-entry-data-lists.test.ts` (penjaga statis,
-   pola `tests/data-entry-form-labels.test.ts`): tepat empat `<ul>` dengan
-   empat `aria-label` persis dan kelas wadah masing-masing, hasil `map`
-   langsung `<li>` tanpa pembungkus untuk keempat daftar, `key`/kelas/isi
-   baris berurutan (mis. `{l.name || 'Unnamed'}`, `{l.userId}`,
-   `{c.name}`, `{c.domain}`, `({c.conceptId})`), empty state **No learners
-   yet** dan **No concepts yet** berada di luar `<ul>` di cabangnya,
-   `Plus` `aria-hidden` dengan kelas tetap, tanpa kelas marker/`role="list"`/
-   `aria-live`/fokus paksa, serta tanpa `createServerFn`/`graphCall`/
-   `rpc-schemas`/migrasi.
-7. **Smoke**: tidak ada cek baru (perubahan semantik; isi daftar bergantung
-   data seed) — penjaga jumlah baris smoke 2417 tetap.
-8. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+1. Kedua tombol submit membawa `aria-busy={pending}`; `disabled`, kelas
+   `btn btn-primary ...`, dan label persis tetap. `Loader2` sudah
+   `aria-hidden="true"` — biarkan kelas `h-4 w-4 animate-spin` apa adanya.
+2. Tepat setelah tombol dan masih di dalam `<form>` sebagai anak terakhir,
+   tambahkan satu `<p role="status" aria-live="polite" className="sr-only">`
+   yang membacakan `Sending the reset link…` (`/forgot-password`) atau
+   `Saving the new password…` (`/reset-password`) saat `pending`, dan kosong
+   saat idle. Jangan memakai `aria-label` pengganti nama tombol, jangan
+   menambah tombol/fokus/live region lain.
+3. Galat tetap satu-satunya `<p role="alert" className="form-error">`; pesan
+   sukses `sent`/`done` dan cabang `!features.passwordReset`/link tidak valid
+   tidak berubah. Dua pasangan label/kontrol `/reset-password` dan satu
+   pasangan `/forgot-password` tetap utuh; `onSubmit`, `safeParse`/panjang
+   sandi, `authClient`, `rateLimitMessage`, dan `noValidate` tidak berubah.
+   UI bahasa Inggris (D2).
+4. **Test**: file baru `tests/password-reset-pending-status.test.ts` (penjaga
+   statis, pola `tests/sign-in-pending-status.test.ts`): dua
+   `aria-busy={pending}` persis, `disabled`/kelas/label tombol utuh, dua
+   paragraf status `sr-only` dengan teks persis dan posisi setelah tombol
+   sebagai anak terakhir form, `Loader2` tetap `aria-hidden`, galat tetap satu
+   `role="alert"`, pasangan label/kontrol dan alur submit utuh, tanpa
+   `aria-label`/`aria-labelledby`/`aria-atomic`, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
+5. **Smoke**: tidak ada cek baru (status pending hanya sesaat dan alur
+   lupa/reset butuh email/token); penjaga jumlah baris smoke 2417 tetap.
+6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
 
@@ -83,22 +62,56 @@ Tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis; baca
 kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
-   fokus pada label/urutan fokus/pesan kosong, bukan tugas test. Setelah
-   antrean review `/gaps`, panel detail `/graph`, toggle kuis `/profile`,
-   fokus pindah konsep `/learn/$conceptId`, nilai bar progres `/profile`,
-   daftar zona `/recommendations`, daftar isi `/about`, toolbar & kartu
-   angka `/domains`, toolbar `/combined-graph`, accordion
-   `/edu-psychology`, status kartu `/status`, grup uji `/tests`, tab
-   `/data-entry`, dan banner pesan `/data-entry`: halaman pelajar lain
-   (`/sign-in`; `/admin/*` bukan prioritas). Catatan: tab, label form, banner
-   pesan, dan status pending `/sign-in` sudah selesai; tugas berikutnya adalah
-   daftar data/pesan kosong `/data-entry`, lalu halaman pelajar yang tersisa
-   bila ada. `tests/` adalah berkas test, bukan halaman.
+   fokus pada label/urutan fokus/pesan kosong/status pending, bukan tugas
+   test. Sudah selesai: antrean review `/gaps`, panel detail `/graph`, toggle
+   kuis `/profile`, fokus pindah konsep `/learn/$conceptId`, nilai bar progres
+   `/profile`, daftar zona `/recommendations`, daftar isi `/about`, toolbar &
+   kartu angka `/domains`, toolbar `/combined-graph`, accordion
+   `/edu-psychology`, status kartu `/status`, grup uji `/tests`, tab, label
+   form, daftar data, dan banner pesan `/data-entry`, serta status pending
+   `/sign-in`. Tugas berikutnya adalah status pending `/forgot-password` &
+   `/reset-password`; setelah itu halaman pelajar yang tersisa (`/privacy`;
+   `/admin/*` bukan prioritas). `tests/` adalah berkas test, bukan halaman.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #132 — **Empat daftar data `/data-entry` menjadi daftar
+  bernama dan pesan kosongnya lengkap** — **Recent Learners** dan **Recent
+  Concepts** di blok Live Data Preview, serta **Existing Learners (n)** dan
+  **Existing Concepts (n)** di tab Learners/Concepts, sebelumnya merender
+  barisnya sebagai deretan `<div>` di dalam `<div>`, sehingga pembaca layar
+  tidak tahu baris-baris itu satu daftar dan tidak bisa melompat per item;
+  blok **Existing Concepts** bahkan tidak punya pesan kosong sehingga akun
+  tanpa konsep menampilkan kotak abu-abu kosong. Kini keempat wadah baris
+  adalah `<ul>` dengan kelas wadah persis sama (`space-y-2`,
+  `max-h-32 overflow-y-auto rounded-xl bg-accent/50 p-2`,
+  `max-h-40 overflow-y-auto rounded-xl bg-accent/50 p-2`) dan `aria-label`
+  Inggris **Recent learners**, **Recent concepts**, **Existing learners**,
+  **Existing concepts**; tiap hasil `map` langsung `<li>` dengan `key`
+  (`l.userId`/`c.conceptId`), seluruh kelas visual, dan isi yang sama (inisial,
+  nama, `userId`/domain, badge `conceptId`), tanpa `<div>` perantara dan tanpa
+  kelas marker/`role="list"` (Tailwind preflight sudah menghapus penanda).
+  Cabang kosong **Existing Learners** dan **Existing Concepts** kini di luar
+  `<ul>` sebagai `<p className="text-muted-foreground text-sm text-center
+  py-2">No learners yet</p>` / `No concepts yet` (copy sama dengan empty state
+  Recent Concepts), tanpa tombol baru; ikon `Plus` di kedua tombol **Add your
+  first learner**/**Add your first concept** diberi `aria-hidden="true"`
+  tanpa mengubah kelas `w-3 h-3`. Judul + hitungan, urutan, `onClick` tombol,
+  tab/tablist, 26 pasangan label form, banner pesan, `handleAdd*`, skema Zod,
+  DBContext, isolasi akun, dan copy lain tidak berubah; UI bahasa Inggris
+  (D2). Test baru `tests/data-entry-data-lists.test.ts` (8 penjaga statis:
+  empat `<ul>` bernama dengan kelas wadahnya, hasil `map` langsung `<li>`
+  ber-`key`/kelas/isi berurutan tanpa pembungkus, tanpa kelas
+  marker/`role="list"`/live region/fokus paksa, kedua pesan kosong Existing di
+  luar `<ul>` dan **No concepts yet** baru muncul tepat sekali, kedua ikon
+  `Plus` `aria-hidden` dengan kelas tetap, judul/hitungan utuh, serta tanpa
+  `createServerFn`/`graphCall`/`rpc-schemas`/migrasi). Tidak ada cek smoke
+  baru (perubahan semantik; isi daftar bergantung data seed), penjaga jumlah
+  baris smoke 2417 tetap. `README.md`/`Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` hijau.
 
 - 2026-11-17: PR #131 — **Status proses tombol submit
   `/sign-in` diumumkan pembaca layar** — tombol `<button type="submit"
