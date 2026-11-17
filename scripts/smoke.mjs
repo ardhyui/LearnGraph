@@ -1427,6 +1427,20 @@ try {
     }
     check(narrow.length === 0, 'mobile: pages use the full width without sideways scrolling', narrow.join('; '));
 
+    // The About page's table of contents is one named navigation list with one
+    // link per section, so screen readers can jump entry by entry.
+    {
+      const toc = m.getByRole('navigation', { name: 'Table of Contents' });
+      const tocVisible = await toc.isVisible();
+      const tocItems = await toc.getByRole('listitem').count();
+      const tocLinks = await toc.getByRole('link').count();
+      check(
+        tocVisible && tocItems === 15 && tocLinks === 15,
+        'about: table of contents is a named navigation list of 15 entries',
+        `visible ${tocVisible}, items ${tocItems}, links ${tocLinks}`,
+      );
+    }
+
     // Admin tables become one card per row: nothing scrolls sideways inside
     // the card, the row's buttons are on screen, and the column names are
     // still there for screen readers.
