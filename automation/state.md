@@ -1,51 +1,48 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (fokus nilai bar progres `/profile`; siklus berikutnya: daftar zona di `/recommendations`)
+Terakhir diperbarui: 2026-11-17 (fokus tiga daftar zona `/recommendations`; siklus berikutnya: daftar isi `/about`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas **tiga daftar zona di tab "Ready / not yet" halaman
-`/recommendations`** — kandidat fitur (a); tanpa migrasi skema, dependensi,
-server function, RPC, atau method RPC baru. Konteks: `src/routes/recommendations.tsx`
-merender tiga kartu zona **Mastered (n)**, **Ready to Learn (n)**, dan
-**Not yet (n)** (sekitar baris 614–690). Tiap kartu berisi `<h3>` (baris
-616–619, 639–642, 665–668) lalu
-`<div className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide">` yang
-memetakan `zpd.tooEasy` / `zpd.zpd` / `zpd.tooHard` menjadi deretan
-`<motion.div>` dengan `key={zc.concept.conceptId}`, `whileHover={{ scale: 1.02 }}`,
-dan kelas `p-3 bg-background/80 rounded-xl shadow-sm`. Pembaca layar tidak tahu
-baris-baris itu satu daftar konsep per zona dan tidak bisa melompat per item.
+Poles aksesibilitas **daftar isi halaman `/about`** — kandidat fitur (a); tanpa
+migrasi skema, dependensi, server function, RPC, atau method RPC baru. Konteks:
+`src/routes/about.tsx` fungsi `TableOfContents` (sekitar baris 129–169)
+merender `<h3 className="text-lg font-semibold mb-4 flex items-center gap-2">`
+tanpa `id`, lalu
+`<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">` berisi
+15 `<a href="#...">` hasil `sections.map`, sehingga pembaca layar tidak tahu
+15 tautan itu satu daftar tujuan di halaman ini dan tidak bisa melompat per
+item.
 
-Rancangan (baca kode dulu; jangan mengubah aturan engine/ZPD):
+Rancangan (baca kode dulu; jangan mengubah isi/urutan bagian halaman):
 
-1. Beri tiap `<h3>` `id` stabil: `rec-zone-mastered`, `rec-zone-ready`,
-   `rec-zone-notyet` (judul, ikon, hitungan `(n)`, dan kelas tidak berubah).
-   Ganti wadah pemetaan tiap zona menjadi
-   `<ul aria-labelledby="<id>" className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide">`
-   dan tiap baris menjadi `<motion.li>` dengan `key`, `whileHover`, serta kelas
-   visual persis sama. Tidak ada `<div>` perantara antara `<ul>` dan `<li>`;
-   tanpa kelas marker baru (Tailwind preflight sudah menghapus penanda).
-2. Pesan kosong **No mastered concepts yet**, **Nothing ready right now**, dan
-   **All concepts are accessible!** tetap di cabang `length === 0` masing-masing
-   dan **bukan** item daftar (di dalam wadah yang sama tetapi di luar `<ul>`,
-   atau tetap `<p>` setelah daftar — pilih yang menjaga urutan visual dan
-   struktur; jelaskan di riwayat). Isi baris (nama konsep, `zc.reason`,
-   `Readiness: …%`, `learnFirstLabel(...)`), urutan, dan kondisi
-   `missingPrerequisites.length > 0` tidak berubah. Tablist/tab/tabpanel
-   (`aria-labelledby` yang sudah ada), tab **Recommendations**/**Learning Path**,
-   `AnimatePresence`, copy, dan fokus tidak berubah; UI bahasa Inggris (D2).
-3. **Test**: file baru `tests/recommendations-zones.test.ts` (penjaga statis) —
-   tepat tiga `<ul>` ber-`aria-labelledby` yang menunjuk ketiga `id` h3 yang
-   ada, hasil `map` langsung `<motion.li>` tanpa pembungkus, `key`/`whileHover`/
-   kelas/isi/urutan baris ketiga zona, ketiga pesan kosong di luar `<ul>`, tanpa
-   kelas marker/`role="list"`/live region baru, serta tanpa
+1. Bungkus seluruh blok daftar isi dengan
+   `<nav aria-labelledby="about-toc-title" className="mb-16 p-6 rounded-xl border border-border/50 bg-card/50">`
+   menggantikan `<div>` luar; beri `<h3>` `id="about-toc-title"` (teks
+   **Table of Contents**, ikon `BookMarked`, dan kelas tidak berubah).
+2. Ganti wadah grid menjadi
+   `<ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">` dan
+   tiap hasil `sections.map` langsung `<li key={section.id}>` yang membungkus
+   `<a>` yang sudah ada (`href={`#${section.id}`}`, kelas, ikon
+   `ChevronRight` `aria-hidden` bila belum, dan `{section.label}`). Tidak ada
+   `<div>` perantara antara `<ul>` dan `<li>`; tanpa kelas marker baru
+   (Tailwind preflight sudah menghapus penanda).
+3. Urutan 15 tujuan (`what-is` … `bottom-line`), label, `href`, dan tampilan
+   tidak berubah; tanpa live region, fokus paksa, `role` tambahan, atau
+   tombol baru; UI bahasa Inggris (D2).
+4. **Test**: file baru `tests/about-toc.test.ts` (penjaga statis) — tepat satu
+   `<nav aria-labelledby="about-toc-title">`, tepat satu
+   `id="about-toc-title"` pada `<h3>` berteks `Table of Contents`, hasil `map`
+   langsung `<li key={section.id}>` tanpa pembungkus, daftar 15 pasangan
+   label→href berurutan persis (salinan eksplisit), `<a>` mempertahankan
+   kelas dan ikon, tanpa kelas marker/`role="list"`/live region, serta tanpa
    `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-4. **Smoke**: di alur `/recommendations` yang sudah ada (sekitar baris
-   1168–1184), setelah tab **Ready / not yet** dibuka, pastikan ketiga daftar
-   ber-`aria-labelledby` terdeteksi (`getByRole('list', { name: /^(Mastered|Ready to Learn|Not yet) \(/ })`
-   berjumlah 3) dan total `listitem` di ketiganya > 0. Bila smoke bertambah
-   baris, perbarui penjaga jumlah baris di `tests/skip-link.test.ts`.
-5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+5. **Smoke**: di daftar halaman publik sekitar baris 1420
+   (`for (const path of [... '/about'])`), setelah `/about` dimuat pastikan
+   `getByRole('navigation', { name: 'Table of Contents' })` terlihat dan
+   berisi 15 `listitem`/`link`. Bila smoke bertambah baris, perbarui penjaga
+   jumlah baris di `tests/skip-link.test.ts`.
+6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
 
@@ -71,6 +68,23 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #121 — **Tiga zona di tab "Ready / not yet" menjadi daftar
+  bernama** — kartu **Mastered (n)**, **Ready to Learn (n)**, dan **Not yet (n)**
+  di `/recommendations` sebelumnya deretan `<motion.div>` di dalam `<div>`
+  berkelas gulir, jadi pembaca layar tidak tahu itu tiga daftar konsep per zona
+  dan tidak bisa melompat per item. Kini tiap `<h3>` ber-`id`
+  (`rec-zone-mastered`/`rec-zone-ready`/`rec-zone-notyet`), wadah pemetaannya
+  `<ul aria-labelledby>` dengan kelas gulir yang sama, dan tiap baris langsung
+  `<motion.li>` (`key`, `whileHover`, kelas visual persis sama). Tidak ada
+  `<div>` perantara atau kelas marker baru. Ketiga pesan kosong tetap di cabang
+  `length === 0` sebagai `<p>` **setelah** daftar (di luar `<ul>`), sehingga
+  urutan visual tetap; isi baris, urutan, aturan ZPD, tablist/tabpanel, copy,
+  dan fokus tidak berubah; UI bahasa Inggris (D2). Test baru
+  `tests/recommendations-zones.test.ts` (7 penjaga statis) + satu cek smoke
+  (tiga `role="list"` bernama, total `listitem` > 0); penjaga jumlah baris
+  smoke 2169 → 2178. `README.md`/`Roadmap.md` tidak diubah; `docs/ROADMAP.md`
+  mendapat entri log. `npm run ci` hijau penuh pada percobaan pertama.
 
 - 2026-11-17: PR #120 — **Bar progres di My Profile mengumumkan jumlah
   penguasaan, bukan persen mentah** — dua `role="progressbar"` di kartu **My

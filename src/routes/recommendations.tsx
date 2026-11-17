@@ -613,36 +613,48 @@ function RecommendationsPage() {
                   >
                     {/* Too Easy */}
                     <motion.div variants={itemVariants} className="glass-card p-5 bg-emerald-500/5 border-emerald-500/20">
-                      <h3 className="font-semibold mb-4 flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                      <h3
+                        id="rec-zone-mastered"
+                        className="font-semibold mb-4 flex items-center gap-2 text-emerald-600 dark:text-emerald-400"
+                      >
                         <CheckCircle2 className="w-5 h-5" />
                         Mastered ({zpd.tooEasy.length})
                       </h3>
-                      <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide">
+                      <ul
+                        aria-labelledby="rec-zone-mastered"
+                        className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide"
+                      >
                         {zpd.tooEasy.map((zc) => (
-                          <motion.div
+                          <motion.li
                             key={zc.concept.conceptId}
                             whileHover={{ scale: 1.02 }}
                             className="p-3 bg-background/80 rounded-xl shadow-sm"
                           >
                             <div className="font-medium text-sm text-foreground">{zc.concept.name}</div>
                             <div className="text-xs text-muted-foreground mt-1">{zc.reason}</div>
-                          </motion.div>
+                          </motion.li>
                         ))}
-                        {zpd.tooEasy.length === 0 && (
-                          <p className="text-sm text-emerald-600 dark:text-emerald-400">No mastered concepts yet</p>
-                        )}
-                      </div>
+                      </ul>
+                      {zpd.tooEasy.length === 0 && (
+                        <p className="text-sm text-emerald-600 dark:text-emerald-400">No mastered concepts yet</p>
+                      )}
                     </motion.div>
 
                     {/* ZPD */}
                     <motion.div variants={itemVariants} className="glass-card p-5 bg-purple-500/5 border-purple-500/20">
-                      <h3 className="font-semibold mb-4 flex items-center gap-2 text-purple-600 dark:text-purple-400">
+                      <h3
+                        id="rec-zone-ready"
+                        className="font-semibold mb-4 flex items-center gap-2 text-purple-600 dark:text-purple-400"
+                      >
                         <Target className="w-5 h-5" />
                         Ready to Learn ({zpd.zpd.length})
                       </h3>
-                      <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide">
+                      <ul
+                        aria-labelledby="rec-zone-ready"
+                        className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide"
+                      >
                         {zpd.zpd.map((zc) => (
-                          <motion.div
+                          <motion.li
                             key={zc.concept.conceptId}
                             whileHover={{ scale: 1.02 }}
                             className="p-3 bg-background/80 rounded-xl shadow-sm"
@@ -652,23 +664,29 @@ function RecommendationsPage() {
                             <div className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
                               Readiness: {Math.round(zc.readiness * 100)}%
                             </div>
-                          </motion.div>
+                          </motion.li>
                         ))}
-                        {zpd.zpd.length === 0 && (
-                          <p className="text-sm text-purple-600 dark:text-purple-400">Nothing ready right now</p>
-                        )}
-                      </div>
+                      </ul>
+                      {zpd.zpd.length === 0 && (
+                        <p className="text-sm text-purple-600 dark:text-purple-400">Nothing ready right now</p>
+                      )}
                     </motion.div>
 
                     {/* Too Hard */}
                     <motion.div variants={itemVariants} className="glass-card p-5 bg-red-500/5 border-red-500/20">
-                      <h3 className="font-semibold mb-4 flex items-center gap-2 text-red-600 dark:text-red-400">
+                      <h3
+                        id="rec-zone-notyet"
+                        className="font-semibold mb-4 flex items-center gap-2 text-red-600 dark:text-red-400"
+                      >
                         <AlertTriangle className="w-5 h-5" />
                         Not yet ({zpd.tooHard.length})
                       </h3>
-                      <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide">
+                      <ul
+                        aria-labelledby="rec-zone-notyet"
+                        className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide"
+                      >
                         {zpd.tooHard.map((zc) => (
-                          <motion.div
+                          <motion.li
                             key={zc.concept.conceptId}
                             whileHover={{ scale: 1.02 }}
                             className="p-3 bg-background/80 rounded-xl shadow-sm"
@@ -681,12 +699,12 @@ function RecommendationsPage() {
                             ) : (
                               <div className="text-xs text-muted-foreground mt-1">{zc.reason}</div>
                             )}
-                          </motion.div>
+                          </motion.li>
                         ))}
-                        {zpd.tooHard.length === 0 && (
-                          <p className="text-sm text-red-600 dark:text-red-400">All concepts are accessible!</p>
-                        )}
-                      </div>
+                      </ul>
+                      {zpd.tooHard.length === 0 && (
+                        <p className="text-sm text-red-600 dark:text-red-400">All concepts are accessible!</p>
+                      )}
                     </motion.div>
                   </motion.div>
                 )}
