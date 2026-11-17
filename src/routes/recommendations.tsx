@@ -589,6 +589,16 @@ function RecommendationsPage() {
                                     ))}
                                   </div>
                                 </div>
+
+                                <Link
+                                  to="/learn/$conceptId"
+                                  params={{ conceptId: rec.concept.conceptId }}
+                                  className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+                                >
+                                  <BookOpen className="h-4 w-4" aria-hidden="true" />
+                                  Open the lesson
+                                  <span className="sr-only">: {rec.concept.name}</span>
+                                </Link>
                               </div>
                             </div>
                           </motion.li>
