@@ -1,66 +1,66 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (PR #134; siklus berikutnya: daftar ringkasan & modul `/japanese`)
+Terakhir diperbarui: 2026-11-17 (PR #135; siklus berikutnya: daftar langkah Learning Path `/recommendations`)
 
 ## Tugas berikutnya
 
-Ubah **ringkasan dan daftar modul di `/japanese`** menjadi daftar bernama agar
-pembaca layar tahu kedua kelompok kartu itu satu daftar dan bisa melompat per
-item — kandidat fitur (a) untuk halaman pelajar terakhir yang belum dipoles
-(selain `/admin/*`), tanpa migrasi skema, dependensi, server function, RPC,
+Ubah **daftar langkah di tab "Learning Path" `/recommendations`** menjadi daftar
+berurut bernama agar pembaca layar tahu langkah-langkah itu satu urutan dan bisa
+melompat per item. Ini sisa satu-satunya daftar pelajar yang belum dipoles
+(kartu **Recommended concepts** dan tiga zona **Mastered/Ready/Not yet** sudah
+selesai, PR #115/#121), tanpa migrasi skema, dependensi, server function, RPC,
 atau method RPC baru.
 
-Konteks: `src/routes/japanese.tsx` (±375 baris, perlu sesi). Dua kelompok kartu
-masih memakai `<div>` polos:
+Konteks: `src/routes/recommendations.tsx` (±780 baris). Di cabang
+`activeTab === 'path'`, kartu **Suggested Learning Path** merender
+`zpd.suggestedPath.map` sebagai deretan `<motion.div>` di dalam
+`<div className="space-y-4">`:
 
-1. Blok ringkasan tepat setelah status **Menyiapkan peta belajar…**:
-   `<section className="grid gap-4 sm:grid-cols-3" aria-label="Ringkasan">`
-   berisi tiga `<div className="rounded-2xl border border-border bg-card p-5">`
-   (**Topik dengan bukti latihan ≥80%**, **Kanji Michi mulai dipelajari**,
-   **Kanji jatuh tempo** beserta tautan **Review di Michi →**).
-2. Grid modul di bagian **Peta kemampuan**:
-   `<div className="grid gap-3 sm:grid-cols-2">` berisi
-   `data.modules.filter((m) => m.level === level).map((m) => <article key={m.id}
-   className="rounded-2xl border border-border bg-card p-4">…)` dengan `<h3>`,
-   deskripsi, persen penguasaan, saran prasyarat, dan tombol/tautan per modul.
+- wadah: `<div className="space-y-4">`
+- tiap langkah: `<motion.div key={conceptId} initial={{ opacity: 0, x: -20 }}
+  animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.1 }}
+  className="flex items-center gap-4">` berisi badge angka `{idx + 1}`, nama
+  konsep (`zc?.concept.name || conceptNames.get(conceptId) ||
+  conceptLabel(conceptId)`), baris `Est. {formatDuration(...)} • Readiness
+  {Math.round(rec.readinessScore * 100)}%` bila `rec` ada, dan panah `↓`
+  (`<div className="w-8 text-center text-muted-foreground text-xl">`) di antara
+  langkah.
 
 Rancangan (baca kode dulu; jangan mengubah satu kata pun copy, urutan, kelas
-visual, atau bagian halaman lain):
+visual, animasi, atau bagian halaman lain):
 
-1. Blok ringkasan menjadi
-   `<ul aria-label="Ringkasan" className="grid gap-4 sm:grid-cols-3">` dengan
-   ketiga kartu langsung `<li className="rounded-2xl border border-border
-   bg-card p-5">` (tanpa `key` karena statis, tanpa `<section>` pembungkus dan
-   tanpa `<div>` perantara). Isi ketiga kartu, termasuk tautan
-   `http://127.0.0.1:17831/ulang` dan teks `Snapshot …`/`Buka Michi untuk
-   memulai sinkron lokal.`, tidak berubah.
-2. Grid modul menjadi `<ul>` dengan `aria-label` template
-   `Modul ${level}` dan kelas `grid gap-3 sm:grid-cols-2`, dan tiap hasil `map` langsung
-   `<li key={m.id} className="rounded-2xl border border-border bg-card p-4">`
-   (menggantikan `<article>`; tanpa `<li>`+`<article>` bersarang dan tanpa
-   `<div>` perantara). `<h3>`, copy, urutan modul, tombol **Latihan kuis**,
-   tautan **Latihan di Michi**/**Buka sumber**, dan tombol **Catat praktik**
-   tidak berubah.
-3. Jangan menyentuh `MichiSkillEvidence`, `src/components/michi/`,
-   `src/lib/michi/`, `docs/MICHI-SKILL-EVIDENCE.md`, atau
-   `src/server/michi-evidence.functions.ts`; jangan menambah live region,
-   fokus paksa, `role` tambahan, kelas marker (`list-*`), ikon, atau tombol
-   baru; tanpa `aria-label` pengganti teks yang terlihat; bahasa Indonesia
-   (D2).
-4. **Test**: file baru `tests/japanese-lists.test.ts` (penjaga statis): tepat
-   satu `<ul aria-label="Ringkasan">` bergrid dengan tiga `<li>` langsung
-   berkelas sama dan isi kunci tiap kartu berurutan, tepat satu grid modul
-   `<ul>` ber-`aria-label` `Modul ${level}` dengan `map` langsung ke `<li
-   key={m.id}>` berkelas sama (tanpa `<article>`/`<div>` perantara), urutan
-   tiga teks ringkasan dan empat bagian **Sesi hari ini**, **Peta kemampuan**,
-   form **Catat praktik**, serta footer tetap, tanpa kelas marker/`role`
-   tambahan/live region/fokus paksa, tanpa perubahan impor server function
-   (`japaneseDashboard`, `startJapaneseQuiz`, `submitJapaneseQuiz`,
-   `recordJapanesePractice` tetap empat), serta tanpa `rpc-schemas`/migrasi
-   baru.
-5. **Smoke**: tidak ada cek baru (halaman butuh sesi + dashboard Jepang;
-   perubahan hanya semantik). Penjaga jumlah baris smoke 2441 tetap.
-6. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
+1. Wadah menjadi `<ol aria-label="Suggested learning path"
+   className="space-y-4">` (tanpa `motion` pembungkus; animasi tetap di tiap
+   baris).
+2. Tiap hasil `map` langsung `<motion.li key={conceptId}` dengan
+   `initial`/`animate`/`transition`/`className="flex items-center gap-4"` persis
+   sama, berisi badge, nama, baris **Est./Readiness**, dan panah yang sama.
+   Tanpa `<div>` perantara antara `<ol>` dan `<motion.li>`; tanpa
+   `<li>`+`<div>` bersarang. Tailwind preflight sudah menghapus penanda daftar,
+   jadi tidak ada kelas marker baru dan badge angka tetap satu-satunya
+   penomoran yang terlihat.
+3. Panah `↓` diberi `aria-hidden="true"` (teks dekoratif antar langkah) tanpa
+   mengubah kelas/posisi; badge angka tetap.
+4. Empty state **No learning path available** tetap `<p>` di cabang
+   `zpd.suggestedPath.length === 0` (di luar `<ol>`, bukan item daftar).
+5. Jangan menyentuh kartu **Recommendations**, tiga zona, tablist/tab/tabpanel,
+   `AnimatePresence`, pemilih learner, atau bagian halaman lain; tanpa live
+   region, fokus paksa, `role` tambahan, `aria-label` pengganti teks yang
+   terlihat, ikon, atau tombol baru; UI bahasa Inggris (D2).
+6. **Test**: file baru `tests/recommendations-learning-path.test.ts` (penjaga
+   statis): tepat satu `<ol aria-label="Suggested learning path"
+   className="space-y-4">`, hasil `map` langsung `<motion.li key={conceptId}>`
+   dengan `initial`/`animate`/`transition`/kelas yang sama dan tanpa pembungkus
+   `<div key=`, urutan badge → nama → **Est./Readiness** → panah, panah
+   `aria-hidden`, empty state **No learning path available** di luar `<ol>`,
+   tanpa kelas marker/`role="list"`/live region/fokus paksa, tablist/tab/tabpanel
+   dan label **Learning Path** utuh, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
+7. **Smoke**: satu cek di blok `/recommendations` yang sudah ada — klik tab
+   **Learning Path**, pastikan `getByRole('list', { name: 'Suggested learning
+   path' })` terlihat dengan `listitem` > 0; penjaga jumlah baris smoke
+   2441 → 2450 (sesuaikan bila jumlah baris aktual berbeda).
+8. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
 
@@ -87,16 +87,36 @@ kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `/edu-psychology`, status kartu `/status`, grup uji `/tests`, tab, label
    form, daftar data, dan banner pesan `/data-entry`, status pending
    `/sign-in`, `/forgot-password`, dan `/reset-password`, daftar isi
-   `/privacy`, serta (setelah tugas ini) ringkasan dan daftar modul
-   `/japanese`. Halaman pelajar yang tersisa hanya `/admin/*` (bukan
-   prioritas), jadi sesi berikutnya sebaiknya memilih item roadmap/kandidat
-   fitur lain sesuai prioritas 2–4 di `TASK_PROMPT.md`, bukan memoles ulang
-   halaman yang sama. `tests/` adalah berkas test, bukan halaman.
+   `/privacy`, ringkasan dan daftar modul `/japanese`, serta daftar langkah tab
+   **Learning Path** `/recommendations` (tugas berikutnya). Halaman pelajar
+   yang tersisa hanya `/admin/*` (bukan prioritas), jadi setelah itu pilih item
+   roadmap/kandidat fitur lain sesuai prioritas 2–4 di `TASK_PROMPT.md`, bukan
+   memoles ulang halaman yang sama. `tests/` adalah berkas test, bukan halaman.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-17: PR #135 — **Ringkasan dan daftar modul di `/japanese` menjadi
+  daftar bernama** — blok ringkasan (tiga kartu **Topik dengan bukti latihan
+  ≥80%**, **Kanji Michi mulai dipelajari**, **Kanji jatuh tempo**) dan grid
+  modul **Peta kemampuan** sebelumnya `<section>`/`<div>` polos berisi
+  `<div>`/`<article>`, sehingga pembaca layar tidak tahu kedua kelompok itu satu
+  daftar dan tidak bisa melompat per item. Kini ringkasan `<ul
+  aria-label="Ringkasan" className="grid gap-4 sm:grid-cols-3">` dengan tiga
+  `<li className="rounded-2xl border border-border bg-card p-5">` langsung, dan
+  grid modul `<ul aria-label={`Modul ${level}`} className="grid gap-3
+  sm:grid-cols-2">` dengan `map` langsung ke `<li key={m.id} className="rounded-2xl
+  border border-border bg-card p-4">` (menggantikan `<article>`); tanpa
+  `<section>`/`<div>` perantara, kelas marker, `role` tambahan, live region,
+  fokus paksa, ikon, atau tombol baru. Seluruh copy, urutan, kelas visual,
+  tautan **Review di Michi →**, baris **Snapshot …**/**Buka Michi untuk memulai
+  sinkron lokal.**, aksi modul, `MichiSkillEvidence`, serta kontrak bukti Michi
+  tidak berubah; bahasa Indonesia (D2). Test baru `tests/japanese-lists.test.ts`
+  (8 penjaga statis) + entri log `docs/ROADMAP.md`; tanpa cek smoke baru,
+  penjaga baris smoke 2441 tetap. `README.md`/`Roadmap.md` tidak diubah.
+  `npm run ci` hijau penuh (1459/1459 unit = 1451 + 8; smoke lulus).
 
 - 2026-11-17: PR #134 — **Halaman `/privacy` punya daftar isi bernavigasi** —
   enam bagian panjang kebijakan ini sebelumnya `<section className="mt-8">` +

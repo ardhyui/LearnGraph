@@ -92,8 +92,8 @@ function JapanesePage() {
           <p role="status">Menyiapkan peta belajar…</p>
         ) : (
           <>
-            <section className="grid gap-4 sm:grid-cols-3" aria-label="Ringkasan">
-              <div className="rounded-2xl border border-border bg-card p-5">
+            <ul aria-label="Ringkasan" className="grid gap-4 sm:grid-cols-3">
+              <li className="rounded-2xl border border-border bg-card p-5">
                 <p className="text-sm text-muted-foreground">Topik dengan bukti latihan ≥80%</p>
                 <p className="mt-2 text-3xl font-semibold">
                   {data.modules.filter((m) => m.mastery >= 80).length} / {data.modules.length}
@@ -101,8 +101,8 @@ function JapanesePage() {
                 <p className="mt-2 text-xs text-muted-foreground">
                   Sinyal latihan, bukan skor JLPT.
                 </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-card p-5">
+              </li>
+              <li className="rounded-2xl border border-border bg-card p-5">
                 <p className="text-sm text-muted-foreground">Kanji Michi mulai dipelajari</p>
                 <p className="mt-2 text-3xl font-semibold">{data.michi?.learned ?? 0} / 72</p>
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -110,15 +110,15 @@ function JapanesePage() {
                     ? `Snapshot ${new Date(data.michi.at).toLocaleString('id-ID')}`
                     : 'Buka Michi untuk memulai sinkron lokal.'}
                 </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-card p-5">
+              </li>
+              <li className="rounded-2xl border border-border bg-card p-5">
                 <p className="text-sm text-muted-foreground">Kanji jatuh tempo</p>
                 <p className="mt-2 text-3xl font-semibold">{data.michi?.due ?? 0}</p>
                 <a className="mt-3 inline-block underline" href="http://127.0.0.1:17831/ulang">
                   Review di Michi →
                 </a>
-              </div>
-            </section>
+              </li>
+            </ul>
             <MichiSkillEvidence />
             <section className="rounded-2xl border border-primary/30 bg-primary/5 p-5">
               <h2 className="text-xl font-semibold">Sesi hari ini · 90 menit</h2>
@@ -265,11 +265,11 @@ function JapanesePage() {
                 peta target serta tugas praktik, belum bank soal lengkap. Prasyarat adalah saran,
                 bukan penguncian level.
               </p>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <ul aria-label={`Modul ${level}`} className="grid gap-3 sm:grid-cols-2">
                 {data.modules
                   .filter((m) => m.level === level)
                   .map((m) => (
-                    <article key={m.id} className="rounded-2xl border border-border bg-card p-4">
+                    <li key={m.id} className="rounded-2xl border border-border bg-card p-4">
                       <h3 className="font-semibold">{m.name}</h3>
                       <p className="my-2 text-sm text-muted-foreground">{m.description}</p>
                       <p className="text-sm">
@@ -309,9 +309,9 @@ function JapanesePage() {
                           </button>
                         ) : null}
                       </div>
-                    </article>
+                    </li>
                   ))}
-              </div>
+              </ul>
             </section>
             {practice ? (
               <section className="rounded-2xl border border-border p-5">
