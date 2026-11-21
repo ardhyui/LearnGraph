@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { pageHead } from '@/lib/page-titles';
 import { useState, useEffect, useCallback, useId, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -718,6 +718,12 @@ function GraphPage() {
                           <span className="text-sm text-muted-foreground">/ {selectedConcept.subdomain}</span>
                         )}
                       </div>
+
+                      <Link to="/learn/$conceptId" params={{ conceptId: selectedConcept.conceptId }} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded">
+                        <BookOpen className="h-3 w-3" aria-hidden="true" />
+                        Open the lesson
+                        <span className="sr-only">: {selectedConcept.name}</span>
+                      </Link>
 
                       {/* Description */}
                       {selectedConcept.description && (
