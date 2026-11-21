@@ -6,9 +6,11 @@
  * finding its id again. The panel now offers one "Open the lesson" link right
  * under the domain line, following the same link pattern as the
  * recommendations pages (PR #137/#138/#139), the "Reviews due" list (PR #140)
- * and the "Shaky spots" cards (PR #141). The page is locked statically so the
- * link stays above the description, the rest of the panel stays plain text,
- * and no read, RPC or migration is added.
+ * and the "Shaky spots" cards (PR #141). The prerequisite and unlock chips
+ * link to their own lessons too, so a learner can walk the graph from the
+ * panel. The page is locked statically so the main link stays above the
+ * description, the rest of the panel stays plain text, and no read, RPC or
+ * migration is added.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,17 +35,30 @@ const LINK_CLASS =
 
 const domainStart = panel.indexOf('Domain:');
 const descriptionStart = panel.indexOf('{selectedConcept.description && (');
+const prerequisitesStart = panel.indexOf('{/* Prerequisites */}');
+const mainActionPanel =
+  prerequisitesStart > domainStart ? panel.slice(0, prerequisitesStart) : '';
 const linkStart = panel.indexOf('<Link');
 const linkEnd = panel.indexOf('</Link>', linkStart);
 const linkBlock = linkStart >= 0 && linkEnd > linkStart ? panel.slice(linkStart, linkEnd + '</Link>'.length) : '';
 
+const chipList = (label: string) => {
+  const start = panel.indexOf(`<ul aria-label="${label}"`);
+  if (start < 0) return { start, block: '', linkBlock: '' };
+  const end = panel.indexOf('</ul>', start);
+  const block = panel.slice(start, end);
+  const chipStart = block.indexOf('<Link');
+  return { start, block, linkBlock: chipStart >= 0 ? block.slice(chipStart) : '' };
+};
+
 describe('graph detail panel: the selected concept opens its lesson', () => {
-  it('renders exactly one lesson link inside the panel', () => {
+  it('renders exactly one main lesson link inside the panel', () => {
     assert.ok(panelStart > 0, 'the details panel still exists');
     assert.ok(panelEnd > panelStart, 'the details panel is closed');
-    assert.equal((panel.match(/<Link\b/g) ?? []).length, 1);
-    assert.equal((panel.match(/<\/Link>/g) ?? []).length, 1);
-    assert.equal((panel.match(/Open the lesson/g) ?? []).length, 1);
+    assert.ok(prerequisitesStart > 0, 'the prerequisites block still exists');
+    assert.equal((mainActionPanel.match(/<Link\b/g) ?? []).length, 1);
+    assert.equal((mainActionPanel.match(/<\/Link>/g) ?? []).length, 1);
+    assert.equal((mainActionPanel.match(/Open the lesson/g) ?? []).length, 1);
   });
 
   it('links to the existing lesson route with the selected concept', () => {
@@ -106,6 +121,72 @@ describe('graph detail panel: the selected concept opens its lesson', () => {
     assert.equal(/tabIndex/.test(linkBlock), false, 'the link gained a tab stop');
     assert.equal(/role=/.test(linkBlock), false, 'the link gained a role');
     assert.equal(/<button\b/.test(linkBlock), false, 'the link became a button');
+  });
+
+  it('turns every prerequisite chip into a lesson link', () => {
+    const list = chipList('Prerequisites');
+    assert.ok(list.start > 0, 'the prerequisites list still exists');
+    assert.equal((list.block.match(/<Link\b/g) ?? []).length, 1);
+    assert.equal((list.block.match(/<\/Link>/g) ?? []).length, 1);
+    const openTag = list.linkBlock.slice(0, list.linkBlock.indexOf('>') + 1);
+    assert.ok(openTag.includes('to="/learn/$conceptId"'), 'the chip points at the lesson route');
+    assert.ok(
+      openTag.includes('params={{ conceptId: prereq.conceptId }}'),
+      'the chip passes the prerequisite id',
+    );
+    assert.ok(
+      openTag.includes(
+        'className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs px-2.5 py-1 rounded-lg inline-flex items-center gap-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"',
+      ),
+      'the chip keeps the old class plus link affordances',
+    );
+    assert.ok(list.block.includes('<BookOpen className="h-3 w-3" aria-hidden="true" />'));
+    assert.match(
+      list.block,
+      /\{prereq\.name\}\s*<span className="sr-only"> — open the lesson<\/span>/,
+      'the visible name keeps an accessible lesson label',
+    );
+  });
+
+  it('turns every unlock chip into a lesson link', () => {
+    const list = chipList('Unlocks');
+    assert.ok(list.start > 0, 'the unlocks list still exists');
+    assert.equal((list.block.match(/<Link\b/g) ?? []).length, 1);
+    assert.equal((list.block.match(/<\/Link>/g) ?? []).length, 1);
+    const openTag = list.linkBlock.slice(0, list.linkBlock.indexOf('>') + 1);
+    assert.ok(openTag.includes('to="/learn/$conceptId"'), 'the chip points at the lesson route');
+    assert.ok(
+      openTag.includes('params={{ conceptId: dep.conceptId }}'),
+      'the chip passes the dependent id',
+    );
+    assert.ok(
+      openTag.includes(
+        'className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs px-2.5 py-1 rounded-lg inline-flex items-center gap-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"',
+      ),
+      'the chip keeps the old class plus link affordances',
+    );
+    assert.ok(list.block.includes('<BookOpen className="h-3 w-3" aria-hidden="true" />'));
+    assert.match(
+      list.block,
+      /\{dep\.name\}\s*<span className="sr-only"> — open the lesson<\/span>/,
+      'the visible name keeps an accessible lesson label',
+    );
+  });
+
+  it('derives each chip id and name from the edge endpoints', () => {
+    assert.match(
+      page,
+      /prerequisites\?: Array<\{ conceptId: string; name: string \}>;/,
+    );
+    assert.match(page, /dependents\?: Array<\{ conceptId: string; name: string \}>;/);
+    assert.match(
+      page,
+      /conceptId: e\.source,\s*name: sourceNode\?\.data\?\.label as string \|\| e\.source,/,
+    );
+    assert.match(
+      page,
+      /conceptId: e\.target,\s*name: targetNode\?\.data\?\.label as string \|\| e\.target,/,
+    );
   });
 
   it('imports Link and BookOpen exactly once', () => {
