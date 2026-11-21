@@ -1,72 +1,60 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-17 (PR #141; siklus berikutnya: tautan pelajaran di panel detail `/graph`)
+Terakhir diperbarui: 2026-11-21 (PR #143; siklus berikutnya: chip Prerequisites/Unlocks di panel detail `/graph` membuka pelajarannya)
 
 ## Tugas berikutnya
 
-Beri **panel detail konsep** di `/graph` satu tautan **Open the lesson** ke
-`/learn/$conceptId`, sehingga konsep yang dipilih di graph bisa langsung
-dipelajari — melanjutkan deret tautan di `/recommendations` (PR
-#137/#138/#139), daftar **Reviews due** (PR #140), dan kartu **Shaky spots**
-(PR #141). Fitur kecil, tanpa migrasi skema, dependensi, server function, RPC,
-atau method RPC baru.
+Beri **chip Prerequisites dan Unlocks** di panel detail konsep `/graph` tautan
+ke pelajarannya masing-masing, sehingga dari satu konsep pelajar bisa langsung
+membuka prasyarat atau lanjutannya tanpa mencari manual — melanjutkan deret
+tautan pelajaran (PR #137–#142). Fitur kecil, tanpa migrasi skema, dependensi,
+server function, RPC, atau method RPC baru.
 
-Konteks: `src/routes/graph.tsx`. Panel muncul setelah klik node di React Flow
-dan dirender `<GraphDetailPanel open={!!selectedConcept} title={selectedConcept?.name} onClose={closeDetails}>`
-(sekitar baris 709). Isinya satu `<div className="space-y-4">` yang dimulai
-dengan baris **Domain:** (ikon `<BookOpen size={16} className="text-muted-foreground" />`,
-`<span>Domain:</span>`, `{selectedConcept.domain}`, lalu subdomain opsional),
-lalu deskripsi, **Difficulty**, **Learner Progress** (`mastery-source`),
-**Prerequisites**, **Unlocks**, dan terakhir blok **Concept ID** dengan
-`border-t`. `selectedConcept` bertipe `ConceptDetails` dan sudah punya
-`conceptId`, `name`, `domain`, `subdomain?`, `description?`, `difficulty?`,
-`mastery?`, `masterySource?`, `prerequisites?`, dan `dependents?`.
-`BookOpen` **sudah diimpor** dari `lucide-react` (dipakai baris Domain dan
-`statCards`); `Link` **belum** diimpor — ubah baris pertama menjadi
-`import { createFileRoute, Link } from '@tanstack/react-router';` (jangan
-menambah impor kedua dari paket itu).
+Konteks: `src/routes/graph.tsx`. Panel `GraphDetailPanel` (sekitar baris 709)
+kini sudah punya satu tautan **Open the lesson** untuk konsep terpilih tepat
+setelah baris **Domain:**. Dua daftar chip di bawahnya:
+`<ul aria-label="Prerequisites" className="flex flex-wrap gap-1.5">` dan
+`<ul aria-label="Unlocks" className="flex flex-wrap gap-1.5">`; tiap `<li
+key={i}>` berisi `<span className="bg-blue-500/10 text-blue-600
+dark:text-blue-400 text-xs px-2.5 py-1 rounded-lg">{prereq}</span>`
+(Unlocks memakai warna `emerald`). `selectedConcept.prerequisites` dan
+`.dependents` saat ini `string[]` berisi **nama** konsep, dibangun di
+`onNodeClick` (sekitar baris 412) dari `edges` + `nodes` dengan cadangan id
+edge. `Link` dan `BookOpen` sudah diimpor tepat sekali.
 
-Rancangan (baca kode dulu; jangan mengubah copy/urutan/kelas visual/animasi
-yang sudah ada):
+Rancangan (baca kode dulu; jangan mengubah copy/urutan/kelas visual yang ada):
 
-1. Tambahkan tepat satu tautan tepat **setelah baris Domain dan sebelum**
-   `{selectedConcept.description && (` — jadi aksi utama terlihat di atas
-   panel, bukan terkubur di bawah **Concept ID**:
-   ```jsx
-   <Link to="/learn/$conceptId" params={{ conceptId: selectedConcept.conceptId }} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded">
-     <BookOpen className="h-3 w-3" aria-hidden="true" />
-     Open the lesson
-     <span className="sr-only">: {selectedConcept.name}</span>
-   </Link>
-   ```
-   Jangan membungkus baris Domain, judul panel, atau isi lain dengan tautan;
-   jangan menambah tombol, live region, fokus paksa, atau `role` tambahan;
-   UI bahasa Inggris (D2).
-2. Baris Domain (ikon `BookOpen size={16}` + label + domain/subdomain),
-   deskripsi, ketiga kartu **Difficulty**, bar progres **Learner Progress**
-   beserta `mastery-source`, badge **In Zone of Proximal Development**/**Due
-   for a review**, `<ul aria-label="Prerequisites">`, `<ul aria-label="Unlocks">`,
-   blok **Concept ID**, judul panel dari `title={selectedConcept?.name}`,
-   `open`/`onClose`, animasi, dan copy lain tidak berubah. Tautan baru hanya
-   memakai `selectedConcept.conceptId`/`selectedConcept.name`.
-3. **Test**: file baru `tests/graph-detail-lesson-link.test.ts` (penjaga
-   statis): tepat satu `<Link to="/learn/$conceptId" params={{ conceptId:
-   selectedConcept.conceptId }}>` di panel, kelas persis, `BookOpen` `h-3 w-3`
-   `aria-hidden`, teks **Open the lesson** + `sr-only` `selectedConcept.name`,
-   posisinya sesudah baris **Domain:** dan sebelum blok deskripsi, baris
-   Domain/deskripsi/`mastery-source`/daftar Prasyarat/Unlocks/blok **Concept
-   ID** tetap teks biasa, `Link` diimpor sekali pada baris `@tanstack/react-router`
-   sementara `BookOpen` tetap sekali di `lucide-react`, tanpa
-   `aria-live`/`.focus()`/`tabIndex`/`role`/`<button>` di tautan, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan mengubah atau
-   melenturkan `tests/graph-detail-lists.test.ts`.
-4. **Smoke**: di blok *mobile: graph details open as a bottom sheet* (sekitar
-   baris 1803, setelah `panel` terlihat dan sebelum `Close details` diklik),
-   tambahkan satu cek kecil: `getByTestId('graph-detail-panel')` memuat satu
-   tautan bernama `/^Open the lesson\s*: /` yang terlihat. Jangan mengklik
-   tautan itu (blok yang sama masih menguji tombol tutup dan Escape). Sesuaikan
-   penjaga jumlah baris smoke (`tests/skip-link.test.ts`, 2565 → jumlah baris
-   aktual; hitung dengan `wc -l scripts/smoke.mjs`).
+1. Ubah `ConceptDetails.prerequisites`/`dependents` menjadi
+   `Array<{ conceptId: string; name: string }>` dan bangun di `onNodeClick`:
+   prasyarat `{ conceptId: e.source, name: sourceNode?.data?.label as string
+   || e.source }`, dependent `{ conceptId: e.target, name:
+   targetNode?.data?.label as string || e.target }`. Jangan mengubah filter
+   edge, urutan, atau cadangan nama.
+2. Ganti tiap `<span>` chip menjadi satu
+   `<Link to="/learn/$conceptId" params={{ conceptId: prereq.conceptId }}>`
+   dengan kelas chip lama **ditambah** `inline-flex items-center gap-1
+   hover:underline focus-visible:outline-none focus-visible:ring-2
+   focus-visible:ring-violet-500`, berisi
+   `<BookOpen className="h-3 w-3" aria-hidden="true" />`, teks terlihat
+   `{prereq.name}`, lalu `<span className="sr-only"> — open the lesson</span>`
+   (Unlocks: `{dep.name}`). Jangan mengubah heading + hitungan (**Prerequisites
+   ({…length})**/**Unlocks ({…length})**), kelas `<ul>`, warna chip, urutan
+   chip, `<li key={i}>`, tautan **Open the lesson** utama, baris Domain,
+   deskripsi, Difficulty, Learner Progress, blok **Concept ID**, atau isi panel
+   lain; tanpa tombol, live region, fokus paksa, atau `role` tambahan; UI
+   bahasa Inggris (D2).
+3. **Test**: perbarui `tests/graph-detail-lesson-link.test.ts` — jangan
+   melonggarkan. Batasi penjaga "tepat satu `<Link>`/teks **Open the lesson**"
+   ke tautan aksi utama (potong panel sampai awal blok Prerequisites) dan
+   tambah penjaga bahwa tiap chip di kedua daftar adalah `<Link>` menuju
+   `/learn/$conceptId` dengan `params` id yang tepat, kelas chip lama tetap,
+   ikon `h-3 w-3` `aria-hidden`, nama terlihat + `sr-only`, serta
+   `ConceptDetails`/`onNodeClick` mengambil `conceptId` dari sumber/tujuan
+   edge. `tests/graph-detail-lists.test.ts` menyesuaikan tipe data chip tanpa
+   menghapus penjaganya.
+4. **Smoke**: tidak ada cek baru (isi chip bergantung data seed); penjaga
+   baris `tests/skip-link.test.ts` tetap 2568 bila tidak ada baris smoke lain
+   yang berubah.
 5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -108,6 +96,45 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-21: PR #143 — **Panel detail konsep `/graph` membuka pelajarannya** —
+  panel yang muncul setelah klik node di React Flow sebelumnya menampilkan
+  domain, deskripsi, **Difficulty**, **Learner Progress**, **Prerequisites**,
+  **Unlocks**, dan **Concept ID** tanpa jalan masuk ke `/learn/$conceptId`,
+  sehingga konsep yang sudah dipilih di graph tetap harus dicari manual
+  padahal tautan yang sama sudah ada di tab **Learning Path** (PR #137), kartu
+  **Recommended concepts** (PR #138), zona **Ready to Learn** (PR #139), daftar
+  **Reviews due** (PR #140), dan kartu **Shaky spots** (PR #141). Kini tepat
+  setelah baris **Domain:** dan sebelum blok deskripsi ada satu `<Link
+  to="/learn/$conceptId" params={{ conceptId: selectedConcept.conceptId }}>`
+  (kelas `inline-flex items-center gap-1 text-xs font-medium text-primary
+  hover:underline focus-visible:outline-none focus-visible:ring-2
+  focus-visible:ring-violet-500 rounded`) berisi `BookOpen` `h-3 w-3` yang
+  `aria-hidden="true"`, teks terlihat **Open the lesson**, dan `<span
+  className="sr-only">: {selectedConcept.name}</span>`. Baris Domain,
+  deskripsi, tiga kartu **Difficulty**, bar progres **Learner Progress**
+  beserta `mastery-source`, badge **In Zone of Proximal Development**/**Due
+  for a review**, `<ul aria-label="Prerequisites">`, `<ul
+  aria-label="Unlocks">`, blok **Concept ID**, judul panel dari
+  `title={selectedConcept?.name}`, `open`/`onClose`, animasi, dan copy lain
+  tidak berubah; tanpa tombol, live region, fokus paksa, atau `role` tambahan;
+  UI bahasa Inggris (D2). `Link` diimpor sekali bersama `createFileRoute`, dan
+  `BookOpen` tetap sekali di impor `lucide-react`. Test baru
+  `tests/graph-detail-lesson-link.test.ts` (8 penjaga statis);
+  `tests/graph-detail-lists.test.ts` tidak diubah dan tetap hijau. Satu cek
+  smoke di blok *mobile: graph details open as a bottom sheet*: panel memuat
+  satu tautan bernama `/^Open the lesson\s*: /` yang terlihat sebelum tombol
+  **Close details** diklik; penjaga baris smoke 2565 → 2568
+  (`tests/skip-link.test.ts`). `README.md`/`Roadmap.md` tidak diubah;
+  `docs/ROADMAP.md` mendapat entri log. `npm run ci` utuh akhirnya **hijau
+  penuh** (1529/1529 unit = 1521 + 8; typecheck, lint 0/0, build, anggaran
+  bundel, CSP produksi, smoke Playwright + PGlite termasuk cek baru) dengan
+  `CI_PORT=8391 CI_PREVIEW_PORT=8393` dan `TMPDIR` di `/home`. Tiga percobaan
+  sebelumnya gagal karena lingkungan, bukan kode: (1) terpotong batas waktu
+  harness saat smoke hampir selesai, (2) hanya cek skip-link flaky di bawah
+  load ±14 (`in main false`), (3) port 8291 masih dipakai proses dev lama
+  sampai dev server baru menolak start (`ERR_CONNECTION_REFUSED`); percobaan
+  tanpa perubahan kode dengan port bebas lulus.
 
 - 2026-11-17: PR #141 — **Tiap kartu "Shaky spots" `/gaps` membuka
   pelajarannya** — kartu **Shaky spots** di Gap Analysis sebelumnya hanya
