@@ -1818,6 +1818,9 @@ try {
           return { layout: el.dataset.layout, width: Math.round(r.width), gap: Math.round(window.innerHeight - r.bottom), vw: window.innerWidth };
         })
         .catch(() => null);
+      const lessonLink = panel.getByRole('link', { name: /^Open the lesson\s*: / });
+      const lessonLinkVisible = (await lessonLink.count()) === 1 && (await lessonLink.isVisible());
+      check(lessonLinkVisible, 'mobile: graph details link to the selected lesson');
       await m.getByRole('button', { name: 'Close details' }).click().catch(() => {});
       const closed = await panel.waitFor({ state: 'detached', timeout: 5000 }).then(() => true, () => false);
       await node.click().catch(() => {});
