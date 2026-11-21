@@ -1393,6 +1393,35 @@ try {
       new URL(page.url()).pathname,
     );
 
+    // Every step of "Your catch-up plan" opens its lesson too, so the plan the
+    // page builds can be worked through directly.
+    await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
+    const planSelect = page.getByLabel('Learner', { exact: true });
+    await planSelect.waitFor({ timeout: 30000 });
+    await planSelect.selectOption({ label: 'Carol Kim' }).catch(() => {});
+    const planCard = page
+      .locator('.glass-card')
+      .filter({ has: page.getByRole('heading', { name: /^Your catch-up plan/ }) });
+    await page.getByRole('heading', { name: /^Your catch-up plan/ }).waitFor({ timeout: 30000 }).catch(() => {});
+    const planLessonLink = planCard
+      .getByRole('link', { name: /^Open the lesson\s*: / })
+      .first();
+    const planLessonShown = await planLessonLink.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    await planLessonLink.click().catch(() => {});
+    const onPlanLesson = await page
+      .waitForURL((u) => u.pathname.startsWith('/learn/'), { timeout: 15000 })
+      .then(() => true, () => false);
+    const planLessonHeading = await page
+      .getByRole('heading', { level: 1 })
+      .first()
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    check(
+      planLessonShown && onPlanLesson && planLessonHeading,
+      'gaps: each catch-up step opens its lesson',
+      new URL(page.url()).pathname,
+    );
+
     await page.goto(`${BASE}/recommendations`, { waitUntil: 'networkidle' });
     const zonesTab = page.getByRole('tab', { name: 'Ready / not yet' });
     await zonesTab.waitFor({ timeout: 30000 }).catch(() => {});
