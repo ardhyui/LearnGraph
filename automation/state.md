@@ -1,66 +1,62 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (pencarian "Find a concept" di `/gaps` selesai lewat PR #149; berikutnya: pencarian konsep di Recommendations)
+Terakhir diperbarui: 2026-11-25 (pencarian "Find a concept" di `/recommendations` selesai lewat PR #150; berikutnya: MCP prompts)
 
 ## Tugas berikutnya
 
-Fitur baru: **Pencarian "Find a concept" di Recommendations** (fitur pelajar;
-tanpa migrasi skema/dependensi/server function/RPC baru).
+Fitur baru: **MCP prompts (`prompts/list` + `prompts/get`)** — melengkapi M4
+(tools + resources sudah ada; tanpa migrasi skema/dependensi/RPC baru).
 
-Tujuan: panel Today dan Gap Analysis sudah punya kotak pencarian konsep
-(`src/components/ConceptSearch.tsx`, komponen bersama hasil ekstraksi PR
-sebelumnya), tetapi halaman `/recommendations` — yang menampilkan kartu
-**Recommended concepts**, zona **Ready to Learn**/zoned, dan **Learning
-Path** — belum punya jalan pintas ke pelajaran yang dicari pelajar. Pasang
-kotak yang sama di sana.
+Tujuan: server MCP read-only di `src/lib/mcp/` (`protocol.ts` untuk JSON-RPC,
+`route.ts` untuk auth/HTTP, `tools.ts` untuk data akun) sudah menyediakan
+`tools/list`/`tools/call` dan `resources/list`/`resources/read`, tetapi belum
+punya capability `prompts`, sehingga klien AI tidak bisa menawarkan perintah
+siap pakai ("jelaskan topik berikutnya", "ujilah aku dengan kuis", "jelaskan
+konsep ini") yang sudah membawa brief tutor learner.
 
-Kode yang dipakai ulang: komponen bersama `ConceptSearch`
-(`src/components/ConceptSearch.tsx`) beserta helper murni
-`searchQuery`/`conceptSearchResults`/`conceptSearchSummary`
-(`src/lib/concept-search.ts`, sudah dites), dan `db.listConcepts()` dari
-`useDB()` — belum dimuat halaman ini, jadi tambahkan satu pembacaan dengan
-cadangan `[]`. Halaman ini sudah memakai pola permintaan terbaru menang
-(`requestSeq`), pemilih learner bersama (`useActiveLearner`), dan
-`WorkspaceLoading`/kartu error yang sama seperti `/gaps`.
+Kode yang dipakai ulang: pola `MCP_PROMPTS`/handler yang ada, dan
+`get_tutor_context` (`src/lib/mcp/tools.ts`) untuk brief learner yang sama
+(maksimal 2000 token, tanpa skor mentah). Auth/akun tetap dari `handleMcpPost`
+(`src/lib/mcp/route.ts`) — prompt tidak pernah menerima owner id dari klien.
 
 Rancangan:
 
-1. **Muat konsep sekali per learner**: tambah state
-   `const [searchConcepts, setSearchConcepts] = useState<ConceptNode[]>([])`
-   di `src/routes/recommendations.tsx`; di `computeZPD` (atau efek pemuatan
-   yang sama, tepat setelah `if (!db || !isReady || !selectedLearner)
-   return;`) ambil `db.listConcepts().catch(() => [])`, lalu isi state hanya
-   bila `seq === requestSeq.current` (jangan biarkan learner lama menimpa
-   learner baru). Saat learner berganti, kosongkan daftar dulu agar query
-   lama tidak menampilkan konsep learner sebelumnya; kegagalan
-   `listConcepts` tidak boleh menggagalkan rekomendasi.
-2. **Render** `<ConceptSearch key={`search-${selectedLearner}`}
-   concepts={searchConcepts} />` (komponen yang sama, tanpa perubahan
-   markup/kelas) di bawah kartu pemilih learner dan **sebelum** blok tab
-   **Recommendation views**, hanya saat `selectedLearner` ada; bungkus
-   dengan `div className="mb-6"` seperti di `/gaps`. Bila daftar kosong,
-   kartu tetap dirender dengan hasil kosong — jangan menyembunyikan atau
-   menggagalkan halaman.
-3. **Tanpa** server function/tombol/live region/`aria-label` baru di luar
-   komponen itu; UI Inggris (D2); target sentuh ≥40 px sudah dari komponen.
-4. **Test** `tests/recommendations-concept-search.test.ts` (statis, baru):
-   halaman mengimpor `ConceptSearch` dari file bersama, state diisi
-   `db.listConcepts()` + `.catch(() => [])` dan dijaga `requestSeq`,
-   pemasangan punya `key` per learner serta berada sesudah `<select>`
-   learner dan sebelum tablist **Recommendation views**, komponen tidak
-   didefinisikan ulang di route, `concept-search.ts`/`ConceptSearch.tsx`
-   tidak diubah, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/
-   migrasi. Jangan melonggarkan test lama (khususnya
-   `tests/concept-search.test.ts`, `tests/gaps-concept-search.test.ts`,
-   penjaga tautan pelajaran `/recommendations`).
-5. **Smoke**: di blok `/recommendations` yang sudah ada, setelah learner
-   aktif dimuat, isi **Search your concepts** dengan nama konsep yang
-   dikenal (mis. "fraction"), pastikan daftar bernama **Concept search
-   results** berisi ≥1 item dan tautan pertamanya menuju `/learn/`; jangan
-   menambah cek flaky dan jangan mengubah urutan cek tautan pelajaran yang
-   sudah ada (bersihkan/abaikan query bila perlu).
-6. **Dokumentasi**: entri log bertanggal di `docs/ROADMAP.md`; tidak
-   menandai milestone.
+1. **Definisi prompt** di `src/lib/mcp/protocol.ts`: `MCP_PROMPTS` berisi tepat
+   tiga prompt — `next_topic` ("What should I learn next?", argumen opsional
+   `learner`), `review_due` ("Quiz me on my due reviews.", argumen opsional
+   `learner` + `count` 1–10 default 5), dan `explain_concept` ("Explain this
+   concept at my level.", argumen wajib `concept` 1–200 karakter + opsional
+   `learner`). Tiap definisi punya `name`, `description`, dan `arguments`
+   (`name`/`description`/`required`) — bukan `inputSchema` milik tools.
+   `initialize` mengembalikan `capabilities: { tools: {}, resources: {},
+   prompts: {} }` dan `instructions` menyebut `prompts/list`.
+2. **Handler**: perluas `McpHandlers` dengan `get_prompt(name, args)` yang
+   mengembalikan `{ description, messages: [{ role: 'user', content: { type:
+   'text', text } }] }`. Implementasi di `src/lib/mcp/tools.ts` memanggil
+   `get_tutor_context` yang sudah ada (argumen `learner`/`concept`), lalu
+   menyisipkan `text` brief ke dalam satu pesan user bersama instruksi khusus
+   prompt; tanpa query DB baru dan tanpa jalur yang melompati isolasi akun.
+3. **Validasi**: helper murni `parsePromptGetParams` (params objek
+   `{ name, arguments? }`, hanya tiga nama, `additionalProperties` ditolak,
+   `learner` ≤128 / `concept` ≤200 seperti tools, `count` bilangan bulat 1–10)
+   supaya `prompts/get` tidak pernah memanggil handler untuk input rusak.
+4. **Metode**: `prompts/list` → `{ prompts: MCP_PROMPTS }`; `prompts/get` →
+   hasil handler. Prompt/argumen tak dikenal → JSON-RPC `-32602` dengan pesan
+   jelas. Notifikasi, `ping`, `tools/*`, `resources/*`, dan penolakan batch
+   tidak berubah; tanpa SSE/dependensi baru.
+5. **Test** `tests/mcp-prompts.test.ts` (baru) tanpa melonggarkan
+   `tests/mcp-protocol.test.ts`, `tests/mcp-resources.test.ts`, dan
+   `tests/mcp-api.test.ts`: `prompts/list` berisi tepat tiga nama berurutan,
+   capability `prompts` ada di `initialize`, `prompts/get` tiap prompt memuat
+   brief dari handler palsu beserta instruksi yang tepat, `learner`/`concept`
+   diteruskan apa adanya (bukan owner id), `count` default/1/10 diterima dan
+   di luar rentang ditolak, nama/argumen hilang atau asing → `-32602` tanpa
+   memanggil handler, serta `tools`/`resources`/notifikasi tetap.
+6. **Smoke**: di blok API/MCP yang sudah ada (setelah `tools/list`), satu
+   panggilan `prompts/list` dengan kunci read-only → HTTP 200 dan tepat tiga
+   nama; jangan menambah panggilan berulang atau cek flaky.
+7. **Dokumentasi**: entri log bertanggal di `docs/ROADMAP.md`; tidak menandai
+   milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
 
@@ -69,10 +65,7 @@ Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
 Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
 baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. **MCP prompts** — `prompts/list` + `prompts/get` di server MCP (mis.
-   "jelaskan topik berikutnya", "ujilah aku dengan kuis") yang menyisipkan
-   brief tutor sebagai argumen; melengkapi M4 (tools + resources sudah ada).
-2. **Detail per konsep di `/progress`** — tautkan tiap konsep di ringkasan
+1. **Detail per konsep di `/progress`** — tautkan tiap konsep di ringkasan
    mingguan ke `/learn/$conceptId` dan/atau daftar kecil "yang paling sering
    di-review minggu ini".
 
@@ -81,6 +74,21 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #150 — **Pencarian "Find a concept" di Recommendations** —
+  komponen bersama `ConceptSearch` dipasang di `/recommendations` di bawah
+  kartu pemilih learner dan sebelum tablist **Recommendation views**, hanya
+  saat learner aktif, dibungkus `div className="mb-6"` dengan `key` per learner.
+  Halaman menyimpan `db.listConcepts().catch(() => [])` di state
+  `searchConcepts` (tipe `GraphConceptNode`), dijalankan bersamaan dengan
+  `computeZPD`; daftar dikosongkan saat learner berganti dan hanya diisi bila
+  `seq === requestSeq.current`, sementara kegagalan `listConcepts` tidak
+  menggagalkan rekomendasi. Test statis baru
+  `tests/recommendations-concept-search.test.ts`; cek smoke
+  `/recommendations` mengisi **Search your concepts** dengan `fraction` dan
+  memastikan **Concept search results** berisi ≥1 item bertaut `/learn/`
+  (penjaga baris smoke 2706 → 2727). `npm run ci` utuh hijau sebelum PR
+  (percobaan pertama gagal hanya karena dev server drop saat smoke, diulang
+  dengan `CI_PORT=8391 CI_PREVIEW_PORT=8393` dan lulus penuh).
 - 2026-11-25: PR #149 — **Pencarian "Find a concept" di Gap Analysis** —
   komponen `ConceptSearch` diekstrak dari `src/components/StudyToday.tsx` ke
   `src/components/ConceptSearch.tsx` tanpa mengubah perilaku/markup/kelas
