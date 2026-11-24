@@ -1,6 +1,6 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (pencarian "Find a concept" di `/gaps` lewat PR baru; berikutnya: pencarian konsep di Recommendations)
+Terakhir diperbarui: 2026-11-25 (pencarian "Find a concept" di `/gaps` selesai lewat PR #149; berikutnya: pencarian konsep di Recommendations)
 
 ## Tugas berikutnya
 
@@ -81,6 +81,25 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #149 — **Pencarian "Find a concept" di Gap Analysis** —
+  komponen `ConceptSearch` diekstrak dari `src/components/StudyToday.tsx` ke
+  `src/components/ConceptSearch.tsx` tanpa mengubah perilaku/markup/kelas
+  (section bernama, heading **Find a concept** + `Search` `aria-hidden`, input
+  `type="search"` berlabel, ringkasan `role="status" aria-live="polite"`,
+  daftar **Concept search results** berisi `Link` `min-h-10` ke
+  `/learn/$conceptId`, empty state **No concepts match “…”**). `/gaps` menyimpan
+  `concepts` hasil `db.listConcepts().catch(() => [])` yang sudah dimuat
+  `fetchGapData` ke state `searchConcepts` (tanpa query/RPC tambahan),
+  meresetnya saat learner berganti (reload `quiet` mempertahankan query), dan
+  merender `<ConceptSearch key={`search-${selectedLearnerId}`}
+  concepts={searchConcepts} />` di bawah pemilih learner sebelum analisis;
+  bila `listConcepts` gagal kartu tetap tampil dengan hasil kosong. Test
+  `tests/concept-search.test.ts` menunjuk penjaga markup ke komponen bersama
+  sementara penjaga Today tetap; test baru
+  `tests/gaps-concept-search.test.ts` (7 penjaga statis). Smoke `/gaps`:
+  isi **Search your concepts** dengan `fraction` → daftar bernama berisi ≥1
+  item dan tautan `/learn/` (penjaga baris smoke 2689 → 2706). `npm run ci`
+  utuh hijau sebelum PR.
 - 2026-11-25: PR #148 — **Riwayat 20 aktivitas terakhir di `/progress`** —
   kartu **Recent activity** di bawah **Week by week** (`<section
   aria-labelledby="progress-recent-title">`, `<ul aria-label="Recent
