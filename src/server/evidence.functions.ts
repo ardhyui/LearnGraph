@@ -139,3 +139,24 @@ export const getLearningMeasures = createServerFn({ method: 'GET' })
     const created = account.rows[0]?.createdAt;
     return learningMeasures(events, created ? new Date(created).toISOString() : null, new Date());
   });
+
+/** Eight weeks of progress for one learner: weekly activity, retention and streaks. */
+export const getLearnerProgress = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .validator(z.object({ learnerId: lookupId }))
+  .handler(async ({ data, context }) => {
+    const { db, service } = await services(context.userId);
+    const [{ weeklyBuckets, retentionByWeek, bestStreak }, { learningStreak }] = await Promise.all([
+      import('@/lib/evidence/progress'),
+      import('@/lib/evidence/streak'),
+    ]);
+    const events = await service.listEvents(db, context.userId, { learnerId: data.learnerId });
+    const now = new Date().toISOString();
+    return {
+      weeks: weeklyBuckets(events, now),
+      retention: retentionByWeek(events, now),
+      streak: learningStreak(events, now),
+      bestStreak: bestStreak(events, now),
+      totalEvents: events.length,
+    };
+  });

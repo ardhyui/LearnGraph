@@ -4,7 +4,7 @@
  * The module was only covered by `tests/navigation.test.ts` (63 lines, kept
  * intact): five broad assertions that the menu is routed and partitioned. This
  * file imports the module directly (node:test, no PGlite or DOM) and locks the
- * full menu as data — sections, the exact 21 hrefs, labels, descriptions and
+ * full menu as data — sections, the exact 22 hrefs, labels, descriptions and
  * icons, the Indonesian Japanese entry (D2) — plus the router-matching rule of
  * `isNavItemActive` (trailing slash included), the open/closed logic of the
  * collapsible groups, the storage key, every malformed-input branch of
@@ -79,13 +79,13 @@ describe('NAV_SECTIONS — the menu as data', () => {
     );
   });
 
-  it('lists exactly 21 unique hrefs, grouped 6/4/9/2, in a fixed order', () => {
+  it('lists exactly 22 unique hrefs, grouped 7/4/9/2, in a fixed order', () => {
     // An explicit copy of the whole menu: adding, moving or renaming a page
     // shows up here as a diff.
     assert.deepEqual(
       NAV_SECTIONS.map((s) => s.items.map((i) => i.href)),
       [
-        ['/', '/japanese', '/recommendations', '/gaps', '/graph', '/profile'],
+        ['/', '/japanese', '/recommendations', '/gaps', '/progress', '/graph', '/profile'],
         ['/domains', '/combined-graph', '/edu-psychology', '/about'],
         [
           '/admin/learners',
@@ -102,11 +102,11 @@ describe('NAV_SECTIONS — the menu as data', () => {
       ],
     );
     const flat = NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
-    assert.equal(flat.length, 21);
+    assert.equal(flat.length, 22);
     assert.equal(new Set(flat).size, flat.length, 'every page is listed once');
     assert.deepEqual(
       NAV_SECTIONS.map((s) => s.items.length),
-      [6, 4, 9, 2],
+      [7, 4, 9, 2],
     );
   });
 
