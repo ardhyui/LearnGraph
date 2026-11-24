@@ -1,121 +1,88 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-21 (PR #144; siklus berikutnya: tiap langkah "Your catch-up plan" `/gaps` membuka pelajarannya)
+Terakhir diperbarui: 2026-11-24 (lanjutan setelah mesin restart; PR #144+#145 digabung; berikutnya: halaman /progress pelajar)
 
 ## Tugas berikutnya
 
-Beri **tiap langkah kartu "Your catch-up plan"** (Remediation Plan) di `/gaps`
-satu tautan **Open the lesson** ke `/learn/$conceptId`, sehingga rencana
-perbaikan yang disusun halaman itu bisa langsung dikerjakan — melanjutkan deret
-tautan pelajaran di `/recommendations` (PR #137/#138/#139), daftar **Reviews
-due** dan kartu **Shaky spots** (PR #140/#141), serta panel detail `/graph`
-(PR #143/#144). Fitur kecil, tanpa migrasi skema, dependensi, server function,
-RPC, atau method RPC baru.
+Fitur baru: **halaman `/progress` — "Your progress"** (fitur pelajar, tanpa
+migrasi skema/dependensi; dari `learning_events` yang sudah dicatat M1).
 
-Konteks: `src/routes/gaps.tsx`. Blok `{/* Remediation Plan */}` (sekitar baris
-751) dirender bila `remediation && remediation.plan.steps.length > 0` sebagai
-`<motion.div className="mt-6 glass-card p-6">` dengan heading
-`<h2>… Your catch-up plan (about {…} min)</h2>`, satu kotak **Focus:**, lalu
-`<div className="space-y-4">{remediation.plan.steps.map((step, i) => ( … ))}</div>`.
-Tiap langkah `<motion.div key={i} … className="flex items-start gap-4 p-4
-bg-secondary/50 rounded-xl border border-border/50">` berisi badge nomor
-`{step.order}`, lalu `<div className="flex-1">` dengan
-`<p className="font-medium text-foreground">{conceptLabel(step.conceptId,
-step.conceptName)}</p>`, `<p className="text-sm text-muted-foreground">
-{step.action}</p>`, dan `<div className="flex flex-wrap gap-x-4 gap-y-1 mt-2
-text-xs text-muted-foreground">` berisi `stepTypeLabel(step.gapType)`,
-**About {step.estimatedTime} min**, dan badge prioritas
-**Do first**/**Important**/**When you can**. `RemediationStep` punya
-`step.conceptId`/`step.conceptName`. `Link` dan `BookOpen` **sudah** diimpor
-tepat sekali di `src/routes/gaps.tsx`; `conceptLabel` juga sudah diimpor.
+Tujuan: ringkasan 7 hari di kartu "Your week" (PR #104) hanya menampilkan satu
+minggu. Halaman `/progress` memberi pelajar riwayat beberapa minggu dalam satu
+tempat: aktivitas belajar, retensi review, kuis lulus, konsep selesai, dan
+pelajaran dibuka per minggu (8 minggu terakhir), plus streak saat ini dan
+terbaik — semuanya dari log aktivitas akun sendiri.
 
-Rancangan (baca kode dulu; jangan mengubah copy/urutan/kelas visual yang ada):
+Kode yang dipakai ulang: `service.listEvents(db, owner, { learnerId })`
+(`src/lib/evidence/service.ts`), `dueReviewRetention`/`LEARNING_KINDS` di
+`src/lib/evidence/events.ts`, dan pola `getWeekRecap`/`learningStreak` di
+`src/server/evidence.functions.ts`.
 
-1. Tambahkan tepat satu `<Link to="/learn/$conceptId" params={{ conceptId:
-   step.conceptId }}>` sebagai **anak terakhir** `<div className="flex-1">`,
-   tepat setelah blok metadata `flex flex-wrap …` (jadi di bawah baris
-   prioritas, bukan di samping nama):
-   ```jsx
-   <Link
-     to="/learn/$conceptId"
-     params={{ conceptId: step.conceptId }}
-     className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
-   >
-     <BookOpen className="h-3 w-3" aria-hidden="true" />
-     Open the lesson
-     <span className="sr-only">: {conceptLabel(step.conceptId, step.conceptName)}</span>
-   </Link>
-   ```
-   Jangan membungkus nama konsep, `step.action`, badge nomor, atau seluruh
-   baris dengan tautan; jangan menambah tombol, live region, fokus paksa, atau
-   `role` tambahan; UI bahasa Inggris (D2).
-2. Nama konsep, `step.action`, `stepTypeLabel(step.gapType)`, **About … min**,
-   badge prioritas beserta warnanya, badge `step.order`, `key={i}`,
-   `initial`/`animate`/`transition` (`delay: i * 0.1`), kelas
-   `motion.div`/badge/baris, heading **Your catch-up plan** beserta hitungan
-   menit, kotak **Focus:**, urutan langkah, empty state bila tidak ada langkah,
-   dan bagian halaman lain tidak berubah. Tautan baru hanya memakai
-   `step.conceptId`/`step.conceptName`.
-3. **Test**: file baru `tests/gaps-remediation-lesson-links.test.ts` (penjaga
-   statis): tepat satu `<Link to="/learn/$conceptId" params={{ conceptId:
-   step.conceptId }}>` di blok **Your catch-up plan**, kelas persis, `BookOpen`
-   `h-3 w-3` `aria-hidden`, teks **Open the lesson** + `sr-only`
-   `conceptLabel(step.conceptId, step.conceptName)`, posisinya sesudah blok
-   metadata prioritas dan sebagai anak terakhir `flex-1`, nama/aksi/metadata
-   tetap teks biasa, badge nomor + `key={i}` + animasi utuh, tanpa
-   `aria-live`/`.focus()`/`tabIndex`/`role`/`<button>` di tautan, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan mengubah atau
-   melenturkan penjaga `tests/gaps*` yang sudah ada kecuali hitungan
-   `<Link>`/`BookOpen` halaman memang harus dibatasi ke blok lain (pola PR
-   #138/#139/#144) tanpa menghapus penjaga mana pun.
-4. **Smoke**: di blok `/gaps` yang sudah ada, setelah cek **Shaky spots**
-   selesai, kembali ke `/gaps`, pilih lagi **Carol Kim** bila perlu, tunggu
-   heading **Your catch-up plan** terlihat, klik tautan pertama
-   `/^Open the lesson\s*: /` di kartu itu, lalu pastikan URL berakhir di
-   `/learn/` dan heading `h1` terlihat. Sesuaikan penjaga jumlah baris smoke
-   (`tests/skip-link.test.ts`) dengan `wc -l scripts/smoke.mjs`.
-5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
-   `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
-   milestone selesai.
+Rancangan:
 
-Gerbang: `npm run ci` utuh (±25 menit) hijau sebelum PR. Commit bahasa
-Indonesia pola `feat:`/`fix:`. Catatan mesin: sesi lain dapat membuat load ±8–10
-di 4 core sehingga cek smoke berbeda-beda gagal (Sign out, skip-link, `Failed
-to fetch`, `ERR_CONNECTION_REFUSED` bila dev server mati); ulangi `npm run ci`
-utuh tanpa perubahan kode setelah load turun, dan pakai port eksplisit supaya
-tidak bertabrakan dengan sesi lain: `CI_PORT=8291 CI_PREVIEW_PORT=8293
-TMPDIR=/home/ardhyui/.cache/ci-tmp npm run ci` (pola PR #91/#95/#111/#124/#141).
-**Penting:** `/tmp` adalah tmpfs 4.9 GB dan bisa penuh (error `Unknown system
-error -122`/`ErrnoError errno 28` di test PGlite), jadi `TMPDIR` harus di
-`/home` yang lapang.
+1. **Murni + dites** `src/lib/evidence/progress.ts`:
+   - `weeklyBuckets(events, now, weeks = 8)`: bucket per minggu kalender UTC
+     yang mulai Senin; tiap bucket `{ startsAt, endsAt, activeDays, events,
+     reviewsDue, reviewsCorrect, quizzesPassed, conceptsFinished,
+     lessonsOpened }` (hanya event ≤ now; tanggal rusak dilewati); urut lama →
+     baru, termasuk minggu kosong (jumlah selalu `weeks`).
+   - `retentionByWeek(...)`: persen review jatuh tempo yang dijawab benar per
+     minggu (`null` bila tak ada review), memakai definisi `dueReviewRetention`.
+   - `bestStreak(events, now)`: hari berturut-turut terpanjang dengan aktivitas
+     belajar (reuse definisi `learningStreak` bila praktis — jangan duplikasi
+     logika hari; kalau perlu, ekstrak helper hari murni bersama).
+2. **Server** `getLearnerProgress` di `src/server/evidence.functions.ts` (pola
+   `getWeekRecap`; validasi `learnerId` seperti fungsi itu): daftar event
+   learner → hasil fungsi murni + `streak` saat ini + `bestStreak`.
+3. **Route** `src/routes/progress.tsx`: `head: () => pageHead('/progress')`;
+   item navigasi Learn baru di `src/lib/navigation.ts`
+   `{ href: '/progress', label: 'Progress', description: 'How your learning is going', icon: 'chart' }`
+   (ikon yang sudah didukung; judul tab otomatis dari menu, test page-titles
+   memeriksa route baru). Pakai pemilih learner bersama (`useActiveLearner`)
+   dan muat otomatis seperti `/gaps`.
+4. **UI (bahasa Inggris, D2)**: judul `Your progress` (satu `<h1>`), kartu
+   **This week** (angka: active days, reviews answered correctly, quizzes
+   passed, concepts finished), daftar 8 minggu sebagai `<ul>` bernama dengan
+   label minggu ramah (mis. "Nov 3 – Nov 9"), angka retensi per minggu
+   (`—` bila tak ada review), dan streak (**Current streak**, **Best streak**).
+   Keadaan kosong yang jelas ("No activity recorded yet — finish a review or a
+   quiz and it will show up here."). Aksesibel: label terhubung, angka dengan
+   teks pendukung, tanpa animasi yang menyembunyikan isi, target sentuh ≥40 px.
+5. **Test**:
+   - `tests/learner-progress.test.ts` (murni): 8 bucket selalu; event tepat di
+     batas minggu (Senin 00:00 UTC) masuk bucket benar; minggu kosong; event
+     masa depan/di luar jendela diabaikan; tanggal rusak; retensi per minggu
+     (`null` tanpa review); best streak lintas minggu; streak berjalan.
+   - Smoke: dari dashboard buka **Progress**, halaman memuat dengan learner
+     aktif (pakai pola halaman lain: tunggu teks nyata, bukan waktu); ganti
+     learner memuat ulang; tanpa error halaman. Tanpa cek flaky.
+6. **Dokumentasi**: entri log di `docs/ROADMAP.md`; tidak menandai milestone.
 
-
+Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
-Tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis; baca
-kodenya dulu lalu tulis spek konkret seperti tugas di atas.
+Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
+baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. **Poles copy/aksesibilitas halaman pelajar lain** — satu halaman per sesi,
-   fokus pada label/urutan fokus/pesan kosong/status pending, bukan tugas
-   test. Sudah selesai: antrean review `/gaps`, panel detail `/graph`, toggle
-   kuis `/profile`, fokus pindah konsep `/learn/$conceptId`, nilai bar progres
-   `/profile`, daftar zona `/recommendations`, daftar isi `/about`, toolbar &
-   kartu angka `/domains`, toolbar `/combined-graph`, accordion
-   `/edu-psychology`, status kartu `/status`, grup uji `/tests`, tab, label
-   form, daftar data, dan banner pesan `/data-entry`, status pending
-   `/sign-in`, `/forgot-password`, dan `/reset-password`, daftar isi
-   `/privacy`, ringkasan dan daftar modul `/japanese`, serta daftar langkah tab
-   **Learning Path** `/recommendations` beserta tautan pelajarannya (PR #136,
-   #137). Halaman pelajar yang tersisa
-   hanya `/admin/*` (bukan prioritas), jadi setelah itu pilih item
-   roadmap/kandidat fitur lain sesuai prioritas 2–4 di `TASK_PROMPT.md`, bukan
-   memoles ulang halaman yang sama. `tests/` adalah berkas test, bukan halaman.
+1. **MCP prompts** — `prompts/list` + `prompts/get` di server MCP (mis.
+   "jelaskan topik berikutnya", "ujilah aku dengan kuis") yang menyisipkan
+   brief tutor sebagai argumen; melengkapi M4 (tools + resources sudah ada).
+2. **Detail per konsep di `/progress`** — tautkan tiap konsep di ringkasan
+   mingguan ke `/learn/$conceptId` dan/atau daftar kecil "yang paling sering
+   di-review minggu ini".
+3. **Riwayat sesi di `/progress`** — daftar 20 aktivitas terakhir (jenis,
+   konsep, hasil, tanggal ramah) dari `learning_events`, nama konsep via
+   `conceptLabel`.
+4. **Pencarian konsep di Recommendations/Gaps** — pakai ulang `searchConcepts`
+   dan komponen pencarian dari Today (PR #107/#110).
+
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-24: **Lanjutan setelah mesin restart (PR #146)** — sesi 21 Nov terputus dengan PR #144 (chip prasyarat/unlocks `/graph`) dan #145 (tautan rencana perbaikan `/gaps`) masih terbuka; keduanya digabung, diselesaikan konflik dokumennya, diverifikasi bersama, dan masuk lewat PR #146. PR #113 (fokus hasil kuis `/learn`) ditutup karena sudah dicakup PR #114. Ditambahkan **watchdog** di `self-improve.sh`: sesi yang macet (25 menit tanpa output) dihentikan beserta process group-nya (rc=124) dan tidak salah diklasifikasi sebagai kuota habis. Tugas berikutnya: halaman `/progress`.
 - 2026-11-21: PR #144 — **Chip Prerequisites dan Unlocks di panel detail
   `/graph` membuka pelajarannya** — panel detail konsep sudah punya tautan
   **Open the lesson** untuk konsep terpilih (PR #143), tetapi chip prasyarat

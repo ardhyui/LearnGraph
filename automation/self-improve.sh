@@ -22,7 +22,10 @@ FAIL_SLEEP="${LEARNGRAPH_SLEEP_FAIL:-300}"    # jeda antar kegagalan
 MAX_FAILS="${LEARNGRAPH_MAX_FAIL:-6}"         # stop setelah N kegagalan beruntun
 # Jeda aman setelah waktu reset yang dilaporkan provider sebelum mencoba model utama lagi.
 RESET_GRACE="${LEARNGRAPH_RESET_GRACE:-60}"
-RATE_LIMIT_RE='429|rate.?limit|quota|usage.?limit|limit.*(exceed|reached)|too many requests|exceeded|insufficient.?balance|top.?up'
+RATE_LIMIT_RE='"type":"provider\.quota"|"status":429|429 Too Many Requests|Insufficient balance|rate limit exceeded'
+OPENCODE_BIN="${LEARNGRAPH_OPENCODE_BIN:-opencode}"
+STALL_SECS="${LEARNGRAPH_STALL_SECS:-1500}"   # 25 menit tanpa output = macet
+POLL_SECS="${LEARNGRAPH_POLL_SECS:-60}"
 # LEARNGRAPH_DRY_RUN=1 (sukses) | limit (kuota utama) | limit2 (kuota saat fallback) | limitreset (kuota utama + waktu reset dekat) | error (gagal)
 DRY_RUN="${LEARNGRAPH_DRY_RUN:-0}"
 
@@ -109,7 +112,7 @@ while true; do
   # Mode uji transisi: tanpa grace agar putaran berikutnya langsung melihat waktunya lewat.
   [ "$DRY_RUN" = "limitreset" ] && RESET_GRACE=0
 
-  args=(opencode run --auto --archived --worktree --format json --title "self-improve #$run_no" --file "$REPO_DIR/automation/TASK_PROMPT.md")
+  args=("$OPENCODE_BIN" run --auto --archived --worktree --format json --title "self-improve #$run_no" --file "$REPO_DIR/automation/TASK_PROMPT.md")
   [ -n "$current_model" ] && args+=(--model "$current_model")
   [ -n "$AGENT" ] && args+=(--agent "$AGENT")
   args+=("Jalankan satu siklus perbaikan mandiri LearnGraph sesuai automation/TASK_PROMPT.md (terlampir): selesaikan 'Tugas berikutnya' di automation/state.md sampai merge PR, lalu perbarui automation/state.md untuk siklus berikutnya, lalu berhenti.")
@@ -134,8 +137,37 @@ while true; do
     rc=0
     [ "$DRY_RUN" = "error" ] && rc=1
   else
-    "${args[@]}" >"$logfile" 2>&1
+    if command -v setsid >/dev/null 2>&1; then
+      setsid "${args[@]}" >"$logfile" 2>&1 &
+    else
+      "${args[@]}" >"$logfile" 2>&1 &
+    fi
+    run_pid=$!
+    last_size=0
+    stalled=0
+    stalled_kill=0
+    while kill -0 "$run_pid" 2>/dev/null; do
+      sleep "$POLL_SECS"
+      kill -0 "$run_pid" 2>/dev/null || break
+      size=$(stat -c%s "$logfile" 2>/dev/null || echo 0)
+      if [ "$size" -gt "$last_size" ]; then
+        last_size=$size
+        stalled=0
+      else
+        stalled=$((stalled + POLL_SECS))
+      fi
+      if [ "$stalled" -ge "$STALL_SECS" ]; then
+        log "run #$run_no macet ${stalled}s tanpa output — hentikan proses dan proses anaknya"
+        kill -TERM -- "-$run_pid" 2>/dev/null || kill -TERM "$run_pid" 2>/dev/null
+        sleep 10
+        kill -KILL -- "-$run_pid" 2>/dev/null || true
+        stalled_kill=1
+        break
+      fi
+    done
+    wait "$run_pid" 2>/dev/null
     rc=$?
+    [ "$stalled_kill" -eq 1 ] && rc=124
   fi
 
   cleanup_worktrees
@@ -144,8 +176,8 @@ while true; do
   success=0
   [ "$rc" -eq 0 ] && grep -q '"type":"step_finish"' "$logfile" && success=1
 
-  # Limit hanya relevan bila sesi tidak sukses; log sukses bisa memuat kata "quota".
-  if [ "$success" -eq 0 ] && grep -qiE "$RATE_LIMIT_RE" "$logfile"; then
+  # Limit hanya relevan bila sesi tidak macet dan tidak sukses.
+  if [ "$stalled_kill" -eq 0 ] && [ "$success" -eq 0 ] && grep -qiE "$RATE_LIMIT_RE" "$logfile"; then
     fails=0  # kuota/billing habis bukan kegagalan tugas
     if [ -n "$FALLBACK_MODEL" ] && [ "$current_model" != "$FALLBACK_MODEL" ]; then
       local_reset=$(parse_primary_reset "$logfile" || true)
