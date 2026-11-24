@@ -65,6 +65,12 @@ export const NAV_SECTIONS: NavSection[] = [
       },
       { href: '/gaps', label: 'Gap Analysis', description: 'Find what is missing', icon: 'alert' },
       {
+        href: '/progress',
+        label: 'Progress',
+        description: 'How your learning is going',
+        icon: 'chart',
+      },
+      {
         href: '/graph',
         label: 'Knowledge Graph',
         description: 'See how concepts connect',

@@ -1,62 +1,60 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-24 (lanjutan setelah mesin restart; PR #144+#145 digabung; berikutnya: halaman /progress pelajar)
+Terakhir diperbarui: 2026-11-25 (halaman /progress selesai lewat PR #PENDING; berikutnya: riwayat 20 aktivitas terakhir di /progress)
 
 ## Tugas berikutnya
 
-Fitur baru: **halaman `/progress` — "Your progress"** (fitur pelajar, tanpa
-migrasi skema/dependensi; dari `learning_events` yang sudah dicatat M1).
+Fitur baru: **Riwayat 20 aktivitas terakhir di `/progress`** (fitur pelajar;
+tanpa migrasi skema/dependensi/RPC baru; melanjutkan kandidat fitur 3).
 
-Tujuan: ringkasan 7 hari di kartu "Your week" (PR #104) hanya menampilkan satu
-minggu. Halaman `/progress` memberi pelajar riwayat beberapa minggu dalam satu
-tempat: aktivitas belajar, retensi review, kuis lulus, konsep selesai, dan
-pelajaran dibuka per minggu (8 minggu terakhir), plus streak saat ini dan
-terbaik — semuanya dari log aktivitas akun sendiri.
+Tujuan: halaman `/progress` kini menunjukkan angka per minggu, tetapi pelajar
+belum bisa melihat apa yang baru saja terjadi. Tambahkan kartu **Recent
+activity** di bawah **Week by week**: 20 aktivitas belajar terakhir (kuis,
+review, pelajaran, latihan, belajar) dengan nama konsep, hasil, tanggal ramah,
+dan tautan ke pelajarannya.
 
-Kode yang dipakai ulang: `service.listEvents(db, owner, { learnerId })`
-(`src/lib/evidence/service.ts`), `dueReviewRetention`/`LEARNING_KINDS` di
-`src/lib/evidence/events.ts`, dan pola `getWeekRecap`/`learningStreak` di
-`src/server/evidence.functions.ts`.
+Kode yang dipakai ulang: `learning_events` yang sudah dibaca
+`getLearnerProgress` (`src/server/evidence.functions.ts`), `conceptLabel` di
+`src/lib/gaps.ts`, pola tautan **Open the lesson** dari `/gaps` (`Link` +
+`BookOpen` yang `aria-hidden`), dan `useDB().db.listConcepts()` yang sudah
+terikat akun (tanpa RPC/skema baru).
 
 Rancangan:
 
 1. **Murni + dites** `src/lib/evidence/progress.ts`:
-   - `weeklyBuckets(events, now, weeks = 8)`: bucket per minggu kalender UTC
-     yang mulai Senin; tiap bucket `{ startsAt, endsAt, activeDays, events,
-     reviewsDue, reviewsCorrect, quizzesPassed, conceptsFinished,
-     lessonsOpened }` (hanya event ≤ now; tanggal rusak dilewati); urut lama →
-     baru, termasuk minggu kosong (jumlah selalu `weeks`).
-   - `retentionByWeek(...)`: persen review jatuh tempo yang dijawab benar per
-     minggu (`null` bila tak ada review), memakai definisi `dueReviewRetention`.
-   - `bestStreak(events, now)`: hari berturut-turut terpanjang dengan aktivitas
-     belajar (reuse definisi `learningStreak` bila praktis — jangan duplikasi
-     logika hari; kalau perlu, ekstrak helper hari murni bersama).
-2. **Server** `getLearnerProgress` di `src/server/evidence.functions.ts` (pola
-   `getWeekRecap`; validasi `learnerId` seperti fungsi itu): daftar event
-   learner → hasil fungsi murni + `streak` saat ini + `bestStreak`.
-3. **Route** `src/routes/progress.tsx`: `head: () => pageHead('/progress')`;
-   item navigasi Learn baru di `src/lib/navigation.ts`
-   `{ href: '/progress', label: 'Progress', description: 'How your learning is going', icon: 'chart' }`
-   (ikon yang sudah didukung; judul tab otomatis dari menu, test page-titles
-   memeriksa route baru). Pakai pemilih learner bersama (`useActiveLearner`)
-   dan muat otomatis seperti `/gaps`.
-4. **UI (bahasa Inggris, D2)**: judul `Your progress` (satu `<h1>`), kartu
-   **This week** (angka: active days, reviews answered correctly, quizzes
-   passed, concepts finished), daftar 8 minggu sebagai `<ul>` bernama dengan
-   label minggu ramah (mis. "Nov 3 – Nov 9"), angka retensi per minggu
-   (`—` bila tak ada review), dan streak (**Current streak**, **Best streak**).
-   Keadaan kosong yang jelas ("No activity recorded yet — finish a review or a
-   quiz and it will show up here."). Aksesibel: label terhubung, angka dengan
-   teks pendukung, tanpa animasi yang menyembunyikan isi, target sentuh ≥40 px.
-5. **Test**:
-   - `tests/learner-progress.test.ts` (murni): 8 bucket selalu; event tepat di
-     batas minggu (Senin 00:00 UTC) masuk bucket benar; minggu kosong; event
-     masa depan/di luar jendela diabaikan; tanggal rusak; retensi per minggu
-     (`null` tanpa review); best streak lintas minggu; streak berjalan.
-   - Smoke: dari dashboard buka **Progress**, halaman memuat dengan learner
-     aktif (pakai pola halaman lain: tunggu teks nyata, bukan waktu); ganti
-     learner memuat ulang; tanpa error halaman. Tanpa cek flaky.
-6. **Dokumentasi**: entri log di `docs/ROADMAP.md`; tidak menandai milestone.
+   - `recentActivity(events, now, limit = 20)`: ambil event jenis belajar
+     (`quiz`, `study`, `review`, `practice`, `lesson`; lewati `snooze`,
+     `unsnooze`, `tutor`), abaikan timestamp rusak/masa depan, urutkan terbaru
+     dulu (seri: `id` lebih besar dulu), potong `limit`. Tiap baris
+     `{ conceptId, kind, outcome, wasDue, createdAt }`.
+   - `activityLabel(kind, outcome)`: teks Inggris sehari-hari, mis. **Quiz
+     passed**, **Quiz not passed yet**, **Review remembered**, **Review
+     forgotten**, **Lesson opened**, **Started learning**, **Got it**, **Practice
+     logged**; kombinasi tak dikenal jatuh ke label jenis yang netral (jangan
+     menampilkan id mentah).
+2. **Server** `getLearnerProgress`: tambahkan `recent: recentActivity(events, now)`
+   dari pembacaan `events` yang sama — tepat satu `service.listEvents`, tanpa
+   query/RPC tambahan.
+3. **Route** `src/routes/progress.tsx`: muat nama konsep sekali dengan
+   `db.listConcepts()` saat DB siap (pola halaman lain; jangan gagalkan seluruh
+   halaman bila daftar konsep gagal — pakai `conceptLabel` dengan cadangan id).
+   Kartu `<section aria-labelledby>` berjudul **Recent activity**, daftar
+   `<ul aria-label="Recent activity">`; tiap `<li>` memuat `<time
+   dateTime={...}>` berformat ramah (mis. "Nov 24, 10:15"), nama konsep,
+   `activityLabel(...)`, dan satu `<Link to="/learn/$conceptId"
+   params={{ conceptId }}>` berisi `BookOpen` `aria-hidden` + teks **Open the
+   lesson** + `<span className="sr-only">: {nama}</span>`. Keadaan kosong:
+   "Your reviews, quizzes and lessons will show up here." tanpa angka nol;
+   tanpa animasi yang menyembunyikan isi, target sentuh ≥40 px, UI Inggris (D2).
+4. **Test** `tests/learner-progress.test.ts` (perluas): urutan terbaru dulu,
+   batas 20, jenis yang dilewati, timestamp rusak/masa depan, seri `id`,
+   label hasil (tiap cabang), serta penjaga statis bahwa server function tetap
+   satu `listEvents` + mengembalikan `recent` dan route memakai
+   `listConcepts`/`conceptLabel`/`<ul aria-label="Recent activity">` tanpa
+   `createServerFn`/`graphCall`/RPC/migrasi. Smoke: setelah alur kuis dashboard,
+   buka `/progress`, pastikan daftar **Recent activity** punya minimal satu
+   item dan satu tautan ke `/learn/`; tanpa cek flaky/waktu tetap.
+5. **Dokumentasi**: entri log di `docs/ROADMAP.md`; tidak menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
 
@@ -81,6 +79,20 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-25: PR #PENDING — **Halaman `/progress` pelajar** — riwayat delapan
+  minggu kalender UTC (mulai Senin) dari `learning_events`: kartu **This week**
+  (active days, reviews answered correctly, quizzes passed, concepts finished),
+  daftar **Weekly progress** bernama dengan label tanggal ramah dan retensi
+  per minggu (`—` tanpa review), serta **Current streak**/**Best streak**.
+  Helper murni `src/lib/evidence/progress.ts` (`weeklyBuckets`,
+  `retentionByWeek`, `bestStreak`, label/format) memakai ulang
+  `dueReviewRetention`, `finishesConcept`, dan `studyDayKeys`/`STUDY_KINDS`
+  bersama; server function `getLearnerProgress` (auth + Zod `learnerId`, satu
+  `service.listEvents`) dan route `/progress` dengan pemilih learner bersama;
+  menu Learn + judul tab otomatis. Test baru `tests/learner-progress.test.ts`,
+  smoke membuka **Progress** dari dashboard, mengecek delapan minggu dan
+  memuat ulang saat learner diganti. Tanpa migrasi/dependensi/RPC baru.
 
 - 2026-11-24: **Lanjutan setelah mesin restart (PR #146)** — sesi 21 Nov terputus dengan PR #144 (chip prasyarat/unlocks `/graph`) dan #145 (tautan rencana perbaikan `/gaps`) masih terbuka; keduanya digabung, diselesaikan konflik dokumennya, diverifikasi bersama, dan masuk lewat PR #146. PR #113 (fokus hasil kuis `/learn`) ditutup karena sudah dicakup PR #114. Ditambahkan **watchdog** di `self-improve.sh`: sesi yang macet (25 menit tanpa output) dihentikan beserta process group-nya (rc=124) dan tidak salah diklasifikasi sebagai kuota habis. Tugas berikutnya: halaman `/progress`.
 - 2026-11-21: PR #144 — **Chip Prerequisites dan Unlocks di panel detail

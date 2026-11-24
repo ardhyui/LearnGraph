@@ -9,7 +9,7 @@ import type { LearningEvent } from './events.ts';
 const DAY = 86_400_000;
 
 /** Kinds that count as studying; snoozes and tutor ratings do not. */
-const STUDY_KINDS: ReadonlySet<LearningEvent['kind']> = new Set([
+export const STUDY_KINDS: ReadonlySet<LearningEvent['kind']> = new Set([
   'quiz',
   'study',
   'review',
@@ -27,7 +27,28 @@ export interface LearningStreak {
 type StreakEvent = Pick<LearningEvent, 'kind' | 'createdAt'>;
 
 /** A UTC calendar day, so SSR and the server agree regardless of the browser's zone. */
-const dayKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+export const dayKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+/**
+ * The UTC days on which the learner studied. Broken or future timestamps are
+ * ignored rather than throwing. Shared by the current streak and the longer
+ * "best streak" / weekly views, so every page counts study days the same way.
+ */
+export function studyDayKeys(
+  events: readonly StreakEvent[],
+  now: string | Date,
+): Set<string> {
+  const t = new Date(now).getTime();
+  const studied = new Set<string>();
+  if (!Number.isFinite(t)) return studied;
+  for (const e of events) {
+    if (!STUDY_KINDS.has(e.kind)) continue;
+    const at = Date.parse(e.createdAt);
+    if (!Number.isFinite(at) || at > t) continue;
+    studied.add(dayKey(at));
+  }
+  return studied;
+}
 
 /**
  * The current streak from the event log, in whole UTC days. Broken or future
@@ -39,13 +60,7 @@ const dayKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 export function learningStreak(events: readonly StreakEvent[], now: string | Date): LearningStreak {
   const t = new Date(now).getTime();
   if (!Number.isFinite(t)) return { days: 0, activeToday: false };
-  const studied = new Set<string>();
-  for (const e of events) {
-    if (!STUDY_KINDS.has(e.kind)) continue;
-    const at = Date.parse(e.createdAt);
-    if (!Number.isFinite(at) || at > t) continue;
-    studied.add(dayKey(at));
-  }
+  const studied = studyDayKeys(events, now);
   const today = Math.floor(t / DAY);
   let anchor = today;
   let activeToday = true;

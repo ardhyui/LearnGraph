@@ -27,6 +27,7 @@ const PAGES = [
   ['/admin/states', null],
   ['/recommendations', null],
   ['/gaps', null],
+  ['/progress', null],
   ['/graph', null],
   ['/domains', null],
   ['/combined-graph', null],
@@ -1275,6 +1276,7 @@ try {
     for (const [path, label] of [
       ['/recommendations', 'Learner'],
       ['/gaps', 'Learner'],
+      ['/progress', 'Learner'],
       ['/graph', 'Show progress of'],
       ['/profile', 'Learner'],
     ]) {
@@ -1304,6 +1306,70 @@ try {
     await today.getByLabel('Learner', { exact: true }).selectOption({ label: 'Sari Smoke' });
     const newErrors = errors.slice(before);
     check(newErrors.length === 0, 'shared learner choice has no page errors', newErrors.join(' | '));
+  }
+
+  // Progress: the page opens from the dashboard for the learner picked there,
+  // lists all eight weeks, and reloads when another learner is chosen.
+  {
+    const before = errors.length;
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const nav = page.locator('#app-sidebar');
+    const progressLink = nav.getByRole('link', { name: /^Progress/ });
+    await untilHydrated(progressLink);
+    await progressLink.click();
+    await page.waitForURL((u) => u.pathname === '/progress', { timeout: 15000 });
+    const heading = page.getByRole('heading', { name: 'Your progress', exact: true });
+    const headingSeen = await heading.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    const select = page.getByLabel('Learner', { exact: true });
+    await select.waitFor({ timeout: 30000 });
+    const selectId = await select.getAttribute('id');
+    const activeLearner = await page
+      .waitForFunction(
+        (id) => document.getElementById(id)?.selectedOptions[0]?.textContent === 'Sari Smoke',
+        selectId,
+        { timeout: 15000 },
+      )
+      .then(() => true, () => false);
+    const loadedLearner = await select.inputValue();
+    const content = page.getByTestId('progress-content');
+    const contentSeen = await content.waitFor({ timeout: 30000 }).then(() => true, () => false);
+    const weekItems = contentSeen
+      ? await page.getByRole('list', { name: 'Weekly progress' }).getByRole('listitem').count()
+      : 0;
+    check(
+      headingSeen && activeLearner && contentSeen && weekItems === 8,
+      'progress: opens from the dashboard for the active learner with eight weeks',
+      `heading ${headingSeen}, active ${activeLearner}, weeks ${weekItems}`,
+    );
+
+    const other = await select.evaluate(
+      (el, mine) => [...el.options].find((o) => o.value !== mine)?.value ?? '',
+      loadedLearner,
+    );
+    if (other) {
+      await select.selectOption(other);
+      const reloaded = await page
+        .waitForFunction(
+          (id) =>
+            ['progress-content', 'progress-empty'].some((testId) => {
+              const el = document.querySelector(`[data-testid="${testId}"]`);
+              return el?.getAttribute('data-learner-id') === id;
+            }),
+          other,
+          { timeout: 30000 },
+        )
+        .then(() => true, () => false);
+      check(reloaded, 'progress: picking another learner reloads the page', `"${other}"`);
+    } else {
+      check(false, 'progress: picking another learner reloads the page', 'no other learner');
+    }
+    // Back to my own plan for the rest of the run.
+    const own = await select.evaluate(
+      (el) => [...el.options].find((o) => o.textContent === 'Sari Smoke')?.value ?? '',
+    );
+    if (own) await select.selectOption(own);
+    const newErrors = errors.slice(before);
+    check(newErrors.length === 0, 'progress has no page errors', newErrors.join(' | '));
   }
 
   // Gap Analysis and Recommendations speak the learner's language: concept

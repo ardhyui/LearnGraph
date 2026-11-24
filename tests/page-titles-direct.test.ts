@@ -35,12 +35,13 @@ const ROUTE_ANNOUNCER_FILE = join(SRC_DIR, 'components', 'RouteAnnouncer.tsx');
 const GAPS_ROUTE_FILE = join(SRC_DIR, 'routes', 'gaps.tsx');
 const OLD_TEST_FILE = join(import.meta.dirname, 'page-titles.test.ts');
 
-/** The 21 menu pages in sidebar order, then the five pages outside the menu. */
+/** The 22 menu pages in sidebar order, then the five pages outside the menu. */
 const EXPECTED_LABELS: Record<string, string> = {
   '/': 'Dashboard',
   '/japanese': 'Bahasa Jepang',
   '/recommendations': 'Recommendations',
   '/gaps': 'Gap Analysis',
+  '/progress': 'Progress',
   '/graph': 'Knowledge Graph',
   '/profile': 'My Profile',
   '/domains': 'Domain Graph',
@@ -76,11 +77,11 @@ describe('page title constants', () => {
     assert.equal(ERROR_TITLE, 'Something went wrong · LearnGraph');
   });
 
-  it('labels exactly the 21 menu pages, then the five off-menu pages', () => {
-    // Probe note: the module builds 21 menu hrefs + 5 extras = 26 keys, in that
-    // order; a draft spec said 25, the code has 26.
+  it('labels exactly the 22 menu pages, then the five off-menu pages', () => {
+    // Probe note: the module builds 22 menu hrefs + 5 extras = 27 keys, in that
+    // order; a draft spec said 25, the code has 27.
     const menuKeys = NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
-    assert.equal(menuKeys.length, 21);
+    assert.equal(menuKeys.length, 22);
     assert.deepEqual(Object.keys(PAGE_LABELS), [
       ...menuKeys,
       '/sign-in',
@@ -90,7 +91,7 @@ describe('page title constants', () => {
       '/learn/$conceptId',
     ]);
     assert.deepEqual(PAGE_LABELS, EXPECTED_LABELS);
-    assert.equal(Object.keys(PAGE_LABELS).length, 26);
+    assert.equal(Object.keys(PAGE_LABELS).length, 27);
   });
 
   it('freezes the label table and keeps every label non-empty and trimmed', () => {

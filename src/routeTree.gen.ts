@@ -21,6 +21,7 @@ import { Route as GraphRouteImport } from './routes/graph'
 import { Route as JapaneseRouteImport } from './routes/japanese'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as RecommendationsRouteImport } from './routes/recommendations'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignInRouteImport } from './routes/sign-in'
@@ -99,6 +100,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProgressRoute = ProgressRouteImport.update({
+  id: '/progress',
+  path: '/progress',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecommendationsRoute = RecommendationsRouteImport.update({
@@ -210,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/japanese': typeof JapaneseRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/progress': typeof ProgressRoute
   '/recommendations': typeof RecommendationsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sign-in': typeof SignInRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByTo {
   '/japanese': typeof JapaneseRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/progress': typeof ProgressRoute
   '/recommendations': typeof RecommendationsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sign-in': typeof SignInRoute
@@ -277,6 +285,7 @@ export interface FileRoutesById {
   '/japanese': typeof JapaneseRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/progress': typeof ProgressRoute
   '/recommendations': typeof RecommendationsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sign-in': typeof SignInRoute
@@ -312,6 +321,7 @@ export interface FileRouteTypes {
     | '/japanese'
     | '/privacy'
     | '/profile'
+    | '/progress'
     | '/recommendations'
     | '/reset-password'
     | '/sign-in'
@@ -345,6 +355,7 @@ export interface FileRouteTypes {
     | '/japanese'
     | '/privacy'
     | '/profile'
+    | '/progress'
     | '/recommendations'
     | '/reset-password'
     | '/sign-in'
@@ -378,6 +389,7 @@ export interface FileRouteTypes {
     | '/japanese'
     | '/privacy'
     | '/profile'
+    | '/progress'
     | '/recommendations'
     | '/reset-password'
     | '/sign-in'
@@ -412,6 +424,7 @@ export interface RootRouteChildren {
   JapaneseRoute: typeof JapaneseRoute
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
+  ProgressRoute: typeof ProgressRoute
   RecommendationsRoute: typeof RecommendationsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignInRoute: typeof SignInRoute
@@ -517,6 +530,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/progress': {
+      id: '/progress'
+      path: '/progress'
+      fullPath: '/progress'
+      preLoaderRoute: typeof ProgressRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recommendations': {
@@ -668,6 +688,7 @@ const rootRouteChildren: RootRouteChildren = {
   JapaneseRoute: JapaneseRoute,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
+  ProgressRoute: ProgressRoute,
   RecommendationsRoute: RecommendationsRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignInRoute: SignInRoute,
