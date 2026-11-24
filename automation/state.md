@@ -1,61 +1,66 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (kartu Recent activity di `/progress` selesai lewat PR #148; berikutnya: pencarian "Find a concept" di Gap Analysis)
+Terakhir diperbarui: 2026-11-25 (pencarian "Find a concept" di `/gaps` lewat PR baru; berikutnya: pencarian konsep di Recommendations)
 
 ## Tugas berikutnya
 
-Fitur baru: **Pencarian "Find a concept" di Gap Analysis** (fitur pelajar;
-tanpa migrasi skema/dependensi/server function/RPC baru; kandidat fitur 4).
+Fitur baru: **Pencarian "Find a concept" di Recommendations** (fitur pelajar;
+tanpa migrasi skema/dependensi/server function/RPC baru).
 
-Tujuan: panel Today sudah punya kotak pencarian konsep (PR #107/#110), tetapi
-halaman `/gaps` — yang justru penuh daftar konsep panjang (Reviews due, Shaky
-spots, catch-up plan) — tidak punya cara melompat ke konsep tertentu yang
-sedang dicari pelajar. Tambahkan kartu pencarian yang sama di Gaps.
+Tujuan: panel Today dan Gap Analysis sudah punya kotak pencarian konsep
+(`src/components/ConceptSearch.tsx`, komponen bersama hasil ekstraksi PR
+sebelumnya), tetapi halaman `/recommendations` — yang menampilkan kartu
+**Recommended concepts**, zona **Ready to Learn**/zoned, dan **Learning
+Path** — belum punya jalan pintas ke pelajaran yang dicari pelajar. Pasang
+kotak yang sama di sana.
 
-Kode yang dipakai ulang: helper murni `searchQuery`/`conceptSearchResults`/
-`conceptSearchSummary` (`src/lib/concept-search.ts`, sudah dites di
-`tests/concept-search.test.ts`), komponen `ConceptSearch` lokal di
-`src/components/StudyToday.tsx` (±baris 955–1015), dan `concepts` hasil
-`db.listConcepts().catch(() => [])` yang `fetchGapData` di
-`src/routes/gaps.tsx` sudah termuat (untuk daftar Snoozed) — tanpa
-query/RPC tambahan.
+Kode yang dipakai ulang: komponen bersama `ConceptSearch`
+(`src/components/ConceptSearch.tsx`) beserta helper murni
+`searchQuery`/`conceptSearchResults`/`conceptSearchSummary`
+(`src/lib/concept-search.ts`, sudah dites), dan `db.listConcepts()` dari
+`useDB()` — belum dimuat halaman ini, jadi tambahkan satu pembacaan dengan
+cadangan `[]`. Halaman ini sudah memakai pola permintaan terbaru menang
+(`requestSeq`), pemilih learner bersama (`useActiveLearner`), dan
+`WorkspaceLoading`/kartu error yang sama seperti `/gaps`.
 
 Rancangan:
 
-1. **Ekstrak komponen** `ConceptSearch` dari `src/components/StudyToday.tsx`
-   ke file bersama baru `src/components/ConceptSearch.tsx` **tanpa mengubah
-   perilaku, markup, atau kelasnya** (prop `concepts: ConceptNode[]`;
-   `<section aria-labelledby data-testid="concept-search">`, heading
-   **Find a concept** + ikon `Search` `aria-hidden`, label + input
-   `type="search"` dengan `id`/`htmlFor` dari `useId`, ringkasan
-   `role="status" aria-live="polite"`, `<ul aria-label="Concept search
-   results">` dengan `Link` ke `/learn/$conceptId` per hasil (`min-h-10`),
-   empty state `No concepts match "…"`, serta pemakaian
-   `searchQuery`/`conceptSearchResults`/`conceptSearchSummary`/`domainLabel`
-   yang sama). `StudyToday` mengimpor dari lokasi baru; `key={`search-
-   ${current.learnerId}`}` pada pemanggilannya tetap, jadi query per-learner
-   tetap ter-reset.
-2. **Pasang di Gaps**: simpan `concepts` ke state baru di
-   `src/routes/gaps.tsx` (sekarang hanya dipakai lokal di dalam
-   `fetchGapData`), lalu render `<ConceptSearch key={…per learner…}
-   concepts={concepts} />` di bawah pemilih learner, sebelum tab analisis.
-   Bila `listConcepts` gagal (cadangan `[]`), kartu tetap dirender dengan
-   hasil kosong — jangan menggagalkan halaman. Query direset saat learner
-   berganti (pola `key` seperti StudyToday).
-3. **Tanpa** server function/tombol/live region baru di luar komponen itu;
-   UI Inggris (D2); target sentuh ≥40 px (sudah `min-h-10`).
-4. **Test** `tests/gaps-concept-search.test.ts` (statis, baru): Gaps
-   merender `ConceptSearch` dengan `concepts` dari state yang diisi
-   `db.listConcepts()` + `.catch(() => [])`, ada `key` per learner,
-   komponen didefinisikan sekali di file bersama dan `StudyToday`
-   mengimpor dari sana, `concept-search.ts` tidak diubah, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Test lama
-   (`tests/concept-search.test.ts`, test Today) tetap hijau tanpa
-   dilonggarkan. Smoke: di blok `/gaps` yang sudah ada, isi input pencarian
-   dengan nama konsep yang diketahui (mis. "fraction"), pastikan daftar
-   **Concept search results** muncul dengan ≥1 item dan tautannya menuju
-   `/learn/`; tanpa cek flaky.
-5. **Dokumentasi**: entri log di `docs/ROADMAP.md`; tidak menandai milestone.
+1. **Muat konsep sekali per learner**: tambah state
+   `const [searchConcepts, setSearchConcepts] = useState<ConceptNode[]>([])`
+   di `src/routes/recommendations.tsx`; di `computeZPD` (atau efek pemuatan
+   yang sama, tepat setelah `if (!db || !isReady || !selectedLearner)
+   return;`) ambil `db.listConcepts().catch(() => [])`, lalu isi state hanya
+   bila `seq === requestSeq.current` (jangan biarkan learner lama menimpa
+   learner baru). Saat learner berganti, kosongkan daftar dulu agar query
+   lama tidak menampilkan konsep learner sebelumnya; kegagalan
+   `listConcepts` tidak boleh menggagalkan rekomendasi.
+2. **Render** `<ConceptSearch key={`search-${selectedLearner}`}
+   concepts={searchConcepts} />` (komponen yang sama, tanpa perubahan
+   markup/kelas) di bawah kartu pemilih learner dan **sebelum** blok tab
+   **Recommendation views**, hanya saat `selectedLearner` ada; bungkus
+   dengan `div className="mb-6"` seperti di `/gaps`. Bila daftar kosong,
+   kartu tetap dirender dengan hasil kosong — jangan menyembunyikan atau
+   menggagalkan halaman.
+3. **Tanpa** server function/tombol/live region/`aria-label` baru di luar
+   komponen itu; UI Inggris (D2); target sentuh ≥40 px sudah dari komponen.
+4. **Test** `tests/recommendations-concept-search.test.ts` (statis, baru):
+   halaman mengimpor `ConceptSearch` dari file bersama, state diisi
+   `db.listConcepts()` + `.catch(() => [])` dan dijaga `requestSeq`,
+   pemasangan punya `key` per learner serta berada sesudah `<select>`
+   learner dan sebelum tablist **Recommendation views**, komponen tidak
+   didefinisikan ulang di route, `concept-search.ts`/`ConceptSearch.tsx`
+   tidak diubah, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/
+   migrasi. Jangan melonggarkan test lama (khususnya
+   `tests/concept-search.test.ts`, `tests/gaps-concept-search.test.ts`,
+   penjaga tautan pelajaran `/recommendations`).
+5. **Smoke**: di blok `/recommendations` yang sudah ada, setelah learner
+   aktif dimuat, isi **Search your concepts** dengan nama konsep yang
+   dikenal (mis. "fraction"), pastikan daftar bernama **Concept search
+   results** berisi ≥1 item dan tautan pertamanya menuju `/learn/`; jangan
+   menambah cek flaky dan jangan mengubah urutan cek tautan pelajaran yang
+   sudah ada (bersihkan/abaikan query bila perlu).
+6. **Dokumentasi**: entri log bertanggal di `docs/ROADMAP.md`; tidak
+   menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
 
@@ -70,9 +75,6 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 2. **Detail per konsep di `/progress`** — tautkan tiap konsep di ringkasan
    mingguan ke `/learn/$conceptId` dan/atau daftar kecil "yang paling sering
    di-review minggu ini".
-3. **Pencarian konsep di Recommendations** — lanjutan tugas berikutnya:
-   setelah `ConceptSearch` menjadi komponen bersama, pasang juga di
-   `/recommendations` (cek dulu daftar konsep halaman itu sudah termuat).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
