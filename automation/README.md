@@ -53,10 +53,18 @@ systemctl --user disable --now learngraph-self-improve  # berhenti
 | `LEARNGRAPH_SLEEP_TASK` | `300` | Jeda antar tugas sukses (CI LearnGraph ±25 menit/session) |
 | `LEARNGRAPH_SLEEP_FAIL` | `300` | Jeda antar kegagalan |
 | `LEARNGRAPH_MAX_FAIL` | `6` | Stop setelah N kegagalan beruntun |
+| `LEARNGRAPH_OPENCODE_BIN` | `opencode` | Binari opencode yang dipanggil (untuk versi tertentu) |
+| `LEARNGRAPH_STALL_SECS` | `1500` | Detik tanpa output sebelum sesi dianggap macet dan dihentikan |
+| `LEARNGRAPH_POLL_SECS` | `60` | Interval pemeriksaan kemacetan |
 | `LEARNGRAPH_DRY_RUN` | `0` | `1`/`limit`/`limit2`/`limitreset`/`error` = simulasi satu iterasi tanpa memanggil model |
 
 ## Cara kerja & batas
 
+- Sesi berjalan di **process group sendiri** (`setsid`) dan dipantau: bila 25 menit
+  (~`LEARNGRAPH_STALL_SECS`) tanpa output, seluruh group dihentikan (TERM lalu KILL),
+  ditandai `rc=124`, dan tidak dianggap kuota habis — sesi yang macet dicoba lagi
+  pada siklus berikutnya tanpa menunggu 15 menit. Teramati 13 & 17 Nov: sesi
+  menggantung belasan menit tanpa output.
 - Setiap sesi berjalan di **git worktree terpisah** (`--worktree`) — pekerjaan manualmu
   di checkout utama tidak tersentuh. Worktree sesi lama dibersihkan otomatis hanya bila
   sudah >3 jam tidak aktif **dan** bersih; worktree kotor dibiarkan untuk diperiksa.
