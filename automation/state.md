@@ -1,59 +1,60 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (halaman /progress selesai lewat PR #147; berikutnya: riwayat 20 aktivitas terakhir di /progress)
+Terakhir diperbarui: 2026-11-25 (kartu Recent activity di `/progress` selesai lewat PR #148; berikutnya: pencarian "Find a concept" di Gap Analysis)
 
 ## Tugas berikutnya
 
-Fitur baru: **Riwayat 20 aktivitas terakhir di `/progress`** (fitur pelajar;
-tanpa migrasi skema/dependensi/RPC baru; melanjutkan kandidat fitur 3).
+Fitur baru: **Pencarian "Find a concept" di Gap Analysis** (fitur pelajar;
+tanpa migrasi skema/dependensi/server function/RPC baru; kandidat fitur 4).
 
-Tujuan: halaman `/progress` kini menunjukkan angka per minggu, tetapi pelajar
-belum bisa melihat apa yang baru saja terjadi. Tambahkan kartu **Recent
-activity** di bawah **Week by week**: 20 aktivitas belajar terakhir (kuis,
-review, pelajaran, latihan, belajar) dengan nama konsep, hasil, tanggal ramah,
-dan tautan ke pelajarannya.
+Tujuan: panel Today sudah punya kotak pencarian konsep (PR #107/#110), tetapi
+halaman `/gaps` — yang justru penuh daftar konsep panjang (Reviews due, Shaky
+spots, catch-up plan) — tidak punya cara melompat ke konsep tertentu yang
+sedang dicari pelajar. Tambahkan kartu pencarian yang sama di Gaps.
 
-Kode yang dipakai ulang: `learning_events` yang sudah dibaca
-`getLearnerProgress` (`src/server/evidence.functions.ts`), `conceptLabel` di
-`src/lib/gaps.ts`, pola tautan **Open the lesson** dari `/gaps` (`Link` +
-`BookOpen` yang `aria-hidden`), dan `useDB().db.listConcepts()` yang sudah
-terikat akun (tanpa RPC/skema baru).
+Kode yang dipakai ulang: helper murni `searchQuery`/`conceptSearchResults`/
+`conceptSearchSummary` (`src/lib/concept-search.ts`, sudah dites di
+`tests/concept-search.test.ts`), komponen `ConceptSearch` lokal di
+`src/components/StudyToday.tsx` (±baris 955–1015), dan `concepts` hasil
+`db.listConcepts().catch(() => [])` yang `fetchGapData` di
+`src/routes/gaps.tsx` sudah termuat (untuk daftar Snoozed) — tanpa
+query/RPC tambahan.
 
 Rancangan:
 
-1. **Murni + dites** `src/lib/evidence/progress.ts`:
-   - `recentActivity(events, now, limit = 20)`: ambil event jenis belajar
-     (`quiz`, `study`, `review`, `practice`, `lesson`; lewati `snooze`,
-     `unsnooze`, `tutor`), abaikan timestamp rusak/masa depan, urutkan terbaru
-     dulu (seri: `id` lebih besar dulu), potong `limit`. Tiap baris
-     `{ conceptId, kind, outcome, wasDue, createdAt }`.
-   - `activityLabel(kind, outcome)`: teks Inggris sehari-hari, mis. **Quiz
-     passed**, **Quiz not passed yet**, **Review remembered**, **Review
-     forgotten**, **Lesson opened**, **Started learning**, **Got it**, **Practice
-     logged**; kombinasi tak dikenal jatuh ke label jenis yang netral (jangan
-     menampilkan id mentah).
-2. **Server** `getLearnerProgress`: tambahkan `recent: recentActivity(events, now)`
-   dari pembacaan `events` yang sama — tepat satu `service.listEvents`, tanpa
-   query/RPC tambahan.
-3. **Route** `src/routes/progress.tsx`: muat nama konsep sekali dengan
-   `db.listConcepts()` saat DB siap (pola halaman lain; jangan gagalkan seluruh
-   halaman bila daftar konsep gagal — pakai `conceptLabel` dengan cadangan id).
-   Kartu `<section aria-labelledby>` berjudul **Recent activity**, daftar
-   `<ul aria-label="Recent activity">`; tiap `<li>` memuat `<time
-   dateTime={...}>` berformat ramah (mis. "Nov 24, 10:15"), nama konsep,
-   `activityLabel(...)`, dan satu `<Link to="/learn/$conceptId"
-   params={{ conceptId }}>` berisi `BookOpen` `aria-hidden` + teks **Open the
-   lesson** + `<span className="sr-only">: {nama}</span>`. Keadaan kosong:
-   "Your reviews, quizzes and lessons will show up here." tanpa angka nol;
-   tanpa animasi yang menyembunyikan isi, target sentuh ≥40 px, UI Inggris (D2).
-4. **Test** `tests/learner-progress.test.ts` (perluas): urutan terbaru dulu,
-   batas 20, jenis yang dilewati, timestamp rusak/masa depan, seri `id`,
-   label hasil (tiap cabang), serta penjaga statis bahwa server function tetap
-   satu `listEvents` + mengembalikan `recent` dan route memakai
-   `listConcepts`/`conceptLabel`/`<ul aria-label="Recent activity">` tanpa
-   `createServerFn`/`graphCall`/RPC/migrasi. Smoke: setelah alur kuis dashboard,
-   buka `/progress`, pastikan daftar **Recent activity** punya minimal satu
-   item dan satu tautan ke `/learn/`; tanpa cek flaky/waktu tetap.
+1. **Ekstrak komponen** `ConceptSearch` dari `src/components/StudyToday.tsx`
+   ke file bersama baru `src/components/ConceptSearch.tsx` **tanpa mengubah
+   perilaku, markup, atau kelasnya** (prop `concepts: ConceptNode[]`;
+   `<section aria-labelledby data-testid="concept-search">`, heading
+   **Find a concept** + ikon `Search` `aria-hidden`, label + input
+   `type="search"` dengan `id`/`htmlFor` dari `useId`, ringkasan
+   `role="status" aria-live="polite"`, `<ul aria-label="Concept search
+   results">` dengan `Link` ke `/learn/$conceptId` per hasil (`min-h-10`),
+   empty state `No concepts match "…"`, serta pemakaian
+   `searchQuery`/`conceptSearchResults`/`conceptSearchSummary`/`domainLabel`
+   yang sama). `StudyToday` mengimpor dari lokasi baru; `key={`search-
+   ${current.learnerId}`}` pada pemanggilannya tetap, jadi query per-learner
+   tetap ter-reset.
+2. **Pasang di Gaps**: simpan `concepts` ke state baru di
+   `src/routes/gaps.tsx` (sekarang hanya dipakai lokal di dalam
+   `fetchGapData`), lalu render `<ConceptSearch key={…per learner…}
+   concepts={concepts} />` di bawah pemilih learner, sebelum tab analisis.
+   Bila `listConcepts` gagal (cadangan `[]`), kartu tetap dirender dengan
+   hasil kosong — jangan menggagalkan halaman. Query direset saat learner
+   berganti (pola `key` seperti StudyToday).
+3. **Tanpa** server function/tombol/live region baru di luar komponen itu;
+   UI Inggris (D2); target sentuh ≥40 px (sudah `min-h-10`).
+4. **Test** `tests/gaps-concept-search.test.ts` (statis, baru): Gaps
+   merender `ConceptSearch` dengan `concepts` dari state yang diisi
+   `db.listConcepts()` + `.catch(() => [])`, ada `key` per learner,
+   komponen didefinisikan sekali di file bersama dan `StudyToday`
+   mengimpor dari sana, `concept-search.ts` tidak diubah, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Test lama
+   (`tests/concept-search.test.ts`, test Today) tetap hijau tanpa
+   dilonggarkan. Smoke: di blok `/gaps` yang sudah ada, isi input pencarian
+   dengan nama konsep yang diketahui (mis. "fraction"), pastikan daftar
+   **Concept search results** muncul dengan ≥1 item dan tautannya menuju
+   `/learn/`; tanpa cek flaky.
 5. **Dokumentasi**: entri log di `docs/ROADMAP.md`; tidak menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
@@ -69,16 +70,32 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 2. **Detail per konsep di `/progress`** — tautkan tiap konsep di ringkasan
    mingguan ke `/learn/$conceptId` dan/atau daftar kecil "yang paling sering
    di-review minggu ini".
-3. **Riwayat sesi di `/progress`** — daftar 20 aktivitas terakhir (jenis,
-   konsep, hasil, tanggal ramah) dari `learning_events`, nama konsep via
-   `conceptLabel`.
-4. **Pencarian konsep di Recommendations/Gaps** — pakai ulang `searchConcepts`
-   dan komponen pencarian dari Today (PR #107/#110).
+3. **Pencarian konsep di Recommendations** — lanjutan tugas berikutnya:
+   setelah `ConceptSearch` menjadi komponen bersama, pasang juga di
+   `/recommendations` (cek dulu daftar konsep halaman itu sudah termuat).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-25: PR #148 — **Riwayat 20 aktivitas terakhir di `/progress`** —
+  kartu **Recent activity** di bawah **Week by week** (`<section
+  aria-labelledby="progress-recent-title">`, `<ul aria-label="Recent
+  activity">`): 20 event belajar terakhir (quiz/study/review/practice/lesson;
+  snooze/unsnooze/tutor dilewati) terbaru dulu — seri pecah oleh baris lebih
+  baru (`id` serial), timestamp rusak/masa depan diabaikan — tiap baris nama
+  konsep (`conceptLabel` + `db.listConcepts()` sekali, cadangan id terbaca),
+  label hasil sehari-hari, `<time dateTime>` ramah UTC ("Nov 24, 10:15"), dan
+  satu tautan **Open the lesson** ke `/learn/$conceptId` (`BookOpen`
+  `aria-hidden`, `sr-only` nama, `min-h-10`). Helper murni
+  `recentActivity(events, now, limit = 20)` + `activityLabel(kind, outcome)` +
+  `activityTimeLabel(createdAt)` di `src/lib/evidence/progress.ts`;
+  `getLearnerProgress` diperluas dengan `recent: recentActivity(events, now)`
+  dari pembacaan `listEvents` yang sama (tetap tepat satu query, tanpa
+  RPC/migrasi baru). Test `tests/learner-progress.test.ts` diperluas (+10);
+  smoke blok progress memastikan daftar berisi ≥1 item + tautan `/learn/`
+  setelah alur kuis dashboard.
 
 - 2026-11-25: PR #147 — **Halaman `/progress` pelajar** — riwayat delapan
   minggu kalender UTC (mulai Senin) dari `learning_events`: kartu **This week**
