@@ -1,6 +1,6 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (halaman /progress selesai lewat PR #PENDING; berikutnya: riwayat 20 aktivitas terakhir di /progress)
+Terakhir diperbarui: 2026-11-25 (halaman /progress selesai lewat PR #147; berikutnya: riwayat 20 aktivitas terakhir di /progress)
 
 ## Tugas berikutnya
 
@@ -80,7 +80,7 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
-- 2026-11-25: PR #PENDING — **Halaman `/progress` pelajar** — riwayat delapan
+- 2026-11-25: PR #147 — **Halaman `/progress` pelajar** — riwayat delapan
   minggu kalender UTC (mulai Senin) dari `learning_events`: kartu **This week**
   (active days, reviews answered correctly, quizzes passed, concepts finished),
   daftar **Weekly progress** bernama dengan label tanggal ramah dan retensi
