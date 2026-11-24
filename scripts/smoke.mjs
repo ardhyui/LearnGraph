@@ -1542,6 +1542,27 @@ try {
       'recommendations: each zone is a named list of concepts',
       `${zoneListCount} list(s), ${zoneItems} item(s)`,
     );
+    // A concept search jumps straight to a lesson by name, so the long lists
+    // on this page don't have to be scrolled.
+    const recSearch = page.getByLabel('Search your concepts', { exact: true });
+    await recSearch.fill('fraction');
+    const recSearchResults = page.getByRole('list', { name: 'Concept search results' });
+    const recSearchShown = await recSearchResults
+      .waitFor({ timeout: 30000 })
+      .then(() => true, () => false);
+    const recSearchItems = await recSearchResults.getByRole('listitem').count().catch(() => 0);
+    const recSearchHref = await recSearchResults
+      .getByRole('link')
+      .first()
+      .getAttribute('href')
+      .catch(() => null);
+    check(
+      recSearchShown &&
+        recSearchItems > 0 &&
+        Boolean(recSearchHref && recSearchHref.startsWith('/learn/')),
+      'recommendations: the concept search jumps straight to a lesson',
+      `${recSearchItems} item(s), ${recSearchHref ?? 'no link'}`,
+    );
     // Every concept in the ready zone opens its lesson, so a learner can start
     // what they are ready for straight from the list.
     const readyLessonLink = page
