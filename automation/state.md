@@ -1,60 +1,79 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-21 (PR #143; siklus berikutnya: chip Prerequisites/Unlocks di panel detail `/graph` membuka pelajarannya)
+Terakhir diperbarui: 2026-11-21 (PR #144; siklus berikutnya: tiap langkah "Your catch-up plan" `/gaps` membuka pelajarannya)
 
 ## Tugas berikutnya
 
-Beri **chip Prerequisites dan Unlocks** di panel detail konsep `/graph` tautan
-ke pelajarannya masing-masing, sehingga dari satu konsep pelajar bisa langsung
-membuka prasyarat atau lanjutannya tanpa mencari manual — melanjutkan deret
-tautan pelajaran (PR #137–#142). Fitur kecil, tanpa migrasi skema, dependensi,
-server function, RPC, atau method RPC baru.
+Beri **tiap langkah kartu "Your catch-up plan"** (Remediation Plan) di `/gaps`
+satu tautan **Open the lesson** ke `/learn/$conceptId`, sehingga rencana
+perbaikan yang disusun halaman itu bisa langsung dikerjakan — melanjutkan deret
+tautan pelajaran di `/recommendations` (PR #137/#138/#139), daftar **Reviews
+due** dan kartu **Shaky spots** (PR #140/#141), serta panel detail `/graph`
+(PR #143/#144). Fitur kecil, tanpa migrasi skema, dependensi, server function,
+RPC, atau method RPC baru.
 
-Konteks: `src/routes/graph.tsx`. Panel `GraphDetailPanel` (sekitar baris 709)
-kini sudah punya satu tautan **Open the lesson** untuk konsep terpilih tepat
-setelah baris **Domain:**. Dua daftar chip di bawahnya:
-`<ul aria-label="Prerequisites" className="flex flex-wrap gap-1.5">` dan
-`<ul aria-label="Unlocks" className="flex flex-wrap gap-1.5">`; tiap `<li
-key={i}>` berisi `<span className="bg-blue-500/10 text-blue-600
-dark:text-blue-400 text-xs px-2.5 py-1 rounded-lg">{prereq}</span>`
-(Unlocks memakai warna `emerald`). `selectedConcept.prerequisites` dan
-`.dependents` saat ini `string[]` berisi **nama** konsep, dibangun di
-`onNodeClick` (sekitar baris 412) dari `edges` + `nodes` dengan cadangan id
-edge. `Link` dan `BookOpen` sudah diimpor tepat sekali.
+Konteks: `src/routes/gaps.tsx`. Blok `{/* Remediation Plan */}` (sekitar baris
+751) dirender bila `remediation && remediation.plan.steps.length > 0` sebagai
+`<motion.div className="mt-6 glass-card p-6">` dengan heading
+`<h2>… Your catch-up plan (about {…} min)</h2>`, satu kotak **Focus:**, lalu
+`<div className="space-y-4">{remediation.plan.steps.map((step, i) => ( … ))}</div>`.
+Tiap langkah `<motion.div key={i} … className="flex items-start gap-4 p-4
+bg-secondary/50 rounded-xl border border-border/50">` berisi badge nomor
+`{step.order}`, lalu `<div className="flex-1">` dengan
+`<p className="font-medium text-foreground">{conceptLabel(step.conceptId,
+step.conceptName)}</p>`, `<p className="text-sm text-muted-foreground">
+{step.action}</p>`, dan `<div className="flex flex-wrap gap-x-4 gap-y-1 mt-2
+text-xs text-muted-foreground">` berisi `stepTypeLabel(step.gapType)`,
+**About {step.estimatedTime} min**, dan badge prioritas
+**Do first**/**Important**/**When you can**. `RemediationStep` punya
+`step.conceptId`/`step.conceptName`. `Link` dan `BookOpen` **sudah** diimpor
+tepat sekali di `src/routes/gaps.tsx`; `conceptLabel` juga sudah diimpor.
 
 Rancangan (baca kode dulu; jangan mengubah copy/urutan/kelas visual yang ada):
 
-1. Ubah `ConceptDetails.prerequisites`/`dependents` menjadi
-   `Array<{ conceptId: string; name: string }>` dan bangun di `onNodeClick`:
-   prasyarat `{ conceptId: e.source, name: sourceNode?.data?.label as string
-   || e.source }`, dependent `{ conceptId: e.target, name:
-   targetNode?.data?.label as string || e.target }`. Jangan mengubah filter
-   edge, urutan, atau cadangan nama.
-2. Ganti tiap `<span>` chip menjadi satu
-   `<Link to="/learn/$conceptId" params={{ conceptId: prereq.conceptId }}>`
-   dengan kelas chip lama **ditambah** `inline-flex items-center gap-1
-   hover:underline focus-visible:outline-none focus-visible:ring-2
-   focus-visible:ring-violet-500`, berisi
-   `<BookOpen className="h-3 w-3" aria-hidden="true" />`, teks terlihat
-   `{prereq.name}`, lalu `<span className="sr-only"> — open the lesson</span>`
-   (Unlocks: `{dep.name}`). Jangan mengubah heading + hitungan (**Prerequisites
-   ({…length})**/**Unlocks ({…length})**), kelas `<ul>`, warna chip, urutan
-   chip, `<li key={i}>`, tautan **Open the lesson** utama, baris Domain,
-   deskripsi, Difficulty, Learner Progress, blok **Concept ID**, atau isi panel
-   lain; tanpa tombol, live region, fokus paksa, atau `role` tambahan; UI
-   bahasa Inggris (D2).
-3. **Test**: perbarui `tests/graph-detail-lesson-link.test.ts` — jangan
-   melonggarkan. Batasi penjaga "tepat satu `<Link>`/teks **Open the lesson**"
-   ke tautan aksi utama (potong panel sampai awal blok Prerequisites) dan
-   tambah penjaga bahwa tiap chip di kedua daftar adalah `<Link>` menuju
-   `/learn/$conceptId` dengan `params` id yang tepat, kelas chip lama tetap,
-   ikon `h-3 w-3` `aria-hidden`, nama terlihat + `sr-only`, serta
-   `ConceptDetails`/`onNodeClick` mengambil `conceptId` dari sumber/tujuan
-   edge. `tests/graph-detail-lists.test.ts` menyesuaikan tipe data chip tanpa
-   menghapus penjaganya.
-4. **Smoke**: tidak ada cek baru (isi chip bergantung data seed); penjaga
-   baris `tests/skip-link.test.ts` tetap 2568 bila tidak ada baris smoke lain
-   yang berubah.
+1. Tambahkan tepat satu `<Link to="/learn/$conceptId" params={{ conceptId:
+   step.conceptId }}>` sebagai **anak terakhir** `<div className="flex-1">`,
+   tepat setelah blok metadata `flex flex-wrap …` (jadi di bawah baris
+   prioritas, bukan di samping nama):
+   ```jsx
+   <Link
+     to="/learn/$conceptId"
+     params={{ conceptId: step.conceptId }}
+     className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+   >
+     <BookOpen className="h-3 w-3" aria-hidden="true" />
+     Open the lesson
+     <span className="sr-only">: {conceptLabel(step.conceptId, step.conceptName)}</span>
+   </Link>
+   ```
+   Jangan membungkus nama konsep, `step.action`, badge nomor, atau seluruh
+   baris dengan tautan; jangan menambah tombol, live region, fokus paksa, atau
+   `role` tambahan; UI bahasa Inggris (D2).
+2. Nama konsep, `step.action`, `stepTypeLabel(step.gapType)`, **About … min**,
+   badge prioritas beserta warnanya, badge `step.order`, `key={i}`,
+   `initial`/`animate`/`transition` (`delay: i * 0.1`), kelas
+   `motion.div`/badge/baris, heading **Your catch-up plan** beserta hitungan
+   menit, kotak **Focus:**, urutan langkah, empty state bila tidak ada langkah,
+   dan bagian halaman lain tidak berubah. Tautan baru hanya memakai
+   `step.conceptId`/`step.conceptName`.
+3. **Test**: file baru `tests/gaps-remediation-lesson-links.test.ts` (penjaga
+   statis): tepat satu `<Link to="/learn/$conceptId" params={{ conceptId:
+   step.conceptId }}>` di blok **Your catch-up plan**, kelas persis, `BookOpen`
+   `h-3 w-3` `aria-hidden`, teks **Open the lesson** + `sr-only`
+   `conceptLabel(step.conceptId, step.conceptName)`, posisinya sesudah blok
+   metadata prioritas dan sebagai anak terakhir `flex-1`, nama/aksi/metadata
+   tetap teks biasa, badge nomor + `key={i}` + animasi utuh, tanpa
+   `aria-live`/`.focus()`/`tabIndex`/`role`/`<button>` di tautan, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan mengubah atau
+   melenturkan penjaga `tests/gaps*` yang sudah ada kecuali hitungan
+   `<Link>`/`BookOpen` halaman memang harus dibatasi ke blok lain (pola PR
+   #138/#139/#144) tanpa menghapus penjaga mana pun.
+4. **Smoke**: di blok `/gaps` yang sudah ada, setelah cek **Shaky spots**
+   selesai, kembali ke `/gaps`, pilih lagi **Carol Kim** bila perlu, tunggu
+   heading **Your catch-up plan** terlihat, klik tautan pertama
+   `/^Open the lesson\s*: /` di kartu itu, lalu pastikan URL berakhir di
+   `/learn/` dan heading `h1` terlihat. Sesuaikan penjaga jumlah baris smoke
+   (`tests/skip-link.test.ts`) dengan `wc -l scripts/smoke.mjs`.
 5. **Dokumentasi**: entri log bertanggal di akhir `docs/ROADMAP.md`;
    `README.md`/`Roadmap.md` hanya bila klaim/arah berubah. Jangan menandai
    milestone selesai.
@@ -96,6 +115,41 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-21: PR #144 — **Chip Prerequisites dan Unlocks di panel detail
+  `/graph` membuka pelajarannya** — panel detail konsep sudah punya tautan
+  **Open the lesson** untuk konsep terpilih (PR #143), tetapi chip prasyarat
+  dan lanjutan di bawahnya hanya teks, sehingga pelajar harus mencari manual
+  konsep yang justru berhubungan langsung. Kini `ConceptDetails.prerequisites`
+  dan `.dependents` menjadi `Array<{ conceptId: string; name: string }>` yang
+  dibangun di `onNodeClick` dari ujung edge (`{ conceptId: e.source, name:
+  sourceNode?.data?.label as string || e.source }` untuk prasyarat,
+  `{ conceptId: e.target, name: targetNode?.data?.label as string || e.target }`
+  untuk dependent) tanpa mengubah filter edge, urutan, atau cadangan nama. Tiap
+  chip di `<ul aria-label="Prerequisites">` dan `<ul aria-label="Unlocks">`
+  menjadi satu `<Link to="/learn/$conceptId" params={{ conceptId:
+  prereq.conceptId }}>` / `params={{ conceptId: dep.conceptId }}` dengan kelas
+  chip lama (`bg-blue-500/10 …` / `bg-emerald-500/10 …`) ditambah `inline-flex
+  items-center gap-1 hover:underline focus-visible:outline-none
+  focus-visible:ring-2 focus-visible:ring-violet-500`, berisi `BookOpen`
+  `h-3 w-3` yang `aria-hidden="true"`, nama terlihat, dan `<span
+  className="sr-only"> — open the lesson</span>`. Heading + hitungan
+  (**Prerequisites ({…length})**/**Unlocks ({…length})**), kelas `<ul>`, warna
+  dan urutan chip, `<li key={i}>`, tautan **Open the lesson** utama, baris
+  Domain, deskripsi, Difficulty, Learner Progress, blok **Concept ID**, serta
+  isi panel lain tidak berubah; tanpa tombol, live region, fokus paksa, atau
+  `role` tambahan; UI bahasa Inggris (D2). Test
+  `tests/graph-detail-lesson-link.test.ts` diperluas tanpa melonggarkan
+  penjaga: hitungan "tepat satu `<Link>`/teks **Open the lesson**" dibatasi ke
+  aksi utama (panel sampai awal blok Prerequisites), ditambah penjaga tiap chip
+  adalah `<Link>` ke `/learn/$conceptId` dengan `params` id yang tepat, kelas
+  chip lama tetap, ikon `h-3 w-3` `aria-hidden`, nama terlihat + `sr-only`,
+  serta `ConceptDetails`/`onNodeClick` mengambil `conceptId` dari
+  sumber/tujuan edge; `tests/graph-detail-lists.test.ts` menyesuaikan tipe data
+  chip tanpa menghapus penjaganya. Tidak ada cek smoke baru (isi chip
+  bergantung data seed); penjaga baris smoke 2568 tetap. `README.md`/
+  `Roadmap.md` tidak diubah; `docs/ROADMAP.md` mendapat entri log. `npm run ci`
+  utuh **hijau penuh** sebelum merge.
 
 - 2026-11-21: PR #143 — **Panel detail konsep `/graph` membuka pelajarannya** —
   panel yang muncul setelah klik node di React Flow sebelumnya menampilkan

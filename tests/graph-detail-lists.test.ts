@@ -77,15 +77,15 @@ describe('graph detail: prerequisites are one named list', () => {
   it('keeps the blue chip class, content and order', () => {
     assert.ok(
       prerequisites.block.includes(
-        '<span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs px-2.5 py-1 rounded-lg">',
+        'className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs px-2.5 py-1 rounded-lg',
       ),
     );
-    const spanStart = prerequisites.block.indexOf('<span');
-    const content = prerequisites.block.indexOf('{prereq}');
-    const spanEnd = prerequisites.block.indexOf('</span>');
+    const chipStart = prerequisites.block.indexOf('<Link');
+    const content = prerequisites.block.indexOf('{prereq.name}');
+    const chipEnd = prerequisites.block.indexOf('</Link>');
     const liEnd = prerequisites.block.indexOf('</li>');
-    assert.ok(spanStart > 0 && content > spanStart, 'the chip labels the concept');
-    assert.ok(spanEnd > content && liEnd > spanEnd, 'the span stays inside the <li>');
+    assert.ok(chipStart > 0 && content > chipStart, 'the chip labels the concept');
+    assert.ok(chipEnd > content && liEnd > chipEnd, 'the link stays inside the <li>');
   });
 });
 
@@ -126,15 +126,15 @@ describe('graph detail: unlocks are one named list', () => {
   it('keeps the emerald chip class, content and order', () => {
     assert.ok(
       unlocks.block.includes(
-        '<span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs px-2.5 py-1 rounded-lg">',
+        'className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs px-2.5 py-1 rounded-lg',
       ),
     );
-    const spanStart = unlocks.block.indexOf('<span');
-    const content = unlocks.block.indexOf('{dep}');
-    const spanEnd = unlocks.block.indexOf('</span>');
+    const chipStart = unlocks.block.indexOf('<Link');
+    const content = unlocks.block.indexOf('{dep.name}');
+    const chipEnd = unlocks.block.indexOf('</Link>');
     const liEnd = unlocks.block.indexOf('</li>');
-    assert.ok(spanStart > 0 && content > spanStart, 'the chip labels the concept');
-    assert.ok(spanEnd > content && liEnd > spanEnd, 'the span stays inside the <li>');
+    assert.ok(chipStart > 0 && content > chipStart, 'the chip labels the concept');
+    assert.ok(chipEnd > content && liEnd > chipEnd, 'the link stays inside the <li>');
   });
 
   it('uses the same wrapper class for both lists', () => {

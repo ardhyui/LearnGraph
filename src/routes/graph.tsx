@@ -87,8 +87,8 @@ interface ConceptDetails {
   masterySource?: MasterySource | null;
   isZPD?: boolean;
   isForgotten?: boolean;
-  prerequisites?: string[];
-  dependents?: string[];
+  prerequisites?: Array<{ conceptId: string; name: string }>;
+  dependents?: Array<{ conceptId: string; name: string }>;
 }
 
 interface GraphOverlay {
@@ -414,14 +414,20 @@ function GraphPage() {
       .filter(e => e.target === node.id)
       .map(e => {
         const sourceNode = nodes.find(n => n.id === e.source);
-        return sourceNode?.data?.label as string || e.source;
+        return {
+          conceptId: e.source,
+          name: sourceNode?.data?.label as string || e.source,
+        };
       });
 
     const dependents = edges
       .filter(e => e.source === node.id)
       .map(e => {
         const targetNode = nodes.find(n => n.id === e.target);
-        return targetNode?.data?.label as string || e.target;
+        return {
+          conceptId: e.target,
+          name: targetNode?.data?.label as string || e.target,
+        };
       });
 
     const conceptDetails: ConceptDetails = {
@@ -798,9 +804,15 @@ function GraphPage() {
                           <ul aria-label="Prerequisites" className="flex flex-wrap gap-1.5">
                             {selectedConcept.prerequisites.map((prereq, i) => (
                               <li key={i}>
-                                <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs px-2.5 py-1 rounded-lg">
-                                  {prereq}
-                                </span>
+                                <Link
+                                  to="/learn/$conceptId"
+                                  params={{ conceptId: prereq.conceptId }}
+                                  className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs px-2.5 py-1 rounded-lg inline-flex items-center gap-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                                >
+                                  <BookOpen className="h-3 w-3" aria-hidden="true" />
+                                  {prereq.name}
+                                  <span className="sr-only"> — open the lesson</span>
+                                </Link>
                               </li>
                             ))}
                           </ul>
@@ -817,9 +829,15 @@ function GraphPage() {
                           <ul aria-label="Unlocks" className="flex flex-wrap gap-1.5">
                             {selectedConcept.dependents.map((dep, i) => (
                               <li key={i}>
-                                <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs px-2.5 py-1 rounded-lg">
-                                  {dep}
-                                </span>
+                                <Link
+                                  to="/learn/$conceptId"
+                                  params={{ conceptId: dep.conceptId }}
+                                  className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs px-2.5 py-1 rounded-lg inline-flex items-center gap-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                                >
+                                  <BookOpen className="h-3 w-3" aria-hidden="true" />
+                                  {dep.name}
+                                  <span className="sr-only"> — open the lesson</span>
+                                </Link>
                               </li>
                             ))}
                           </ul>
