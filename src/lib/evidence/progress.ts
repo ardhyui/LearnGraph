@@ -75,6 +75,93 @@ function windowIndex(windows: readonly WeekWindow[], at: number): number {
   return windows.findIndex((w) => at >= w.startsAt && at < w.endsAt);
 }
 
+/** One row of the "Recent activity" list: what the learner did, and when. */
+export interface RecentActivity {
+  conceptId: string;
+  kind: LearningEvent['kind'];
+  outcome: string;
+  wasDue: boolean | null;
+  /** The event's own ISO timestamp, unchanged. */
+  createdAt: string;
+}
+
+/**
+ * The last `limit` study events (default 20), newest first: what the learner
+ * just did. Snoozes, un-snoozes and tutor ratings are left out, broken and
+ * future timestamps are ignored without throwing, and a tie on the timestamp
+ * is broken by the newer row (`id` is a serial), so the order is stable.
+ */
+export function recentActivity(
+  events: readonly LearningEvent[],
+  now: string | Date,
+  limit = 20,
+): RecentActivity[] {
+  const t = new Date(now).getTime();
+  const max = Number.isFinite(t) ? Math.max(0, Math.floor(limit)) : 0;
+  if (max === 0) return [];
+  const rows: (RecentActivity & { at: number; id: number })[] = [];
+  for (const e of events) {
+    if (!STUDY_KINDS.has(e.kind)) continue;
+    const at = Date.parse(e.createdAt);
+    if (!Number.isFinite(at) || at > t) continue;
+    rows.push({
+      conceptId: e.conceptId,
+      kind: e.kind,
+      outcome: e.outcome,
+      wasDue: e.wasDue ?? null,
+      createdAt: e.createdAt,
+      at,
+      id: e.id,
+    });
+  }
+  rows.sort((a, b) => b.at - a.at || b.id - a.id);
+  return rows.slice(0, max).map(({ at: _at, id: _id, ...row }) => row);
+}
+
+/** A short everyday label for one activity, never a raw event id. */
+export function activityLabel(kind: string, outcome: string): string {
+  switch (kind) {
+    case 'quiz':
+      if (outcome === 'passed') return 'Quiz passed';
+      if (outcome === 'failed') return 'Quiz not passed yet';
+      return 'Quiz';
+    case 'review':
+      if (outcome === 'remembered') return 'Review remembered';
+      if (outcome === 'forgot') return 'Review forgotten';
+      return 'Review';
+    case 'study':
+      if (outcome === 'got-it') return 'Got it';
+      if (outcome === 'started') return 'Started learning';
+      return 'Study';
+    case 'lesson':
+      if (outcome === 'opened') return 'Lesson opened';
+      return 'Lesson';
+    case 'practice':
+      if (outcome === 'logged') return 'Practice logged';
+      return 'Practice';
+    default:
+      return 'Activity';
+  }
+}
+
+/**
+ * The friendly clock line for one activity ("Nov 24, 10:15"), always in UTC so
+ * the server and every browser agree with the weekly view. Empty when the
+ * timestamp cannot be parsed (the list itself already skips those rows).
+ */
+export function activityTimeLabel(createdAt: string): string {
+  const at = Date.parse(createdAt);
+  if (!Number.isFinite(at)) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'UTC',
+  }).format(at);
+}
+
 /**
  * The last `weeks` weeks (default eight), oldest first, including empty ones.
  * Only events up to `now` count, and an event exactly at a Monday 00:00 UTC

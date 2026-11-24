@@ -1342,6 +1342,24 @@ try {
       `heading ${headingSeen}, active ${activeLearner}, weeks ${weekItems}`,
     );
 
+    // The quiz the dashboard flow just took (and the lesson it opened) are in
+    // the recent activity list, with a way back into that lesson.
+    const recentList = page.getByRole('list', { name: 'Recent activity' });
+    const recentItems = contentSeen ? await recentList.getByRole('listitem').count() : 0;
+    const recentLinks = contentSeen
+      ? await recentList.getByRole('link', { name: /^Open the lesson/ }).count()
+      : 0;
+    const recentHrefs = contentSeen && recentLinks > 0
+      ? await recentList
+          .getByRole('link')
+          .evaluateAll((els) => els.every((el) => (el.getAttribute('href') ?? '').includes('/learn/')))
+      : false;
+    check(
+      recentItems > 0 && recentLinks > 0 && recentHrefs,
+      'progress: recent activity lists the latest events with a link to the lesson',
+      `items ${recentItems}, links ${recentLinks}, lesson links ${recentHrefs}`,
+    );
+
     const other = await select.evaluate(
       (el, mine) => [...el.options].find((o) => o.value !== mine)?.value ?? '',
       loadedLearner,

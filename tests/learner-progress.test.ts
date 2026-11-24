@@ -14,12 +14,16 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { LearningEvent } from '../src/lib/evidence/events.ts';
 import {
+  activityLabel,
+  activityTimeLabel,
   bestStreak,
+  recentActivity,
   retentionByWeek,
   retentionPercent,
   weekDetailLine,
   weekRangeLabel,
   weeklyBuckets,
+  type RecentActivity,
   type WeeklyBucket,
 } from '../src/lib/evidence/progress.ts';
 import { NAV_SECTIONS } from '../src/lib/navigation.ts';
@@ -392,6 +396,136 @@ describe('weekly labels and detail lines', () => {
   });
 });
 
+describe('recentActivity: the last 20 things the learner did', () => {
+  const at = (isoDate: string) => `${isoDate}T12:00:00.000Z`;
+
+  it('returns the newest study events first, capped at 20', () => {
+    const events = Array.from({ length: 25 }, (_, i) =>
+      ev({ id: i + 1, createdAt: new Date(NOW.getTime() - (24 - i) * 86_400_000).toISOString() }),
+    );
+    const rows = recentActivity(events, NOW);
+    assert.equal(rows.length, 20);
+    // Newest first, each row exactly one day apart, ending at `now` itself.
+    assert.deepEqual(
+      rows.map((row) => row.createdAt),
+      Array.from({ length: 20 }, (_, k) => new Date(NOW.getTime() - k * 86_400_000).toISOString()),
+    );
+  });
+
+  it('keeps a custom limit and returns nothing for a non-positive or invalid one', () => {
+    const events = [
+      ev({ id: 1, createdAt: at('2026-11-17') }),
+      ev({ id: 2, createdAt: at('2026-11-18') }),
+    ];
+    assert.equal(recentActivity(events, NOW, 1).length, 1);
+    assert.deepEqual(recentActivity(events, NOW, 0), []);
+    assert.deepEqual(recentActivity(events, NOW, -3), []);
+    assert.deepEqual(recentActivity(events, 'nope'), []);
+  });
+
+  it('leaves out snoozes, un-snoozes and tutor ratings', () => {
+    const rows = recentActivity(
+      [
+        ev({ id: 1, kind: 'snooze', outcome: 'snoozed', wasDue: null, createdAt: at('2026-11-18') }),
+        ev({ id: 2, kind: 'unsnooze', outcome: 'unsnooze', wasDue: null, createdAt: at('2026-11-18') }),
+        ev({ id: 3, kind: 'tutor', outcome: 'prefer-context', wasDue: null, createdAt: at('2026-11-18') }),
+        ev({ id: 4, kind: 'practice', outcome: 'logged', wasDue: null, createdAt: at('2026-11-17') }),
+      ],
+      NOW,
+    );
+    assert.deepEqual(
+      rows.map((row) => row.kind),
+      ['practice'],
+    );
+  });
+
+  it('ignores broken and future timestamps', () => {
+    const rows = recentActivity(
+      [
+        ev({ id: 1, createdAt: 'nope' }),
+        ev({ id: 2, createdAt: '' }),
+        ev({ id: 3, createdAt: new Date(NOW.getTime() + 1).toISOString() }),
+        ev({ id: 4, createdAt: NOW_ISO }),
+      ],
+      NOW,
+    );
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].createdAt, NOW_ISO);
+  });
+
+  it('breaks a timestamp tie with the newer row (bigger id) first', () => {
+    const rows = recentActivity(
+      [
+        ev({ id: 3, conceptId: 'concept:a', createdAt: at('2026-11-17') }),
+        ev({ id: 7, conceptId: 'concept:b', createdAt: at('2026-11-17') }),
+        ev({ id: 1, conceptId: 'concept:c', createdAt: at('2026-11-16') }),
+      ],
+      NOW,
+    );
+    assert.deepEqual(
+      rows.map((row) => row.conceptId),
+      ['concept:b', 'concept:a', 'concept:c'],
+    );
+  });
+
+  it('keeps only the fields the list shows, whatever the array order', () => {
+    const expected: RecentActivity = {
+      conceptId: 'concept:decimals',
+      kind: 'quiz',
+      outcome: 'failed',
+      wasDue: true,
+      createdAt: '2026-11-17T09:00:00.000Z',
+    };
+    const events = [
+      ev({ id: 2, ...expected }),
+      ev({ id: 5, createdAt: '2026-10-13T10:00:00.000Z' }),
+    ];
+    const rows = recentActivity(events, NOW);
+    assert.equal(rows.length, 2);
+    assert.deepEqual(rows[0], expected);
+    assert.deepEqual(rows[1], {
+      conceptId: 'concept:fractions',
+      kind: 'review',
+      outcome: 'remembered',
+      wasDue: true,
+      createdAt: '2026-10-13T10:00:00.000Z',
+    });
+    // Array order does not matter: the sort is by time and row id.
+    assert.deepEqual(recentActivity([...events].reverse(), NOW), rows);
+  });
+});
+
+describe('activity labels and clock lines', () => {
+  it('labels every known kind and outcome in everyday words', () => {
+    assert.equal(activityLabel('quiz', 'passed'), 'Quiz passed');
+    assert.equal(activityLabel('quiz', 'failed'), 'Quiz not passed yet');
+    assert.equal(activityLabel('review', 'remembered'), 'Review remembered');
+    assert.equal(activityLabel('review', 'forgot'), 'Review forgotten');
+    assert.equal(activityLabel('study', 'got-it'), 'Got it');
+    assert.equal(activityLabel('study', 'started'), 'Started learning');
+    assert.equal(activityLabel('lesson', 'opened'), 'Lesson opened');
+    assert.equal(activityLabel('practice', 'logged'), 'Practice logged');
+  });
+
+  it('falls back to the kind label, never a raw outcome id', () => {
+    assert.equal(activityLabel('quiz', 'something-new'), 'Quiz');
+    assert.equal(activityLabel('review', 'later'), 'Review');
+    assert.equal(activityLabel('study', 'custom'), 'Study');
+    assert.equal(activityLabel('lesson', 'reopened'), 'Lesson');
+    assert.equal(activityLabel('practice', 'muted'), 'Practice');
+    assert.equal(activityLabel('whatever', 'passed'), 'Activity');
+  });
+
+  it('shows a friendly UTC clock line, or nothing for a broken timestamp', () => {
+    assert.equal(activityTimeLabel('2026-11-24T10:15:00.000Z'), 'Nov 24, 10:15');
+    assert.equal(activityTimeLabel('2026-11-18T12:00:00.000Z'), 'Nov 18, 12:00');
+    assert.equal(activityTimeLabel('2026-11-23T21:05:00.000Z'), 'Nov 23, 21:05');
+    assert.equal(activityTimeLabel('2026-11-16T00:00:00.000Z'), 'Nov 16, 00:00');
+    assert.equal(activityTimeLabel('nope'), '');
+    assert.equal(activityTimeLabel(''), '');
+  });
+});
+
 describe('wiring guards (static)', () => {
   const source = (file: string) => readFileSync(file, 'utf8');
 
@@ -404,6 +538,9 @@ describe('wiring guards (static)', () => {
       'weeklyBuckets',
       'retentionByWeek',
       'bestStreak',
+      'recentActivity',
+      'activityLabel',
+      'activityTimeLabel',
       'weekRangeLabel',
       'retentionPercent',
       'weekDetailLine',
@@ -432,6 +569,7 @@ describe('wiring guards (static)', () => {
     assert.match(block, /retentionByWeek\(events, now\)/);
     assert.match(block, /learningStreak\(events, now\)/);
     assert.match(block, /bestStreak\(events, now\)/);
+    assert.match(block, /recent: recentActivity\(events, now\)/);
   });
 
   it('shows the page for the active learner and handles the empty states', () => {
@@ -452,6 +590,40 @@ describe('wiring guards (static)', () => {
     assert.equal(/createServerFn/.test(route), false);
     assert.equal(/graphCall/.test(route), false);
     assert.equal(/from '@\/lib\/graph/.test(route), false);
+  });
+
+  it('lists the recent activity with concept names and lesson links', () => {
+    const route = source(ROUTE_FILE);
+    // The card sits after "Week by week" and is named for screen readers.
+    assert.ok(
+      route.indexOf('aria-labelledby="progress-weeks-title"') <
+        route.indexOf('aria-labelledby="progress-recent-title"'),
+    );
+    assert.ok(route.includes('Recent activity'));
+    assert.ok(route.includes('aria-label="Recent activity"'));
+    assert.ok(route.includes('The last 20 things you did, newest first.'));
+    assert.ok(route.includes('Your reviews, quizzes and lessons will show up here.'));
+    // Concept names come from one account-scoped read, with a readable fallback.
+    assert.ok(route.includes('db.listConcepts()'));
+    assert.ok(route.includes('.catch(() => {})'));
+    assert.ok(route.includes('conceptLabel('));
+    // Each row shows the clock, the outcome and a link to the lesson.
+    assert.ok(route.includes('activityTimeLabel(activity.createdAt)'));
+    assert.ok(route.includes('dateTime={activity.createdAt}'));
+    assert.ok(route.includes('activityLabel(activity.kind, activity.outcome)'));
+    assert.ok(route.includes("to=\"/learn/$conceptId\""));
+    assert.ok(route.includes('params={{ conceptId: activity.conceptId }}'));
+    assert.ok(route.includes('Open the lesson'));
+    assert.ok(route.includes('<span className="sr-only">: {name}</span>'));
+    assert.ok(route.includes('BookOpen'));
+    // A 40px touch target and no raw ids in the visible copy.
+    assert.ok(route.includes('min-h-10'));
+    assert.ok(!/\{activity\.outcome\}/.test(route));
+    assert.ok(!/\{activity\.kind\}/.test(route));
+    assert.equal(/createServerFn/.test(route), false);
+    assert.equal(/graphCall/.test(route), false);
+    assert.equal(/rpc-schemas/.test(route), false);
+    assert.equal(/migrations/.test(route), false);
   });
 
   it('lists Progress in the learner menu and gives it a tab title', () => {
