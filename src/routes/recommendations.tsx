@@ -21,7 +21,9 @@ import { cn } from '@/lib/utils';
 import { conceptLabel, conceptNameMap, learnFirstLabel } from '@/lib/gaps';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
+import type { ConceptNode as GraphConceptNode } from '@/lib/graph/types';
 import { WorkspaceLoading } from '@/components/WorkspaceLoading';
+import { ConceptSearch } from '@/components/ConceptSearch';
 
 export const Route = createFileRoute('/recommendations')({
   head: () => pageHead('/recommendations'),
@@ -141,6 +143,8 @@ function RecommendationsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('recommendations');
+  // The account's concepts, kept for the "Find a concept" search box on this page.
+  const [searchConcepts, setSearchConcepts] = useState<GraphConceptNode[]>([]);
 
   // Each tab button is focused by index when the arrow keys move the selection.
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -162,11 +166,19 @@ function RecommendationsPage() {
 
     setLoading(true);
     setError(null);
+    // A new learner starts with an empty search list, never the previous one's.
+    setSearchConcepts([]);
 
     try {
       const startTime = Date.now();
-      // computeZPD returns everything we need: recommendations, psychometricAdjustments, zones
-      const zpdResult = await db.computeZPD(selectedLearner, { limit: 10 });
+      // computeZPD returns everything we need: recommendations, psychometricAdjustments, zones.
+      // The concept list only feeds the search box: if it fails, the recommendations still show.
+      const [zpdResult, concepts] = await Promise.all([
+        db.computeZPD(selectedLearner, { limit: 10 }),
+        db.listConcepts().catch(() => []),
+      ]);
+      if (seq !== requestSeq.current) return;
+      setSearchConcepts(concepts);
       const computationTimeMs = Date.now() - startTime;
 
       // Generate learning path
@@ -327,6 +339,13 @@ function RecommendationsPage() {
             </select>
           </div>
         </motion.div>
+
+        {/* Find a concept: jump straight to a lesson by name instead of scrolling the lists. */}
+        {selectedLearner && (
+          <div className="mb-6">
+            <ConceptSearch key={`search-${selectedLearner}`} concepts={searchConcepts} />
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           {loading && (
