@@ -1430,6 +1430,23 @@ try {
       'gaps: due reviews are a named list of review items',
       `${reviewItems} item(s)`,
     );
+    // A concept search jumps straight to a lesson by name, so the long lists
+    // on this page don't have to be scrolled.
+    const gapsSearch = page.getByLabel('Search your concepts', { exact: true });
+    await gapsSearch.fill('fraction');
+    const searchResults = page.getByRole('list', { name: 'Concept search results' });
+    const searchItems = await searchResults.getByRole('listitem').count().catch(() => 0);
+    const searchHref = await searchResults
+      .getByRole('link')
+      .first()
+      .getAttribute('href')
+      .catch(() => null);
+    check(
+      searchItems > 0 && Boolean(searchHref && searchHref.startsWith('/learn/')),
+      'gaps: the concept search jumps straight to a lesson',
+      `${searchItems} item(s), ${searchHref ?? 'no link'}`,
+    );
+
     // Every due review opens its lesson, so a review that comes up can be
     // studied again straight from the list.
     const reviewLessonLink = reviewList

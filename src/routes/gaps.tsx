@@ -9,11 +9,12 @@ import { GAP_KINDS, conceptLabel, countLabel, gapSummaryLine, priorityLabel, rev
 import { snoozedReviews } from '@/lib/graph/spacing';
 import { focusAfterAnswer } from '@/lib/study';
 import { masterySourceLabel, retentionLine } from '@/lib/evidence/labels';
-import type { MasterySource } from '@/lib/graph/types';
+import type { ConceptNode, MasterySource } from '@/lib/graph/types';
 import { getLearningStats, recordStudyOutcome } from '@/server/evidence.functions';
 import { useLearners, useDB } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
 import { WorkspaceLoading } from '@/components/WorkspaceLoading';
+import { ConceptSearch } from '@/components/ConceptSearch';
 
 export const Route = createFileRoute('/gaps')({
   head: () => pageHead('/gaps'),
@@ -107,6 +108,8 @@ function GapsDashboard() {
   } | null>(null);
   const [snoozed, setSnoozed] = useState<SnoozedItem[]>([]);
   const [retention, setRetention] = useState<string[]>([]);
+  // The account's concepts, kept for the "Find a concept" search box on this page.
+  const [searchConcepts, setSearchConcepts] = useState<ConceptNode[]>([]);
   const [remediation, setRemediation] = useState<{
     plan: { steps: RemediationStep[]; estimatedTotalTime: number; priorityFocus: string };
     gaps: { total: number };
@@ -136,6 +139,7 @@ function GapsDashboard() {
       setLoading(true);
       setSnoozed([]);
       setRetention([]);
+      setSearchConcepts([]);
       setLoadedFor(null);
     }
     try {
@@ -148,6 +152,7 @@ function GapsDashboard() {
         getLearningStats({ data: { learnerId: userId } }).catch(() => null),
       ]);
       if (stale()) return;
+      setSearchConcepts(concepts);
       const sourceOf = new Map(states.map((st) => [st.conceptId, st.masterySource ?? null]));
       const byQuiz = stats && retentionLine(stats.retention.quiz);
       const bySelf = stats && retentionLine(stats.retention.selfReport);
@@ -428,6 +433,13 @@ function GapsDashboard() {
             )}
           </div>
         </motion.div>
+
+        {/* Find a concept: jump straight to a lesson by name instead of scrolling the lists. */}
+        {selectedLearnerId && (
+          <div className="mb-6">
+            <ConceptSearch key={`search-${selectedLearnerId}`} concepts={searchConcepts} />
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           {loading && (

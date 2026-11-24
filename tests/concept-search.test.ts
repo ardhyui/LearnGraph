@@ -23,7 +23,8 @@ import type { ConceptNode } from '../src/lib/graph/types.ts';
 const ROOT = join(import.meta.dirname, '..');
 const SRC_DIR = join(ROOT, 'src');
 const SEARCH_FILE = join(SRC_DIR, 'lib', 'concept-search.ts');
-const COMPONENT_FILE = join(SRC_DIR, 'components', 'StudyToday.tsx');
+const COMPONENT_FILE = join(SRC_DIR, 'components', 'ConceptSearch.tsx');
+const TODAY_FILE = join(SRC_DIR, 'components', 'StudyToday.tsx');
 
 /** One concept as the search sees it. */
 const concept = (over: Partial<ConceptNode> = {}): ConceptNode => ({
@@ -301,45 +302,49 @@ describe('wiring guards (static)', () => {
   });
 
   it('searches the already-loaded concepts and links to each lesson page', () => {
-    const today = source(COMPONENT_FILE);
+    const search = source(COMPONENT_FILE);
     assert.ok(
-      today.includes(
+      search.includes(
         "import { conceptSearchResults, conceptSearchSummary, searchQuery } from '@/lib/concept-search';",
       ),
     );
+    assert.match(search, /<label htmlFor=\{inputId\}[^>]*>\s*Search your concepts\s*<\/label>/);
+    assert.match(search, /type="search"/);
+    assert.match(search, /const results = conceptSearchResults\(concepts, query\);/);
+    assert.match(search, /No concepts match “\{cleaned\}”\./);
+    assert.match(
+      search,
+      /<Link\s+to="\/learn\/\$conceptId"\s+params=\{\{ conceptId: concept\.conceptId \}\}/,
+    );
+    assert.match(search, /\{concept\.name\}/);
+    assert.match(search, /\{domainLabel\(concept\.domain\)\}/);
+
+    // The Today panel feeds the shared box its already-loaded concept list.
+    const today = source(TODAY_FILE);
     assert.ok(today.includes('concepts: allConcepts,'));
     assert.ok(today.includes('current.concepts.length > 0'));
+    assert.ok(today.includes("import { ConceptSearch } from '@/components/ConceptSearch';"));
     assert.match(
       today,
       /<ConceptSearch key=\{`search-\$\{current\.learnerId\}`\} concepts=\{current\.concepts\} \/>/,
     );
-    assert.match(today, /<label htmlFor=\{inputId\}[^>]*>\s*Search your concepts\s*<\/label>/);
-    assert.match(today, /type="search"/);
-    assert.match(today, /const results = conceptSearchResults\(concepts, query\);/);
-    assert.match(today, /No concepts match “\{cleaned\}”\./);
-    assert.match(
-      today,
-      /<Link\s+to="\/learn\/\$conceptId"\s+params=\{\{ conceptId: concept\.conceptId \}\}/,
-    );
-    assert.match(today, /\{concept\.name\}/);
-    assert.match(today, /\{domainLabel\(concept\.domain\)\}/);
-    assert.equal(/createServerFn/.test(today), false);
-    assert.equal(/graphCall/.test(today), false);
-    assert.equal(/db\.searchConcepts/.test(today), false);
+    assert.equal(/createServerFn/.test(search), false);
+    assert.equal(/graphCall/.test(search), false);
+    assert.equal(/db\.searchConcepts/.test(search), false);
   });
 
   it('announces the match count in a polite status line between the input and the list', () => {
-    const today = source(COMPONENT_FILE);
-    assert.match(today, /const summary = conceptSearchSummary\(concepts, query\);/);
-    assert.match(today, /\{summary && \(/);
+    const search = source(COMPONENT_FILE);
+    assert.match(search, /const summary = conceptSearchSummary\(concepts, query\);/);
+    assert.match(search, /\{summary && \(/);
     assert.match(
-      today,
+      search,
       /<p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">\s*\{summary\}\s*<\/p>/,
     );
     // The line sits below the search input and above the result list.
-    const inputAt = today.indexOf('placeholder="Name, topic or tag"');
-    const summaryAt = today.indexOf('<p role="status" aria-live="polite"');
-    const listAt = today.indexOf('<ul aria-label="Concept search results"');
+    const inputAt = search.indexOf('placeholder="Name, topic or tag"');
+    const summaryAt = search.indexOf('<p role="status" aria-live="polite"');
+    const listAt = search.indexOf('<ul aria-label="Concept search results"');
     assert.ok(inputAt !== -1, 'search input not found');
     assert.ok(summaryAt !== -1, 'summary line not found');
     assert.ok(listAt !== -1, 'result list not found');
