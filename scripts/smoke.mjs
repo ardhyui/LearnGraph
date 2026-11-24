@@ -299,6 +299,8 @@ try {
     // content it controls, and collapsing it hides that content.
     if (path === '/edu-psychology') {
       const section = page.getByRole('button', { name: 'Zone of Proximal Development (ZPD)' });
+      // A click before React attaches its handlers is a silent no-op.
+      await untilHydrated(section);
       const controls = await section.getAttribute('aria-controls').catch(() => null);
       const expandedBefore = await section.getAttribute('aria-expanded').catch(() => null);
       const content = controls ? page.locator(`[id="${controls}"]`) : null;
@@ -2053,6 +2055,8 @@ try {
   {
     await page.goto(`${BASE}/gaps`, { waitUntil: 'networkidle' });
     await page.locator('main').first().waitFor({ timeout: 30000 }).catch(() => {});
+    // An Enter before hydration is a no-op; wait for the link's handlers first.
+    await untilHydrated(page.getByRole('link', { name: 'Skip to content' }).first());
     await page.keyboard.press('Tab');
     const first = await page.evaluate(() => (document.activeElement?.textContent ?? '').trim());
     await page.keyboard.press('Enter');
@@ -2547,8 +2551,12 @@ try {
 
   // Sign out, then sign in again
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+  const signOut = page.getByRole('button', { name: 'Sign out' });
+  // The sidebar can re-render (workspace set-up finishing) and detach the
+  // button mid-click; wait for its handlers, then retry without throwing.
+  await untilHydrated(signOut);
   for (let i = 0; i < 10 && !page.url().includes('/sign-in'); i++) {
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    await signOut.click({ timeout: 5000 }).catch(() => {});
     await page.waitForURL(/\/sign-in/, { timeout: 3000 }).catch(() => {});
   }
   await page.waitForURL(/\/sign-in/);
