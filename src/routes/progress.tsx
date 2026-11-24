@@ -1,16 +1,20 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { pageHead } from '@/lib/page-titles';
 import { useEffect, useId, useRef, useState } from 'react';
-import { AlertCircle, BarChart3, CalendarDays, Flame } from 'lucide-react';
+import { AlertCircle, BarChart3, BookOpen, CalendarDays, Flame } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 import { useDB, useLearners } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
+import { conceptLabel } from '@/lib/gaps';
 import { getLearnerProgress } from '@/server/evidence.functions';
 import {
+  activityLabel,
+  activityTimeLabel,
   retentionPercent,
   weekDetailLine,
   weekRangeLabel,
+  type RecentActivity,
   type WeeklyBucket,
   type WeeklyRetention,
 } from '@/lib/evidence/progress';
@@ -26,6 +30,7 @@ interface LearnerProgress {
   retention: WeeklyRetention[];
   streak: LearningStreak;
   bestStreak: number;
+  recent: RecentActivity[];
   totalEvents: number;
 }
 
@@ -33,7 +38,7 @@ interface LearnerProgress {
 const streakText = (days: number) => `${days} ${days === 1 ? 'day' : 'days'}`;
 
 function ProgressPage() {
-  const { isLoading: dbLoading, error: dbError } = useDB();
+  const { db, isLoading: dbLoading, error: dbError } = useDB();
   const { learners, loading: learnersLoading } = useLearners();
   // Same learner as the dashboard and the other learner pages.
   const [activeLearner, setSelectedLearnerId] = useActiveLearner(
@@ -45,9 +50,26 @@ function ProgressPage() {
   const [data, setData] = useState<LearnerProgress | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Concept names for the recent activity list, loaded once per database. If
+  // the list cannot load, the activity still shows with readable fallbacks.
+  const [conceptNames, setConceptNames] = useState<ReadonlyMap<string, string | null>>(new Map());
   // Only the latest request may update the page: switching learners while a
   // load is in flight must not show the previous learner's progress.
   const requestSeq = useRef(0);
+
+  useEffect(() => {
+    if (!db) return;
+    let cancelled = false;
+    db.listConcepts()
+      .then((concepts) => {
+        if (cancelled) return;
+        setConceptNames(new Map(concepts.map((c) => [c.conceptId, c.name ?? null])));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [db]);
 
   useEffect(() => {
     if (!selectedLearnerId) {
@@ -287,6 +309,62 @@ function ProgressPage() {
                   );
                 })}
               </ul>
+            </section>
+
+            <section aria-labelledby="progress-recent-title" className="glass-card p-6 mt-6">
+              <h2
+                id="progress-recent-title"
+                className="text-xl font-semibold mb-1 text-foreground"
+              >
+                Recent activity
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                The last 20 things you did, newest first.
+              </p>
+              {data.recent.length === 0 ? (
+                <p className="text-muted-foreground">
+                  Your reviews, quizzes and lessons will show up here.
+                </p>
+              ) : (
+                <ul aria-label="Recent activity" className="space-y-3">
+                  {data.recent.map((activity, i) => {
+                    const name = conceptLabel(
+                      activity.conceptId,
+                      conceptNames.get(activity.conceptId),
+                    );
+                    return (
+                      <li
+                        key={i}
+                        className="rounded-xl border border-border/50 bg-secondary/30 p-4"
+                      >
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <p className="font-medium text-foreground">{name}</p>
+                          <time
+                            dateTime={activity.createdAt}
+                            className="text-sm text-muted-foreground"
+                          >
+                            {activityTimeLabel(activity.createdAt)}
+                          </time>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <p className="text-sm text-muted-foreground">
+                            {activityLabel(activity.kind, activity.outcome)}
+                          </p>
+                          <Link
+                            to="/learn/$conceptId"
+                            params={{ conceptId: activity.conceptId }}
+                            className="inline-flex min-h-10 items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+                          >
+                            <BookOpen className="h-3 w-3" aria-hidden="true" />
+                            Open the lesson
+                            <span className="sr-only">: {name}</span>
+                          </Link>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </section>
           </div>
         )}
