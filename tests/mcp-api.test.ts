@@ -389,7 +389,7 @@ describe('MCP endpoint (read-only, account-scoped)', () => {
     );
     assert.equal(tool.error?.code, -32602);
     const method = await body<RpcBody>(
-      await handleMcpPost(rpc({ jsonrpc: '2.0', id: 10, method: 'prompts/list' }, keyA)),
+      await handleMcpPost(rpc({ jsonrpc: '2.0', id: 10, method: 'logging/setLevel' }, keyA)),
     );
     assert.equal(method.error?.code, -32601);
   });

@@ -285,6 +285,7 @@ describe('MCP protocol: resources', () => {
       reads,
       list_learners: async () => ({ text: '' }),
       get_tutor_context: async () => ({ text: '' }),
+      get_prompt: async () => ({ description: '', messages: [] }),
       list_resources: async () => [
         { uri: 'learngraph://learner/me-sari', name: 'Sari', mimeType: 'text/markdown' },
         { uri: 'learngraph://concept/c-frac', name: 'Fractions', mimeType: 'text/markdown' },
@@ -309,7 +310,7 @@ describe('MCP protocol: resources', () => {
       handlers(),
     );
     assert.equal(body(res).result?.protocolVersion, '2025-03-26');
-    assert.deepEqual(body(res).result?.capabilities, { tools: {}, resources: {} });
+    assert.deepEqual(body(res).result?.capabilities, { tools: {}, resources: {}, prompts: {} });
   });
 
   it('lists resources in learner-then-concept order as given by the handler', async () => {

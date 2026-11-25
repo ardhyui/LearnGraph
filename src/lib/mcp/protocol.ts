@@ -5,14 +5,14 @@
  * (`src/lib/mcp/tools.ts`) own the graph. No dependencies, no database.
  *
  * Supported: `initialize`, `ping`, `tools/list`, `tools/call`,
- * `resources/list`, `resources/read`, and notifications (202, no body).
- * Streamable HTTP is answered as plain `application/json`; there is no SSE
- * stream. JSON-RPC batches are rejected because this server has nothing to
- * batch (and clients can fall back).
+ * `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, and
+ * notifications (202, no body). Streamable HTTP is answered as plain
+ * `application/json`; there is no SSE stream. JSON-RPC batches are rejected
+ * because this server has nothing to batch (and clients can fall back).
  */
 
 export const SERVER_NAME = 'learngraph';
-export const SERVER_VERSION = '0.2.0';
+export const SERVER_VERSION = '0.3.0';
 
 /** Newest first. An unknown requested version falls back to the newest. */
 export const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'] as const;
@@ -49,8 +49,46 @@ export interface McpResourceContent {
   text: string;
 }
 
-/** Everything the transport needs: the two tools plus the resource surface. */
-export interface McpHandlers extends McpToolHandlers {
+/** One argument a ready-made prompt accepts (MCP uses this shape, not a JSON schema). */
+export interface McpPromptArgument {
+  name: string;
+  description: string;
+  required?: boolean;
+}
+
+/** One ready-made request advertised by `prompts/list`. */
+export interface McpPrompt {
+  name: string;
+  description: string;
+  arguments?: readonly McpPromptArgument[];
+}
+
+export type McpPromptName = 'next_topic' | 'review_due' | 'explain_concept';
+
+/** Arguments `prompts/get` accepts, already validated and defaulted. */
+export interface McpPromptArguments {
+  learner?: string;
+  concept?: string;
+  count?: number;
+}
+
+/** One user turn returned by `prompts/get`. */
+export interface McpPromptMessage {
+  role: 'user';
+  content: { type: 'text'; text: string };
+}
+
+export interface McpPromptResult {
+  description: string;
+  messages: McpPromptMessage[];
+}
+
+export interface McpPromptHandlers {
+  get_prompt: (name: McpPromptName, args: McpPromptArguments) => Promise<McpPromptResult>;
+}
+
+/** Everything the transport needs: the tools, the resource surface and the prompts. */
+export interface McpHandlers extends McpToolHandlers, McpPromptHandlers {
   list_resources: () => Promise<McpResource[]>;
   /** `null` for a URI this account does not own (mapped to JSON-RPC -32002). */
   read_resource: (uri: string) => Promise<McpResourceContent | null>;
@@ -105,6 +143,64 @@ export const MCP_TOOLS = [
   },
 ] as const;
 
+/**
+ * Ready-made requests a client can offer before the learner types anything.
+ * Each one is built from the same tutor brief as `get_tutor_context`, so the
+ * assistant starts with the account's own context instead of asking for it.
+ */
+export const MCP_PROMPTS = [
+  {
+    name: 'next_topic',
+    description: 'Ask the tutor what this learner should learn next, using their graph.',
+    arguments: [
+      {
+        name: 'learner',
+        description: "Learner id from list_learners. Defaults to the account's own learner.",
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'review_due',
+    description: 'Quiz this learner on the concepts that are due for review now.',
+    arguments: [
+      {
+        name: 'learner',
+        description: "Learner id from list_learners. Defaults to the account's own learner.",
+        required: false,
+      },
+      {
+        name: 'count',
+        description: 'How many questions to ask (1–10). Defaults to 5.',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'explain_concept',
+    description: 'Explain one concept at this learner’s level, with a quick check.',
+    arguments: [
+      {
+        name: 'concept',
+        description: 'Concept id or name to explain, e.g. "Fractions".',
+        required: true,
+      },
+      {
+        name: 'learner',
+        description: "Learner id from list_learners. Defaults to the account's own learner.",
+        required: false,
+      },
+    ],
+  },
+] as const satisfies readonly McpPrompt[];
+
+/** Which arguments each prompt accepts; anything else is invalid params. */
+const PROMPT_ARGUMENT_KEYS: Record<McpPromptName, readonly string[]> = {
+  next_topic: ['learner'],
+  review_due: ['learner', 'count'],
+  explain_concept: ['learner', 'concept'],
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -147,6 +243,72 @@ export function parseToolArguments(name: string, raw: unknown): ParsedArgs {
     args[key] = value;
   }
   return { ok: true, args };
+}
+
+type ParsedPromptGet =
+  | { ok: true; name: McpPromptName; args: McpPromptArguments }
+  | { ok: false; message: string };
+
+/**
+ * Validate `prompts/get` params: a known prompt name and only the arguments
+ * that prompt declares. `count` is defaulted here so the handler always sees
+ * how many questions to ask; `concept` is required only for `explain_concept`.
+ */
+export function parsePromptGetParams(raw: unknown): ParsedPromptGet {
+  if (!isRecord(raw)) return { ok: false, message: 'expected an object.' };
+  const requested = raw.name;
+  if (typeof requested !== 'string' || !requested) {
+    return { ok: false, message: '"name" must be a prompt name.' };
+  }
+  if (!Object.hasOwn(PROMPT_ARGUMENT_KEYS, requested)) {
+    return { ok: false, message: `Unknown prompt: ${requested}` };
+  }
+  const name = requested as McpPromptName;
+
+  const rawArgs = raw.arguments;
+  if (rawArgs !== undefined && rawArgs !== null && !isRecord(rawArgs)) {
+    return { ok: false, message: 'Prompt arguments must be an object.' };
+  }
+  const given = isRecord(rawArgs) ? rawArgs : {};
+  for (const key of Object.keys(given)) {
+    if (!PROMPT_ARGUMENT_KEYS[name].includes(key)) {
+      return { ok: false, message: `Unknown argument "${key}" for prompt "${name}".` };
+    }
+  }
+
+  const args: McpPromptArguments = {};
+  const learner = given.learner;
+  if (learner !== undefined && learner !== null) {
+    if (typeof learner !== 'string') return { ok: false, message: '"learner" must be a string.' };
+    if (learner.length > 128) {
+      return { ok: false, message: '"learner" is longer than 128 characters.' };
+    }
+    args.learner = learner;
+  }
+
+  if (name === 'explain_concept') {
+    const concept = given.concept;
+    if (typeof concept !== 'string' || !concept.trim()) {
+      return { ok: false, message: '"concept" is required for prompt "explain_concept".' };
+    }
+    if (concept.length > 200) {
+      return { ok: false, message: '"concept" is longer than 200 characters.' };
+    }
+    args.concept = concept;
+  }
+
+  if (name === 'review_due') {
+    const count = given.count;
+    if (count === undefined || count === null) {
+      args.count = 5;
+    } else if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > 10) {
+      return { ok: false, message: '"count" must be a whole number from 1 to 10.' };
+    } else {
+      args.count = count;
+    }
+  }
+
+  return { ok: true, name, args };
 }
 
 const toolContent = (result: McpToolResult) => ({
@@ -214,6 +376,24 @@ async function callTool(
   }
 }
 
+async function getPrompt(
+  id: unknown,
+  params: unknown,
+  handlers: McpHandlers,
+): Promise<McpHttpResponse> {
+  const parsed = parsePromptGetParams(params);
+  if (!parsed.ok) return errorResponse(id, -32602, `Invalid params: ${parsed.message}`);
+  try {
+    const result = await handlers.get_prompt(parsed.name, parsed.args);
+    return response(id, result);
+  } catch (err) {
+    // No such learner/concept is a fixable request, so it stays a params error
+    // with the handler's own explanation instead of an internal failure.
+    const message = err instanceof Error && err.message ? err.message : 'The prompt failed.';
+    return errorResponse(id, -32602, message);
+  }
+}
+
 /** Handle one JSON-RPC message. Bad JSON and invalid requests get JSON-RPC errors. */
 export async function handleMcpMessage(
   raw: string,
@@ -246,12 +426,13 @@ export async function handleMcpMessage(
       const params = isRecord(message.params) ? message.params : {};
       return response(id, {
         protocolVersion: negotiateProtocolVersion(params.protocolVersion),
-        capabilities: { tools: {}, resources: {} },
+        capabilities: { tools: {}, resources: {}, prompts: {} },
         serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
         instructions:
           'Read-only LearnGraph context for one account. Call list_learners, then ' +
           'get_tutor_context with the learner id (and optionally a concept and the question). ' +
-          'resources/list and resources/read expose learner summaries and concept details.',
+          'resources/list and resources/read expose learner summaries and concept details. ' +
+          'prompts/list offers ready-made requests such as next_topic and explain_concept.',
       });
     }
     case 'ping':
@@ -264,6 +445,10 @@ export async function handleMcpMessage(
       return response(id, { resources: await handlers.list_resources() });
     case 'resources/read':
       return readResource(id, message.params, handlers);
+    case 'prompts/list':
+      return response(id, { prompts: MCP_PROMPTS });
+    case 'prompts/get':
+      return getPrompt(id, message.params, handlers);
     default:
       return errorResponse(id, -32601, `Method not found: ${method}`);
   }

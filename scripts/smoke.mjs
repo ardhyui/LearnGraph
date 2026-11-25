@@ -2470,6 +2470,9 @@ try {
     const toolsMcp = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, key);
     const toolsMcpBody = await toolsMcp.json().catch(() => ({}));
     const mcpTools = (toolsMcpBody.result?.tools ?? []).map((t) => t.name);
+    const promptsMcp = await mcp({ jsonrpc: '2.0', id: 5, method: 'prompts/list' }, key);
+    const promptsMcpBody = await promptsMcp.json().catch(() => ({}));
+    const mcpPrompts = (promptsMcpBody.result?.prompts ?? []).map((p) => p.name);
     const callMcp = await mcp(
       {
         jsonrpc: '2.0',
@@ -2489,12 +2492,16 @@ try {
         toolsMcp.status === 200 &&
         mcpTools.includes('list_learners') &&
         mcpTools.includes('get_tutor_context') &&
+        promptsMcp.status === 200 &&
+        mcpPrompts.length === 3 &&
+        mcpPrompts.includes('next_topic') &&
+        mcpPrompts.includes('explain_concept') &&
         callMcp.status === 200 &&
         /^You are tutoring one learner/.test(mcpText) &&
         noKeyMcp.status === 401 &&
         getMcp.status === 405,
       'api: an MCP client reads learner context with the same read-only key',
-      `initialize ${initMcp.status}, tools ${mcpTools.join('+')}, call ${callMcp.status}, no key ${noKeyMcp.status}, GET ${getMcp.status}`,
+      `initialize ${initMcp.status}, tools ${mcpTools.join('+')}, prompts ${mcpPrompts.join('+')}, call ${callMcp.status}, no key ${noKeyMcp.status}, GET ${getMcp.status}`,
     );
     page.once('dialog', (d) => d.accept());
     await access.getByRole('button', { name: /^Revoke/ }).first().click();

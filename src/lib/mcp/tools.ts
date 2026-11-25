@@ -6,7 +6,8 @@
 import { contextPayload, learnersPayload } from '../api/v1.ts';
 import type { ConceptNode, KnowledgeState, LearnerProfile } from '../graph/types.ts';
 import { conceptLabel } from '../gaps.ts';
-import type { McpHandlers, McpResource, McpToolResult } from './protocol.ts';
+import { MCP_PROMPTS, type McpHandlers, type McpResource, type McpToolResult } from './protocol.ts';
+import { buildPromptMessages } from './prompts.ts';
 import {
   conceptResourceMarkdown,
   conceptResourceUri,
@@ -50,6 +51,24 @@ function conceptNames(concepts: readonly ConceptNode[]): Map<string, string> {
 }
 
 export function mcpToolHandlersFor(owner: string): McpHandlers {
+  /** The same brief behind `get_tutor_context`, reused by the ready-made prompts. */
+  const tutorBrief = async (args: {
+    learner?: string;
+    concept?: string;
+    query?: string;
+  }): Promise<McpToolResult> => {
+    const payload = await contextPayload(owner, args);
+    return {
+      text: payload.context,
+      structuredContent: {
+        learner: payload.learner,
+        concept: payload.concept,
+        queryType: payload.queryType,
+        tokens: payload.tokens,
+      },
+    };
+  };
+
   return {
     list_learners: async (): Promise<McpToolResult> => {
       const payload = await learnersPayload(owner);
@@ -63,20 +82,24 @@ export function mcpToolHandlersFor(owner: string): McpHandlers {
       };
     },
 
-    get_tutor_context: async (args): Promise<McpToolResult> => {
-      const payload = await contextPayload(owner, {
+    get_tutor_context: (args): Promise<McpToolResult> => tutorBrief(args),
+
+    get_prompt: async (name, args) => {
+      const prompt = MCP_PROMPTS.find((candidate) => candidate.name === name);
+      const query =
+        name === 'next_topic'
+          ? 'What should I learn next?'
+          : name === 'review_due'
+            ? 'Quiz me on my due reviews.'
+            : `Explain ${args.concept ?? ''}`;
+      const brief = await tutorBrief({
         learner: args.learner,
         concept: args.concept,
-        query: args.query,
+        query,
       });
       return {
-        text: payload.context,
-        structuredContent: {
-          learner: payload.learner,
-          concept: payload.concept,
-          queryType: payload.queryType,
-          tokens: payload.tokens,
-        },
+        description: prompt?.description ?? 'A ready-to-use request for this learner.',
+        messages: buildPromptMessages(name, args, brief.text),
       };
     },
 

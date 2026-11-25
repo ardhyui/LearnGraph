@@ -73,6 +73,10 @@ function fakeHandlers(): McpHandlers & {
         },
       };
     },
+    get_prompt: async (name) => ({
+      description: `Prompt ${name}`,
+      messages: [{ role: 'user', content: { type: 'text', text: name } }],
+    }),
     list_resources: async () => [
       {
         uri: 'learngraph://learner/me-sari',
@@ -124,7 +128,7 @@ describe('MCP protocol: initialize and notifications', () => {
       assert.equal(body(res).jsonrpc, '2.0');
       assert.equal(body(res).id, 7);
       assert.equal(body(res).result?.protocolVersion, version);
-      assert.deepEqual(body(res).result?.capabilities, { tools: {}, resources: {} });
+      assert.deepEqual(body(res).result?.capabilities, { tools: {}, resources: {}, prompts: {} });
       assert.equal(body(res).result?.serverInfo?.name, SERVER_NAME);
       assert.equal(body(res).result?.serverInfo?.version, SERVER_VERSION);
       assert.match(body(res).result?.instructions ?? '', /list_learners/);
@@ -480,11 +484,11 @@ describe('MCP protocol: bad input', () => {
 
   it('answers unknown methods with -32601', async () => {
     const res = await handleMcpMessage(
-      JSON.stringify({ jsonrpc: '2.0', id: 50, method: 'prompts/list' }),
+      JSON.stringify({ jsonrpc: '2.0', id: 50, method: 'logging/setLevel' }),
       fakeHandlers(),
     );
     assert.equal(body(res).error?.code, -32601);
-    assert.match(body(res).error?.message ?? '', /prompts\/list/);
+    assert.match(body(res).error?.message ?? '', /logging\/setLevel/);
   });
 
   it('negotiates only known versions', () => {

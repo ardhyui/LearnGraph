@@ -537,7 +537,10 @@ returns 405). Tools: `list_learners` and `get_tutor_context` (arguments
 `resources/list` and `resources/read` expose one Markdown document per learner
 (`learngraph://learner/<id>` — mastery with its evidence source, reviews due
 now) and per concept (`learngraph://concept/<id>` — domain, description, time
-estimate, direct prerequisites), scoped to the key's account.
+estimate, direct prerequisites), scoped to the key's account. Prompts:
+`prompts/list` and `prompts/get` offer three ready-made requests — `next_topic`,
+`review_due` (1–10 questions, default 5), and `explain_concept` (a concept id
+or name) — each built from the same tutor brief and scoped to the key's account.
 
 ```bash
 curl -X POST -H "Authorization: Bearer lg_…" -H "Content-Type: application/json" \
