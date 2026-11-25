@@ -516,6 +516,7 @@ export function StudyToday() {
 
   // Never render (or act on) another learner's plan while the new one loads.
   const current = data?.learnerId === learnerId ? data : null;
+  const unsnoozingName = current?.snoozed.find((s) => s.conceptId === busy)?.name ?? null;
   const progress = current?.progress;
 
   return (
@@ -793,6 +794,7 @@ export function StudyToday() {
                       type="button"
                       onClick={() => unsnoozeOne(item)}
                       disabled={!!busy}
+                      aria-busy={busy === item.conceptId}
                       aria-label={`Review it now: ${item.name}`}
                       className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
                     >
@@ -802,6 +804,9 @@ export function StudyToday() {
                   </li>
                 ))}
               </ul>
+              <p role="status" aria-live="polite" className="sr-only">
+                {unsnoozingName ? `Bringing “${unsnoozingName}” back…` : ''}
+              </p>
             </div>
           )}
         </div>

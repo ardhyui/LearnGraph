@@ -6,15 +6,17 @@
  * (`disabled={!!busy}`) and showed an `aria-hidden` spinner: there was no
  * `aria-busy` and no live region, so a screen reader could not tell the review
  * was being returned to the queue and the button looked frozen. The per-item
- * "Review it now" button (`busy === item.conceptId`) is out of scope here.
+ * "Review it now" button (`busy === item.conceptId`) had the same gap.
  *
  * This file locks `aria-busy={busy === UNSNOOZE_BUSY}` right after
  * `disabled={!!busy}` on the summary button with its type, classes, label and
- * spinner untouched, a new `sr-only` polite `role="status"` line between the
+ * spinner untouched, a polite `sr-only` `role="status"` line between the
  * summary paragraph and the named snoozed list that says "Bringing your snoozed
- * reviews back…" while busy and clears when idle, the untouched per-item
- * button, the untouched `unsnoozeAll`/`unsnoozeOne` flows, and that no server
- * function, RPC call or migration was added.
+ * reviews back…" while busy and clears when idle, `aria-busy={busy ===
+ * item.conceptId}` on the per-item button plus a second polite `sr-only` status
+ * line after the named list that says `Bringing “<name>” back…` while that item
+ * is busy and clears when idle, the untouched `unsnoozeAll`/`unsnoozeOne`
+ * flows, and that no server function, RPC call or migration was added.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -91,12 +93,27 @@ describe('StudyToday: the Review them now button announces it is busy', () => {
     );
   });
 
-  it('leaves the per-item Review it now button without aria-busy', () => {
+  it('adds aria-busy={busy === item.conceptId} right after disabled={!!busy} on the per-item button', () => {
     assert.ok(ONE_TAG.includes('type="button"'), 'the per-item button stays a plain button');
     assert.ok(ONE_TAG.includes('onClick={() => unsnoozeOne(item)}'), 'the per-item button still calls unsnoozeOne');
     assert.ok(ONE_TAG.includes('disabled={!!busy}'), 'the per-item button stays driven by any busy marker');
+    assert.ok(ONE_TAG.includes('aria-busy={busy === item.conceptId}'), 'aria-busy follows the per-item marker');
+    assert.ok(
+      ONE_TAG.indexOf('disabled={!!busy}') < ONE_TAG.indexOf('aria-busy={busy === item.conceptId}'),
+      'aria-busy sits right after disabled',
+    );
     assert.ok(ONE_TAG.includes('aria-label={`Review it now: ${item.name}`}'), 'its accessible name stays');
-    assert.equal(ONE_TAG.includes('aria-busy'), false, 'the per-item button gained no aria-busy');
+    assert.equal(
+      count(today, /aria-busy=\{busy === item\.conceptId\}/g),
+      1,
+      'one aria-busy={busy === item.conceptId}, on the per-item button only',
+    );
+    assert.ok(
+      ONE_TAG.includes(
+        'className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"',
+      ),
+      'the per-item classes stay untouched',
+    );
     assert.ok(
       summary.includes('{busy === item.conceptId && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}'),
       'the per-item spinner stays hidden and unchanged',
@@ -110,7 +127,7 @@ describe('StudyToday: one polite status line in the snooze summary', () => {
       summary.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the summary line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(summary, /className="sr-only"/g), 1, 'the summary line is the only sr-only element in the block');
+    assert.equal(count(summary, /className="sr-only"/g), 2, 'two sr-only status lines: summary plus per-item');
   });
 
   it('says Bringing your snoozed reviews back… while busy and clears when idle', () => {
@@ -130,6 +147,32 @@ describe('StudyToday: one polite status line in the snooze summary', () => {
     const listStart = summary.indexOf(LIST_OPEN);
     assert.ok(statusStart > paragraphEnd, 'the status line follows the summary paragraph');
     assert.ok(statusStart < listStart, 'the status line sits before the named snoozed list');
+  });
+
+  it('adds a second sr-only polite status line that names the item being brought back', () => {
+    assert.ok(
+      today.includes(
+        'const unsnoozingName = current?.snoozed.find((s) => s.conceptId === busy)?.name ?? null;',
+      ),
+      'the busy item name is derived from the current snoozed list',
+    );
+    const statusStart = summary.lastIndexOf('<p role="status" aria-live="polite" className="sr-only">');
+    assert.ok(statusStart > 0, 'the per-item status line is rendered');
+    const statusEnd = summary.indexOf('</p>', statusStart);
+    assert.ok(statusEnd > statusStart, 'the per-item status line closes');
+    const statusBlock = summary.slice(statusStart, statusEnd);
+    assert.ok(
+      statusBlock.includes("{unsnoozingName ? `Bringing “${unsnoozingName}” back…` : ''}"),
+      'the status names the item while it is busy and clears when idle',
+    );
+    assert.ok(
+      statusStart > summary.lastIndexOf(LIST_OPEN),
+      'the per-item status line follows the named list',
+    );
+    assert.ok(
+      statusStart < summary.lastIndexOf('</div>'),
+      'the per-item status line stays inside the snooze block',
+    );
   });
 });
 
