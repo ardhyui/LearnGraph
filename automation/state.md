@@ -1,64 +1,69 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (status proses tombol laporan diri
-`/learn/$conceptId` selesai lewat PR #158; berikutnya: status proses tombol
-**Check my answers** kuis di `/learn/$conceptId`)
+Terakhir diperbarui: 2026-11-25 (status proses tombol **Check my answers** kuis
+`ConceptQuiz` selesai lewat PR #159; berikutnya: status proses tombol hapus akun
+`DeleteAccount`)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol submit kuis "Check my answers"
-(`src/components/ConceptQuiz.tsx`)** — saat `busy` (sedang memeriksa jawaban),
-tombol submit hanya menampilkan ikon `Loader2` dan diredupkan lewat `disabled`,
-tanpa `aria-busy`, tanpa pengumuman, dan tombol **Not now** di sebelahnya juga
-hanya `disabled`; pembaca layar tidak tahu pemeriksaan sedang berjalan. Tanpa
-query/RPC/migrasi/dependensi baru.
+Poles kecil: **Status proses tombol submit hapus akun
+(`src/components/DeleteAccount.tsx`)** — saat `busy` (menunggu
+`authClient.deleteUser`), tombol submit hanya menampilkan ikon `Loader2` dan
+diredupkan lewat `disabled`, tanpa `aria-busy` dan tanpa pengumuman, sementara
+tombol **Keep my account** di sebelahnya juga hanya `disabled`; pembaca layar
+tidak tahu penghapusan sedang berjalan. Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: dialog kuis konsep (`ConceptQuiz`, dipakai dari
-`src/routes/learn.$conceptId.tsx`) punya `<form onSubmit={submit} noValidate>`
-dengan tombol `<button type="submit" disabled={busy}>` berlabel **Check my
-answers** (berisi `{busy && <Loader2 className="h-4 w-4 animate-spin"
-aria-hidden="true" />}`) dan tombol `<button type="button" disabled={busy}>`
-berlabel **Not now**. `submit` menyetel `busy` true di awal dan false di
-`finally`; galat tampil di `<p role="alert">` dan hasil memindahkan fokus ke
-`resultRef`. Ikuti pola PR #131/#133/#158 (aria-busy + satu baris status
-`sr-only`).
+Tujuan: komponen `DeleteAccount` (dipakai dari halaman profil) dirender sebagai
+`<section aria-labelledby={ids.heading} … data-testid="delete-account">`; saat
+form terbuka ia berisi `<form onSubmit={submit} className="mt-4 max-w-sm
+space-y-3" noValidate>` dengan tombol `<button type="submit" disabled={busy}>`
+berlabel **Delete my account and all data** (berisi `{busy && <Loader2
+className="h-4 w-4 animate-spin" aria-hidden="true" />}`) dan tombol
+`<button type="button" onClick={…} disabled={busy}>` berlabel **Keep my
+account**. `submit` menyetel `busy` true sebelum `authClient.deleteUser` dan
+`false` pada kedua jalur gagal; galat tampil di `<p role="alert">`. Ikuti pola
+PR #131/#133/#158/#159 (aria-busy + satu baris status `sr-only`).
 
 Rancangan:
 
 1. **Tombol submit** — tambahkan `aria-busy={busy}` tepat sesudah
-   `disabled={busy}` pada tombol **Check my answers**; jangan mengubah `type`,
-   kelas persis, label, atau ikon `Loader2` yang sudah ada (tetap
-   `aria-hidden="true"` dengan kelas `h-4 w-4 animate-spin`). Tombol **Not now**
-   tidak perlu `aria-busy`; `disabled={busy}`, `type`, `onClick={onCancel}`, dan
-   kelasnya tidak berubah.
-2. **Status** — tepat sesudah `<div className="mt-3 flex flex-wrap gap-2">`
-   berisi kedua tombol dan masih di dalam `<form>` (anak terakhir form), satu
+   `disabled={busy}` pada tombol **Delete my account and all data**; jangan
+   mengubah `type="submit"`, kelas persis, label, atau ikon `Loader2` (tetap
+   `aria-hidden="true"` dengan kelas `h-4 w-4 animate-spin`). Tombol **Keep my
+   account** tidak perlu `aria-busy`; `type="button"`, `onClick` (yang menutup
+   form dan mengosongkan `password`/`confirmText`/`error`), `disabled={busy}`,
+   dan kelasnya tidak berubah.
+2. **Status** — tepat sesudah `<div className="flex flex-wrap gap-2">` berisi
+   kedua tombol dan masih di dalam `<form>` (anak terakhir form), satu
    `<p role="status" aria-live="polite" className="sr-only">` yang membacakan
-   `Checking your answers…` saat `busy` dan kosong saat idle
-   (`{busy ? 'Checking your answers…' : ''}`). Galat tetap satu-satunya
-   `<p role="alert">`; baris "Preparing questions…" (`role="status"` tanpa
-   `aria-live`) tetap apa adanya.
-3. **Tidak berubah** — `submit` (`setBusy(true)`, validasi "Answer every
-   question first.", `submitConceptQuiz`, `resultRef` fokus, `finally
-   setBusy(false)`), `startConceptQuiz`, `started`/`result`/`error` state,
-   `headingRef`/`resultRef`, fieldset/radio jawaban, tombol **Done**, copy, dan
-   struktur `section`/dialog; tanpa server/RPC/migrasi/dependensi baru; UI
+   `Deleting your account…` saat `busy` dan kosong saat idle
+   (`{busy ? 'Deleting your account…' : ''}`). Galat tetap satu-satunya
+   `<p role="alert">`.
+3. **Tidak berubah** — `submit` (guard `busy`, validasi `Type DELETE to
+   confirm.`/`Enter your password.`, `authClient.deleteUser({ password })`,
+   `setError` + `setBusy(false)` pada `failed` dan `catch`,
+   `window.location.assign('/sign-in?deleted=1')`), state
+   `open`/`password`/`confirmText`/`busy`/`error`, `ids`, cabang
+   `!open` (tombol **Delete my account…**), dua pasangan label/kontrol,
+   `CONFIRM_WORD`, `LOCAL_OWNER_ID` guard, tautan `/privacy`, copy, dan
+   struktur `section`; tanpa server function/RPC/migrasi/dependensi baru; UI
    bahasa Inggris (D2).
-4. **Test** — test statis baru `tests/concept-quiz-pending-status.test.ts`:
+4. **Test** — test statis baru `tests/delete-account-pending-status.test.ts`:
    tombol submit punya `aria-busy={busy}` sesudah `disabled={busy}` dengan
-   kelas/label/ikon tetap; tombol **Not now** tetap `disabled={busy}` tanpa
-   `aria-busy`; satu status baru `role="status"` + `aria-live="polite"` +
-   `className="sr-only"` berteks `Checking your answers…` saat `busy` dan
+   kelas/label/ikon tetap; tombol **Keep my account** tetap `disabled={busy}`
+   tanpa `aria-busy`; satu status baru `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Deleting your account…` saat `busy` dan
    kosong saat idle, berada sesudah wadah dua tombol sebagai anak terakhir
-   `<form>`; galat `role="alert"` tetap; alur `submit` utuh; tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan melonggarkan test
-   kuis yang ada.
-5. **Smoke** — tidak ada cek baru (status pending hanya sesaat dan bergantung
-   request); penjaga baris smoke 2748 (`tests/skip-link.test.ts`) tetap.
+   `<form>`; galat `role="alert"` tetap; alur `submit` dan guard
+   `LOCAL_OWNER_ID` utuh; tanpa `createServerFn`/`graphCall`/`rpc-schemas`/
+   migrasi. Jangan melonggarkan test profil/hapus akun yang ada.
+5. **Smoke** — tidak ada cek baru (penghapusan akun destruktif butuh sesi
+   nyata + kata sandi; status pending hanya sesaat); penjaga baris smoke 2748
+   (`tests/skip-link.test.ts`) tetap.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
+Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `fix:`.
 
 ## Catatan lingkungan
 
@@ -87,14 +92,26 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `/forgot-password`, `/reset-password`, `/learn/$conceptId` (laporan diri),
    `DownloadMyData`, `DownloadWorkspace`, dan `RefreshExampleData`; kandidat
    berikutnya adalah tombol aksi pelajar lain yang punya `busy`/`Loader2`
-   tetapi belum punya keduanya (periksa `StudyToday.tsx`, `TutorContext.tsx`,
-   `DeleteAccount.tsx`).
+   tetapi belum punya keduanya (periksa `StudyToday.tsx`, `TutorContext.tsx`).
+   `DeleteAccount.tsx` sudah ditangani pada tugas berikutnya (PR #159).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #159 — **Status proses tombol "Check my answers" kuis konsep
+  `ConceptQuiz`** — tombol submit kini membawa `aria-busy={busy}` tepat sesudah
+  `disabled` (kelas/label/spinner utuh), dan tepat sesudah wadah kedua tombol di
+  dalam `<form>` ada satu `<p role="status" aria-live="polite"
+  className="sr-only">{busy ? 'Checking your answers…' : ''}</p>` yang hanya
+  berbunyi selama pemeriksaan; tombol **Not now** tetap `disabled={busy}` tanpa
+  `aria-busy`, galat `role="alert"` dan baris **Preparing questions…** tidak
+  berubah. Alur `submit`, copy, dan blok lain tidak berubah; tanpa
+  query/RPC/migrasi/dependensi baru. Test baru
+  `tests/concept-quiz-pending-status.test.ts` (11 penjaga statis); tanpa cek
+  smoke baru, penjaga baris smoke 2748 tetap. `npm run ci` utuh hijau
+  (`TMPDIR=/tmp/opencode`).
 - 2026-11-25: PR #158 — **Status proses tombol laporan diri "I've got it"/"Still
   learning" `/learn/$conceptId`** — kedua tombol di panel tanpa kuis kini membawa
   `aria-busy={busy}` tepat sesudah `disabled` (kelas/label utuh, tanpa spinner
