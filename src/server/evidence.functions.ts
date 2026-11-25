@@ -96,15 +96,29 @@ export const recordStudyOutcome = createServerFn({ method: 'POST' })
     return service.recordSelfReport(db, graph, context.userId, data);
   });
 
-/** Retention at review time for one learner, computed from the event log. */
+/**
+ * Retention at review time for one learner, plus the concepts they worked on
+ * most this week, computed from a single read of the event log.
+ */
 export const getLearningStats = createServerFn({ method: 'GET' })
   .middleware([authMiddleware])
   .validator(z.object({ learnerId: lookupId }))
   .handler(async ({ data, context }) => {
     const { db, service } = await services(context.userId);
-    const { dueReviewRetention } = await import('@/lib/evidence/events');
+    const [{ dueReviewRetention }, { weeklyBuckets, weeklyFocus }] = await Promise.all([
+      import('@/lib/evidence/events'),
+      import('@/lib/evidence/progress'),
+    ]);
     const events = await service.listEvents(db, context.userId, { learnerId: data.learnerId });
-    return { events: events.length, retention: dueReviewRetention(events) };
+    const now = new Date().toISOString();
+    const week = weeklyBuckets(events, now, 1)[0];
+    return {
+      events: events.length,
+      retention: dueReviewRetention(events),
+      focus: week
+        ? { startsAt: week.startsAt, concepts: weeklyFocus(events, week, 3, now) }
+        : null,
+    };
   });
 
 /** "Your week" for one learner: the last seven days and the current daily streak. */
