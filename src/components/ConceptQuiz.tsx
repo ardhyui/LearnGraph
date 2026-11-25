@@ -158,6 +158,7 @@ export function ConceptQuiz({ learnerId, conceptId, conceptName, onFinished, onC
               <button
                 type="submit"
                 disabled={busy}
+                aria-busy={busy}
                 className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
               >
                 {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
@@ -173,6 +174,9 @@ export function ConceptQuiz({ learnerId, conceptId, conceptName, onFinished, onC
               Not now
             </button>
           </div>
+          <p role="status" aria-live="polite" className="sr-only">
+            {busy ? 'Checking your answers…' : ''}
+          </p>
         </form>
       )}
     </section>
