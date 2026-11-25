@@ -1,41 +1,45 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (status proses tombol **Draft with Claude**
-dan **Save what I kept** halaman admin Curriculum Import selesai lewat PR
-#175; berikutnya: status proses tombol **Save item** form konten pelajaran
-halaman admin Lesson Content)
+Terakhir diperbarui: 2026-11-26 (status proses tombol **Save item** form
+konten pelajaran halaman admin Lesson Content selesai lewat PR #176;
+berikutnya: status proses tombol **Save question** form soal halaman admin
+Quiz Questions)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol "Save item" form konten pelajaran
-halaman admin Lesson Content** — di `src/routes/admin/content.tsx` (Admin →
-Lesson Content), tombol `<button type="submit" disabled={saving}
+Poles kecil: **Status proses tombol "Save question" form soal halaman admin
+Quiz Questions** — di `src/routes/admin/questions.tsx` (Admin → Quiz
+Questions), tombol `<button type="submit" disabled={saving}
 className="btn btn-primary flex items-center gap-2 disabled:opacity-60">`
-berlabel **Save item** (anak pertama `<div className="flex flex-wrap
-gap-2">` bersama tombol **Cancel** `<button type="button" onClick={() =>
-setDraft(null)} disabled={saving} className="btn btn-secondary">`, wadah itu
-anak terakhir `<form onSubmit={submit} aria-labelledby={ids.form}
+berlabel **Save question** (anak pertama `<div className="flex flex-wrap
+gap-2">` bersama tombol **Cancel** `<button type="button" onClick={() => {
+… }} disabled={saving} className="btn btn-secondary">`, wadah itu anak
+terakhir `<form onSubmit={submit} aria-labelledby={ids.form}
 className="glass-card mb-6 space-y-4 p-4 sm:p-6" noValidate>`), memanggil
-`submit` → `saveLessonContent`; selama `saving` tombol hanya diredupkan dan
-menampilkan ikon `Loader2` yang `aria-hidden` (ikon non-busy: `Save`), tanpa
-`aria-busy` maupun pengumuman; pembaca layar tidak tahu materi pelajaran
+`submit` → `saveQuizQuestion` atau, saat `aiOriginal` ada,
+`reviewQuestionDraft({ decision: 'edited' })`; selama `saving` tombol hanya
+diredupkan dan menampilkan ikon `Loader2` yang `aria-hidden` (ikon non-busy:
+`Save`), tanpa `aria-busy` maupun pengumuman; pembaca layar tidak tahu soal
 sedang disimpan. `saving` hanya dipakai aksi form ini (tombol submit +
-**Cancel** + guard di `submit`; tombol **Add item**/**Edit**/**Delete** dan
-`remove` tidak memakainya), jadi pakai `aria-busy={saving}` langsung di
-tombol submit tanpa state baru (pola `FocusEditor` PR #167), tanpa mengubah
-arti `saving`. Halaman admin berbahasa Inggris (D2). Tanpa
+**Cancel** + guard di `submit`; tombol **Add question**/per-item
+**Edit**/**Delete** dan `remove` tidak memakainya), jadi pakai
+`aria-busy={saving}` langsung di tombol submit tanpa state baru (pola
+`FocusEditor` PR #167 dan **Save item** PR #176), tanpa mengubah arti
+`saving`. Halaman admin berbahasa Inggris (D2). Tanpa
 query/RPC/migrasi/dependensi baru.
 
-Tujuan: tombol **Save item** tetap `<button type="submit" disabled={saving}
-aria-busy={saving} className="btn btn-primary flex items-center gap-2
-disabled:opacity-60">` dengan ikon/label utuh; tombol **Cancel** tetap
-`type="button"` `onClick={() => setDraft(null)}` `disabled={saving}` tanpa
+Tujuan: tombol **Save question** tetap `<button type="submit"
+disabled={saving} aria-busy={saving} className="btn btn-primary flex
+items-center gap-2 disabled:opacity-60">` dengan ikon/label utuh; tombol
+**Cancel** tetap `type="button"` dengan `onClick` yang membuang draf AI
+(`reviewQuestionDraft({ decision: 'discarded' })` bila `aiOriginal`, lalu
+`setAiOriginal(null)`, `setDraft(null)`) `disabled={saving}` tanpa
 `aria-busy`; **satu** status pengumuman baru: `<p role="status"
-aria-live="polite" className="sr-only">{saving ? 'Saving the item…' :
+aria-live="polite" className="sr-only">{saving ? 'Saving the question…' :
 ''}</p>` sesudah `</div>` wadah dua tombol sebagai anak terakhir `<form>`
 (sebelum `</form>`). Notice hasil `role="status" aria-live="polite"`
 (`className={cn('text-sm text-emerald-700 dark:text-emerald-400', notice &&
-'mb-4')}`), galat `role="alert"`, dan baris **Loading lesson content…**
+'mb-4')}`), galat `role="alert"`, dan baris **Loading questions…**
 (`role="status"` tanpa `aria-live`) tidak berubah.
 
 Rancangan:
@@ -50,27 +54,29 @@ Rancangan:
    form; jangan menambah `aria-label`/`aria-labelledby`/`aria-atomic` lain
    (form tetap memakai `aria-labelledby={ids.form}` yang sudah ada).
 3. **Tidak berubah** — alur `submit` (guard `if (!draft || !conceptId ||
-   saving) return;`, validasi `Give the item a title.`/`Links and videos
-   need an https:// address.`/`Write the text of this item.`/`Minutes must
-   be a whole number from 1 to 600.`, `setSaving(true)`, `saveLessonContent`
-   dengan payload yang sama, `setNotice(draft.id ? 'Item updated.' : 'Item
-   added.')`, `setDraft(null)`, `await load()`, `finally setSaving(false)`),
-   `load`/`openForm`/`edit`/`remove` (fokus baris + `confirm`), tombol
-   **Add item**/per-item **Edit**/**Delete** (dengan `aria-label`-nya),
-   `CONTENT_KIND_LABELS`, daftar `<ol aria-label={...}>` + `RichText`,
-   field form (kind/title/body/solution/url/minutes/source/position),
-   heading `h1`/`h2`/`h3 id={ids.form}` + `formHeadingRef`, `ids`, paragraf,
-   dan copy lain.
-4. **Test** — tambahkan `tests/content-save-status.test.ts` (penjaga statis,
-   pola `tests/focus-editor-saving-status.test.ts` PR #167): tombol submit
-   dengan `aria-busy={saving}` tepat sesudah `disabled={saving}` dan
+   saving) return;`, validasi `Write the question first.`/`Give at least
+   ${MIN_OPTIONS} options.`/`Fill in or remove the empty options.`/`Each
+   option must be different.`, `setSaving(true)`, cabang `aiOriginal` →
+   `reviewQuestionDraft` + `setAiOriginal(null)` + `void loadAi()` atau
+   `saveQuizQuestion` dengan payload yang sama, `setNotice(draft.id ?
+   'Question updated.' : 'Question added.')`, `setDraft(null)`, `await
+   load()`, `finally setSaving(false)`), `load`/`openForm`/`edit`/`remove`
+   (fokus baris + `confirm`), tombol **Add question**/per-item
+   **Edit**/**Delete** (dengan `aria-label`-nya), `AiQuestionDrafts` beserta
+   panel drafnya, field form (prompt/options/correct/explanation, tambah dan
+   hapus opsi), heading `h1`/`h2`/`h3 id={ids.form}` + `formHeadingRef`,
+   `ids`, `MIN_OPTIONS`, paragraf, dan copy lain.
+4. **Test** — tambahkan `tests/question-save-status.test.ts` (penjaga statis,
+   pola `tests/content-save-status.test.ts` PR #176): tombol submit dengan
+   `aria-busy={saving}` tepat sesudah `disabled={saving}` dan
    kelas/ikon/label utuh, **Cancel** tetap `disabled={saving}` tanpa
-   `aria-busy`, satu status baru `role="status"` + `aria-live="polite"` +
-   `className="sr-only"` berteks `Saving the item…` saat `saving` dan kosong
-   saat idle serta berada sesudah wadah dua tombol sebagai anak terakhir
-   form, hitungan `aria-busy` 1/`aria-live` 2/`role="status"` 3/
-   `role="alert"` 1, notice bersyarat/galat/baris **Loading lesson
-   content…** tetap, alur `submit` utuh, tombol per-item tanpa `aria-busy`,
+   `aria-busy` dan tetap membuang draf AI, satu status baru `role="status"`
+   + `aria-live="polite"` + `className="sr-only"` berteks `Saving the
+   question…` saat `saving` dan kosong saat idle serta berada sesudah wadah
+   dua tombol sebagai anak terakhir form, hitungan di file halaman
+   `aria-busy` 1/`aria-live` 2/`role="status"` 3/`role="alert"` 1, notice
+   bersyarat/galat/baris **Loading questions…** tetap, alur `submit`
+   (termasuk cabang `aiOriginal`) utuh, tombol per-item tanpa `aria-busy`,
    serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
 5. **Smoke** — tidak ada cek baru (menyimpan butuh mengisi form dan
    interaksi); penjaga baris smoke 2748 tetap.
@@ -118,18 +124,35 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    tombol **Start learning** `Onboarding.tsx` (PR #173), tombol **Draft 4
    questions** `AiQuestionDrafts.tsx` (PR #174), dan tombol **Draft with
    Claude**/**Save what I kept** di `src/routes/admin/curriculum.tsx` (PR
-   #175). Kandidat berikutnya: tombol **Save item** di
-   `src/routes/admin/content.tsx` (lihat Tugas berikutnya), lalu audit tombol
-   async lain di halaman admin (`src/routes/admin/*`: form simpan soal
-   `questions.tsx` — tombol **Save question** juga hanya `disabled={saving}`
-   + `Loader2` `aria-hidden`, `psychometrics.tsx`) dan surface pelajar yang
-   belum punya penanda.
+   #175), tombol **Save item** di `src/routes/admin/content.tsx` (PR #176).
+   Kandidat berikutnya: tombol **Save question** di
+   `src/routes/admin/questions.tsx` (lihat Tugas berikutnya), lalu audit
+   tombol async lain di halaman admin (`src/routes/admin/psychometrics.tsx`)
+   dan surface pelajar yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-26: PR #176 — **Status proses tombol "Save item" form konten
+  pelajaran halaman admin Lesson Content** — tombol submit kini membawa
+  `aria-busy={saving}` tepat sesudah `disabled={saving}`
+  (type/handler/kelas/ikon/label utuh), dengan satu pengumuman baru `<p
+  role="status" aria-live="polite" className="sr-only">{saving ? 'Saving the
+  item…' : ''}</p>` sebagai anak terakhir form sesudah wadah dua tombol;
+  tombol **Cancel** tetap `disabled={saving}` tanpa `aria-busy`. Notice
+  hasil `role="status"` `aria-live="polite"` bersyarat dan galat
+  `role="alert"` serta baris **Loading lesson content…** tetap (hitungan
+  halaman: `aria-busy` 1, `aria-live` 2, `role="status"` 3, `role="alert"`
+  1). Alur `submit`/`load`/`openForm`/`edit`/`remove`, tombol
+  **Add item**/per-item **Edit**/**Delete**, `CONTENT_KIND_LABELS`, daftar
+  `<ol>` + `RichText`, field form, heading, dan copy lain tidak berubah.
+  Tanpa query/RPC/migrasi/dependensi baru. Test baru
+  `tests/content-save-status.test.ts` (13 penjaga statis); tidak ada test
+  lain yang dilonggarkan. Tanpa cek smoke baru (menyimpan butuh mengisi
+  form dan interaksi), penjaga baris smoke 2748 tetap. `npm run ci` utuh
+  hijau (`TMPDIR=/tmp/opencode`).
 - 2026-11-26: PR #175 — **Status proses tombol "Draft with Claude" dan "Save
   what I kept" halaman admin Curriculum Import** — tombol submit form draf
   kini membawa `aria-busy={drafting}` dan tombol **Save what I kept** di
