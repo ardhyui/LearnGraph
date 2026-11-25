@@ -34,6 +34,7 @@ function JapanesePage() {
   const [note, setNote] = useState('');
   const [savingPractice, setSavingPractice] = useState(false);
   const [gradingQuiz, setGradingQuiz] = useState(false);
+  const [startingQuiz, setStartingQuiz] = useState(false);
   async function refresh() {
     setData(await japaneseDashboard());
   }
@@ -59,10 +60,15 @@ function JapanesePage() {
   }
   function begin(id: string) {
     void run(async () => {
-      setTopic(id);
-      setResult(null);
-      setAnswers({});
-      setQuiz(await startJapaneseQuiz({ data: { concept: id } }));
+      setStartingQuiz(true);
+      try {
+        setTopic(id);
+        setResult(null);
+        setAnswers({});
+        setQuiz(await startJapaneseQuiz({ data: { concept: id } }));
+      } finally {
+        setStartingQuiz(false);
+      }
     });
   }
   const next = data?.modules.find((m) => m.id === data.next);
@@ -134,10 +140,18 @@ function JapanesePage() {
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 {next?.mode === 'quiz' ? (
-                  <button disabled={busy} className={button} onClick={() => begin(next.id)}>
+                  <button
+                    disabled={busy}
+                    aria-busy={startingQuiz}
+                    className={button}
+                    onClick={() => begin(next.id)}
+                  >
                     Mulai kuis yang disarankan
                   </button>
                 ) : null}
+                <p role="status" aria-live="polite" className="sr-only">
+                  {startingQuiz ? 'Menyiapkan kuis…' : ''}
+                </p>
                 <a className={outline} href="http://127.0.0.1:17831/">
                   Buka Michi
                 </a>
