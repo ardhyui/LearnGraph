@@ -748,7 +748,10 @@ function GapsDashboard() {
                             >
                               <BookOpen className="h-3 w-3" aria-hidden="true" />
                               {name}
-                              <span className="sr-only">: {name}</span>
+                              <span aria-hidden="true"> · {concept.count}</span>
+                              <span className="sr-only">
+                                : {name}, reviewed {countLabel(concept.count, 'time')}
+                              </span>
                             </Link>
                           );
                         })}
