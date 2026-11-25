@@ -1,54 +1,55 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (baris "Most reviewed this week" di kartu Your
-week panel Today selesai lewat PR #155; berikutnya: angka hitungan di chip "You
-reviewed these this week" `/gaps`, menyamakan pola PR #154)
+Terakhir diperbarui: 2026-11-25 (angka hitungan di chip "You reviewed these
+this week" `/gaps` selesai lewat PR #156; berikutnya: ukuran sampel di samping
+persentase retensi tiap minggu `/progress`)
 
 ## Tugas berikutnya
 
-Poles kecil: **Angka hitungan di chip "You reviewed these this week" `/gaps`** —
-tiap chip fokus mingguan menambah `<span aria-hidden="true"> ·
-{concept.count}</span>` tepat sesudah `{name}` dan `sr-only`-nya berfrasa
-`: {name}, reviewed {countLabel(concept.count, 'time')}`, menyamakan pola PR
-#154 di `/progress`; tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil: **Ukuran sampel di samping "Reviews remembered" tiap minggu
+`/progress`** — setelah persentase retensi, tampilkan `(3 of 4)` bila ada review
+jatuh tempo yang dijawab, supaya pelajar tahu persentase itu dihitung dari
+berapa review; tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: blok `data-testid="week-focus"` di kartu Reviews `/gaps`
-(`src/routes/gaps.tsx` sekitar baris 733–757, PR #153) menghitung `weeklyFocus`
-dan mengurutkan chip berdasarkan hitungan, tetapi angkanya tidak pernah
-ditampilkan — pelajar tidak tahu seberapa sering konsep itu dikerjakan minggu
-ini, padahal `/progress` (PR #154) dan kartu "Your week" panel Today (PR #155)
-sudah menampilkannya.
+Tujuan: daftar **Week by week** `/progress` (`src/routes/progress.tsx` sekitar
+baris 299–310) menampilkan `Reviews remembered: 75%` tetapi tidak menyebut
+penyebutnya. Baris pendukung `weekDetailLine` memang memuat "4 due reviews
+answered", tetapi angka 75% dan 4 tidak terhubung, sehingga "100%" dari satu
+review terlihat sama meyakinkan dengan "100%" dari dua puluh review. Data
+penyebutnya sudah ada di baris `WeeklyRetention` yang sama (`answered`,
+`correct`) — tidak perlu query baru.
 
 Rancangan:
 
-1. **UI** — di dalam pemanggilan `weekFocus.concepts.map((concept) => {...})`
-   blok week-focus `/gaps`: tepat sesudah `{name}` dan sebelum span `sr-only`,
-   tambah `<span aria-hidden="true"> · {concept.count}</span>` (spasi, titik
-   tengah, spasi, angka — tanpa kata "review" yang terlihat agar ringkas);
-   ganti `<span className="sr-only">: {name}</span>` menjadi `<span
-   className="sr-only">: {name}, reviewed {countLabel(concept.count,
-   'time')}</span>` (boleh multi-baris mengikuti gaya PR #155). `countLabel`
-   SUDAH diimpor di gaps.tsx (baris 8, impor `@/lib/gaps`) — jangan menambah
-   impor. Kelas chip (`inline-flex min-h-10 … bg-primary/10 px-2 … rounded`),
-   ikon `BookOpen` `h-3 w-3` `aria-hidden`, `key`, `to`/`params`, label **You
-   reviewed these this week**, struktur blok (div bernama testid + dua `<p>`),
-   kondisi `weekFocus && weekFocus.concepts.length > 0`, posisi (sesudah blok
-   retensi `review-retention`, sebelum **Snoozed**), server `getLearningStats`,
-   dan blok halaman lain tidak berubah; tanpa tombol/live region/`role`
-   tambahan; UI bahasa Inggris (D2).
-2. **Test** — perbarui penjaga chip di `tests/gaps-week-focus.test.ts`
-   (khususnya test "keeps the agreed chip styling and a 40px touch target":
-   regex lama `/\{name\}\s*\n\s*<span className="sr-only">: \{name\}<\/span>/`
-   menjadi bentuk baru — ` · {concept.count}` aria-hidden tepat sesudah
-   `{name}`, `countLabel(concept.count, 'time')` di dalam `sr-only`, tetap satu
-   `sr-only` per chip) tanpa melonggarkan penjaga lain (satu `<Link>` per chip,
-   kelas/ikon/posisi, tanpa live region/role/tombol, tanpa
-   `createServerFn`/`graphCall`/migrasi). Rujukan bentuk jadi ada di
-   `tests/learner-progress.test.ts` (PR #154) dan `tests/week-recap.test.ts`
-   (PR #155).
-3. **Smoke** — tidak ada cek baru (angka bergantung event seed); penjaga baris
+1. **Helper** — tambah helper murni `retentionSampleLabel(correct: number,
+   answered: number): string` di `src/lib/evidence/progress.ts` (dekat
+   `retentionPercent`): kembalikan `` ` (${c} of ${answered})` `` bila keduanya
+   angka finite, `answered > 0`, dan `correct >= 0`; `correct` dijepit ke
+   maksimal `answered`; selain itu (`answered` 0/negatif, NaN/Infinity,
+   `correct` negatif) kembalikan `''`. Awali dengan spasi agar aman ditempel
+   sesudah persentase. Tanpa perubahan pada `retentionByWeek`, `weeklyBuckets`,
+   atau `retentionPercent`.
+2. **UI** — di `<p>` **Reviews remembered:** tiap `<li>` minggu, tepat sesudah
+   `<span className="font-medium text-foreground">{retentionPercent(...)}</span>`
+   tambah `{retention && (<span className="text-xs text-muted-foreground">{retentionSampleLabel(retention.correct, retention.answered)}</span>)}`
+   — teks terlihat, bukan `aria-hidden`/`sr-only`, sehingga pembaca layar ikut
+   mendengar "(3 of 4)"; minggu tanpa review tetap hanya "—" tanpa tanda
+   kurung. `retentionSampleLabel` digabung pada impor
+   `@/lib/evidence/progress` yang sudah ada. Label **Reviews remembered:**,
+   `weekRangeLabel`, `weekDetailLine`, chip **Most reviewed:**, kartu **This
+   week**/**Streaks**/**Recent activity**, urutan minggu, pemilih learner, dan
+   copy lain tidak berubah; tanpa server function/RPC/migrasi/dependensi baru;
+   UI bahasa Inggris (D2).
+3. **Test** — perluas `tests/learner-progress.test.ts`: unit helper (`3,4` →
+   `" (3 of 4)"`, `1,1`, `0,2`, `correct > answered` dijepit, `answered`
+   0/negatif dan NaN/Infinity → `""`), plus penjaga statis route (impor helper,
+   pemakaian sesudah `retentionPercent`, kelas `text-xs text-muted-foreground`,
+   bukan `sr-only`/`aria-hidden`, kartu lain tetap, tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi). Jangan melonggarkan
+   penjaga `weeklyFocus`/**Recent activity** yang ada.
+4. **Smoke** — tidak ada cek baru (nilai bergantung event seed); penjaga baris
    smoke 2748 (`tests/skip-link.test.ts`) tetap.
-4. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
@@ -58,18 +59,35 @@ Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
 Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
 baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
+1. Setelah tugas retensi selesai: audit `docs/ROADMAP.md` (P0 #5 aksesibilitas,
+   baris "Sebagian:") atau surface pelajar lain (`/gaps`, `/learn/$conceptId`)
+   untuk poles kecil berikutnya. Baris "Lanjutan:" yang belum dicoret saat ini
+   hanya butuh keputusan pemilik, error SSR langka, atau migrasi data — jangan
+   dipilih tanpa perubahan kondisi.
+2. Kandidat aman yang belum dikerjakan: status proses tombol laporan diri
+   **I've got it**/**Still learning** di `/learn/$conceptId` (aria-busy + satu
+   `role="status"` yang membacakan "Saving…"), mengikuti pola PR #131/#133;
+   verifikasi statis, tanpa server/RPC/migrasi baru.
+3. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
-   digugurkan — jangan diulang. Setelah tugas di atas selesai, audit
-   `docs/ROADMAP.md` (P0 #5 aksesibilitas, baris "Sebagian:") atau poles
-   pelajar-terlihat lain, lalu tulis spek konkret.
+   digugurkan — jangan diulang.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #156 — **Angka hitungan di chip "You reviewed these this
+  week" `/gaps`** — tiap chip fokus mingguan di kartu Reviews kini menambah
+  `<span aria-hidden="true"> · {concept.count}</span>` tepat sesudah `{name}`
+  dan `sr-only`-nya berubah menjadi `: {name}, reviewed
+  {countLabel(concept.count, 'time')}` (pola `/progress` PR #154 dan kartu
+  "Your week" PR #155). `countLabel` sudah diimpor di `gaps.tsx`; tautan,
+  kelas, ikon, urutan chip, server `getLearningStats`, dan blok lain tidak
+  berubah. Test `tests/gaps-week-focus.test.ts` diperbarui tanpa melonggarkan
+  penjaga lain. Tanpa cek smoke baru (angka bergantung event seed); penjaga
+  baris smoke 2748 tetap. `npm run ci` utuh hijau.
 - 2026-11-25: PR #155 — **Baris "Most reviewed this week" di kartu "Your week"
   panel Today** — `getWeekRecap` yang sudah ada diperluas (bukan server
   function baru) dengan `focus` (maks. tiga `{ conceptId, count }`) dari

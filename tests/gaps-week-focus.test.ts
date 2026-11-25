@@ -111,8 +111,21 @@ describe('gaps weekly focus: the concepts reviewed this week open their lessons'
       ),
     );
     assert.ok(linkBlock.includes('<BookOpen className="h-3 w-3" aria-hidden="true" />'));
-    assert.match(linkBlock, /\{name\}\s*\n\s*<span className="sr-only">: \{name\}<\/span>/);
+    assert.match(
+      linkBlock,
+      /\{name\}\s*\n\s*<span aria-hidden="true"> · \{concept\.count\}<\/span>\s*\n\s*<span className="sr-only">\s*\n\s*: \{name\}, reviewed \{countLabel\(concept\.count, 'time'\)\}\s*\n\s*<\/span>/,
+      'the chip shows the count and reads it meaningfully to screen readers',
+    );
     assert.equal((linkBlock.match(/<span className="sr-only">/g) ?? []).length, 1);
+  });
+
+  it('shows the reviewed count without adding an import', () => {
+    assert.ok(
+      page.includes(
+        "import { GAP_KINDS, conceptLabel, countLabel, gapSummaryLine, priorityLabel, reviewSummary, snoozeLabel, stepTypeLabel } from '@/lib/gaps';",
+      ),
+      'countLabel is imported once from the shared gaps helpers',
+    );
   });
 
   it('names chips from the concepts already loaded, never a raw id only', () => {
