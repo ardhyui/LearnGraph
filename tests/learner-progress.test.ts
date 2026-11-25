@@ -20,6 +20,7 @@ import {
   recentActivity,
   retentionByWeek,
   retentionPercent,
+  retentionSampleLabel,
   weekDetailLine,
   weekRangeLabel,
   weeklyBuckets,
@@ -480,6 +481,29 @@ describe('weekly labels and detail lines', () => {
     assert.equal(retentionPercent(1), '100%');
   });
 
+  it('shows the sample behind a percentage as correct out of answered', () => {
+    assert.equal(retentionSampleLabel(3, 4), ' (3 of 4)');
+    assert.equal(retentionSampleLabel(1, 1), ' (1 of 1)');
+    assert.equal(retentionSampleLabel(0, 2), ' (0 of 2)');
+    assert.equal(retentionSampleLabel(20, 20), ' (20 of 20)');
+  });
+
+  it('caps a correct count at the number of reviews answered', () => {
+    assert.equal(retentionSampleLabel(5, 4), ' (4 of 4)');
+  });
+
+  it('hides the sample without a due review or with invalid counts', () => {
+    assert.equal(retentionSampleLabel(0, 0), '');
+    assert.equal(retentionSampleLabel(1, 0), '');
+    assert.equal(retentionSampleLabel(0, -1), '');
+    assert.equal(retentionSampleLabel(-1, 4), '');
+    assert.equal(retentionSampleLabel(Number.NaN, 4), '');
+    assert.equal(retentionSampleLabel(3, Number.NaN), '');
+    assert.equal(retentionSampleLabel(Number.POSITIVE_INFINITY, 4), '');
+    assert.equal(retentionSampleLabel(3, Number.POSITIVE_INFINITY), '');
+    assert.equal(retentionSampleLabel(Number.NEGATIVE_INFINITY, 4), '');
+  });
+
   it('summarizes a week in plain words and skips zero-only rows', () => {
     assert.equal(weekDetailLine(emptyBucket()), '0 active days');
     assert.equal(
@@ -649,6 +673,7 @@ describe('wiring guards (static)', () => {
       'activityTimeLabel',
       'weekRangeLabel',
       'retentionPercent',
+      'retentionSampleLabel',
       'weekDetailLine',
     ]) {
       assert.match(progress, new RegExp(`export function ${name}\\(`));
@@ -730,6 +755,34 @@ describe('wiring guards (static)', () => {
     assert.ok(route.includes('min-h-10'));
     assert.ok(!/\{activity\.outcome\}/.test(route));
     assert.ok(!/\{activity\.kind\}/.test(route));
+    assert.equal(/createServerFn/.test(route), false);
+    assert.equal(/graphCall/.test(route), false);
+    assert.equal(/rpc-schemas/.test(route), false);
+    assert.equal(/migrations/.test(route), false);
+  });
+
+  it('shows the sample behind each week\'s retention percentage', () => {
+    const route = source(ROUTE_FILE);
+    // The helper joins the existing import once, and is used once.
+    assert.equal(route.match(/retentionSampleLabel/g)?.length, 2);
+    assert.ok(route.includes('  retentionSampleLabel,\n'));
+    // The sample follows the percentage, in the same supporting line.
+    const start = route.indexOf('Reviews remembered:');
+    const end = route.indexOf('{weekDetailLine(week)}');
+    assert.ok(start >= 0 && end > start);
+    const block = route.slice(start, end);
+    assert.ok(block.indexOf('retentionPercent(') < block.indexOf('retentionSampleLabel('));
+    assert.ok(block.includes('{retention && ('));
+    assert.ok(block.includes('retentionSampleLabel(retention.correct, retention.answered)'));
+    assert.ok(block.includes('className="text-xs text-muted-foreground"'));
+    // The sample is visible text, so screen readers hear it too.
+    assert.equal(block.includes('sr-only'), false);
+    assert.equal(block.includes('aria-hidden'), false);
+    // The rest of the week list and the other cards stay as they were.
+    assert.ok(route.includes('Most reviewed:'));
+    assert.ok(route.includes('Recent activity'));
+    assert.ok(route.includes('This week'));
+    assert.ok(route.includes('Current streak'));
     assert.equal(/createServerFn/.test(route), false);
     assert.equal(/graphCall/.test(route), false);
     assert.equal(/rpc-schemas/.test(route), false);

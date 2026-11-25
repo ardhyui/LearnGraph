@@ -12,6 +12,7 @@ import {
   activityLabel,
   activityTimeLabel,
   retentionPercent,
+  retentionSampleLabel,
   weekDetailLine,
   weekRangeLabel,
   type RecentActivity,
@@ -305,6 +306,11 @@ function ProgressPage() {
                           <span className="font-medium text-foreground">
                             {retentionPercent(retention?.rate ?? null)}
                           </span>
+                          {retention && (
+                            <span className="text-xs text-muted-foreground">
+                              {retentionSampleLabel(retention.correct, retention.answered)}
+                            </span>
+                          )}
                         </p>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{weekDetailLine(week)}</p>
