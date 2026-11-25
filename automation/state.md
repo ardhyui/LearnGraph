@@ -1,74 +1,71 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (status proses tombol **Create a read-only key**
-blok **Connect an AI assistant** halaman profil selesai lewat PR #166; berikutnya:
-status proses tombol **Save subjects** di `FocusEditor` panel Today)
+Terakhir diperbarui: 2026-11-25 (status proses tombol **Save subjects** di
+`FocusEditor` panel Today selesai lewat PR #167; berikutnya: status proses tombol
+**Simpan praktik** form **Catat praktik** di `/japanese`)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol "Save subjects" di `src/components/FocusEditor.tsx`**
-— saat `saving`, tombol submit hanya menampilkan ikon `Loader2` dan diredupkan
-lewat `disabled={saving || domains === null}`, tanpa `aria-busy` dan tanpa
-pengumuman, sehingga pembaca layar tidak tahu subjek sedang disimpan dan tombol
-tampak diam. Blok ini terlihat pelajar (panel Today, tombol **Change subjects**).
-Tanpa query/RPC/migrasi/dependensi baru; UI bahasa Inggris (D2). Ikuti pola
-PR #158–#166.
+Poles kecil: **Status proses tombol "Simpan praktik" di `/japanese`** — form
+**Catat praktik** (`src/routes/japanese.tsx`, sekitar baris 316–362) memanggil
+`recordJapanesePractice`; selama simpan tombol submit hanya diredupkan lewat
+`disabled={busy}` + `disabled:opacity-50` (kelas `button`) tanpa `aria-busy` dan
+tanpa pengumuman, sehingga pembaca layar tidak tahu praktik sedang disimpan dan
+tombol tampak diam. Halaman ini terlihat pelajar dan berbahasa Indonesia (D2).
+Tanpa query/RPC/migrasi/dependensi baru. Ikuti pola PR #158–#167, dengan catatan
+`busy` di halaman ini dipakai bersama oleh tombol lain, jadi status harus memakai
+penanda tersendiri.
 
-Tujuan: form tetap `<form onSubmit={submit} onKeyDown={onKeyDown}
-aria-labelledby={ids.heading} className="mt-4 rounded-xl border border-primary/30
-bg-primary/5 p-4" data-testid="focus-editor">`; tombol tetap `<button
-type="submit" disabled={saving || domains === null} className="inline-flex
-min-h-10 items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium
-text-primary-foreground hover:opacity-90 focus:outline-none focus-visible:ring-2
-focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed
-disabled:opacity-60">` dengan ikon `{saving && <Loader2 className="h-4 w-4
-animate-spin" aria-hidden="true" />}` dan label **Save subjects**. Galat tetap
-satu `<p role="alert">`; baris **Loading subjects…** (`role="status"` tanpa
-`aria-live`), `SubjectChoices`, tombol **Cancel**, heading, hint, dan
-`data-testid` tidak berubah.
+Tujuan: tombol tetap `<button className={button + ' mt-3'} disabled={busy}>`
+dengan label **Simpan praktik**; form tetap `<form onSubmit={(e) => {
+e.preventDefault(); void run(async () => { ... }); }}>`; `run`, `refresh`,
+`begin`, `interval` 30 detik, notice **Praktik tersimpan.** (`role="status"`
+terlihat), `error` (`role="alert"` + **Coba lagi**), input **Menit belajar
+nyata**/**Bukti dan catatan**, dan tombol lain tidak berubah.
 
 Rancangan:
 
-1. **Tombol Save subjects** — tambahkan `aria-busy={saving}` tepat sesudah
-   `disabled={saving || domains === null}`; jangan mengubah `type="submit"`,
-   kelas persis, label, atau ikon `Loader2` (`aria-hidden="true"`, kelas `h-4
-   w-4 animate-spin`). Tombol **Cancel** tidak mendapat `aria-busy` baru.
-2. **Status** — tepat sesudah `</div>` wadah dua tombol (`<div className="mt-3
-   flex flex-wrap gap-2">`) dan sebelum penutup `</form>`, satu `<p
-   role="status" aria-live="polite" className="sr-only">{saving ? 'Saving your
-   subjects…' : ''}</p>` sehingga status hanya berbunyi selama penyimpanan dan
-   kosong saat idle. Catatan: form sudah berisi baris **Loading subjects…**
-   dengan `role="status"` tanpa `aria-live`, jadi test harus menemukan dua
-   `role="status"` tetapi hanya satu `aria-live="polite"`.
-3. **Tidak berubah** — alur `submit` (guard `if (!db || saving || domains ===
-   null) return`, `sameSubjects` → `onCancel`, `setSaving(true)`,
-   `setError(null)`, `getLearnerProfile`, `setLearnerProfile` dengan
-   `withFocus`, `onSaved`, `catch` `setError` + `setSaving(false)` — tanpa
-   `finally`), `toggle`, `onKeyDown` (Escape hanya saat `!saving`), efek
-   `listConcepts`/`listDomains`/`initialFocus` + fokus `headingRef`, state
-   `domains`/`chosen`/`saving`/`error`, `ids`, `SubjectChoices` dengan
-   `disabled={saving}`, kelas/struktur section, dan copy lain; tanpa server
+1. **State terpisah** — tambahkan `const [savingPractice, setSavingPractice] =
+   useState(false);` sesudah state `note`. Jangan mengubah tipe/arti `busy`
+   global (dipakai `Perbarui progres`, `Mulai kuis yang disarankan`, `Nilai
+   jawaban`, `Latihan kuis`, `Catat praktik`).
+2. **Alur submit** — tetap lewat `run`; bungkus isinya dengan penanda:
+   `setSavingPractice(true);` lalu `try { await recordJapanesePractice({ data:
+   { concept: practice, minutes, note } }); setNotice('Praktik tersimpan.');
+   setPractice(''); await refresh(); } finally { setSavingPractice(false); }`.
+   Urutan pemanggilan API, notice, dan reset tidak berubah.
+3. **Tombol** — tambahkan `aria-busy={savingPractice}` tepat sesudah
+   `disabled={busy}`; jangan mengubah `className={button + ' mt-3'}`, label, atau
+   perilaku disable.
+4. **Status** — tepat sesudah `</button>` dan sebelum `</form>`, satu `<p
+   role="status" aria-live="polite" className="sr-only">{savingPractice ?
+   'Menyimpan praktik…' : ''}</p>` sehingga status hanya berbunyi selama
+   penyimpanan dan kosong saat idle. Bahasa Indonesia (D2), bukan Inggris.
+5. **Tidak berubah** — `run` (guard `setBusy(true)`, `setError('')`, `catch`,
+   `finally setBusy(false)`), `refresh`, `begin`, efek interval, state
+   `data`/`level`/`quiz`/`answers`/`result`/`topic`/`busy`/`error`/`notice`/
+   `practice`/`minutes`/`note`, tombol lain (tanpa `aria-busy` baru), daftar
+   **Ringkasan**/`Peta kemampuan` (penjaga `tests/japanese-lists.test.ts`), panel
+   `MichiSkillEvidence`, kontrak bukti Michi, dan copy lain; tanpa server
    function/RPC/migrasi baru; jangan menambah `aria-label`/`aria-labelledby`/
-   `aria-atomic` (form sudah punya `aria-labelledby={ids.heading}` — jangan
-   diubah).
-4. **Test** — tambahkan `tests/focus-editor-saving-status.test.ts` (penjaga
-   statis): satu `aria-busy={saving}` tepat sesudah `disabled={saving ||
-   domains === null}` hanya pada tombol submit, kelas/label/spinner utuh; satu
-   status baru `role="status"` + `aria-live="polite"` + `className="sr-only"`
-   berteks `Saving your subjects…` saat `saving` dan kosong saat idle, berada
-   sesudah wadah dua tombol sebagai anak terakhir form dan sebelum `</form>`;
-   **Cancel** tetap `disabled={saving}` tanpa `aria-busy`; baris **Loading
-   subjects…** dan galat `role="alert"` tetap; alur `submit`/`toggle`/`onKeyDown`
-   utuh; tanpa `aria-label`/`aria-labelledby`/`aria-atomic` baru; serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan membuat PR
-   test-only — test ini menyertai perubahan perilaku.
-5. **Smoke** — tidak ada cek baru (alur simpan subjek butuh interaksi +
-   penyimpanan, dan status pending hanya sesaat); penjaga baris smoke 2748
-   (`tests/skip-link.test.ts`) tetap.
-6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+   `aria-atomic`.
+6. **Test** — tambahkan `tests/japanese-practice-saving-status.test.ts` (penjaga
+   statis): satu `aria-busy={savingPractice}` tepat sesudah `disabled={busy}`
+   hanya pada tombol **Simpan praktik** dengan kelas/label utuh; satu status baru
+   `role="status"` + `aria-live="polite"` + `className="sr-only"` berteks
+   `Menyimpan praktik…` saat `savingPractice` dan kosong saat idle, berada
+   sesudah tombol sebagai anak terakhir `<form>`; state `savingPractice` +
+   `try/finally` di dalam `run` tanpa mengubah `busy`; tombol lain tetap tanpa
+   `aria-busy`; notice/galat/form fields/`run`/`refresh`/`begin` utuh; serta
+   tanpa `createServerFn` baru/`rpc-schemas`/migrasi. Jangan membuat PR test-only.
+7. **Smoke** — tidak ada cek baru (menyimpan praktik butuh interaksi + data, dan
+   status pending hanya sesaat); penjaga baris smoke 2748 (`tests/skip-link.test.ts`)
+   tetap.
+8. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `fix:`.
+Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`); commit
+bahasa Indonesia `fix:`.
 
 ## Catatan lingkungan
 
@@ -99,17 +96,33 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `RefreshExampleData`, `DeleteAccount`, kedua tombol panel **Ask an AI
    tutor** (`TutorContext`: **Prepare the context** PR #161, **Ask Claude**
    PR #162), tombol ringkasan **Review them now** (PR #164), tombol per-item
-   **Review it now** (PR #165), dan tombol **Create a read-only key** di
-   `ApiAccess.tsx` (PR #166). Kandidat berikutnya yang sudah diperiksa:
-   `FocusEditor.tsx` (tombol **Save subjects** dengan `saving` + `Loader2`,
-   tanpa keduanya) — lihat Tugas berikutnya. Sesudah itu, periksa
-   `LearningOverview.tsx`/`AiQuestionDrafts.tsx`.
+   **Review it now** (PR #165), tombol **Create a read-only key** di
+   `ApiAccess.tsx` (PR #166), dan tombol **Save subjects** di `FocusEditor.tsx`
+   (PR #167). Kandidat berikutnya yang sudah diperiksa: `/japanese` form **Catat
+   praktik** (tombol **Simpan praktik** dengan `busy` global + kelas `button`,
+   tanpa `aria-busy`) — lihat Tugas berikutnya. Sesudah itu, periksa
+   `AiQuestionDrafts.tsx` (tombol **Draft 4 questions**, admin) dan
+   `Onboarding.tsx` (label submit sudah berubah menjadi **Creating your
+   plan…**, jadi prioritasnya lebih rendah).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #167 — **Status proses tombol "Save subjects" di `FocusEditor`
+  panel Today** — tombol submit kini membawa `aria-busy={saving}` tepat sesudah
+  `disabled={saving || domains === null}` (kelas/label/spinner utuh), dan
+  sebagai anak terakhir `<form onSubmit={submit}>` — sesudah `</div>` wadah dua
+  tombol, sebelum `</form>` — ada satu `<p role="status" aria-live="polite"
+  className="sr-only">{saving ? 'Saving your subjects…' : ''}</p>` yang hanya
+  berbunyi selama penyimpanan. Tombol **Cancel** tetap `disabled={saving}` tanpa
+  `aria-busy`; baris **Loading subjects…** (`role="status"` tanpa `aria-live`)
+  dan galat `role="alert"` tetap; alur `submit`/`toggle`/`onKeyDown` utuh.
+  Tanpa query/RPC/migrasi/dependensi baru. Test baru
+  `tests/focus-editor-saving-status.test.ts` (13 penjaga statis); tanpa cek
+  smoke baru, penjaga baris smoke 2748 tetap. `npm run ci` utuh hijau
+  (`TMPDIR=/tmp/opencode`, `CI_PORT=8691 CI_PREVIEW_PORT=8693`).
 - 2026-11-25: PR #166 — **Status proses tombol "Create a read-only key" blok
   **Connect an AI assistant** halaman profil** — tombol submit kini membawa
   `aria-busy={busy}` tepat sesudah `disabled={busy}` (kelas/label/spinner
