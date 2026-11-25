@@ -1,86 +1,68 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (status proses tombol **Latihan kuis**
-`/japanese` selesai lewat PR #172; berikutnya: status proses tombol **Start
-learning** onboarding)
+Terakhir diperbarui: 2026-11-26 (status proses tombol **Start learning**
+onboarding selesai lewat PR #173; berikutnya: status proses tombol **Draft 4
+questions** panel admin Quiz Questions)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol "Start learning" form onboarding** — di
-`src/components/Onboarding.tsx`, tombol submit
-`<button type="submit" disabled={saving || !isReady} ...>` pada form
-**Let's set up your learning plan** memanggil `submit` untuk membuat profil
-pelajar. Selama menyimpan, labelnya berubah menjadi **Creating your plan…**
-dan ikon `Loader2` berputar, tetapi ikon itu `aria-hidden` dan tombol tidak
-punya `aria-busy` maupun pengumuman sendiri, sehingga pembaca layar tidak tahu
-profil sedang dibuat (label yang berubah saja tidak cukup — fokus tetap di
-tombol dan perubahan nama tidak diumumkan). `saving` juga dipakai tombol
-**Start with an empty workspace** (`startEmpty`) dan tombol **Explore the
-example learners first** (`disabled={saving}`), jadi jangan memakai
-`aria-busy={saving}` telanjang: tombol **Start learning** harus memakai penanda
-khusus `submitting` agar tidak tampak sibuk saat contoh dihapus. Halaman ini
-terlihat pelajar, bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil: **Status proses tombol "Draft 4 questions" panel admin Quiz
+Questions** — di `src/components/AiQuestionDrafts.tsx`, tombol
+`<button type="button" onClick={() => void draft()} disabled={busy} ...>` pada
+panel **Draft questions with Claude** memanggil `draft` untuk meminta empat draf
+soal dari Anthropic memakai key pengguna. Selama `busy`, tombol hanya diredupkan
+(`disabled:opacity-60`) dan menampilkan spinner `Loader2` yang `aria-hidden`,
+tanpa `aria-busy` maupun pengumuman; pembaca layar tidak tahu draf sedang
+dibuat dan tombol tampak diam. `busy` hanya dipakai aksi draf ini (tombol
+**Approve**/**Edit first**/**Discard** di tiap draf memanggil `decide`/`edit`
+tanpa `busy`), jadi `aria-busy={busy}` aman dipakai langsung. Panel admin
+berbahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: tombol **Start learning** tetap
-`<button type="submit" disabled={saving || !isReady} className={persis}>
-... {saving ? 'Creating your plan…' : 'Start learning'} ...` dengan ikon dan
-teks utuh, hanya kini membawa `aria-busy={submitting}` tepat sesudah
-`disabled={saving || !isReady}`; **satu** status pengumuman baru
-`<p role="status" aria-live="polite" className="sr-only">{submitting ?
-'Creating your plan…' : ''}</p>` sebagai anak terakhir `<form
-onSubmit={submit} className="mt-5 space-y-5" noValidate>` (setelah wadah tombol,
-sebelum `</form>`), yang hanya berbunyi selama profil dibuat. Baris
-**Loading subjects…** yang sudah ada (`role="status"` tanpa `aria-live`) dan
-galat `role="alert"` tidak berubah; copy terlihat tetap memakai `saving` agar
-perilaku lama tidak berubah.
+Tujuan: tombol **Draft 4 questions** tetap `<button type="button"
+onClick={() => void draft()} disabled={busy} className="btn btn-primary flex
+items-center justify-center gap-2 disabled:opacity-60">` dengan spinner dan
+teks utuh, hanya kini membawa `aria-busy={busy}` tepat sesudah `disabled={busy}`;
+**satu** status pengumuman baru `<p role="status" aria-live="polite"
+className="sr-only">{busy ? 'Drafting questions…' : ''}</p>` sebagai anak
+terakhir `<section ... data-testid="ai-question-drafts">` (setelah blok
+`{drafts && (...)}`, sebelum `</section>`), yang hanya berbunyi selama draf
+dibuat. Galat `role="alert"` dan wadah draf `aria-live="polite"` yang sudah ada
+tidak berubah.
 
 Rancangan:
 
-1. **State** — tambahkan `const [submitting, setSubmitting] = useState(false);`
-   tepat sesudah `const [saving, setSaving] = useState(false);`. Jangan
-   mengganti/menghapus `saving`.
-2. **Alur `submit`** — jangan ubah guard `if (!db || saving) return;`, validasi
-   `cleanName`, urutan `setSaving(true)` → `setError(null)` → pembuatan profil →
-   `onCreated(learnerId, clean, basicsToQuiz)`. Tepat sesudah `setSaving(true);`
-   tambahkan `setSubmitting(true);`. Di blok `catch`, tepat sesudah
-   `setSaving(false);` tambahkan `setSubmitting(false);` (jalur sukses tetap
-   membiarkan keduanya `true` seperti `saving` hari ini karena form digantikan
-   `onCreated`). Tanpa `finally` baru.
-3. **Tombol** — tambahkan `aria-busy={submitting}` tepat sesudah
-   `disabled={saving || !isReady}`; `type="submit"`, `className` persis,
-   `{saving ? <Loader2 ... aria-hidden="true" /> : null}`,
-   `{saving ? 'Creating your plan…' : 'Start learning'}`, dan
-   `{!saving && <ArrowRight ... />}` tidak berubah.
-4. **Status** — tidak menyentuh baris **Loading subjects…** (`role="status"`)
-   maupun galat `role="alert"`. Tambahkan hanya satu `<p role="status"
-   aria-live="polite" className="sr-only">{submitting ? 'Creating your plan…'
-   : ''}</p>` sebagai anak terakhir `<form>`. Jangan menambah `aria-label`/
-   `aria-labelledby`/`aria-atomic`/`aria-live` lain; jangan mengubah label
-   terlihat agar tetap digerakkan `saving`.
-5. **Tidak berubah** — `startEmpty` (guard `if (saving) return`, konfirmasi
-   `window.confirm`, `setSaving`, `removeExampleData`, `onExamplesRemoved`,
-   `setSaving(false)` di `finally`) tidak menyentuh `submitting`; tombol
-   **Explore the example learners first** dan **Start with an empty workspace**
-   tetap `disabled={saving}` tanpa `aria-busy`; `toggle`, `domains`,
-   `SubjectChoices`, fieldset/radio, input nama (`maxLength={200}`,
-   `aria-invalid`, `aria-describedby`), heading/paragraf, `data-testid`, impor,
-   dan `onSkip` tidak berubah; tanpa server function/RPC/migrasi baru.
-6. **Test** — tambahkan `tests/onboarding-start-status.test.ts` (penjaga
-   statis, pola `tests/japanese-module-quiz-status.test.ts`): `aria-busy=
-   {submitting}` tepat sesudah `disabled={saving || !isReady}` hanya pada tombol
-   **Start learning** dengan kelas/label/ikon utuh; state `submitting` sesudah
-   `saving`; `setSubmitting(true)` sesudah `setSaving(true)` dan
-   `setSubmitting(false)` sesudah `setSaving(false)` di `catch`; `startEmpty`
-   tidak menyebut `submitting`; satu status baru `role="status"` +
-   `aria-live="polite"` + `className="sr-only"` berteks `Creating your plan…`
-   saat `submitting` dan kosong saat idle, berada sesudah wadah tombol dan
-   sebagai anak terakhir `<form>`; baris **Loading subjects…**/galat tetap;
-   kedua tombol sekunder tetap tanpa `aria-busy`; alur `submit`/`startEmpty`
-   utuh; tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan
-   melonggarkan `tests/onboarding.test.ts`.
-7. **Smoke** — tidak ada cek baru (status pending hanya sesaat); penjaga baris
-   smoke 2748 (`tests/skip-link.test.ts`) tetap.
-8. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+1. **Tombol** — tambahkan `aria-busy={busy}` tepat sesudah `disabled={busy}`;
+   `type="button"`, `onClick={() => void draft()}`, `className`,
+   `{busy && <Loader2 ... aria-hidden="true" />}`, dan label **Draft 4
+   questions** tidak berubah.
+2. **Status** — tambahkan hanya satu `<p role="status" aria-live="polite"
+   className="sr-only">{busy ? 'Drafting questions…' : ''}</p>` sebagai anak
+   terakhir `<section>`, sesudah blok `{drafts && (...)}`. Jangan menambah
+   `aria-label`/`aria-labelledby`/`aria-atomic`/`aria-live` lain; wadah draf
+   yang sudah `aria-live="polite"` dan galat `role="alert"` tetap.
+3. **Tidak berubah** — `draft` (validasi key `sk-ant-`, `setBusy(true)`,
+   `setError(null)`, `draftQuizQuestions`, `setDrafts`/`setRejected`,
+   `finally setBusy(false)`), `decide`/`edit`, `useEffect` key/`conceptId`,
+   input key (`type="password"`, `autoComplete="off"`), select **Kind**, label,
+   heading, paragraf, `data-testid`, tombol **Approve**/**Edit first**/
+   **Discard**, empty state **No drafts left to review.**, baris draf tidak
+   valid, serta impor dan `QUESTION_DRAFT_KINDS` tidak berubah; tanpa server
+   function/RPC/migrasi baru.
+4. **Test** — tambahkan `tests/ai-question-drafts-status.test.ts` (penjaga
+   statis, pola `tests/onboarding-start-status.test.ts`): `aria-busy={busy}`
+   tepat sesudah `disabled={busy}` hanya pada tombol **Draft 4 questions**
+   dengan kelas/onClick/spinner/label utuh; tepat satu status baru
+   `role="status"` + `aria-live="polite"` + `className="sr-only"` berteks
+   `Drafting questions…` saat `busy` dan kosong saat idle, berada sesudah blok
+   draf dan sebelum `</section>`; hitungan `aria-busy` 1, `aria-live` 2 (wadah
+   draf lama + status baru), `role="status"` 1, `role="alert"` 1; wadah draf
+   lama tetap `aria-live="polite"`, galat tetap `role="alert"`; tombol
+   **Approve**/**Edit first**/**Discard** tanpa `aria-busy`; alur
+   `draft`/`decide`/`edit` utuh; tanpa `createServerFn`/`graphCall`/
+   `rpc-schemas`/migrasi.
+5. **Smoke** — tidak ada cek baru (alur draf butuh API key Anthropic
+   sungguhan); penjaga baris smoke 2748 (`tests/skip-link.test.ts`) tetap.
+6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`); commit
@@ -97,13 +79,12 @@ bahasa Indonesia `fix:`.
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
-Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
-baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
+Semua tanpa migrasi skema, terlihat pelajar/admin, dan bisa diverifikasi
+otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Setelah sisa tombol status `/japanese` (**Perbarui progres**, **Latihan
-   kuis**) selesai: audit `docs/ROADMAP.md` (P0 #5 aksesibilitas, baris
-   "Sebagian:") atau surface pelajar lain (`/gaps`, `/progress`, kartu Today)
-   untuk poles kecil berikutnya. Baris "Lanjutan:"
+1. Setelah tombol status `/japanese` selesai: audit `docs/ROADMAP.md` (P0 #5
+   aksesibilitas, baris "Sebagian:") atau surface pelajar lain (`/gaps`,
+   `/progress`, kartu Today) untuk poles kecil berikutnya. Baris "Lanjutan:"
    yang belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka,
    atau migrasi data — jangan dipilih tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
@@ -120,17 +101,37 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `ApiAccess.tsx` (PR #166), tombol **Save subjects** di `FocusEditor.tsx`
    (PR #167), tombol **Simpan praktik** di `/japanese` (PR #168), tombol
    **Nilai jawaban** di `/japanese` (PR #169), tombol **Mulai kuis yang
-   disarankan** di `/japanese` (PR #170), dan tombol **Perbarui progres** di
-   `/japanese` (PR #171). Kandidat berikutnya: sisa tombol `busy` di `/japanese`
-   — **Latihan kuis** (lihat Tugas berikutnya) — kemudian `AiQuestionDrafts.tsx`
-   (tombol **Draft 4 questions**, admin) dan `Onboarding.tsx` (label submit sudah
-   berubah menjadi **Creating your plan…**, jadi prioritasnya lebih rendah).
+   disarankan** di `/japanese` (PR #170), tombol **Perbarui progres** di
+   `/japanese` (PR #171), tombol **Latihan kuis** di `/japanese` (PR #172), dan
+   tombol **Start learning** `Onboarding.tsx` (PR #173). Kandidat berikutnya:
+   `AiQuestionDrafts.tsx` (tombol **Draft 4 questions**, admin; lihat Tugas
+   berikutnya), lalu audit tombol async lain di halaman admin
+   (`src/routes/admin.*`, mis. form simpan soal/learner) dan surface pelajar
+   yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-26: PR #173 — **Status proses tombol "Start learning" form
+  onboarding** — tombol submit kini membawa `aria-busy={submitting}` tepat
+  sesudah `disabled={saving || !isReady}` (kelas/label/spinner/panah utuh),
+  dengan penanda `submitting` terpisah dari `saving` agar tombol tidak tampak
+  sibuk saat contoh dihapus lewat **Start with an empty workspace**;
+  `setSubmitting(true)` disetel sesudah `setSaving(true)` di `submit` dan
+  `setSubmitting(false)` dibersihkan sesudah `setSaving(false)` di `catch`
+  (tanpa `finally` baru). Sebagai anak terakhir `<form>` ada satu `<p
+  role="status" aria-live="polite" className="sr-only">{submitting ?
+  'Creating your plan…' : ''}</p>` yang hanya berbunyi selama profil dibuat;
+  baris **Loading subjects…** (`role="status"` tanpa `aria-live`), galat
+  `role="alert"`, kedua tombol sekunder (tetap `disabled={saving}` tanpa
+  `aria-busy`), dan alur `submit`/`startEmpty` tidak berubah. Tanpa
+  query/RPC/migrasi/dependensi baru. Test baru
+  `tests/onboarding-start-status.test.ts` (14 penjaga statis);
+  `tests/onboarding.test.ts` tidak dilonggarkan. Tanpa cek smoke baru, penjaga
+  baris smoke 2748 tetap. `npm run ci` utuh hijau (`TMPDIR=/tmp/opencode`,
+  `CI_PORT=9091 CI_PREVIEW_PORT=9093`).
 - 2026-11-26: PR #172 — **Status proses tombol "Latihan kuis" `/japanese`** —
   tombol di tiap kartu modul `m.mode === 'quiz'` pada daftar **Peta kemampuan**
   kini membawa `aria-busy={startingQuiz && topic === m.id}` tepat sesudah
