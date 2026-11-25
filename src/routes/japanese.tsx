@@ -32,6 +32,7 @@ function JapanesePage() {
   const [practice, setPractice] = useState('');
   const [minutes, setMinutes] = useState(20);
   const [note, setNote] = useState('');
+  const [savingPractice, setSavingPractice] = useState(false);
   async function refresh() {
     setData(await japaneseDashboard());
   }
@@ -326,10 +327,15 @@ function JapanesePage() {
                   onSubmit={(e) => {
                     e.preventDefault();
                     void run(async () => {
-                      await recordJapanesePractice({ data: { concept: practice, minutes, note } });
-                      setNotice('Praktik tersimpan.');
-                      setPractice('');
-                      await refresh();
+                      setSavingPractice(true);
+                      try {
+                        await recordJapanesePractice({ data: { concept: practice, minutes, note } });
+                        setNotice('Praktik tersimpan.');
+                        setPractice('');
+                        await refresh();
+                      } finally {
+                        setSavingPractice(false);
+                      }
                     });
                   }}
                 >
@@ -356,9 +362,12 @@ function JapanesePage() {
                       onChange={(e) => setNote(e.target.value)}
                     />
                   </label>
-                  <button className={button + ' mt-3'} disabled={busy}>
+                  <button className={button + ' mt-3'} disabled={busy} aria-busy={savingPractice}>
                     Simpan praktik
                   </button>
+                  <p role="status" aria-live="polite" className="sr-only">
+                    {savingPractice ? 'Menyimpan praktik…' : ''}
+                  </p>
                 </form>
               </section>
             ) : null}

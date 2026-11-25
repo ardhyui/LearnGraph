@@ -143,11 +143,11 @@ describe('japanese lists: page order and surrounding sections stay put', () => {
     );
   });
 
-  it('adds no marker class, extra role, live region or forced focus', () => {
+  it('adds no marker class, extra live region or forced focus', () => {
     assert.equal(/list-(disc|decimal|none)|role="list"/.test(page), false);
-    assert.equal(/aria-live=/.test(page), false);
+    assert.equal(count(page, /aria-live=/g), 1, 'only the practice saving status is live');
     assert.equal(/tabIndex|\.focus\(\)/.test(page), false);
-    assert.equal(count(page, /role="/g), 5, 'alert, three status and the level group only');
+    assert.equal(count(page, /role="/g), 6, 'alert, four status and the level group only');
     assert.equal(count(page, /aria-label=/g), 3, 'the two list labels and the level group only');
   });
 });
