@@ -9,6 +9,7 @@ import { GAP_KINDS, conceptLabel, countLabel, gapSummaryLine, priorityLabel, rev
 import { snoozedReviews } from '@/lib/graph/spacing';
 import { focusAfterAnswer } from '@/lib/study';
 import { masterySourceLabel, retentionLine } from '@/lib/evidence/labels';
+import type { WeeklyFocus } from '@/lib/evidence/progress';
 import type { ConceptNode, MasterySource } from '@/lib/graph/types';
 import { getLearningStats, recordStudyOutcome } from '@/server/evidence.functions';
 import { useLearners, useDB } from '@/lib/DBContext';
@@ -108,6 +109,8 @@ function GapsDashboard() {
   } | null>(null);
   const [snoozed, setSnoozed] = useState<SnoozedItem[]>([]);
   const [retention, setRetention] = useState<string[]>([]);
+  // The concepts reviewed most this week, from the same event log read as `retention`.
+  const [weekFocus, setWeekFocus] = useState<WeeklyFocus | null>(null);
   // The account's concepts, kept for the "Find a concept" search box on this page.
   const [searchConcepts, setSearchConcepts] = useState<ConceptNode[]>([]);
   const [remediation, setRemediation] = useState<{
@@ -139,6 +142,7 @@ function GapsDashboard() {
       setLoading(true);
       setSnoozed([]);
       setRetention([]);
+      setWeekFocus(null);
       setSearchConcepts([]);
       setLoadedFor(null);
     }
@@ -160,6 +164,7 @@ function GapsDashboard() {
         ...(byQuiz ? [`By quiz: ${byQuiz}`] : []),
         ...(bySelf ? [`Self-reported: ${bySelf}`] : []),
       ]);
+      setWeekFocus(stats?.focus ?? null);
       // Reviews postponed with "Remind me tomorrow" aren't due (so they're not
       // in "Fading" or the review list) — show them separately instead of
       // letting them silently disappear.
@@ -332,6 +337,10 @@ function GapsDashboard() {
   const handleLearnerChange = (userId: string) => {
     if (userId) setSelectedLearnerId(userId);
   };
+
+  // Names for the weekly-focus chips, taken from the concepts already loaded for
+  // this learner (no extra query); the id stays as a readable fallback.
+  const conceptNames = new Map(searchConcepts.map((c) => [c.conceptId, c.name]));
 
   const getGapIcon = (type: string) => {
     switch (type) {
@@ -718,6 +727,32 @@ function GapsDashboard() {
                       {retention.map((line) => (
                         <p key={line}>{line}</p>
                       ))}
+                    </div>
+                  )}
+
+                  {weekFocus && weekFocus.concepts.length > 0 && (
+                    <div className="mt-4 text-xs text-muted-foreground" data-testid="week-focus">
+                      <p className="font-medium text-foreground">You reviewed these this week</p>
+                      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        {weekFocus.concepts.map((concept) => {
+                          const name = conceptLabel(
+                            concept.conceptId,
+                            conceptNames.get(concept.conceptId),
+                          );
+                          return (
+                            <Link
+                              key={concept.conceptId}
+                              to="/learn/$conceptId"
+                              params={{ conceptId: concept.conceptId }}
+                              className="inline-flex min-h-10 items-center gap-1 bg-primary/10 px-2 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+                            >
+                              <BookOpen className="h-3 w-3" aria-hidden="true" />
+                              {name}
+                              <span className="sr-only">: {name}</span>
+                            </Link>
+                          );
+                        })}
+                      </p>
                     </div>
                   )}
 
