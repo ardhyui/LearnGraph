@@ -103,11 +103,15 @@ export function ApiAccess() {
         <button
           type="submit"
           disabled={busy}
+          aria-busy={busy}
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
         >
           {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           Create a read-only key
         </button>
+        <p role="status" aria-live="polite" className="sr-only">
+          {busy ? 'Creating your key…' : ''}
+        </p>
       </form>
 
       {error && (

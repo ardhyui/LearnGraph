@@ -1,62 +1,70 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (status proses tombol per-item **Review it now**
-daftar snooze panel Today selesai lewat PR #165; berikutnya: status proses tombol
-**Create a read-only key** di **Connect an AI assistant** halaman profil)
+Terakhir diperbarui: 2026-11-25 (status proses tombol **Create a read-only key**
+blok **Connect an AI assistant** halaman profil selesai lewat PR #166; berikutnya:
+status proses tombol **Save subjects** di `FocusEditor` panel Today)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol "Create a read-only key" di blok "Connect an
-AI assistant" halaman profil (`src/components/ApiAccess.tsx`)** — saat `busy`,
-tombol submit form pembuatan API key hanya menampilkan ikon `Loader2` dan
-diredupkan lewat `disabled={busy}`, tanpa `aria-busy` dan tanpa pengumuman,
-sehingga pembaca layar tidak tahu key sedang dibuat dan tombol tampak diam.
-Blok ini terlihat pelajar (halaman profil, M4). Tanpa query/RPC/migrasi/
-dependensi baru; UI bahasa Inggris (D2). Ikuti pola PR #158–#165.
+Poles kecil: **Status proses tombol "Save subjects" di `src/components/FocusEditor.tsx`**
+— saat `saving`, tombol submit hanya menampilkan ikon `Loader2` dan diredupkan
+lewat `disabled={saving || domains === null}`, tanpa `aria-busy` dan tanpa
+pengumuman, sehingga pembaca layar tidak tahu subjek sedang disimpan dan tombol
+tampak diam. Blok ini terlihat pelajar (panel Today, tombol **Change subjects**).
+Tanpa query/RPC/migrasi/dependensi baru; UI bahasa Inggris (D2). Ikuti pola
+PR #158–#166.
 
-Tujuan: form tetap `<form onSubmit={create} className="mt-4 flex flex-col gap-2
-sm:flex-row sm:items-end">`; tombol tetap `<button type="submit"
-disabled={busy} className="inline-flex min-h-9 items-center justify-center gap-1.5
-rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground
-hover:bg-primary/90 disabled:opacity-60">` dengan ikon `{busy && <Loader2
-className="h-4 w-4 animate-spin" aria-hidden="true" />}` dan label **Create a
-read-only key**. Galat tetap satu `<p role="alert">`; blok **Your new key**,
-tombol **Copy**/**Copied**, daftar **Your API keys**, tombol **Revoke**, heading,
-paragraf penjelasan, dan tautan **How your data is handled** tidak berubah.
+Tujuan: form tetap `<form onSubmit={submit} onKeyDown={onKeyDown}
+aria-labelledby={ids.heading} className="mt-4 rounded-xl border border-primary/30
+bg-primary/5 p-4" data-testid="focus-editor">`; tombol tetap `<button
+type="submit" disabled={saving || domains === null} className="inline-flex
+min-h-10 items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium
+text-primary-foreground hover:opacity-90 focus:outline-none focus-visible:ring-2
+focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed
+disabled:opacity-60">` dengan ikon `{saving && <Loader2 className="h-4 w-4
+animate-spin" aria-hidden="true" />}` dan label **Save subjects**. Galat tetap
+satu `<p role="alert">`; baris **Loading subjects…** (`role="status"` tanpa
+`aria-live`), `SubjectChoices`, tombol **Cancel**, heading, hint, dan
+`data-testid` tidak berubah.
 
 Rancangan:
 
-1. **Tombol Create a read-only key** — tambahkan `aria-busy={busy}` tepat
-   sesudah `disabled={busy}`; jangan mengubah `type="submit"`, kelas persis,
-   label, atau ikon `Loader2` (`aria-hidden="true"`, kelas `h-4 w-4
-   animate-spin`). Tombol **Copy**/**Revoke** tidak mendapat `aria-busy` baru.
-2. **Status** — tepat sesudah `</button>` tombol submit, sebagai anak terakhir
-   `<form onSubmit={create}>` dan sebelum penutup `</form>`, satu `<p
-   role="status" aria-live="polite" className="sr-only">{busy ? 'Creating your
-   key…' : ''}</p>` sehingga status hanya berbunyi selama pembuatan dan kosong
-   saat idle.
-3. **Tidak berubah** — alur `create` (guard `if (busy) return`, `setBusy(true)`,
-   `setError(null)`, `setCopied(false)`, `createMyApiKey`, `setSecret`,
-   `setName('')`, `load()`, `setError` galat, `finally setBusy(false)`), `load`,
-   `revoke`, `copy`, state `keys`/`name`/`secret`/`copied`/`busy`/`error`, `ids`,
-   atribut input (`id`, `value`, `maxLength={100}`, `onChange`, `placeholder`),
-   kelas/struktur section, dan copy lain; tanpa server function/RPC/migrasi
-   baru; jangan menambah `aria-label`/`aria-labelledby`/`aria-atomic`.
-4. **Test** — tambahkan `tests/api-access-create-status.test.ts` (penjaga
-   statis): satu `aria-busy={busy}` tepat sesudah `disabled={busy}` hanya pada
-   tombol submit, kelas/label/spinner utuh; satu status `role="status"` +
-   `aria-live="polite"` + `className="sr-only"` berteks `Creating your key…`
-   saat `busy` dan kosong saat idle, berada sesudah tombol submit sebagai anak
-   terakhir form dan sebelum `</form>`; galat `role="alert"`, blok key baru,
-   tombol **Copy**/**Copied**, daftar **Your API keys**, tombol **Revoke**
-   (termasuk `sr-only` namanya), heading, paragraf, dan tautan **How your data is
-   handled** tetap; tidak ada `aria-busy` di tombol **Copy**/**Revoke**; tanpa
-   `aria-label`/`aria-labelledby`/`aria-atomic` baru; alur `create`/`revoke`/
-   `copy` utuh; serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-   Jangan membuat PR test-only — test ini menyertai perubahan perilaku.
-5. **Smoke** — tidak ada cek baru (pembuatan key butuh sesi nyata dan status
-   pending hanya sesaat); penjaga baris smoke 2748 (`tests/skip-link.test.ts`)
-   tetap.
+1. **Tombol Save subjects** — tambahkan `aria-busy={saving}` tepat sesudah
+   `disabled={saving || domains === null}`; jangan mengubah `type="submit"`,
+   kelas persis, label, atau ikon `Loader2` (`aria-hidden="true"`, kelas `h-4
+   w-4 animate-spin`). Tombol **Cancel** tidak mendapat `aria-busy` baru.
+2. **Status** — tepat sesudah `</div>` wadah dua tombol (`<div className="mt-3
+   flex flex-wrap gap-2">`) dan sebelum penutup `</form>`, satu `<p
+   role="status" aria-live="polite" className="sr-only">{saving ? 'Saving your
+   subjects…' : ''}</p>` sehingga status hanya berbunyi selama penyimpanan dan
+   kosong saat idle. Catatan: form sudah berisi baris **Loading subjects…**
+   dengan `role="status"` tanpa `aria-live`, jadi test harus menemukan dua
+   `role="status"` tetapi hanya satu `aria-live="polite"`.
+3. **Tidak berubah** — alur `submit` (guard `if (!db || saving || domains ===
+   null) return`, `sameSubjects` → `onCancel`, `setSaving(true)`,
+   `setError(null)`, `getLearnerProfile`, `setLearnerProfile` dengan
+   `withFocus`, `onSaved`, `catch` `setError` + `setSaving(false)` — tanpa
+   `finally`), `toggle`, `onKeyDown` (Escape hanya saat `!saving`), efek
+   `listConcepts`/`listDomains`/`initialFocus` + fokus `headingRef`, state
+   `domains`/`chosen`/`saving`/`error`, `ids`, `SubjectChoices` dengan
+   `disabled={saving}`, kelas/struktur section, dan copy lain; tanpa server
+   function/RPC/migrasi baru; jangan menambah `aria-label`/`aria-labelledby`/
+   `aria-atomic` (form sudah punya `aria-labelledby={ids.heading}` — jangan
+   diubah).
+4. **Test** — tambahkan `tests/focus-editor-saving-status.test.ts` (penjaga
+   statis): satu `aria-busy={saving}` tepat sesudah `disabled={saving ||
+   domains === null}` hanya pada tombol submit, kelas/label/spinner utuh; satu
+   status baru `role="status"` + `aria-live="polite"` + `className="sr-only"`
+   berteks `Saving your subjects…` saat `saving` dan kosong saat idle, berada
+   sesudah wadah dua tombol sebagai anak terakhir form dan sebelum `</form>`;
+   **Cancel** tetap `disabled={saving}` tanpa `aria-busy`; baris **Loading
+   subjects…** dan galat `role="alert"` tetap; alur `submit`/`toggle`/`onKeyDown`
+   utuh; tanpa `aria-label`/`aria-labelledby`/`aria-atomic` baru; serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan membuat PR
+   test-only — test ini menyertai perubahan perilaku.
+5. **Smoke** — tidak ada cek baru (alur simpan subjek butuh interaksi +
+   penyimpanan, dan status pending hanya sesaat); penjaga baris smoke 2748
+   (`tests/skip-link.test.ts`) tetap.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -90,11 +98,11 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    kuis konsep), `DownloadMyData`, `DownloadWorkspace`,
    `RefreshExampleData`, `DeleteAccount`, kedua tombol panel **Ask an AI
    tutor** (`TutorContext`: **Prepare the context** PR #161, **Ask Claude**
-   PR #162), tombol ringkasan **Review them now** (PR #164), dan tombol
-   per-item **Review it now** (PR #165). Kandidat berikutnya yang sudah
-   diperiksa: tombol **Create a read-only key** di `ApiAccess.tsx` (`busy` +
-   `Loader2`, tanpa keduanya) — lihat Tugas berikutnya. Sesudah itu, periksa
-   `FocusEditor.tsx` (tombol **Save** dengan `saving` + `Loader2`) dan
+   PR #162), tombol ringkasan **Review them now** (PR #164), tombol per-item
+   **Review it now** (PR #165), dan tombol **Create a read-only key** di
+   `ApiAccess.tsx` (PR #166). Kandidat berikutnya yang sudah diperiksa:
+   `FocusEditor.tsx` (tombol **Save subjects** dengan `saving` + `Loader2`,
+   tanpa keduanya) — lihat Tugas berikutnya. Sesudah itu, periksa
    `LearningOverview.tsx`/`AiQuestionDrafts.tsx`.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
@@ -102,6 +110,20 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #166 — **Status proses tombol "Create a read-only key" blok
+  **Connect an AI assistant** halaman profil** — tombol submit kini membawa
+  `aria-busy={busy}` tepat sesudah `disabled={busy}` (kelas/label/spinner
+  utuh), dan sebagai anak terakhir `<form onSubmit={create}>` — sesudah
+  `</button>` sebelum `</form>` — ada satu `<p role="status" aria-live="polite"
+  className="sr-only">{busy ? 'Creating your key…' : ''}</p>` yang hanya
+  berbunyi selama pembuatan key. Tombol **Copy**/**Copied** dan **Revoke**
+  (dengan `sr-only` namanya), galat `role="alert"`, blok **Your new key**,
+  daftar **Your API keys**, heading, paragraf, dan tautan **How your data is
+  handled** tidak berubah; alur `create`/`revoke`/`copy` utuh. Tanpa
+  query/RPC/migrasi/dependensi baru. Test baru
+  `tests/api-access-create-status.test.ts` (14 penjaga statis); tanpa cek smoke
+  baru, penjaga baris smoke 2748 tetap. `npm run ci` utuh hijau
+  (`TMPDIR=/tmp/opencode`, `CI_PORT=8591 CI_PREVIEW_PORT=8593`).
 - 2026-11-25: PR #165 — **Status proses tombol per-item "Review it now" daftar
   **Snoozed reviews** panel Today** — tombol per-item kini membawa
   `aria-busy={busy === item.conceptId}` tepat sesudah `disabled={!!busy}`
