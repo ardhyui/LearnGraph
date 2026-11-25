@@ -76,7 +76,7 @@ describe('/japanese: the suggested quiz button announces it is starting', () => 
       START.indexOf('disabled={busy}') < START.indexOf('aria-busy={startingQuiz}'),
       'aria-busy sits right after disabled',
     );
-    assert.equal(count(actions, /aria-busy=/g), 1, 'one aria-busy in the session actions');
+    assert.equal(count(actions, /aria-busy=/g), 2, 'start and refresh carry aria-busy');
   });
 
   it('keeps the label untouched and adds a separate starting state', () => {
@@ -100,8 +100,8 @@ describe('/japanese: one polite starting status line after the button', () => {
       actions.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the starting line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(actions, /aria-live="polite"/g), 1, 'one polite live region in the wrapper');
-    assert.equal(count(actions, /role="status"/g), 1, 'one starting status line in the wrapper');
+    assert.equal(count(actions, /aria-live="polite"/g), 2, 'start and refresh live regions');
+    assert.equal(count(actions, /role="status"/g), 2, 'start and refresh status lines');
   });
 
   it('says Menyiapkan kuis… while starting and clears when idle', () => {
@@ -169,14 +169,18 @@ describe('/japanese: the start flow stays intact', () => {
 });
 
 describe('/japanese: other session buttons stay without aria-busy', () => {
-  it('leaves Latihan kuis and Perbarui progres as plain disabled buttons', () => {
+  it('leaves Latihan kuis plain while Perbarui progres keeps its own flag', () => {
     const practice = buttonOf('Latihan kuis');
     assert.ok(practice.includes('disabled={busy}'), 'Latihan kuis keeps the shared disabled');
     assert.equal(practice.includes('aria-busy'), false, 'Latihan kuis has no aria-busy');
     const refresh = buttonOf('Perbarui progres');
     assert.ok(refresh.includes('disabled={busy}'), 'Perbarui progres keeps the shared disabled');
-    assert.equal(refresh.includes('aria-busy'), false, 'Perbarui progres has no aria-busy');
-    assert.equal(count(page, /aria-busy=/g), 3, 'start, saving practice and grading only');
+    assert.ok(refresh.includes('aria-busy={refreshing}'), 'Perbarui progres has its own flag');
+    assert.equal(
+      count(page, /aria-busy=/g),
+      4,
+      'start, refresh, saving practice and grading only',
+    );
   });
 
   it('keeps the earlier statuses and result block', () => {
