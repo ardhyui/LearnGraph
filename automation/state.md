@@ -1,58 +1,54 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (angka hitungan "Most reviewed:" `/progress` selesai lewat PR #154; berikutnya: baris "Most reviewed this week" di kartu Your week panel Today)
+Terakhir diperbarui: 2026-11-25 (baris "Most reviewed this week" di kartu Your
+week panel Today selesai lewat PR #155; berikutnya: angka hitungan di chip "You
+reviewed these this week" `/gaps`, menyamakan pola PR #154)
 
 ## Tugas berikutnya
 
-Fitur kecil: **Baris "Most reviewed this week" di kartu "Your week" panel Today** —
-maksimal tiga tautan pelajaran paling sering dikerjakan dalam 7 hari terakhir,
-di dalam kartu recap yang sudah ada, tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil: **Angka hitungan di chip "You reviewed these this week" `/gaps`** —
+tiap chip fokus mingguan menambah `<span aria-hidden="true"> ·
+{concept.count}</span>` tepat sesudah `{name}` dan `sr-only`-nya berfrasa
+`: {name}, reviewed {countLabel(concept.count, 'time')}`, menyamakan pola PR
+#154 di `/progress`; tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: `getWeekRecap` (`src/server/evidence.functions.ts`, sekitar baris
-123–136) sudah membaca seluruh event learner lewat tepat satu
-`service.listEvents` untuk menghitung `weekRecap`, dan `StudyToday` sudah
-memuat `current.concepts` (hasil `db.listConcepts()`), tetapi kartu **Your
-week** (`WeekRecapCard` di `src/components/StudyToday.tsx`, sekitar baris
-989–1021, `data-testid="week-recap"`, subjudul "Last 7 days") hanya
-menampilkan hitungan — pelajar tidak bisa langsung membuka konsep yang minggu
-ini paling sering dikerjakan, padahal tautan yang sama sudah ada di `/progress`
-(PR #152/#154) dan `/gaps` (PR #153).
+Tujuan: blok `data-testid="week-focus"` di kartu Reviews `/gaps`
+(`src/routes/gaps.tsx` sekitar baris 733–757, PR #153) menghitung `weeklyFocus`
+dan mengurutkan chip berdasarkan hitungan, tetapi angkanya tidak pernah
+ditampilkan — pelajar tidak tahu seberapa sering konsep itu dikerjakan minggu
+ini, padahal `/progress` (PR #154) dan kartu "Your week" panel Today (PR #155)
+sudah menampilkannya.
 
 Rancangan:
 
-1. **Server** — `getWeekRecap` diperluas (bukan server function baru) dengan
-   `focus: { conceptId: string; count: number }[]`, dihitung helper murni baru
-   `weekFocus(events, now, limit = 3)` di `src/lib/evidence/week.ts`: jendela
-   7 hari bergulir **sama dengan `weekRecap`** (`[now - 7 hari, now]`, bukan
-   minggu kalender) lalu mendelegasikan ke `weeklyFocus` yang sudah ada
-   (`@/lib/evidence/progress`, `{ startsAt, endsAt }` dari jendela itu, `now`
-   diteruskan). Handler tetap `authMiddleware` + validator Zod `learnerId`,
-   tetap tepat satu `service.listEvents`.
-2. **UI** — tipe `week` di `StudyToday` (sekitar baris 92,
-   `WeekRecap & { streak; lastLesson }`) ditambah `focus`;
-   `WeekRecapCard` menerima prop baru `concepts` (pemanggilan sekitar baris
-   650 menjadi `<WeekRecapCard week={current.week} concepts={current.concepts}
-   />`) dan hanya bila `week.focus.length > 0` merender satu baris berlabel
-   **Most reviewed this week** sesudah blok baris rekap (`<ul>`/empty state)
-   dan sebelum baris streak (`learning-streak`): tiap chip `<Link
-   to="/learn/$conceptId" params={{ conceptId }}>` berkelas pola chip `/gaps`
-   (`inline-flex min-h-10 … rounded`), ikon `BookOpen` `h-3 w-3`
-   `aria-hidden`, nama dari `conceptNameMap(concepts)` (`@/lib/gaps`, sudah
-   diimpor di file; konsep tak dikenal dilewati seperti `ContinueLastLesson`),
-   `<span aria-hidden="true"> · {count}</span>` dan `<span
-   className="sr-only">: {name}, reviewed {countLabel(count,
-   'time')}</span>` (pola PR #154, `countLabel` diimpor bila belum ada).
-   Baris rekap, heading, subjudul "Last 7 days", empty state, baris streak,
-   `ContinueLastLesson`, dan kartu lain di panel tidak berubah.
-3. **Test** — `tests/week-recap.test.ts` diperluas untuk `weekFocus` (jendela
-   bergulir, hanya `STUDY_KINDS`, urutan count menurun lalu `conceptId`,
-   `limit` default 3/non-positif, timestamp rusak/masa depan) + penjaga statis
-   wiring (`focus` di balikan `getWeekRecap` dengan tetap satu `listEvents`;
-   chip di `WeekRecapCard` dengan posisi/`sr-only`/`min-h-10`; tanpa
-   `createServerFn`/`graphCall`/migrasi).
-4. **Smoke** — tidak ada cek baru (isi bergantung event seed); penjaga baris
+1. **UI** — di dalam pemanggilan `weekFocus.concepts.map((concept) => {...})`
+   blok week-focus `/gaps`: tepat sesudah `{name}` dan sebelum span `sr-only`,
+   tambah `<span aria-hidden="true"> · {concept.count}</span>` (spasi, titik
+   tengah, spasi, angka — tanpa kata "review" yang terlihat agar ringkas);
+   ganti `<span className="sr-only">: {name}</span>` menjadi `<span
+   className="sr-only">: {name}, reviewed {countLabel(concept.count,
+   'time')}</span>` (boleh multi-baris mengikuti gaya PR #155). `countLabel`
+   SUDAH diimpor di gaps.tsx (baris 8, impor `@/lib/gaps`) — jangan menambah
+   impor. Kelas chip (`inline-flex min-h-10 … bg-primary/10 px-2 … rounded`),
+   ikon `BookOpen` `h-3 w-3` `aria-hidden`, `key`, `to`/`params`, label **You
+   reviewed these this week**, struktur blok (div bernama testid + dua `<p>`),
+   kondisi `weekFocus && weekFocus.concepts.length > 0`, posisi (sesudah blok
+   retensi `review-retention`, sebelum **Snoozed**), server `getLearningStats`,
+   dan blok halaman lain tidak berubah; tanpa tombol/live region/`role`
+   tambahan; UI bahasa Inggris (D2).
+2. **Test** — perbarui penjaga chip di `tests/gaps-week-focus.test.ts`
+   (khususnya test "keeps the agreed chip styling and a 40px touch target":
+   regex lama `/\{name\}\s*\n\s*<span className="sr-only">: \{name\}<\/span>/`
+   menjadi bentuk baru — ` · {concept.count}` aria-hidden tepat sesudah
+   `{name}`, `countLabel(concept.count, 'time')` di dalam `sr-only`, tetap satu
+   `sr-only` per chip) tanpa melonggarkan penjaga lain (satu `<Link>` per chip,
+   kelas/ikon/posisi, tanpa live region/role/tombol, tanpa
+   `createServerFn`/`graphCall`/migrasi). Rujukan bentuk jadi ada di
+   `tests/learner-progress.test.ts` (PR #154) dan `tests/week-recap.test.ts`
+   (PR #155).
+3. **Smoke** — tidak ada cek baru (angka bergantung event seed); penjaga baris
    smoke 2748 (`tests/skip-link.test.ts`) tetap.
-5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+4. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
@@ -62,15 +58,10 @@ Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
 Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
 baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. **Chip "You reviewed these this week" di `/gaps` juga menampilkan angka** —
-   samakan dengan `/progress` (PR #154): `<span aria-hidden="true"> ·
-   {concept.count}</span>` setelah nama + `sr-only` berfrasa memakai
-   `countLabel` (impor dari `@/lib/gaps` bila belum ada); perbarui penjaga
-   `tests/gaps-week-focus.test.ts` tanpa melonggarkan penjaga lain.
-2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
+1. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
-   digugurkan — jangan diulang. Bila kandidat 1 sudah selesai, audit
+   digugurkan — jangan diulang. Setelah tugas di atas selesai, audit
    `docs/ROADMAP.md` (P0 #5 aksesibilitas, baris "Sebagian:") atau poles
    pelajar-terlihat lain, lalu tulis spek konkret.
 
@@ -79,6 +70,42 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #155 — **Baris "Most reviewed this week" di kartu "Your week"
+  panel Today** — `getWeekRecap` yang sudah ada diperluas (bukan server
+  function baru) dengan `focus` (maks. tiga `{ conceptId, count }`) dari
+  helper murni baru `weekFocus(events, now, limit = 3)` di
+  `src/lib/evidence/week.ts` — jendela 7 hari bergulir persis sama dengan
+  `weekRecap` (`[now - 7 hari, now]`, kedua ujung termasuk; `endsAt`
+  setengah-terbuka 1 ms setelah `now`, `now` diteruskan) yang mendelegasikan
+  ke `weeklyFocus` yang sudah ada (parameter `events` `weeklyFocus`
+  disempitkan ke `Pick<LearningEvent, 'kind' | 'conceptId' | 'createdAt'>`
+  sesuai konvensi helper, tanpa perubahan perilaku; tetap tepat satu
+  `listEvents`, tanpa RPC/migrasi/dependensi baru). `WeekRecapCard` menerima
+  prop `concepts` (`<WeekRecapCard week={current.week}
+  concepts={current.concepts} />`) dan hanya bila ada konsep bernama merender
+  satu baris berlabel **Most reviewed this week** sesudah blok baris rekap
+  dan sebelum baris streak (`learning-streak`): tiap chip `Link` ke
+  `/learn/$conceptId` berkelas pola `/gaps` (`inline-flex min-h-10 …
+  bg-primary/10 px-2 … rounded`), ikon `BookOpen` `h-3 w-3` `aria-hidden`,
+  nama dari `conceptNameMap(concepts)` (konsep tak dikenal dilewati seperti
+  **Continue your last lesson**), `<span aria-hidden="true"> · {count}</span>`
+  dan `<span className="sr-only">: {name}, reviewed {countLabel(count,
+  'time')}</span>` (pola PR #154; `countLabel` bergabung dalam satu impor
+  `@/lib/gaps`, tipe `WeeklyFocusConcept` diimpor dari
+  `@/lib/evidence/progress`). Baris rekap, heading, subjudul "Last 7 days",
+  empty state, baris streak, `ContinueLastLesson`, dan kartu lain tidak
+  berubah. Test `tests/week-recap.test.ts` diperluas (+7 helper: jendela
+  bergulir sama dengan `weekRecap` kedua ujung termasuk/1 ms di luar, hanya
+  `STUDY_KINDS`, urutan count menurun lalu `conceptId`, `limit` default
+  3/kustom/non-positif, timestamp rusak/masa depan, `now` ISO string,
+  kosong/`now` tak valid; +6 penjaga statis: delegasi `weeklyFocus` dengan
+  jendela recap, `focus` di balikan `getWeekRecap` dengan tetap satu
+  `listEvents`, posisi baris sesudah rekap/sebelum streak, nama chip +
+  impor sekali, kelas chip/ikon/`sr-only` `countLabel`, serta tanpa live
+  region/fokus/`role`/tombol/`db.listEvents`); penjaga `tests/streak.test.ts`
+  menyesuaikan tipe `week` dan pemanggilan `WeekRecapCard` tanpa menghapus
+  penjaganya. Tanpa cek smoke baru (isi bergantung event seed); penjaga baris
+  smoke 2748 tetap. `npm run ci` utuh hijau.
 - 2026-11-25: PR #154 — **Angka hitungan di baris "Most reviewed:" `/progress`** —
   tiap chip fokus mingguan di **Week by week** kini menampilkan `<span
   aria-hidden="true"> · {concept.count}</span>` (spasi, titik tengah, spasi,
