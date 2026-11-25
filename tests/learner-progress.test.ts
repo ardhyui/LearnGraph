@@ -747,7 +747,18 @@ describe('wiring guards (static)', () => {
     assert.ok(route.includes('params={{ conceptId: concept.conceptId }}'));
     assert.ok(route.includes('conceptLabel('));
     assert.ok(route.includes('{name}'));
-    assert.ok(route.includes('<span className="sr-only">: {name}</span>'));
+    // The visible count sits right after the concept name.
+    assert.match(route, /\{name\}\s*<span aria-hidden="true"> · \{concept\.count\}<\/span>/);
+    // The accessible text spells the number out instead of a bare digit.
+    assert.match(
+      route,
+      /<span className="sr-only">\s*: \{name\}, reviewed \{countLabel\(concept\.count, 'time'\)\}\s*<\/span>/,
+    );
+    // countLabel joins conceptLabel in the single @/lib/gaps import.
+    assert.equal(
+      route.match(/import \{ conceptLabel, countLabel \} from '@\/lib\/gaps';/g)?.length,
+      1,
+    );
     assert.ok(route.includes('BookOpen className="h-3 w-3" aria-hidden="true"'));
     assert.ok(route.includes('min-h-10'));
     assert.equal(/createServerFn/.test(route), false);
