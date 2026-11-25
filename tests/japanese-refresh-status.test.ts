@@ -14,9 +14,11 @@
  * without changing the global `busy` meaning or `refresh` itself, a new
  * `sr-only` polite `role="status"` line after that button in the same action
  * wrapper that says `Memuat ulang progres…` while reloading and clears when
- * idle, the untouched "Mulai kuis yang disarankan" (`startingQuiz`), "Latihan
- * kuis", "Catat praktik", "Simpan praktik" and "Nilai jawaban" buttons, the
- * "Coba lagi" retry, the earlier practice/grading/starting statuses, the result
+ * idle, the untouched "Mulai kuis yang disarankan" (`startingQuiz`), "Perbarui
+ * progres" (`refreshing`), "Catat praktik", "Simpan praktik" and "Nilai
+ * jawaban" buttons, the module "Latihan kuis" buttons reusing the same
+ * `startingQuiz`/`topic` pair, the "Coba lagi" retry, the earlier
+ * practice/grading/starting statuses, the result
  * block, fieldset/radio answers, notice/error and `run`/`refresh`/the 30 second
  * interval, and that no server function, RPC schema or migration was added.
  */
@@ -167,7 +169,10 @@ describe('/japanese: other buttons keep their own state', () => {
     const start = buttonOf('Mulai kuis yang disarankan');
     assert.ok(start.includes('aria-busy={startingQuiz}'), 'the start keeps its own flag');
     const practice = buttonOf('Latihan kuis');
-    assert.equal(practice.includes('aria-busy'), false, 'Latihan kuis has no aria-busy');
+    assert.ok(
+      practice.includes('aria-busy={startingQuiz && topic === m.id}'),
+      'Latihan kuis is busy only for its own starting card',
+    );
     const logPractice = buttonOf('Catat praktik', page, false);
     assert.equal(logPractice.includes('aria-busy'), false, 'Catat praktik has no aria-busy');
     assert.ok(
@@ -178,7 +183,11 @@ describe('/japanese: other buttons keep their own state', () => {
       buttonOf('Nilai jawaban').includes('aria-busy={gradingQuiz}'),
       'Nilai jawaban keeps its flag',
     );
-    assert.equal(count(page, /aria-busy=/g), 4, 'start, refresh, saving practice and grading only');
+    assert.equal(
+      count(page, /aria-busy=/g),
+      5,
+      'start, refresh, module quiz, saving practice and grading only',
+    );
   });
 
   it('keeps the earlier statuses and result block', () => {
