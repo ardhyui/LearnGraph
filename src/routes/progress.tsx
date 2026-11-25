@@ -6,7 +6,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 import { useDB, useLearners } from '@/lib/DBContext';
 import { useActiveLearner } from '@/lib/active-learner';
-import { conceptLabel } from '@/lib/gaps';
+import { conceptLabel, countLabel } from '@/lib/gaps';
 import { getLearnerProgress } from '@/server/evidence.functions';
 import {
   activityLabel,
@@ -325,7 +325,10 @@ function ProgressPage() {
                               >
                                 <BookOpen className="h-3 w-3" aria-hidden="true" />
                                 {name}
-                                <span className="sr-only">: {name}</span>
+                                <span aria-hidden="true"> · {concept.count}</span>
+                                <span className="sr-only">
+                                  : {name}, reviewed {countLabel(concept.count, 'time')}
+                                </span>
                               </Link>
                             );
                           })}
