@@ -63,7 +63,7 @@ describe('/japanese: the practice submit button announces it is busy', () => {
       SAVE.indexOf('disabled={busy}') < SAVE.indexOf('aria-busy={savingPractice}'),
       'aria-busy sits right after disabled',
     );
-    assert.equal(count(page, /aria-busy=/g), 1, 'one aria-busy on the page');
+    assert.equal(count(form, /aria-busy=/g), 1, 'one aria-busy on the practice button');
   });
 
   it('keeps the label untouched and adds a separate saving state', () => {
@@ -87,7 +87,7 @@ describe('/japanese: one polite status line after the button', () => {
       form.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the saving line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(page, /aria-live="polite"/g), 1, 'one polite live region on the page');
+    assert.equal(count(form, /aria-live="polite"/g), 1, 'one polite live region in the form');
     assert.equal(count(form, /role="status"/g), 1, 'one saving status line in the form');
   });
 

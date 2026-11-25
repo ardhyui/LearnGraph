@@ -1,72 +1,82 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (status proses tombol **Simpan praktik** di
-`/japanese` selesai lewat PR #168; berikutnya: status proses tombol **Nilai
-jawaban** kuis `/japanese`)
+Terakhir diperbarui: 2026-11-25 (status proses tombol **Nilai jawaban** kuis
+`/japanese` selesai lewat PR #169; berikutnya: status proses tombol **Mulai kuis
+yang disarankan** `/japanese`)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol "Nilai jawaban" kuis `/japanese`** — form
-kuis di `src/routes/japanese.tsx` (sekitar baris 198–246) memanggil
-`submitJapaneseQuiz`; selama menilai tombol submit hanya diredupkan lewat
-`disabled={busy || Object.keys(answers).length !== quiz.questions.length}` (kelas
+Poles kecil: **Status proses tombol "Mulai kuis yang disarankan" `/japanese`** —
+tombol di kartu **Sesi hari ini · 90 menit** (`src/routes/japanese.tsx`, sekitar
+baris 135–139) memanggil `begin(next.id)` yang menjalankan `startJapaneseQuiz`;
+selama menyiapkan kuis tombol hanya diredupkan lewat `disabled={busy}` (kelas
 `button`) tanpa `aria-busy` dan tanpa pengumuman, sehingga pembaca layar tidak
-tahu jawaban sedang dinilai dan tombol tampak diam. Halaman ini terlihat pelajar
+tahu kuis sedang disiapkan dan tombol tampak diam. Halaman ini terlihat pelajar
 dan berbahasa Indonesia (D2). Tanpa query/RPC/migrasi/dependensi baru. Ikuti pola
-PR #158–#168, dengan catatan `busy` di halaman ini dipakai bersama tombol lain
-(**Mulai kuis yang disarankan**, **Perbarui progres**, **Latihan kuis**, **Catat
-praktik**, **Simpan praktik**), jadi status harus memakai penanda tersendiri.
+PR #158–#168 dan status **Nilai jawaban** (PR #169), dengan catatan `busy` di
+halaman ini dipakai bersama banyak tombol (**Perbarui progres**, **Nilai
+jawaban**, **Latihan kuis**, **Catat praktik**, **Simpan praktik**), jadi status
+harus memakai penanda tersendiri dan jangan mengubah arti `busy`.
 
-Tujuan: tombol tetap `<button className={button} disabled={busy ||
-Object.keys(answers).length !== quiz.questions.length}>` dengan label **Nilai
-jawaban**; form tetap `<form onSubmit={(e) => { e.preventDefault(); void
-run(async () => { ... }); }}>`; tombol **Tutup tanpa menilai** tetap
-`type="button"` tanpa `aria-busy`; `run`, `refresh`, `begin`, interval 30 detik,
-hasil `role="status"` (teks **Hasil: …**), fieldset/radio jawaban, notice,
-`error` (`role="alert"` + **Coba lagi**), dan tombol lain tidak berubah.
+Tujuan: tombol tetap `<button disabled={busy} className={button}
+onClick={() => begin(next.id)}>` dengan label **Mulai kuis yang disarankan**;
+`begin` tetap `void run(async () => { setTopic(id); setResult(null);
+setAnswers({}); setQuiz(await startJapaneseQuiz({ data: { concept: id } })); })`;
+tombol **Perbarui progres**, **Latihan kuis**, **Catat praktik**, **Simpan
+praktik**, dan **Nilai jawaban** tidak berubah; `run`, `refresh`, interval 30
+detik, notice, `error` (`role="alert"` + **Coba lagi**), daftar **Ringkasan**/
+`Peta kemampuan` (penjaga `tests/japanese-lists.test.ts`), panel
+`MichiSkillEvidence`, dan kontrak bukti Michi tidak berubah.
 
 Rancangan:
 
-1. **State terpisah** — tambahkan `const [gradingQuiz, setGradingQuiz] =
-   useState(false);` sesudah state `savingPractice`. Jangan mengubah tipe/arti
-   `busy` global.
-2. **Alur submit** — tetap lewat `run`; bungkus isinya:
-   `setGradingQuiz(true);` lalu `try { setResult(await submitJapaneseQuiz({ data:
-   { id: quiz.id, answers } })); await refresh(); } finally {
-   setGradingQuiz(false); }`. Urutan panggilan API dan `refresh` tidak berubah.
-3. **Tombol** — tambahkan `aria-busy={gradingQuiz}` tepat sesudah `disabled={busy
-   || Object.keys(answers).length !== quiz.questions.length}`; jangan mengubah
-   `className={button}`, label, atau perilaku disable.
-4. **Status** — tepat sesudah `</div>` wadah dua tombol dan sebelum `</form>`
-   (anak terakhir form), satu `<p role="status" aria-live="polite"
-   className="sr-only">{gradingQuiz ? 'Menilai jawaban…' : ''}</p>` sehingga
-   status hanya berbunyi selama penilaian dan kosong saat idle. Bahasa Indonesia
-   (D2), bukan Inggris.
+1. **State terpisah** — tambahkan `const [startingQuiz, setStartingQuiz] =
+   useState(false);` sesudah state `gradingQuiz`. Jangan mengubah tipe/arti
+   `busy` global maupun `gradingQuiz`/`savingPractice`.
+2. **Alur begin** — tetap lewat `run`; bungkus isinya:
+   `setStartingQuiz(true);` lalu `try { setTopic(id); setResult(null);
+   setAnswers({}); setQuiz(await startJapaneseQuiz({ data: { concept: id } }));
+   } finally { setStartingQuiz(false); }`. Urutan penyetelan state dan panggilan
+   API tidak berubah.
+3. **Tombol** — tambahkan `aria-busy={startingQuiz}` tepat sesudah
+   `disabled={busy}` pada tombol **Mulai kuis yang disarankan**; jangan mengubah
+   `className={button}`, `onClick`, label, atau perilaku disable. Tombol
+   **Latihan kuis** (juga memanggil `begin`) tetap `disabled={busy}` tanpa
+   `aria-busy` baru.
+4. **Status** — tepat sesudah tombol itu di dalam wadah
+   `<div className="mt-4 flex flex-wrap gap-3">` (sebelum tautan **Buka Michi**),
+   satu `<p role="status" aria-live="polite" className="sr-only">{startingQuiz ?
+   'Menyiapkan kuis…' : ''}</p>` sehingga status hanya berbunyi selama
+   penyiapan dan kosong saat idle. Bahasa Indonesia (D2), bukan Inggris. Jangan
+   menambah status kedua untuk **Latihan kuis** pada tugas ini.
 5. **Tidak berubah** — `run` (`setBusy(true)`, `setError('')`, `catch`, `finally
-   setBusy(false)`), `refresh`, `begin`, efek interval, state
-   `data`/`level`/`quiz`/`answers`/`result`/`topic`/`busy`/`error`/`notice`/
-   `practice`/`minutes`/`note`/`savingPractice`, hasil `role="status"` di blok
-   `result`, tombol **Tutup tanpa menilai** dan tombol lain (tanpa `aria-busy`
-   baru), daftar **Ringkasan**/`Peta kemampuan` (penjaga
-   `tests/japanese-lists.test.ts`), panel `MichiSkillEvidence`, kontrak bukti
-   Michi, dan copy lain; tanpa server function/RPC/migrasi baru; jangan menambah
-   `aria-label`/`aria-labelledby`/`aria-atomic`.
-6. **Test** — tambahkan `tests/japanese-quiz-grading-status.test.ts` (penjaga
-   statis): satu `aria-busy={gradingQuiz}` tepat sesudah `disabled={busy ||
-   Object.keys(answers).length !== quiz.questions.length}` hanya pada tombol
-   **Nilai jawaban** dengan kelas/label utuh; satu status baru `role="status"` +
-   `aria-live="polite"` + `className="sr-only"` berteks `Menilai jawaban…` saat
-   `gradingQuiz` dan kosong saat idle, berada sesudah wadah dua tombol sebagai
-   anak terakhir `<form>`; state `gradingQuiz` + `try/finally` di dalam `run`
-   tanpa mengubah `busy`; **Tutup tanpa menilai** tetap tanpa `aria-busy`; hasil
-   `role="status"`, fieldset/radio, notice/galat/`run`/`refresh`/`begin` utuh;
-   serta tanpa `createServerFn` baru/`rpc-schemas`/migrasi. Penjaga
+   setBusy(false)`), `refresh`, efek interval, state lain (`data`/`level`/`quiz`/
+   `answers`/`result`/`topic`/`busy`/`error`/`notice`/`practice`/`minutes`/`note`/
+   `savingPractice`/`gradingQuiz`), status **Menyimpan praktik…** dan **Menilai
+   jawaban…**, hasil `role="status"`, fieldset/radio, notice/galat, tombol
+   **Tutup tanpa menilai**/**Perbarui progres**/**Latihan kuis**/**Catat
+   praktik** (tanpa `aria-busy` baru), daftar **Ringkasan**/`Peta kemampuan`,
+   panel `MichiSkillEvidence`, kontrak bukti Michi, dan copy lain; tanpa server
+   function/RPC/migrasi baru; jangan menambah `aria-label`/`aria-labelledby`/
+   `aria-atomic`.
+6. **Test** — tambahkan `tests/japanese-quiz-start-status.test.ts` (penjaga
+   statis): satu `aria-busy={startingQuiz}` tepat sesudah `disabled={busy}` hanya
+   pada tombol **Mulai kuis yang disarankan** dengan kelas/`onClick`/label utuh;
+   satu status baru `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Menyiapkan kuis…` saat `startingQuiz` dan
+   kosong saat idle, berada sesudah tombol itu di wadah yang sama; state
+   `startingQuiz` + `try/finally` di dalam `begin` dengan urutan
+   `setTopic`/`setResult`/`setAnswers`/`startJapaneseQuiz` utuh dan tanpa
+   mengubah `busy`; **Latihan kuis** dan **Perbarui progres** tetap tanpa
+   `aria-busy`; status lama (**Menyimpan praktik…**, **Menilai jawaban…**),
+   hasil, fieldset/radio, notice/galat/`run`/`refresh`/interval utuh; serta tanpa
+   `createServerFn` baru/`rpc-schemas`/migrasi. Penjaga
    `tests/japanese-lists.test.ts` hanya boleh menyesuaikan hitungan `aria-live`
-   (kini dua) dan `role` (kini tujuh) tanpa melonggarkan penjaga daftar. Jangan
-   membuat PR test-only.
-7. **Smoke** — tidak ada cek baru (menilai kuis butuh menjawab semua soal, dan
-   status pending hanya sesaat); penjaga baris smoke 2748
-   (`tests/skip-link.test.ts`) tetap.
+   (kini tiga) dan `role` (kini delapan) tanpa melonggarkan penjaga daftar; bila
+   guard `aria-busy`/`aria-live` di test lama terhitung halaman-lebar, sempitkan
+   ke blok yang dijaga (jangan dihapus). Jangan membuat PR test-only.
+7. **Smoke** — tidak ada cek baru (status pending hanya sesaat); penjaga baris
+   smoke 2748 (`tests/skip-link.test.ts`) tetap.
 8. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -104,11 +114,10 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    PR #162), tombol ringkasan **Review them now** (PR #164), tombol per-item
    **Review it now** (PR #165), tombol **Create a read-only key** di
    `ApiAccess.tsx` (PR #166), tombol **Save subjects** di `FocusEditor.tsx`
-   (PR #167), dan tombol **Simpan praktik** di `/japanese` (PR #168). Kandidat
-   berikutnya yang sudah diperiksa: kuis `/japanese` (tombol **Nilai jawaban**
-   dengan `busy` global + kelas `button`, tanpa `aria-busy`) — lihat Tugas
-   berikutnya. Sesudah itu, periksa sisa tombol `busy` di `/japanese` (**Mulai
-   kuis yang disarankan**, **Perbarui progres**, **Latihan kuis**), lalu
+   (PR #167), tombol **Simpan praktik** di `/japanese` (PR #168), dan tombol
+   **Nilai jawaban** di `/japanese` (PR #169). Kandidat berikutnya: sisa tombol
+   `busy` di `/japanese` — **Mulai kuis yang disarankan** (lihat Tugas
+   berikutnya), lalu **Perbarui progres** dan **Latihan kuis** — kemudian
    `AiQuestionDrafts.tsx` (tombol **Draft 4 questions**, admin) dan
    `Onboarding.tsx` (label submit sudah berubah menjadi **Creating your
    plan…**, jadi prioritasnya lebih rendah).
@@ -118,6 +127,24 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #169 — **Status proses tombol "Nilai jawaban" kuis
+  `/japanese`** — tombol submit kini membawa `aria-busy={gradingQuiz}` tepat
+  sesudah `disabled={busy || Object.keys(answers).length !==
+  quiz.questions.length}` (kelas/label utuh), dengan penanda `gradingQuiz`
+  terpisah dari `busy` global; di dalam `run`, penilaian dibungkus
+  `try/finally` sehingga penanda selalu bersih. Tepat sesudah `</div>` wadah dua
+  tombol dan sebelum `</form>` ada satu `<p role="status" aria-live="polite"
+  className="sr-only">{gradingQuiz ? 'Menilai jawaban…' : ''}</p>` yang hanya
+  berbunyi selama penilaian; **Tutup tanpa menilai** tetap `type="button"` tanpa
+  `aria-busy`. Urutan `submitJapaneseQuiz`/`refresh`, `run`/`refresh`/`begin`/
+  interval, hasil, fieldset/radio, notice/galat, daftar
+  **Ringkasan**/`Peta kemampuan`, dan panel `MichiSkillEvidence` tidak berubah.
+  Tanpa query/RPC/migrasi/dependensi baru. Test baru
+  `tests/japanese-quiz-grading-status.test.ts`; `tests/japanese-lists.test.ts`
+  hanya menyesuaikan hitungan `aria-live`/`role`, dan
+  `tests/japanese-practice-saving-status.test.ts` menyempitkan hitungan
+  `aria-busy`/`aria-live` ke form praktik; tanpa cek smoke baru, penjaga baris
+  smoke 2748 tetap. `npm run ci` utuh hijau.
 - 2026-11-25: PR #168 — **Status proses tombol "Simpan praktik" form "Catat
   praktik" di `/japanese`** — tombol submit kini membawa
   `aria-busy={savingPractice}` tepat sesudah `disabled={busy}` (kelas/label

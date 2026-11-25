@@ -33,6 +33,7 @@ function JapanesePage() {
   const [minutes, setMinutes] = useState(20);
   const [note, setNote] = useState('');
   const [savingPractice, setSavingPractice] = useState(false);
+  const [gradingQuiz, setGradingQuiz] = useState(false);
   async function refresh() {
     setData(await japaneseDashboard());
   }
@@ -199,8 +200,13 @@ function JapanesePage() {
                     onSubmit={(e) => {
                       e.preventDefault();
                       void run(async () => {
-                        setResult(await submitJapaneseQuiz({ data: { id: quiz.id, answers } }));
-                        await refresh();
+                        setGradingQuiz(true);
+                        try {
+                          setResult(await submitJapaneseQuiz({ data: { id: quiz.id, answers } }));
+                          await refresh();
+                        } finally {
+                          setGradingQuiz(false);
+                        }
                       });
                     }}
                   >
@@ -234,6 +240,7 @@ function JapanesePage() {
                       <button
                         className={button}
                         disabled={busy || Object.keys(answers).length !== quiz.questions.length}
+                        aria-busy={gradingQuiz}
                       >
                         Nilai jawaban
                       </button>
@@ -241,6 +248,9 @@ function JapanesePage() {
                         Tutup tanpa menilai
                       </button>
                     </div>
+                    <p role="status" aria-live="polite" className="sr-only">
+                      {gradingQuiz ? 'Menilai jawaban…' : ''}
+                    </p>
                   </form>
                 )}
               </section>
