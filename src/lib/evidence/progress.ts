@@ -239,7 +239,7 @@ export function weeklyBuckets(
  * deterministic, and a non-positive or invalid `limit` returns no concepts.
  */
 export function weeklyFocus(
-  events: readonly LearningEvent[],
+  events: readonly Pick<LearningEvent, 'kind' | 'conceptId' | 'createdAt'>[],
   week: Pick<WeeklyBucket, 'startsAt' | 'endsAt'>,
   limit = 3,
   now?: string | Date,

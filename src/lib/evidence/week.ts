@@ -1,9 +1,11 @@
 /**
  * "Your week" recap for the Today panel: what the learner finished in the last
- * seven days, counted from the append-only event log. Pure functions; the
- * server function reads the rows for one learner. No table, column or RPC.
+ * seven days and which concepts they worked on most, counted from the
+ * append-only event log. Pure functions; the server function reads the rows for
+ * one learner. No table, column or RPC.
  */
 import type { LearningEvent } from './events.ts';
+import { weeklyFocus, type WeeklyFocusConcept } from './progress.ts';
 
 const DAY = 86_400_000;
 
@@ -65,4 +67,30 @@ export function weekRecapLines(recap: WeekRecap): string[] {
     lines.push(`${recap.newConcepts} ${recap.newConcepts === 1 ? 'new concept' : 'new concepts'}`);
   }
   return lines;
+}
+
+/**
+ * The concepts the learner worked on most in the same rolling seven-day window
+ * as `weekRecap` — `[now - 7 days, now]`, both ends included, not a calendar
+ * week — so the recap counts and the "Most reviewed" chips always agree. It
+ * delegates to `weeklyFocus`: only study events count, broken or future
+ * timestamps are ignored without throwing, ties break by `conceptId`, and a
+ * non-positive or invalid `limit` (or `now`) returns no concepts.
+ */
+export function weekFocus(
+  events: readonly WeekEvent[],
+  now: string | Date,
+  limit = 3,
+): WeeklyFocusConcept[] {
+  const t = new Date(now).getTime();
+  if (!Number.isFinite(t)) return [];
+  // `weeklyFocus` is half-open (`[startsAt, endsAt)`), so the exclusive end is
+  // one millisecond past `now` to keep an event exactly at `now` in — the same
+  // instant `weekRecap` still counts, at millisecond timestamp resolution.
+  return weeklyFocus(
+    events,
+    { startsAt: new Date(t - 7 * DAY).toISOString(), endsAt: new Date(t + 1).toISOString() },
+    limit,
+    now,
+  );
 }

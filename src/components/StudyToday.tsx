@@ -24,6 +24,7 @@ import {
   type StudyOutcome,
 } from '@/lib/study';
 import { evidenceMode, quizResultNotice } from '@/lib/evidence/labels';
+import type { WeeklyFocusConcept } from '@/lib/evidence/progress';
 import { weekRecapLines, type WeekRecap } from '@/lib/evidence/week';
 import { streakLine, type LearningStreak } from '@/lib/evidence/streak';
 import type { LastLesson } from '@/lib/evidence/last-lesson';
@@ -38,6 +39,7 @@ import { useActiveLearner } from '@/lib/active-learner';
 import { domainLabel, focusDomains, inFocus, needsOnboarding } from '@/lib/onboarding';
 import {
   conceptNameMap,
+  countLabel,
   namedSnoozedReviews,
   priorityLabel,
   reviewSummary,
@@ -88,8 +90,10 @@ interface TodayData {
   quizCounts: Record<string, number>;
   /** Minutes of lesson material per concept id (absent = no lesson yet). */
   lessonMinutes: Record<string, number>;
-  /** Reviews, passed quizzes, new concepts and the daily streak, plus the last lesson touched. */
-  week: WeekRecap & { streak: LearningStreak; lastLesson: LastLesson | null };
+  /** Reviews, passed quizzes, new concepts, the concepts worked on most, the
+   * daily streak, plus the last lesson touched.
+   */
+  week: WeekRecap & { streak: LearningStreak; lastLesson: LastLesson | null; focus: WeeklyFocusConcept[] };
 }
 
 /** The quiz open in one of the lists (one at a time). */
@@ -647,7 +651,7 @@ export function StudyToday() {
       )}
 
       {/* Your week: what the last seven days added up to, from the event log. */}
-      {current && <WeekRecapCard week={current.week} />}
+      {current && <WeekRecapCard week={current.week} concepts={current.concepts} />}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         {/* Reviews due */}
@@ -983,13 +987,27 @@ function ContinueLastLesson({
 
 /**
  * "Your week": the last seven days at a glance, counted from the event log by
- * `weekRecap`, plus the current daily streak. Quiet when nothing happened yet —
- * no rows of noisy zeros.
+ * `weekRecap`, plus the current daily streak and the concepts worked on most —
+ * each chip opening its lesson. Quiet when nothing happened yet — no rows of
+ * noisy zeros.
  */
-function WeekRecapCard({ week }: { week: WeekRecap & { streak: LearningStreak } }) {
+function WeekRecapCard({
+  week,
+  concepts,
+}: {
+  week: WeekRecap & { streak: LearningStreak; focus: WeeklyFocusConcept[] };
+  concepts: ConceptNode[];
+}) {
   const headingId = useId();
   const lines = weekRecapLines(week);
   const streak = streakLine(week.streak);
+  // A concept deleted from the account has no name to show, so its chip is
+  // skipped — the same way "Continue your last lesson" hides a deleted concept.
+  const names = conceptNameMap(concepts);
+  const focus = week.focus.flatMap((concept) => {
+    const name = names.get(concept.conceptId);
+    return name ? [{ ...concept, name }] : [];
+  });
   return (
     <section
       aria-labelledby={headingId}
@@ -1010,6 +1028,28 @@ function WeekRecapCard({ week }: { week: WeekRecap & { streak: LearningStreak } 
         <p className="mt-2 text-sm text-muted-foreground">
           Nothing yet this week — your first review will show up here.
         </p>
+      )}
+      {focus.length > 0 && (
+        <div className="mt-3 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Most reviewed this week</p>
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+            {focus.map((concept) => (
+              <Link
+                key={concept.conceptId}
+                to="/learn/$conceptId"
+                params={{ conceptId: concept.conceptId }}
+                className="inline-flex min-h-10 items-center gap-1 bg-primary/10 px-2 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+              >
+                <BookOpen className="h-3 w-3" aria-hidden="true" />
+                {concept.name}
+                <span aria-hidden="true"> · {concept.count}</span>
+                <span className="sr-only">
+                  : {concept.name}, reviewed {countLabel(concept.count, 'time')}
+                </span>
+              </Link>
+            ))}
+          </p>
+        </div>
       )}
       {streak && (
         <p className="mt-2 text-sm font-medium text-foreground" data-testid="learning-streak">
