@@ -146,11 +146,15 @@ export function TutorContext({ learnerId, conceptId }: { learnerId: string; conc
         <button
           type="submit"
           disabled={busy}
+          aria-busy={busy}
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-primary/10 disabled:opacity-60"
         >
           {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           Prepare the context
         </button>
+        <p role="status" aria-live="polite" className="sr-only">
+          {busy ? 'Preparing the context…' : ''}
+        </p>
       </form>
       {error && (
         <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">
