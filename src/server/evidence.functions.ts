@@ -146,19 +146,24 @@ export const getLearnerProgress = createServerFn({ method: 'GET' })
   .validator(z.object({ learnerId: lookupId }))
   .handler(async ({ data, context }) => {
     const { db, service } = await services(context.userId);
-    const [{ weeklyBuckets, retentionByWeek, bestStreak, recentActivity }, { learningStreak }] =
+    const [{ weeklyBuckets, retentionByWeek, bestStreak, recentActivity, weeklyFocus }, { learningStreak }] =
       await Promise.all([
         import('@/lib/evidence/progress'),
         import('@/lib/evidence/streak'),
       ]);
     const events = await service.listEvents(db, context.userId, { learnerId: data.learnerId });
     const now = new Date().toISOString();
+    const weeks = weeklyBuckets(events, now);
     return {
-      weeks: weeklyBuckets(events, now),
+      weeks,
       retention: retentionByWeek(events, now),
       streak: learningStreak(events, now),
       bestStreak: bestStreak(events, now),
       recent: recentActivity(events, now),
+      focus: weeks.map((week) => ({
+        startsAt: week.startsAt,
+        concepts: weeklyFocus(events, week, 3, now),
+      })),
       totalEvents: events.length,
     };
   });

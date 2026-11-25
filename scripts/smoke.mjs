@@ -1360,6 +1360,20 @@ try {
       `items ${recentItems}, links ${recentLinks}, lesson links ${recentHrefs}`,
     );
 
+    // The quizzes and reviews from the dashboard flow also name the concepts
+    // reviewed most in the current week, each linking back to its lesson.
+    const weekList = page.getByRole('list', { name: 'Weekly progress' });
+    const weekLessonLinks = contentSeen
+      ? await weekList.getByRole('link').evaluateAll(
+          (els) => els.filter((el) => (el.getAttribute('href') ?? '').includes('/learn/')).length,
+        )
+      : 0;
+    check(
+      weekLessonLinks > 0 || recentLinks > 0,
+      'progress: weekly focus names concepts with a link to the lesson',
+      `week links ${weekLessonLinks}, recent links ${recentLinks}`,
+    );
+
     const other = await select.evaluate(
       (el, mine) => [...el.options].find((o) => o.value !== mine)?.value ?? '',
       loadedLearner,
