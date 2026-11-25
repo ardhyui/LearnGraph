@@ -1,68 +1,76 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (status proses tombol hapus akun `DeleteAccount`
-selesai lewat PR #160; berikutnya: status proses tombol **Prepare the context**
-panel **Ask an AI tutor**)
+Terakhir diperbarui: 2026-11-25 (status proses tombol **Prepare the context**
+panel **Ask an AI tutor** selesai lewat PR #161; berikutnya: status proses
+tombol **Ask Claude** di komponen yang sama)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol submit "Prepare the context"
-(`src/components/TutorContext.tsx`)** — saat `busy` (menunggu
-`getTutorContext`), tombol submit form pertanyaan hanya menampilkan ikon
-`Loader2` dan diredupkan lewat `disabled`, tanpa `aria-busy` dan tanpa
-pengumuman, sehingga pembaca layar tidak tahu brief tutor sedang disiapkan.
-Tombol **Ask Claude** memakai state `asking` terpisah dan tidak termasuk tugas
-ini. Tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil: **Status proses tombol "Ask Claude" (`src/components/TutorContext.tsx`)** —
+saat `asking` (menunggu `askTutorChat`), tombol **Ask Claude** hanya
+menampilkan ikon `Loader2` dan diredupkan lewat `disabled`, tanpa `aria-busy`
+dan tanpa pengumuman, sehingga pembaca layar tidak tahu jawaban sedang diminta.
+Tombol **Prepare the context** (`busy`) sudah selesai (PR #161) dan tidak
+termasuk tugas ini. Tanpa query/RPC/migrasi/dependensi baru.
 
 Tujuan: komponen `TutorContext` (dipakai di `/learn/$conceptId` dan surface
 pelajar lain) tetap dirender sebagai `<section aria-labelledby={ids.heading}
-className="glass-card mt-6 p-4 sm:p-5" data-testid="tutor-context">`; form
-pertanyaan tetap `<form onSubmit={prepare} className="mt-3 flex flex-col gap-2
-sm:flex-row sm:items-end">` dengan tombol `<button type="submit"
-disabled={busy}>` berlabel **Prepare the context** (berisi `{busy && <Loader2
-className="h-4 w-4 animate-spin" aria-hidden="true" />}`). `prepare` menyetel
-`busy` true sebelum `getTutorContext` dan `false` pada `finally`; galat tampil
-di `<p role="alert">` yang sudah ada. Ikuti pola PR #131/#133/#158/#159/#160
-(aria-busy + satu baris status `sr-only`).
+className="glass-card mt-6 p-4 sm:p-5" data-testid="tutor-context">`; blok
+chat tetap `<div className="mt-5 border-t border-border/60 pt-4"
+data-testid="tutor-chat">` dengan baris input key + tombol tepat sesudah
+`<h3 id={ids.chat}>` dan paragraf penjelas, yaitu `<div className="mt-2 flex
+flex-col gap-2 sm:flex-row sm:items-end">` berisi `<div className="flex-1">`
+(input `type="password"` berlabel **Anthropic API key**) dan tombol
+`<button type="button" onClick={() => void ask()} disabled={asking}>`
+berlabel **Ask Claude** (berisi `{asking && <Loader2 className="h-4 w-4
+animate-spin" aria-hidden="true" />}`). `ask` menyetel `asking` true sebelum
+`askTutorChat` dan `false` pada `finally`; galat tampil di `chatError`
+(`<p role="alert">`). Ikuti pola PR #131/#133/#158/#159/#160/#161 (aria-busy +
+satu baris status `sr-only`).
 
 Rancangan:
 
-1. **Tombol submit** — tambahkan `aria-busy={busy}` tepat sesudah
-   `disabled={busy}` pada tombol **Prepare the context**; jangan mengubah
-   `type="submit"`, kelas persis
-   (`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg
-   border border-border bg-background px-3 py-2 text-sm font-medium
-   text-foreground hover:bg-primary/10 disabled:opacity-60`), label, atau ikon
-   `Loader2` (tetap `aria-hidden="true"` dengan kelas `h-4 w-4 animate-spin`).
-   Tombol **Ask Claude** tidak berubah (`type="button"`, `onClick={() =>
-   void ask()}`, `disabled={asking}`, tanpa `aria-busy`).
-2. **Status** — tepat sesudah tombol **Prepare the context** dan masih di
-   dalam `<form>` sebagai anak terakhirnya, satu `<p role="status"
-   aria-live="polite" className="sr-only">` yang membacakan
-   `Preparing the context…` saat `busy` dan kosong saat idle
-   (`{busy ? 'Preparing the context…' : ''}`). Galat form tetap satu-satunya
-   `<p role="alert">` pertama; status **Copied. Paste it into your AI tutor,
-   with your question.** (`role="status" aria-live="polite"`) dan galat chat
-   (`chatError`) tidak berubah.
-3. **Tidak berubah** — `prepare` (guard `busy`, `setError(null)`,
-   `setCopied(false)`, `getTutorContext({ data: { learnerId, conceptId,
-   query: query.trim() || undefined } })`, fokus `textRef`, `catch`, `finally`),
-   state `query`/`context`/`busy`/`error`/`copied`, `ids`, label + input
-   pertanyaan, tombol **Copy context for AI tutor**, `ask`/`rate`, input API
-   key, checkbox, blok chat, copy, dan struktur `section`; tanpa server
-   function/RPC/migrasi/dependensi baru; UI bahasa Inggris (D2).
-4. **Test** — test statis baru `tests/tutor-context-prepare-status.test.ts`:
-   tombol submit punya `aria-busy={busy}` sesudah `disabled={busy}` dengan
-   kelas/label/ikon tetap; tombol **Ask Claude** tetap `disabled={asking}`
-   tanpa `aria-busy`; satu status baru `role="status"` + `aria-live="polite"` +
-   `className="sr-only"` berteks `Preparing the context…` saat `busy` dan
-   kosong saat idle, berada sesudah tombol submit sebagai anak terakhir
-   `<form>`; galat `role="alert"` dan status **Copied…** tetap; alur `prepare`
-   utuh; tanpa `aria-label`/`aria-labelledby`/`aria-atomic` baru; tanpa
+1. **Tombol Ask Claude** — tambahkan `aria-busy={asking}` tepat sesudah
+   `disabled={asking}`; jangan mengubah `type="button"`, `onClick={() =>
+   void ask()}`, kelas persis (`inline-flex min-h-9 items-center justify-center
+   gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium
+   text-primary-foreground hover:bg-primary/90 disabled:opacity-60`), label,
+   atau ikon `Loader2` (tetap `aria-hidden="true"` dengan kelas `h-4 w-4
+   animate-spin`). Tombol **Prepare the context** tidak berubah (`type="submit"`,
+   `disabled={busy}`, `aria-busy={busy}`, statusnya tetap).
+2. **Status** — tepat sesudah penutup `<div className="mt-2 flex flex-col gap-2
+   sm:flex-row sm:items-end">` yang memuat input key + tombol **Ask Claude**,
+   dan sebelum baris checkbox `<div className="mt-2 flex flex-wrap gap-x-4
+   gap-y-1 text-xs text-muted-foreground">`, satu `<p role="status"
+   aria-live="polite" className="sr-only">` yang membacakan `Asking Claude…`
+   saat `asking` dan kosong saat idle (`{asking ? 'Asking Claude…' : ''}`).
+   Blok jawaban `<div className="mt-3 space-y-3" aria-live="polite">`, galat
+   `chatError` (`role="alert"`), status penilaian `rated` (`role="status"`),
+   status **Copied…**, dan status **Preparing the context…** tidak berubah.
+3. **Tidak berubah** — `ask` (guard `asking`, validasi regex `sk-ant-…`,
+   `setChatError` untuk key/pertanyaan kosong, `setAsking(true)`,
+   `setChatError(null)`, `setChat(null)`, `setRated(null)`, `writeKey`,
+   `askTutorChat({ data: { learnerId, conceptId, question: query, apiKey:
+   apiKey.trim(), compare } })`, `catch`, `finally`), `rate`, `prepare`, state
+   `apiKey`/`rememberKey`/`compare`/`chat`/`asking`/`chatError`/`rated`, `ids`,
+   input API key, checkbox **Remember the key in this browser**/**Compare with
+   an answer that doesn’t know me**, tombol **About the same**/`Answer N`,
+   copy, dan struktur `section`; tanpa server function/RPC/migrasi/dependensi
+   baru; UI bahasa Inggris (D2).
+4. **Test** — test statis baru `tests/tutor-context-ask-status.test.ts`:
+   tombol **Ask Claude** punya `aria-busy={asking}` sesudah `disabled={asking}`
+   dengan kelas/label/ikon tetap; tombol submit **Prepare the context** tetap
+   `disabled={busy}` + `aria-busy={busy}`; satu status baru `role="status"` +
+   `aria-live="polite"` + `className="sr-only"` berteks `Asking Claude…` saat
+   `asking` dan kosong saat idle, berada sesudah baris input key/tombol dan
+   sebelum baris checkbox; galat `role="alert"`, status **Copied…**,
+   `Preparing the context…`, dan blok jawaban `aria-live="polite"` tetap; alur
+   `ask` utuh; tanpa `aria-label`/`aria-labelledby`/`aria-atomic` baru; tanpa
    `createServerFn`/`rpc-schemas`/migrasi. Jangan melonggarkan
-   `tests/tutor-context.test.ts`/`tests/tutor-chat.test.ts`.
-5. **Smoke** — tidak ada cek baru (status pending hanya sesaat dan bergantung
-   request); penjaga baris smoke 2748 (`tests/skip-link.test.ts`) tetap.
+   `tests/tutor-context.test.ts`/`tests/tutor-chat.test.ts`/
+   `tests/tutor-context-prepare-status.test.ts`.
+5. **Smoke** — tidak ada cek baru (status pending hanya sesaat dan butuh API
+   key Anthropic); penjaga baris smoke 2748 (`tests/skip-link.test.ts`) tetap.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -96,9 +104,9 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    kuis konsep), `DownloadMyData`, `DownloadWorkspace`,
    `RefreshExampleData`, dan `DeleteAccount`; kandidat berikutnya adalah tombol
    aksi pelajar lain yang punya `busy`/`Loader2` tetapi belum punya keduanya.
-   `TutorContext.tsx` tombol **Prepare the context** ditangani pada tugas
-   berikutnya (PR #160); sesudahnya periksa tombol **Ask Claude** (`asking`,
-   state terpisah) dan tombol **Review them now** di ringkasan snooze
+   `TutorContext.tsx` tombol **Prepare the context** sudah ditangani (PR #161),
+   dan tombol **Ask Claude** (`asking`, state terpisah) menjadi tugas
+   berikutnya; sesudahnya periksa tombol **Review them now** di ringkasan snooze
    `StudyToday.tsx` (`busy === UNSNOOZE_BUSY` / `busy === item.conceptId`).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
@@ -106,6 +114,18 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #161 — **Status proses tombol "Prepare the context" panel
+  "Ask an AI tutor" `TutorContext`** — tombol submit kini membawa
+  `aria-busy={busy}` tepat sesudah `disabled` (kelas/label/spinner utuh), dan
+  sebagai anak terakhir `<form onSubmit={prepare}>` ada satu `<p role="status"
+  aria-live="polite" className="sr-only">{busy ? 'Preparing the context…' :
+  ''}</p>` yang hanya berbunyi selama brief disiapkan; tombol **Ask Claude**
+  (`asking`) tetap `disabled={asking}` tanpa `aria-busy`, galat `role="alert"`
+  (form + chat) dan status **Copied…** tidak berubah. Alur `prepare`, state,
+  dan copy lain utuh; tanpa query/RPC/migrasi/dependensi baru. Test baru
+  `tests/tutor-context-prepare-status.test.ts` (12 penjaga statis); tanpa cek
+  smoke baru, penjaga baris smoke 2748 tetap. `npm run ci` utuh hijau
+  (`TMPDIR=/tmp/opencode`, `CI_PORT=8391 CI_PREVIEW_PORT=8393`).
 - 2026-11-25: PR #160 — **Status proses tombol hapus akun `DeleteAccount`** —
   tombol submit kini membawa `aria-busy={busy}` tepat sesudah `disabled`
   (kelas/label/spinner utuh), dan tepat sesudah wadah kedua tombol di dalam
