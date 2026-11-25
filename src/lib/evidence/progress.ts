@@ -346,6 +346,20 @@ export function retentionPercent(rate: number | null): string {
   return rate === null ? '—' : `${Math.round(rate * 100)}%`;
 }
 
+/**
+ * The sample behind a week's retention as " (3 of 4)", so a 100% from one
+ * review does not read like a 100% from twenty. It starts with a space so it
+ * can follow the percentage directly. No sample (no due review answered,
+ * invalid numbers or a negative count) returns an empty string, and `correct`
+ * is capped at `answered`.
+ */
+export function retentionSampleLabel(correct: number, answered: number): string {
+  if (!Number.isFinite(correct) || !Number.isFinite(answered)) return '';
+  if (answered <= 0 || correct < 0) return '';
+  const shown = Math.min(correct, answered);
+  return ` (${shown} of ${answered})`;
+}
+
 /** The supporting line under a week's dates, without noisy zero-only rows. */
 export function weekDetailLine(bucket: WeeklyBucket): string {
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
