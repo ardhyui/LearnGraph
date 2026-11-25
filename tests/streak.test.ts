@@ -239,11 +239,14 @@ describe('wiring guards (static)', () => {
     );
     assert.ok(
       today.includes(
-        'week: WeekRecap & { streak: LearningStreak; lastLesson: LastLesson | null };',
+        'week: WeekRecap & { streak: LearningStreak; lastLesson: LastLesson | null; focus: WeeklyFocusConcept[] };',
       ),
     );
     assert.ok(today.includes('getWeekRecap({ data: { learnerId } })'));
-    assert.match(today, /\{current && <WeekRecapCard week=\{current\.week\} \/>\}/);
+    assert.match(
+      today,
+      /\{current && <WeekRecapCard week=\{current\.week\} concepts=\{current\.concepts\} \/>\}/,
+    );
     assert.match(today, />\s*Your week\s*</);
     assert.ok(today.includes('const lines = weekRecapLines(week);'));
     assert.ok(today.includes('const streak = streakLine(week.streak);'));
