@@ -433,6 +433,7 @@ function LessonPage() {
                       <button
                         type="button"
                         disabled={busy}
+                        aria-busy={busy}
                         onClick={() => void selfReport('got-it')}
                         className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
                       >
@@ -441,11 +442,15 @@ function LessonPage() {
                       <button
                         type="button"
                         disabled={busy}
+                        aria-busy={busy}
                         onClick={() => void selfReport('started')}
                         className="inline-flex min-h-9 items-center rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-primary/10 disabled:opacity-60"
                       >
                         Still learning
                       </button>
+                      <p role="status" aria-live="polite" className="sr-only">
+                        {busy ? 'Saving…' : ''}
+                      </p>
                     </div>
                   </>
                 )}
