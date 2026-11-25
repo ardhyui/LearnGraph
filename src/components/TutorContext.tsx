@@ -217,12 +217,16 @@ export function TutorContext({ learnerId, conceptId }: { learnerId: string; conc
             type="button"
             onClick={() => void ask()}
             disabled={asking}
+            aria-busy={asking}
             className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
           >
             {asking && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             Ask Claude
           </button>
         </div>
+        <p role="status" aria-live="polite" className="sr-only">
+          {asking ? 'Asking Claude…' : ''}
+        </p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <label className="inline-flex items-center gap-1.5">
             <input type="checkbox" checked={rememberKey} onChange={(e) => setRememberKey(e.target.checked)} className="h-3.5 w-3.5 accent-primary" />

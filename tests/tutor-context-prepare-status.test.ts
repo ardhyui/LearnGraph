@@ -77,11 +77,11 @@ describe('TutorContext: the submit button announces it is busy', () => {
     );
   });
 
-  it('leaves the Ask Claude button disabled but without aria-busy', () => {
+  it('leaves the Ask Claude button driven by its own asking state', () => {
     assert.ok(ASK.includes('type="button"'), 'Ask Claude stays a plain button');
     assert.ok(ASK.includes('onClick={() => void ask()}'), 'Ask Claude still calls ask');
     assert.ok(ASK.includes('disabled={asking}'), 'Ask Claude stays driven by asking');
-    assert.equal(ASK.includes('aria-busy'), false, 'Ask Claude gets no aria-busy');
+    assert.equal(ASK.includes('aria-busy={busy}'), false, 'Ask Claude never listens to the form busy flag');
     assert.ok(
       ASK.includes(
         'className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"',
