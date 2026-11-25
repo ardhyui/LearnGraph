@@ -1,68 +1,80 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (status proses tombol **Start learning**
-onboarding selesai lewat PR #173; berikutnya: status proses tombol **Draft 4
-questions** panel admin Quiz Questions)
+Terakhir diperbarui: 2026-11-26 (status proses tombol **Draft 4 questions**
+panel admin Quiz Questions selesai lewat PR #174; berikutnya: status proses
+tombol **Draft with Claude** dan **Save what I kept** halaman admin Curriculum
+Import)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol "Draft 4 questions" panel admin Quiz
-Questions** — di `src/components/AiQuestionDrafts.tsx`, tombol
-`<button type="button" onClick={() => void draft()} disabled={busy} ...>` pada
-panel **Draft questions with Claude** memanggil `draft` untuk meminta empat draf
-soal dari Anthropic memakai key pengguna. Selama `busy`, tombol hanya diredupkan
-(`disabled:opacity-60`) dan menampilkan spinner `Loader2` yang `aria-hidden`,
-tanpa `aria-busy` maupun pengumuman; pembaca layar tidak tahu draf sedang
-dibuat dan tombol tampak diam. `busy` hanya dipakai aksi draf ini (tombol
-**Approve**/**Edit first**/**Discard** di tiap draf memanggil `decide`/`edit`
-tanpa `busy`), jadi `aria-busy={busy}` aman dipakai langsung. Panel admin
-berbahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil: **Status proses tombol "Draft with Claude" dan "Save what I
+kept" halaman admin Curriculum Import** — di `src/routes/admin/curriculum.tsx`
+(Admin → Curriculum Import), tombol `<button type="submit" disabled={busy}
+className="btn btn-primary flex items-center gap-2 disabled:opacity-60">`
+berlabel **Draft with Claude** (anak terakhir `<form onSubmit={draft} ...>`,
+memanggil `draft` → `draftCurriculumWithAI` dengan key Anthropic pengguna)
+dan tombol `<button type="button" onClick={() => void save()}
+disabled={busy} className="btn btn-primary flex items-center gap-2
+disabled:opacity-60">` berlabel **Save what I kept** (di dalam `<section
+aria-label="Review the draft" data-testid="curriculum-draft">`, memanggil
+`save` → `applyCurriculumDraft`) keduanya hanya diredupkan selama `busy` dan
+menampilkan ikon `Loader2` yang `aria-hidden` (ikon non-busy: `Sparkles` di
+tombol draf, `Save` di tombol simpan), tanpa `aria-busy` maupun pengumuman;
+pembaca layar tidak tahu kurikulum sedang disiapkan/draf sedang disimpan.
+`busy` dipakai kedua aksi sekaligus, jadi pakai dua penanda terpisah (pola
+`submitting` PR #173 / `startingQuiz` dsb. di `/japanese`), tanpa mengubah
+arti `busy`. Halaman admin berbahasa Inggris (D2). Tanpa
+query/RPC/migrasi/dependensi baru.
 
-Tujuan: tombol **Draft 4 questions** tetap `<button type="button"
-onClick={() => void draft()} disabled={busy} className="btn btn-primary flex
-items-center justify-center gap-2 disabled:opacity-60">` dengan spinner dan
-teks utuh, hanya kini membawa `aria-busy={busy}` tepat sesudah `disabled={busy}`;
-**satu** status pengumuman baru `<p role="status" aria-live="polite"
-className="sr-only">{busy ? 'Drafting questions…' : ''}</p>` sebagai anak
-terakhir `<section ... data-testid="ai-question-drafts">` (setelah blok
-`{drafts && (...)}`, sebelum `</section>`), yang hanya berbunyi selama draf
-dibuat. Galat `role="alert"` dan wadah draf `aria-live="polite"` yang sudah ada
-tidak berubah.
+Tujuan: tombol **Draft with Claude** tetap `<button type="submit"
+disabled={busy} aria-busy={drafting} className="btn btn-primary flex items-
+center gap-2 disabled:opacity-60">` dengan ikon/label utuh; tombol **Save
+what I kept** tetap `<button type="button" onClick={() => void save()}
+disabled={busy} aria-busy={saving} ...>` dengan ikon/label utuh; **satu**
+status pengumuman baru per aksi: `<p role="status" aria-live="polite"
+className="sr-only">{drafting ? 'Drafting your curriculum…' : ''}</p>` sebagai
+anak terakhir `<form onSubmit={draft}>` (sesudah tombol draf), dan `<p
+role="status" aria-live="polite" className="sr-only">{saving ? 'Saving what
+you kept…' : ''}</p>` sesudah tombol **Save what I kept** sebagai anak
+terakhir `<section aria-label="Review the draft">`. Notice hasil `role=
+"status" aria-live="polite"` yang sudah ada (kelas bersyarat `sr-only` saat
+kosong) dan galat `role="alert"` tidak berubah.
 
 Rancangan:
 
-1. **Tombol** — tambahkan `aria-busy={busy}` tepat sesudah `disabled={busy}`;
-   `type="button"`, `onClick={() => void draft()}`, `className`,
-   `{busy && <Loader2 ... aria-hidden="true" />}`, dan label **Draft 4
-   questions** tidak berubah.
-2. **Status** — tambahkan hanya satu `<p role="status" aria-live="polite"
-   className="sr-only">{busy ? 'Drafting questions…' : ''}</p>` sebagai anak
-   terakhir `<section>`, sesudah blok `{drafts && (...)}`. Jangan menambah
-   `aria-label`/`aria-labelledby`/`aria-atomic`/`aria-live` lain; wadah draf
-   yang sudah `aria-live="polite"` dan galat `role="alert"` tetap.
-3. **Tidak berubah** — `draft` (validasi key `sk-ant-`, `setBusy(true)`,
-   `setError(null)`, `draftQuizQuestions`, `setDrafts`/`setRejected`,
-   `finally setBusy(false)`), `decide`/`edit`, `useEffect` key/`conceptId`,
-   input key (`type="password"`, `autoComplete="off"`), select **Kind**, label,
-   heading, paragraf, `data-testid`, tombol **Approve**/**Edit first**/
-   **Discard**, empty state **No drafts left to review.**, baris draf tidak
-   valid, serta impor dan `QUESTION_DRAFT_KINDS` tidak berubah; tanpa server
-   function/RPC/migrasi baru.
-4. **Test** — tambahkan `tests/ai-question-drafts-status.test.ts` (penjaga
-   statis, pola `tests/onboarding-start-status.test.ts`): `aria-busy={busy}`
-   tepat sesudah `disabled={busy}` hanya pada tombol **Draft 4 questions**
-   dengan kelas/onClick/spinner/label utuh; tepat satu status baru
+1. **State** — `const [drafting, setDrafting] = useState(false);` dan `const
+   [saving, setSaving] = useState(false);` sesudah `const [busy, setBusy] =
+   useState(false);`; `setDrafting(true)` tepat sesudah `setBusy(true)` di
+   `draft` dan `setDrafting(false)` tepat sesudah `setBusy(false)` di
+   `finally`-nya; `setSaving(true)`/`setSaving(false)` sama di `save`. Tanpa
+   `finally` baru; guard `if (busy) return`/`if (!plan || busy) return`
+   tetap.
+2. **Tombol** — `aria-busy={drafting}`/`aria-busy={saving}` tepat sesudah
+   `disabled={busy}`; `type`, `onClick`, kelas, `{busy ? <Loader2 ...> :
+   <Sparkles|Save ...>}`, dan label tidak berubah.
+3. **Status** — dua `<p role="status" aria-live="polite" className=
+   "sr-only">` seperti di atas (teks kosong saat idle); jangan menambah
+   `aria-label`/`aria-labelledby`/`aria-atomic` lain.
+4. **Tidak berubah** — alur `draft` (validasi key `sk-ant-`, subject, teks
+   ≥20 karakter/PDF, `setPlan(null)`, `setKeepConcepts`/`setKeepEdges`),
+   `save` (keptIds/kept/strip, `applyCurriculumDraft`, `setNotice`,
+   `setPlan(null)`, `await loadAi()`), `pickFile`/`docxText`, `toggleAi`,
+   `loadAi`, checkbox dua fieldset (Concepts/Prerequisites), input
+   subject/key/text/pdf, `data-testid="curriculum-draft"`/
+   `"ai-drafts-setting"`, heading, paragraf, dan copy lain.
+5. **Test** — tambahkan `tests/curriculum-draft-status.test.ts` (penjaga
+   statis, pola `tests/ai-question-drafts-status.test.ts`): dua tombol
+   dengan `aria-busy` tepat sesudah `disabled={busy}` dan handler/kelas/
+   ikon/label utuh; dua state baru sesudah `busy`; dua status baru
    `role="status"` + `aria-live="polite"` + `className="sr-only"` berteks
-   `Drafting questions…` saat `busy` dan kosong saat idle, berada sesudah blok
-   draf dan sebelum `</section>`; hitungan `aria-busy` 1, `aria-live` 2 (wadah
-   draf lama + status baru), `role="status"` 1, `role="alert"` 1; wadah draf
-   lama tetap `aria-live="polite"`, galat tetap `role="alert"`; tombol
-   **Approve**/**Edit first**/**Discard** tanpa `aria-busy`; alur
-   `draft`/`decide`/`edit` utuh; tanpa `createServerFn`/`graphCall`/
+   sesuai penandanya dan kosong saat idle, posisi masing-masing sebagai anak
+   terakhir form/section; hitungan `aria-busy` 2, `aria-live` 3 (notice +
+   2 baru), `role="status"` 3, `role="alert"` 1; notice lama dan galat
+   tetap; alur `draft`/`save` utuh; tanpa `createServerFn`/`graphCall`/
    `rpc-schemas`/migrasi.
-5. **Smoke** — tidak ada cek baru (alur draf butuh API key Anthropic
+6. **Smoke** — tidak ada cek baru (alur draf butuh API key Anthropic
    sungguhan); penjaga baris smoke 2748 (`tests/skip-link.test.ts`) tetap.
-6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+7. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`); commit
@@ -102,18 +114,46 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    (PR #167), tombol **Simpan praktik** di `/japanese` (PR #168), tombol
    **Nilai jawaban** di `/japanese` (PR #169), tombol **Mulai kuis yang
    disarankan** di `/japanese` (PR #170), tombol **Perbarui progres** di
-   `/japanese` (PR #171), tombol **Latihan kuis** di `/japanese` (PR #172), dan
-   tombol **Start learning** `Onboarding.tsx` (PR #173). Kandidat berikutnya:
-   `AiQuestionDrafts.tsx` (tombol **Draft 4 questions**, admin; lihat Tugas
-   berikutnya), lalu audit tombol async lain di halaman admin
-   (`src/routes/admin.*`, mis. form simpan soal/learner) dan surface pelajar
-   yang belum punya penanda.
+   `/japanese` (PR #171), tombol **Latihan kuis** di `/japanese` (PR #172),
+   tombol **Start learning** `Onboarding.tsx` (PR #173), dan tombol **Draft 4
+   questions** `AiQuestionDrafts.tsx` (PR #174). Kandidat berikutnya: tombol
+   **Draft with Claude**/**Save what I kept** di `src/routes/admin/curriculum.tsx`
+   (lihat Tugas berikutnya), lalu audit tombol async lain di halaman admin
+   (`src/routes/admin/*`: form simpan soal `questions.tsx`, `psychometrics.tsx`)
+   dan surface pelajar yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-26: PR #174 — **Status proses tombol "Draft 4 questions" panel
+  "Draft questions with Claude" admin Quiz Questions** — tombol `<button
+  type="button" onClick={() => void draft()} disabled={busy}>` kini membawa
+  `aria-busy={busy}` tepat sesudah `disabled={busy}` (handler
+  `onClick={() => void draft()}`, kelas `btn btn-primary flex items-center
+  justify-center gap-2 disabled:opacity-60`, spinner `{busy && <Loader2
+  className="h-4 w-4 animate-spin" aria-hidden="true" />}`, dan label **Draft
+  4 questions** utuh); `busy` hanya dipakai aksi draf ini (tombol
+  **Approve**/**Edit first**/**Discard** memanggil `decide`/`edit` tanpa
+  `busy`), jadi aman dipakai langsung tanpa state baru. Sebagai anak terakhir
+  `<section ... aria-label="Draft questions with Claude"
+  data-testid="ai-question-drafts">` — sesudah blok `{drafts && (...)}`,
+  sebelum `</section>` — ada satu `<p role="status" aria-live="polite"
+  className="sr-only">{busy ? 'Drafting questions…' : ''}</p>` yang hanya
+  berbunyi selama draf dibuat dan kosong saat idle; wadah draf lama tetap
+  `aria-live="polite"` dan galat tetap `role="alert"` (hitungan halaman:
+  `aria-busy` 1, `aria-live` 2, `role="status"` 1, `role="alert"` 1). Alur
+  `draft` (validasi key `sk-ant-`, `setBusy(true)`, `setError(null)`,
+  `draftQuizQuestions`, `setDrafts`/`setRejected`, `finally setBusy(false)`),
+  `decide`/`edit`, `useEffect` key/`conceptId`, input key
+  (`type="password"`, `autoComplete="off"`), select **Kind**, heading,
+  paragraf, empty state, dan `QUESTION_DRAFT_KINDS` tidak berubah. Tanpa
+  query/RPC/migrasi/dependensi baru. Test baru
+  `tests/ai-question-drafts-status.test.ts` (10 penjaga statis); tidak ada
+  test lain yang dilonggarkan. Tanpa cek smoke baru (alur draf butuh API key
+  Anthropic sungguhan), penjaga baris smoke 2748 tetap. `npm run ci` utuh
+  hijau (`TMPDIR=/tmp/opencode`, `CI_PORT=9181 CI_PREVIEW_PORT=9183`).
 - 2026-11-26: PR #173 — **Status proses tombol "Start learning" form
   onboarding** — tombol submit kini membawa `aria-busy={submitting}` tepat
   sesudah `disabled={saving || !isReady}` (kelas/label/spinner/panah utuh),
