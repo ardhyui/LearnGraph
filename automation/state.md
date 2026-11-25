@@ -1,61 +1,62 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (pencarian "Find a concept" di `/recommendations` selesai lewat PR #150; berikutnya: MCP prompts)
+Terakhir diperbarui: 2026-11-25 (MCP prompts selesai lewat PR #151; berikutnya: detail per konsep di `/progress`)
 
 ## Tugas berikutnya
 
-Fitur baru: **MCP prompts (`prompts/list` + `prompts/get`)** — melengkapi M4
-(tools + resources sudah ada; tanpa migrasi skema/dependensi/RPC baru).
+Fitur baru: **Detail per konsep di `/progress` ("Most reviewed this week")** —
+menautkan ringkasan mingguan ke pelajaran (tanpa migrasi skema/dependensi/RPC
+baru).
 
-Tujuan: server MCP read-only di `src/lib/mcp/` (`protocol.ts` untuk JSON-RPC,
-`route.ts` untuk auth/HTTP, `tools.ts` untuk data akun) sudah menyediakan
-`tools/list`/`tools/call` dan `resources/list`/`resources/read`, tetapi belum
-punya capability `prompts`, sehingga klien AI tidak bisa menawarkan perintah
-siap pakai ("jelaskan topik berikutnya", "ujilah aku dengan kuis", "jelaskan
-konsep ini") yang sudah membawa brief tutor learner.
-
-Kode yang dipakai ulang: pola `MCP_PROMPTS`/handler yang ada, dan
-`get_tutor_context` (`src/lib/mcp/tools.ts`) untuk brief learner yang sama
-(maksimal 2000 token, tanpa skor mentah). Auth/akun tetap dari `handleMcpPost`
-(`src/lib/mcp/route.ts`) — prompt tidak pernah menerima owner id dari klien.
+Tujuan: `/progress` (`src/routes/progress.tsx`) sudah punya kartu **Week by
+week** berisi delapan minggu (`<ul aria-label="Weekly progress">`) dan kartu
+**Recent activity**, tetapi tiap baris minggu hanya menampilkan angka
+(`weekDetailLine`) tanpa konsep mana yang paling banyak di-review, sehingga
+pelajar tidak tahu bagian mana yang perlu dibuka lagi. Helper murni ada di
+`src/lib/evidence/progress.ts`; data berasal dari satu
+`service.listEvents(db, context.userId, { learnerId })` yang sudah dibaca
+`getLearnerProgress` (`src/server/evidence.functions.ts`).
 
 Rancangan:
 
-1. **Definisi prompt** di `src/lib/mcp/protocol.ts`: `MCP_PROMPTS` berisi tepat
-   tiga prompt — `next_topic` ("What should I learn next?", argumen opsional
-   `learner`), `review_due` ("Quiz me on my due reviews.", argumen opsional
-   `learner` + `count` 1–10 default 5), dan `explain_concept` ("Explain this
-   concept at my level.", argumen wajib `concept` 1–200 karakter + opsional
-   `learner`). Tiap definisi punya `name`, `description`, dan `arguments`
-   (`name`/`description`/`required`) — bukan `inputSchema` milik tools.
-   `initialize` mengembalikan `capabilities: { tools: {}, resources: {},
-   prompts: {} }` dan `instructions` menyebut `prompts/list`.
-2. **Handler**: perluas `McpHandlers` dengan `get_prompt(name, args)` yang
-   mengembalikan `{ description, messages: [{ role: 'user', content: { type:
-   'text', text } }] }`. Implementasi di `src/lib/mcp/tools.ts` memanggil
-   `get_tutor_context` yang sudah ada (argumen `learner`/`concept`), lalu
-   menyisipkan `text` brief ke dalam satu pesan user bersama instruksi khusus
-   prompt; tanpa query DB baru dan tanpa jalur yang melompati isolasi akun.
-3. **Validasi**: helper murni `parsePromptGetParams` (params objek
-   `{ name, arguments? }`, hanya tiga nama, `additionalProperties` ditolak,
-   `learner` ≤128 / `concept` ≤200 seperti tools, `count` bilangan bulat 1–10)
-   supaya `prompts/get` tidak pernah memanggil handler untuk input rusak.
-4. **Metode**: `prompts/list` → `{ prompts: MCP_PROMPTS }`; `prompts/get` →
-   hasil handler. Prompt/argumen tak dikenal → JSON-RPC `-32602` dengan pesan
-   jelas. Notifikasi, `ping`, `tools/*`, `resources/*`, dan penolakan batch
-   tidak berubah; tanpa SSE/dependensi baru.
-5. **Test** `tests/mcp-prompts.test.ts` (baru) tanpa melonggarkan
-   `tests/mcp-protocol.test.ts`, `tests/mcp-resources.test.ts`, dan
-   `tests/mcp-api.test.ts`: `prompts/list` berisi tepat tiga nama berurutan,
-   capability `prompts` ada di `initialize`, `prompts/get` tiap prompt memuat
-   brief dari handler palsu beserta instruksi yang tepat, `learner`/`concept`
-   diteruskan apa adanya (bukan owner id), `count` default/1/10 diterima dan
-   di luar rentang ditolak, nama/argumen hilang atau asing → `-32602` tanpa
-   memanggil handler, serta `tools`/`resources`/notifikasi tetap.
-6. **Smoke**: di blok API/MCP yang sudah ada (setelah `tools/list`), satu
-   panggilan `prompts/list` dengan kunci read-only → HTTP 200 dan tepat tiga
-   nama; jangan menambah panggilan berulang atau cek flaky.
-7. **Dokumentasi**: entri log bertanggal di `docs/ROADMAP.md`; tidak menandai
+1. **Helper murni baru** di `src/lib/evidence/progress.ts`:
+   `weeklyFocus(events, week, limit = 3)` mengembalikan
+   `{ conceptId: string; count: number }[]` untuk satu `WeeklyBucket`
+   (`startsAt`/`endsAt`). Hitung hanya event belajar (`STUDY_KINDS`) yang
+   `createdAt`-nya valid dan berada di `[startsAt, endsAt)`; event masa depan
+   relatif `now` tidak ikut (minggu berjalan), event rusak/di luar jendela
+   diabaikan tanpa melempar. Urutkan `count` menurun lalu `conceptId` naik
+   (deterministik), potong `limit`, dan kembalikan `[]` untuk `limit <= 0`.
+   Tanpa query baru: fungsi hanya memakai array event yang sudah ada.
+2. **Server function**: perluas `getLearnerProgress` dengan
+   `focus: WeeklyFocus[]` (satu entri per minggu, `startsAt` + `concepts` hasil
+   `weeklyFocus`), dihitung dari pembacaan `listEvents` yang sama — tetap tepat
+   satu query, `authMiddleware` + validator Zod `learnerId` tidak berubah.
+3. **UI** di `src/routes/progress.tsx`: di dalam tiap `<li>` minggu, tepat
+   setelah `<p>{weekDetailLine(week)}</p>`, hanya bila ada fokus, tampilkan
+   satu baris **Most reviewed:** berisi tautan `<Link
+   to="/learn/$conceptId" params={{ conceptId }}>` untuk tiap konsep (nama
+   lewat `conceptLabel(conceptId, conceptNames.get(conceptId))`, `BookOpen`
+   `h-3 w-3` `aria-hidden="true"`, `<span className="sr-only">: {name}</span>`,
+   kelas `inline-flex min-h-10 items-center gap-1 text-xs font-medium
+   text-primary hover:underline focus-visible:outline-none focus-visible:ring-2
+   focus-visible:ring-violet-500 rounded`). Minggu tanpa fokus tidak menambah
+   baris/markup kosong. Judul, angka, retensi, kartu **This week**/**Streaks**/
+   **Recent activity**, urutan minggu (terbaru dulu), pemilih learner, dan copy
+   lain tidak berubah; UI bahasa Inggris (D2).
+4. **Test** `tests/learner-progress.test.ts` diperluas (bukan dilonggarkan):
+   batas minggu Senin 00:00 UTC inklusif/eksklusif, hanya `STUDY_KINDS`,
+   `wasDue`/outcome tidak mengubah hitungan, urutan seri `conceptId`, `limit`
+   default 3 dan `limit <= 0`, timestamp rusak/masa depan, minggu kosong,
+   `focus` di balikan server function dengan tetap satu `listEvents`, serta
+   penjaga statis route (baris **Most reviewed:** sesudah `weekDetailLine`,
+   tautan `/learn/$conceptId` ber-`sr-only` nama, tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi).
+5. **Smoke**: di blok `/progress` yang sudah ada, setelah alur kuis dashboard,
+   pastikan daftar **Weekly progress** memuat minimal satu tautan **Open the
+   lesson** ke `/learn/` (bila data seed tidak menjamin fokus, cukup tautan
+   yang sama dari aktivitas kuis); perbarui penjaga baris smoke bila bertambah.
+6. **Dokumentasi**: entri log bertanggal di `docs/ROADMAP.md`; tidak menandai
    milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
@@ -65,14 +66,40 @@ Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
 Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
 baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. **Detail per konsep di `/progress`** — tautkan tiap konsep di ringkasan
-   mingguan ke `/learn/$conceptId` dan/atau daftar kecil "yang paling sering
-   di-review minggu ini".
+1. **Chip fokus minggu di `/gaps`** — dari event `review`/`quiz` tujuh hari
+   terakhir, tampilkan "You reviewed these this week" sebagai tautan ke
+   `/learn/$conceptId`, dihitung dari data yang sudah dimuat halaman (tanpa
+   RPC/migrasi baru).
+2. **Pemilih learner yang lebih ringkas di halaman belajar** — samakan
+   perilaku fokus/`aria` pemilih learner di `/progress` dengan halaman lain
+   setelah audit kecil; perlu bukti bahwa ada perbedaan nyata sebelum diubah.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-25: PR #151 — **MCP prompts baca-saja (`prompts/list` + `prompts/get`)** —
+  melengkapi M4 dengan tepat tiga perintah siap pakai: `next_topic` (argumen
+  opsional `learner`), `review_due` (`learner` + `count` 1–10 default 5), dan
+  `explain_concept` (`concept` wajib 1–200 + `learner` opsional). `initialize`
+  kini mengiklankan `capabilities.prompts` dan menyebut `prompts/list`
+  (server `0.3.0`); `prompts/get` divalidasi helper murni baru
+  `parsePromptGetParams` (params objek, tiga nama, argumen asing/hilang/tipe
+  salah → `-32602` tanpa handler; `count` default 5; `concept` non-kosong),
+  lalu handler `get_prompt` memakai ulang brief `contextPayload` yang sama
+  dengan `get_tutor_context` (tetap terikat akun API key) dan menyusun satu
+  pesan user berisi instruksi + brief lewat `buildPromptMessages`
+  (`src/lib/mcp/prompts.ts` baru). Kegagalan handler yang bisa diperbaiki
+  (learner/konsep tak ada) juga `-32602` dengan pesan jelas. `tools/*`,
+  `resources/*`, notifikasi, batch, dan auth tidak berubah; tanpa
+  migrasi/dependensi/RPC/SSE baru. Test baru `tests/mcp-prompts.test.ts` (13);
+  `mcp-protocol`/`mcp-resources`/`mcp-api` hanya menyesuaikan method tak dikenal
+  (`logging/setLevel`) + capability `prompts`; smoke memeriksa `prompts/list`
+  dengan key read-only (3 nama), penjaga baris smoke 2727 → 2734. README
+  bagian MCP menyebut prompts; `Roadmap.md` dan milestone tidak diubah.
+  `npm run ci` utuh hijau (install, typecheck, lint 0/0, test, build, bundle
+  budget, CSP, smoke Playwright + PGlite).
 
 - 2026-11-25: PR #150 — **Pencarian "Find a concept" di Recommendations** —
   komponen bersama `ConceptSearch` dipasang di `/recommendations` di bawah
