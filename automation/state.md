@@ -1,7 +1,7 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
 Terakhir diperbarui: 2026-11-25 (status proses tombol **Review them now**
-ringkasan snooze panel Today selesai lewat PR #163; berikutnya: status proses
+ringkasan snooze panel Today selesai lewat PR #164; berikutnya: status proses
 tombol per-item **Review it now** di daftar **Snoozed reviews**)
 
 ## Tugas berikutnya
@@ -12,7 +12,7 @@ item.conceptId`, tombol di daftar snooze hanya menampilkan ikon `Loader2` dan
 diredupkan lewat `disabled={!!busy}`, tanpa `aria-busy` dan tanpa pengumuman,
 sehingga pembaca layar tidak tahu satu review sedang dikembalikan ke antrean.
 Tombol ringkasan **Review them now** (`busy === UNSNOOZE_BUSY`) sudah selesai di
-PR #163 dan tidak termasuk tugas ini. Tanpa query/RPC/migrasi/dependensi baru.
+PR #164 dan tidak termasuk tugas ini. Tanpa query/RPC/migrasi/dependensi baru.
 
 Tujuan: blok snooze tetap `<div className="mt-2"
 data-testid="snoozed-summary">`; tombol per-item tetap `<button type="button"
@@ -26,7 +26,7 @@ space-y-1" aria-label="Snoozed reviews">` dan ringkasan snooze (paragraf,
 tombol **Review them now**, tautan **See snoozed reviews**, status `Bringing
 your snoozed reviews back…`) tidak berubah. `unsnoozeOne` menyetel
 `setBusy(item.conceptId)` lalu `setBusy(null)` pada `finally`; galat lewat
-`setNotice`. Ikuti pola PR #158/#159/#160/#161/#162/#163 (aria-busy + satu baris
+`setNotice`. Ikuti pola PR #158/#159/#160/#161/#162/#164 (aria-busy + satu baris
 status `sr-only`).
 
 Rancangan:
@@ -119,7 +119,7 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
-- 2026-11-25: PR #163 — **Status proses tombol "Review them now" ringkasan
+- 2026-11-25: PR #164 — **Status proses tombol "Review them now" ringkasan
   snooze panel Today** — tombol ringkasan kini membawa `aria-busy={busy ===
   UNSNOOZE_BUSY}` tepat sesudah `disabled={!!busy}` (kelas/label/spinner utuh),
   dan tepat sesudah paragraf ringkasan snooze serta sebelum `<ul
