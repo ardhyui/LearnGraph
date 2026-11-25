@@ -16,6 +16,7 @@ import {
   weekRangeLabel,
   type RecentActivity,
   type WeeklyBucket,
+  type WeeklyFocus,
   type WeeklyRetention,
 } from '@/lib/evidence/progress';
 import type { LearningStreak } from '@/lib/evidence/streak';
@@ -31,6 +32,7 @@ interface LearnerProgress {
   streak: LearningStreak;
   bestStreak: number;
   recent: RecentActivity[];
+  focus: WeeklyFocus[];
   totalEvents: number;
 }
 
@@ -288,6 +290,7 @@ function ProgressPage() {
                   const retention = data.retention.find(
                     (row) => row.startsAt === week.startsAt,
                   );
+                  const focus = data.focus.find((row) => row.startsAt === week.startsAt);
                   return (
                     <li
                       key={week.startsAt}
@@ -305,6 +308,29 @@ function ProgressPage() {
                         </p>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{weekDetailLine(week)}</p>
+                      {focus && focus.concepts.length > 0 && (
+                        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                          <span>Most reviewed:</span>
+                          {focus.concepts.map((concept) => {
+                            const name = conceptLabel(
+                              concept.conceptId,
+                              conceptNames.get(concept.conceptId),
+                            );
+                            return (
+                              <Link
+                                key={concept.conceptId}
+                                to="/learn/$conceptId"
+                                params={{ conceptId: concept.conceptId }}
+                                className="inline-flex min-h-10 items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+                              >
+                                <BookOpen className="h-3 w-3" aria-hidden="true" />
+                                {name}
+                                <span className="sr-only">: {name}</span>
+                              </Link>
+                            );
+                          })}
+                        </p>
+                      )}
                     </li>
                   );
                 })}

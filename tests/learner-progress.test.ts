@@ -23,8 +23,10 @@ import {
   weekDetailLine,
   weekRangeLabel,
   weeklyBuckets,
+  weeklyFocus,
   type RecentActivity,
   type WeeklyBucket,
+  type WeeklyFocus,
 } from '../src/lib/evidence/progress.ts';
 import { NAV_SECTIONS } from '../src/lib/navigation.ts';
 import { titleForPath } from '../src/lib/page-titles.ts';
@@ -223,6 +225,109 @@ describe('weeklyBuckets: what a week counts', () => {
     ])[7];
     assert.equal(row.conceptsFinished, 2);
     assert.equal(row.quizzesPassed, 2);
+  });
+});
+
+describe('weeklyFocus: the concepts a week reviewed most', () => {
+  const week = { startsAt: WEEK_START, endsAt: WEEK_END };
+  const at = (isoDate: string) => `${isoDate}T12:00:00.000Z`;
+
+  it('counts only study events inside the Monday 00:00 UTC window', () => {
+    const rows = weeklyFocus(
+      [
+        ev({ id: 1, createdAt: '2026-11-15T23:59:59.999Z' }), // previous week
+        ev({ id: 2, createdAt: WEEK_START }), // exactly Monday 00:00
+        ev({ id: 3, createdAt: '2026-11-22T23:59:59.999Z' }), // still Sunday
+        ev({ id: 4, createdAt: WEEK_END }), // next Monday, excluded
+      ],
+      week,
+    );
+    assert.deepEqual(rows, [{ conceptId: 'concept:fractions', count: 2 }]);
+  });
+
+  it('leaves out snoozes, un-snoozes and tutor ratings', () => {
+    const rows = weeklyFocus(
+      [
+        ev({ id: 1, kind: 'snooze', outcome: 'snoozed', wasDue: null, createdAt: at('2026-11-17') }),
+        ev({ id: 2, kind: 'unsnooze', outcome: 'unsnooze', wasDue: null, createdAt: at('2026-11-17') }),
+        ev({ id: 3, kind: 'tutor', outcome: 'prefer-context', wasDue: null, createdAt: at('2026-11-17') }),
+        ev({ id: 4, kind: 'practice', outcome: 'logged', wasDue: null, createdAt: at('2026-11-17') }),
+      ],
+      week,
+    );
+    assert.deepEqual(rows, [{ conceptId: 'concept:fractions', count: 1 }]);
+  });
+
+  it('counts every study kind the same, whatever the outcome or due flag', () => {
+    const rows = weeklyFocus(
+      [
+        ev({ id: 1, kind: 'quiz', outcome: 'failed', wasDue: true, createdAt: at('2026-11-16') }),
+        ev({ id: 2, kind: 'review', outcome: 'forgot', wasDue: false, createdAt: at('2026-11-17') }),
+        ev({ id: 3, kind: 'study', outcome: 'started', wasDue: null, createdAt: at('2026-11-18') }),
+        ev({ id: 4, kind: 'lesson', outcome: 'opened', wasDue: false, createdAt: at('2026-11-18') }),
+      ],
+      week,
+    );
+    assert.deepEqual(rows, [{ conceptId: 'concept:fractions', count: 4 }]);
+  });
+
+  it('orders by count and breaks ties by conceptId', () => {
+    const rows = weeklyFocus(
+      [
+        ev({ id: 1, conceptId: 'concept:zeta', createdAt: at('2026-11-16') }),
+        ev({ id: 2, conceptId: 'concept:alpha', createdAt: at('2026-11-17') }),
+        ev({ id: 3, conceptId: 'concept:beta', createdAt: at('2026-11-18') }),
+        ev({ id: 4, conceptId: 'concept:beta', createdAt: at('2026-11-18') }),
+        ev({ id: 5, conceptId: 'concept:zeta', createdAt: at('2026-11-18') }),
+      ],
+      week,
+    );
+    assert.deepEqual(rows, [
+      { conceptId: 'concept:beta', count: 2 },
+      { conceptId: 'concept:zeta', count: 2 },
+      { conceptId: 'concept:alpha', count: 1 },
+    ]);
+  });
+
+  it('defaults to three concepts and accepts a custom or non-positive limit', () => {
+    const events = ['a', 'b', 'c', 'd'].map((letter, index) =>
+      ev({ id: index + 1, conceptId: `concept:${letter}`, createdAt: at('2026-11-17') }),
+    );
+    assert.equal(weeklyFocus(events, week).length, 3);
+    assert.deepEqual(
+      weeklyFocus(events, week, 2).map((row) => row.conceptId),
+      ['concept:a', 'concept:b'],
+    );
+    assert.deepEqual(weeklyFocus(events, week, 0), []);
+    assert.deepEqual(weeklyFocus(events, week, -2), []);
+    assert.deepEqual(weeklyFocus(events, week, Number.NaN), []);
+  });
+
+  it('ignores broken and future timestamps, including inside the current week', () => {
+    const rows = weeklyFocus(
+      [
+        ev({ id: 1, createdAt: 'not a date' }),
+        ev({ id: 2, createdAt: '' }),
+        ev({ id: 3, createdAt: new Date(NOW.getTime() + 1).toISOString() }),
+        ev({ id: 4, createdAt: NOW_ISO }),
+      ],
+      week,
+      undefined,
+      NOW,
+    );
+    assert.deepEqual(rows, [{ conceptId: 'concept:fractions', count: 1 }]);
+    // Without `now`, the whole week window is counted (all events are before Sunday).
+    assert.deepEqual(weeklyFocus([ev({ id: 5, createdAt: '2026-11-19T10:00:00.000Z' })], week), [
+      { conceptId: 'concept:fractions', count: 1 },
+    ]);
+    assert.deepEqual(weeklyFocus([ev()], week, 3, 'nope'), []);
+  });
+
+  it('returns nothing for an empty, broken or inverted window', () => {
+    const empty: WeeklyFocus = { startsAt: WEEK_START, concepts: [] };
+    assert.deepEqual({ ...empty, concepts: weeklyFocus([], week) }, empty);
+    assert.deepEqual(weeklyFocus([ev()], { startsAt: 'nope', endsAt: WEEK_END }), []);
+    assert.deepEqual(weeklyFocus([ev()], { startsAt: WEEK_END, endsAt: WEEK_START }), []);
   });
 });
 
@@ -539,6 +644,7 @@ describe('wiring guards (static)', () => {
       'retentionByWeek',
       'bestStreak',
       'recentActivity',
+      'weeklyFocus',
       'activityLabel',
       'activityTimeLabel',
       'weekRangeLabel',
@@ -570,6 +676,10 @@ describe('wiring guards (static)', () => {
     assert.match(block, /learningStreak\(events, now\)/);
     assert.match(block, /bestStreak\(events, now\)/);
     assert.match(block, /recent: recentActivity\(events, now\)/);
+    assert.match(block, /const weeks = weeklyBuckets\(events, now\);/);
+    assert.match(block, /focus: weeks\.map\(\(week\) => \(\{/);
+    assert.match(block, /startsAt: week\.startsAt/);
+    assert.match(block, /concepts: weeklyFocus\(events, week, 3, now\)/);
   });
 
   it('shows the page for the active learner and handles the empty states', () => {
@@ -620,6 +730,26 @@ describe('wiring guards (static)', () => {
     assert.ok(route.includes('min-h-10'));
     assert.ok(!/\{activity\.outcome\}/.test(route));
     assert.ok(!/\{activity\.kind\}/.test(route));
+    assert.equal(/createServerFn/.test(route), false);
+    assert.equal(/graphCall/.test(route), false);
+    assert.equal(/rpc-schemas/.test(route), false);
+    assert.equal(/migrations/.test(route), false);
+  });
+
+  it('names the busiest concepts of each week and links to their lessons', () => {
+    const route = source(ROUTE_FILE);
+    // The focus line follows the week's numbers, inside the same list item.
+    assert.ok(route.indexOf('{weekDetailLine(week)}') < route.indexOf('Most reviewed:'));
+    assert.ok(route.includes('{focus && focus.concepts.length > 0 && ('));
+    assert.ok(route.includes('Most reviewed:'));
+    assert.ok(route.includes('focus.concepts.map((concept) =>'));
+    assert.ok(route.includes("to=\"/learn/$conceptId\""));
+    assert.ok(route.includes('params={{ conceptId: concept.conceptId }}'));
+    assert.ok(route.includes('conceptLabel('));
+    assert.ok(route.includes('{name}'));
+    assert.ok(route.includes('<span className="sr-only">: {name}</span>'));
+    assert.ok(route.includes('BookOpen className="h-3 w-3" aria-hidden="true"'));
+    assert.ok(route.includes('min-h-10'));
     assert.equal(/createServerFn/.test(route), false);
     assert.equal(/graphCall/.test(route), false);
     assert.equal(/rpc-schemas/.test(route), false);

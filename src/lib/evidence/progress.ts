@@ -43,6 +43,18 @@ export interface WeeklyRetention extends RetentionStat {
   endsAt: string;
 }
 
+/** One concept's share of a week's study events. */
+export interface WeeklyFocusConcept {
+  conceptId: string;
+  count: number;
+}
+
+/** The busiest concepts of one week, aligned with `WeeklyBucket.startsAt`. */
+export interface WeeklyFocus {
+  startsAt: string;
+  concepts: WeeklyFocusConcept[];
+}
+
 interface WeekWindow {
   startsAt: number;
   endsAt: number;
@@ -216,6 +228,48 @@ export function weeklyBuckets(
     bucket.conceptsFinished = finished[index].size;
   });
   return buckets;
+}
+
+/**
+ * The `limit` busiest concepts in one Monday-to-Sunday week (default three), by
+ * study events only: quiz, study, review, practice and lesson. Events must fall
+ * inside `[startsAt, endsAt)`, have a parseable timestamp and — when `now` is
+ * given — not be in the future; broken rows and events outside the window are
+ * ignored without throwing. Ties are ordered by `conceptId` so the list is
+ * deterministic, and a non-positive or invalid `limit` returns no concepts.
+ */
+export function weeklyFocus(
+  events: readonly LearningEvent[],
+  week: Pick<WeeklyBucket, 'startsAt' | 'endsAt'>,
+  limit = 3,
+  now?: string | Date,
+): WeeklyFocusConcept[] {
+  const max = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
+  if (max === 0) return [];
+  const start = Date.parse(week.startsAt);
+  const end = Date.parse(week.endsAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
+  // The running week ends at `now`, not next Monday, so a future timestamp does
+  // not count. `t + 1` keeps an event exactly at `now` (as `weeklyBuckets` does).
+  let cutoff = end;
+  if (now !== undefined) {
+    const t = new Date(now).getTime();
+    if (!Number.isFinite(t)) return [];
+    cutoff = Math.min(end, t + 1);
+  }
+  const counts = new Map<string, number>();
+  for (const e of events) {
+    if (!STUDY_KINDS.has(e.kind)) continue;
+    const at = Date.parse(e.createdAt);
+    if (!Number.isFinite(at) || at < start || at >= cutoff) continue;
+    counts.set(e.conceptId, (counts.get(e.conceptId) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([conceptId, count]) => ({ conceptId, count }))
+    .sort((a, b) =>
+      b.count - a.count || (a.conceptId < b.conceptId ? -1 : a.conceptId > b.conceptId ? 1 : 0),
+    )
+    .slice(0, max);
 }
 
 /**
