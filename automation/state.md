@@ -17,7 +17,7 @@ Rancangan:
 
 1. **`src/routes/progress.tsx`**, blok `focus.concepts.map` di dalam kartu
    **Week by week** (sekitar baris 311–332): sesudah `{name}` dan sebelum
-   `<span className="sr-only">` tambahkan `<span aria-hidden="true"> ·\
+   `<span className="sr-only">` tambahkan `<span aria-hidden="true"> ·
    {concept.count}</span>` (spasi, titik tengah, spasi, lalu angka; tanpa kata
    "review" yang terlihat agar ringkas). Ganti `sr-only` menjadi `<span
    className="sr-only">: {name}, reviewed {countLabel(concept.count,
