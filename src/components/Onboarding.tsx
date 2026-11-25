@@ -42,6 +42,7 @@ export function Onboarding({ existingIds, onCreated, onSkip, onExamplesRemoved }
   const [chosen, setChosen] = useState<string[]>([]);
   const [start, setStart] = useState<'new' | 'basics'>('new');
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [graphVersion, setGraphVersion] = useState(0);
   const hasExamples = existingIds.some((id) => id.startsWith('demo-'));
@@ -96,6 +97,7 @@ export function Onboarding({ existingIds, onCreated, onSkip, onExamplesRemoved }
       return;
     }
     setSaving(true);
+    setSubmitting(true);
     setError(null);
     try {
       // The list can be stale (another tab): never overwrite an existing learner.
@@ -123,6 +125,7 @@ export function Onboarding({ existingIds, onCreated, onSkip, onExamplesRemoved }
     } catch (err) {
       setError(`Could not create your profile: ${err instanceof Error ? err.message : 'please try again.'}`);
       setSaving(false);
+      setSubmitting(false);
     }
   };
 
@@ -225,6 +228,7 @@ export function Onboarding({ existingIds, onCreated, onSkip, onExamplesRemoved }
           <button
             type="submit"
             disabled={saving || !isReady}
+            aria-busy={submitting}
             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
@@ -252,6 +256,9 @@ export function Onboarding({ existingIds, onCreated, onSkip, onExamplesRemoved }
             </button>
           )}
         </div>
+        <p role="status" aria-live="polite" className="sr-only">
+          {submitting ? 'Creating your plan…' : ''}
+        </p>
       </form>
     </section>
   );
