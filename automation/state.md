@@ -1,55 +1,58 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (ukuran sampel retensi `/progress` selesai
-lewat PR #157; berikutnya: status proses tombol laporan diri **I've got it**/
-**Still learning** di `/learn/$conceptId`)
+Terakhir diperbarui: 2026-11-25 (status proses tombol laporan diri
+`/learn/$conceptId` selesai lewat PR #158; berikutnya: status proses tombol
+**Check my answers** kuis di `/learn/$conceptId`)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol laporan diri "I've got it"/"Still
-learning" `/learn/$conceptId`** — saat `busy` (sedang menyimpan laporan diri),
-kedua tombol hanya berubah `opacity-60` lewat `disabled`, tanpa `aria-busy` dan
-tanpa pengumuman, sehingga pembaca layar tidak tahu simpan sedang berjalan dan
-tombol tampak diam. Tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil: **Status proses tombol submit kuis "Check my answers"
+(`src/components/ConceptQuiz.tsx`)** — saat `busy` (sedang memeriksa jawaban),
+tombol submit hanya menampilkan ikon `Loader2` dan diredupkan lewat `disabled`,
+tanpa `aria-busy`, tanpa pengumuman, dan tombol **Not now** di sebelahnya juga
+hanya `disabled`; pembaca layar tidak tahu pemeriksaan sedang berjalan. Tanpa
+query/RPC/migrasi/dependensi baru.
 
-Tujuan: panel laporan diri tanpa kuis (`src/routes/learn.$conceptId.tsx` sekitar
-baris 432–449) berisi dua tombol — **I've got it** dan **Still learning** —
-yang memanggil `selfReport(...)`. `selfReport` menyetel `busy` true di awal dan
-false di `finally`; selama itu kedua tombol `disabled={busy}` (kelas
-`disabled:opacity-60`) tetapi nama aksesibelnya tidak berubah dan tidak ada
-status apa pun. Setelah selesai, `<p role="status" aria-live="polite">` notice
-yang sudah ada (`ref={noticeRef}`, baris 253–261) membacakan hasil, tetapi
-*selama* proses tidak ada isyarat. Ikuti pola PR #131/#133 (tombol submit
-`/sign-in`, `/forgot-password`, `/reset-password`).
+Tujuan: dialog kuis konsep (`ConceptQuiz`, dipakai dari
+`src/routes/learn.$conceptId.tsx`) punya `<form onSubmit={submit} noValidate>`
+dengan tombol `<button type="submit" disabled={busy}>` berlabel **Check my
+answers** (berisi `{busy && <Loader2 className="h-4 w-4 animate-spin"
+aria-hidden="true" />}`) dan tombol `<button type="button" disabled={busy}>`
+berlabel **Not now**. `submit` menyetel `busy` true di awal dan false di
+`finally`; galat tampil di `<p role="alert">` dan hasil memindahkan fokus ke
+`resultRef`. Ikuti pola PR #131/#133/#158 (aria-busy + satu baris status
+`sr-only`).
 
 Rancangan:
 
-1. **Tombol** — pada kedua `<button type="button" disabled={busy}
-   onClick={() => void selfReport(...)}>` tambahkan `aria-busy={busy}` tepat
-   sesudah `disabled`; `type`, `onClick`, `disabled`, kelas persis, dan label
-   terlihat (`I&apos;ve got it`, `Still learning`) tidak berubah. Jangan
-   menambah ikon `Loader2`/spinner dan jangan mengubah tata letak.
-2. **Status** — tepat sesudah tombol **Still learning** dan masih di dalam
-   `<div className="mt-3 flex flex-wrap gap-2">` (anak terakhir wadah itu), satu
+1. **Tombol submit** — tambahkan `aria-busy={busy}` tepat sesudah
+   `disabled={busy}` pada tombol **Check my answers**; jangan mengubah `type`,
+   kelas persis, label, atau ikon `Loader2` yang sudah ada (tetap
+   `aria-hidden="true"` dengan kelas `h-4 w-4 animate-spin`). Tombol **Not now**
+   tidak perlu `aria-busy`; `disabled={busy}`, `type`, `onClick={onCancel}`, dan
+   kelasnya tidak berubah.
+2. **Status** — tepat sesudah `<div className="mt-3 flex flex-wrap gap-2">`
+   berisi kedua tombol dan masih di dalam `<form>` (anak terakhir form), satu
    `<p role="status" aria-live="polite" className="sr-only">` yang membacakan
-   `Saving…` saat `busy` dan kosong saat idle (`{busy ? 'Saving…' : ''}`), agar
-   tidak ada teks tersembunyi yang menetap. Notice hasil yang sudah ada
-   (`noticeRef`, `role="status"`, `aria-live="polite"`, `tabIndex={-1}`,
-   `className` dari `cn(...)`) tetap satu-satunya pengumuman hasil dan tidak
-   diubah; jangan menyentuh `setNotice(null)`/pesan sukses/galat.
-3. **Tidak berubah** — alur `selfReport` (`setBusy(true)`, `recordStudyOutcome`,
-   `load()`, `finally setBusy(false)`), teks paragraf "This concept has no quiz
-   yet…", tombol kuis/format learning, `<TutorContext>`, navigasi **Next step**,
-   `quizResultNotice`/`finishQuiz`/`cancelQuiz`, dan copy lain; tanpa
-   server/RPC/migrasi/dependensi baru; UI bahasa Inggris (D2).
-4. **Test** — test statis baru `tests/learn-self-report-status.test.ts`:
-   tepat dua tombol laporan diri, keduanya `aria-busy={busy}` + `disabled={busy}`
-   dengan label/kelas tetap; satu status baru dengan `role="status"`,
-   `aria-live="polite"`, `className="sr-only"`, teks `Saving…` saat `busy` dan
-   kosong saat idle, berada sesudah kedua tombol di wadah yang sama; notice
-   `noticeRef` tetap; `Loader2` baru tidak ditambahkan di blok itu; tanpa
+   `Checking your answers…` saat `busy` dan kosong saat idle
+   (`{busy ? 'Checking your answers…' : ''}`). Galat tetap satu-satunya
+   `<p role="alert">`; baris "Preparing questions…" (`role="status"` tanpa
+   `aria-live`) tetap apa adanya.
+3. **Tidak berubah** — `submit` (`setBusy(true)`, validasi "Answer every
+   question first.", `submitConceptQuiz`, `resultRef` fokus, `finally
+   setBusy(false)`), `startConceptQuiz`, `started`/`result`/`error` state,
+   `headingRef`/`resultRef`, fieldset/radio jawaban, tombol **Done**, copy, dan
+   struktur `section`/dialog; tanpa server/RPC/migrasi/dependensi baru; UI
+   bahasa Inggris (D2).
+4. **Test** — test statis baru `tests/concept-quiz-pending-status.test.ts`:
+   tombol submit punya `aria-busy={busy}` sesudah `disabled={busy}` dengan
+   kelas/label/ikon tetap; tombol **Not now** tetap `disabled={busy}` tanpa
+   `aria-busy`; satu status baru `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Checking your answers…` saat `busy` dan
+   kosong saat idle, berada sesudah wadah dua tombol sebagai anak terakhir
+   `<form>`; galat `role="alert"` tetap; alur `submit` utuh; tanpa
    `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan melonggarkan test
-   `/learn` yang ada.
+   kuis yang ada.
 5. **Smoke** — tidak ada cek baru (status pending hanya sesaat dan bergantung
    request); penjaga baris smoke 2748 (`tests/skip-link.test.ts`) tetap.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
@@ -57,26 +60,53 @@ Rancangan:
 
 Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
 
+## Catatan lingkungan
+
+- Jalankan `npm run ci` dengan `TMPDIR=/tmp/opencode` (bukan `/home`): banyak
+  test membuat direktori `learngraph-*` di `os.tmpdir()`, dan `/home` milik root
+  sehingga seluruh test gagal `EACCES`. Percobaan 2026-11-25 dengan
+  `TMPDIR=/home` gagal di tahap tests karena alasan ini, bukan kode.
+- Smoke memilih port bebas; `CI_PORT`/`CI_PREVIEW_PORT` eksplisit membantu bila
+  port default dipakai proses lain.
+
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
 Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
 baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Setelah tugas status laporan diri selesai: audit `docs/ROADMAP.md` (P0 #5
+1. Setelah tugas status kuis selesai: audit `docs/ROADMAP.md` (P0 #5
    aksesibilitas, baris "Sebagian:") atau surface pelajar lain (`/gaps`,
-   `/learn/$conceptId`) untuk poles kecil berikutnya. Baris "Lanjutan:" yang
-   belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
-   migrasi data — jangan dipilih tanpa perubahan kondisi.
+   `/progress`, kartu Today) untuk poles kecil berikutnya. Baris "Lanjutan:"
+   yang belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka,
+   atau migrasi data — jangan dipilih tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
    digugurkan — jangan diulang.
+3. Pola `aria-busy` + status `sr-only` sudah dipakai di `/sign-in`,
+   `/forgot-password`, `/reset-password`, `/learn/$conceptId` (laporan diri),
+   `DownloadMyData`, `DownloadWorkspace`, dan `RefreshExampleData`; kandidat
+   berikutnya adalah tombol aksi pelajar lain yang punya `busy`/`Loader2`
+   tetapi belum punya keduanya (periksa `StudyToday.tsx`, `TutorContext.tsx`,
+   `DeleteAccount.tsx`).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #158 — **Status proses tombol laporan diri "I've got it"/"Still
+  learning" `/learn/$conceptId`** — kedua tombol di panel tanpa kuis kini membawa
+  `aria-busy={busy}` tepat sesudah `disabled` (kelas/label utuh, tanpa spinner
+  baru), dan tepat sesudah tombol **Still learning** di wadah yang sama ada satu
+  `<p role="status" aria-live="polite" className="sr-only">{busy ? 'Saving…' :
+  ''}</p>` yang hanya berbunyi selama simpan; notice hasil `noticeRef` tetap
+  satu-satunya pengumuman hasil. Alur `selfReport`, copy, dan blok lain tidak
+  berubah; tanpa query/RPC/migrasi/dependensi baru. Test baru
+  `tests/learn-self-report-status.test.ts` (12 penjaga statis); tanpa cek smoke
+  baru, penjaga baris smoke 2748 tetap. `npm run ci` utuh hijau (percobaan
+  pertama gagal hanya karena `TMPDIR=/home` tak bisa ditulisi; diulang dengan
+  `TMPDIR=/tmp/opencode` dan `CI_PORT=8891 CI_PREVIEW_PORT=8893`).
 - 2026-11-25: PR #157 — **Ukuran sampel di samping "Reviews remembered" tiap
   minggu `/progress`** — tiap baris retensi minggu di **Week by week** kini
   menampilkan `(3 of 4)` sesudah persentase lewat helper murni baru
