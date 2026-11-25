@@ -105,10 +105,8 @@ export const getLearningStats = createServerFn({ method: 'GET' })
   .validator(z.object({ learnerId: lookupId }))
   .handler(async ({ data, context }) => {
     const { db, service } = await services(context.userId);
-    const [{ dueReviewRetention }, { weeklyBuckets, weeklyFocus }] = await Promise.all([
-      import('@/lib/evidence/events'),
-      import('@/lib/evidence/progress'),
-    ]);
+    const { dueReviewRetention } = await import('@/lib/evidence/events');
+    const { weeklyBuckets, weeklyFocus } = await import('@/lib/evidence/progress');
     const events = await service.listEvents(db, context.userId, { learnerId: data.learnerId });
     const now = new Date().toISOString();
     const week = weeklyBuckets(events, now, 1)[0];
