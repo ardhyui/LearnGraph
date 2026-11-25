@@ -147,11 +147,11 @@ describe('japanese lists: page order and surrounding sections stay put', () => {
     assert.equal(/list-(disc|decimal|none)|role="list"/.test(page), false);
     assert.equal(
       count(page, /aria-live=/g),
-      3,
-      'the practice saving, quiz grading and quiz start statuses',
+      4,
+      'the practice saving, quiz grading, quiz start and refresh statuses',
     );
     assert.equal(/tabIndex|\.focus\(\)/.test(page), false);
-    assert.equal(count(page, /role="/g), 8, 'alert, six status and the level group only');
+    assert.equal(count(page, /role="/g), 9, 'alert, seven status and the level group only');
     assert.equal(count(page, /aria-label=/g), 3, 'the two list labels and the level group only');
   });
 });

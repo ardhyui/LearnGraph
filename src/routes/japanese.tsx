@@ -35,6 +35,7 @@ function JapanesePage() {
   const [savingPractice, setSavingPractice] = useState(false);
   const [gradingQuiz, setGradingQuiz] = useState(false);
   const [startingQuiz, setStartingQuiz] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   async function refresh() {
     setData(await japaneseDashboard());
   }
@@ -163,9 +164,26 @@ function JapanesePage() {
                 >
                   Materi Irodori
                 </a>
-                <button className={outline} disabled={busy} onClick={() => void run(refresh)}>
+                <button
+                  className={outline}
+                  disabled={busy}
+                  aria-busy={refreshing}
+                  onClick={() =>
+                    void run(async () => {
+                      setRefreshing(true);
+                      try {
+                        await refresh();
+                      } finally {
+                        setRefreshing(false);
+                      }
+                    })
+                  }
+                >
                   Perbarui progres
                 </button>
+                <p role="status" aria-live="polite" className="sr-only">
+                  {refreshing ? 'Memuat ulang progres…' : ''}
+                </p>
               </div>
             </section>
             {quiz ? (
