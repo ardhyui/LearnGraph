@@ -128,6 +128,7 @@ export function FocusEditor({ learnerId, learnerName, focus, onSaved, onCancel }
         <button
           type="submit"
           disabled={saving || domains === null}
+          aria-busy={saving}
           className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
@@ -142,6 +143,9 @@ export function FocusEditor({ learnerId, learnerName, focus, onSaved, onCancel }
           Cancel
         </button>
       </div>
+      <p role="status" aria-live="polite" className="sr-only">
+        {saving ? 'Saving your subjects…' : ''}
+      </p>
     </form>
   );
 }
