@@ -14,8 +14,9 @@
  * `try/finally` without changing the global `busy` meaning, a new `sr-only`
  * polite `role="status"` line after that button in the same action wrapper that
  * says `Menyiapkan kuis…` while starting and clears when idle, the untouched
- * "Latihan kuis"/"Perbarui progres" buttons, the earlier practice and grading
- * statuses, the result block, fieldset/radio answers, notice/error and
+ * "Perbarui progres" button, the module "Latihan kuis" buttons reusing the same
+ * `startingQuiz`/`topic` pair, the earlier practice and grading statuses, the
+ * result block, fieldset/radio answers, notice/error and
  * `run`/`refresh`/the 30 second interval, and that no server function, RPC
  * schema or migration was added.
  */
@@ -169,17 +170,20 @@ describe('/japanese: the start flow stays intact', () => {
 });
 
 describe('/japanese: other session buttons stay without aria-busy', () => {
-  it('leaves Latihan kuis plain while Perbarui progres keeps its own flag', () => {
+  it('leaves Latihan kuis on the shared starting flag while Perbarui progres keeps its own', () => {
     const practice = buttonOf('Latihan kuis');
     assert.ok(practice.includes('disabled={busy}'), 'Latihan kuis keeps the shared disabled');
-    assert.equal(practice.includes('aria-busy'), false, 'Latihan kuis has no aria-busy');
+    assert.ok(
+      practice.includes('aria-busy={startingQuiz && topic === m.id}'),
+      'Latihan kuis is busy only for its own starting card',
+    );
     const refresh = buttonOf('Perbarui progres');
     assert.ok(refresh.includes('disabled={busy}'), 'Perbarui progres keeps the shared disabled');
     assert.ok(refresh.includes('aria-busy={refreshing}'), 'Perbarui progres has its own flag');
     assert.equal(
       count(page, /aria-busy=/g),
-      4,
-      'start, refresh, saving practice and grading only',
+      5,
+      'start, refresh, module quiz, saving practice and grading only',
     );
   });
 
@@ -211,7 +215,7 @@ describe('/japanese: other session buttons stay without aria-busy', () => {
   it('adds no extra labels, atomic regions or imports', () => {
     assert.equal(count(page, /aria-label=/g), 3, 'the two list labels and the level group only');
     assert.equal(count(page, /aria-atomic=/g), 0, 'no aria-atomic was added');
-    assert.equal(count(page, /startingQuiz/g), 3, 'state, aria-busy and status only');
+    assert.equal(count(page, /startingQuiz/g), 4, 'state, two aria-busy and status only');
   });
 
   it('adds no server function, RPC schema or migration', () => {

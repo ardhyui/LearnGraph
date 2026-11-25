@@ -332,7 +332,12 @@ function JapanesePage() {
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {m.mode === 'quiz' ? (
-                          <button className={outline} disabled={busy} onClick={() => begin(m.id)}>
+                          <button
+                            className={outline}
+                            disabled={busy}
+                            aria-busy={startingQuiz && topic === m.id}
+                            onClick={() => begin(m.id)}
+                          >
                             Latihan kuis
                           </button>
                         ) : (
