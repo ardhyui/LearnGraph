@@ -1,55 +1,58 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (angka hitungan di chip "You reviewed these
-this week" `/gaps` selesai lewat PR #156; berikutnya: ukuran sampel di samping
-persentase retensi tiap minggu `/progress`)
+Terakhir diperbarui: 2026-11-25 (ukuran sampel retensi `/progress` selesai
+lewat PR #157; berikutnya: status proses tombol laporan diri **I've got it**/
+**Still learning** di `/learn/$conceptId`)
 
 ## Tugas berikutnya
 
-Poles kecil: **Ukuran sampel di samping "Reviews remembered" tiap minggu
-`/progress`** — setelah persentase retensi, tampilkan `(3 of 4)` bila ada review
-jatuh tempo yang dijawab, supaya pelajar tahu persentase itu dihitung dari
-berapa review; tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil: **Status proses tombol laporan diri "I've got it"/"Still
+learning" `/learn/$conceptId`** — saat `busy` (sedang menyimpan laporan diri),
+kedua tombol hanya berubah `opacity-60` lewat `disabled`, tanpa `aria-busy` dan
+tanpa pengumuman, sehingga pembaca layar tidak tahu simpan sedang berjalan dan
+tombol tampak diam. Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: daftar **Week by week** `/progress` (`src/routes/progress.tsx` sekitar
-baris 299–310) menampilkan `Reviews remembered: 75%` tetapi tidak menyebut
-penyebutnya. Baris pendukung `weekDetailLine` memang memuat "4 due reviews
-answered", tetapi angka 75% dan 4 tidak terhubung, sehingga "100%" dari satu
-review terlihat sama meyakinkan dengan "100%" dari dua puluh review. Data
-penyebutnya sudah ada di baris `WeeklyRetention` yang sama (`answered`,
-`correct`) — tidak perlu query baru.
+Tujuan: panel laporan diri tanpa kuis (`src/routes/learn.$conceptId.tsx` sekitar
+baris 432–449) berisi dua tombol — **I've got it** dan **Still learning** —
+yang memanggil `selfReport(...)`. `selfReport` menyetel `busy` true di awal dan
+false di `finally`; selama itu kedua tombol `disabled={busy}` (kelas
+`disabled:opacity-60`) tetapi nama aksesibelnya tidak berubah dan tidak ada
+status apa pun. Setelah selesai, `<p role="status" aria-live="polite">` notice
+yang sudah ada (`ref={noticeRef}`, baris 253–261) membacakan hasil, tetapi
+*selama* proses tidak ada isyarat. Ikuti pola PR #131/#133 (tombol submit
+`/sign-in`, `/forgot-password`, `/reset-password`).
 
 Rancangan:
 
-1. **Helper** — tambah helper murni `retentionSampleLabel(correct: number,
-   answered: number): string` di `src/lib/evidence/progress.ts` (dekat
-   `retentionPercent`): kembalikan `` ` (${c} of ${answered})` `` bila keduanya
-   angka finite, `answered > 0`, dan `correct >= 0`; `correct` dijepit ke
-   maksimal `answered`; selain itu (`answered` 0/negatif, NaN/Infinity,
-   `correct` negatif) kembalikan `''`. Awali dengan spasi agar aman ditempel
-   sesudah persentase. Tanpa perubahan pada `retentionByWeek`, `weeklyBuckets`,
-   atau `retentionPercent`.
-2. **UI** — di `<p>` **Reviews remembered:** tiap `<li>` minggu, tepat sesudah
-   `<span className="font-medium text-foreground">{retentionPercent(...)}</span>`
-   tambah `{retention && (<span className="text-xs text-muted-foreground">{retentionSampleLabel(retention.correct, retention.answered)}</span>)}`
-   — teks terlihat, bukan `aria-hidden`/`sr-only`, sehingga pembaca layar ikut
-   mendengar "(3 of 4)"; minggu tanpa review tetap hanya "—" tanpa tanda
-   kurung. `retentionSampleLabel` digabung pada impor
-   `@/lib/evidence/progress` yang sudah ada. Label **Reviews remembered:**,
-   `weekRangeLabel`, `weekDetailLine`, chip **Most reviewed:**, kartu **This
-   week**/**Streaks**/**Recent activity**, urutan minggu, pemilih learner, dan
-   copy lain tidak berubah; tanpa server function/RPC/migrasi/dependensi baru;
-   UI bahasa Inggris (D2).
-3. **Test** — perluas `tests/learner-progress.test.ts`: unit helper (`3,4` →
-   `" (3 of 4)"`, `1,1`, `0,2`, `correct > answered` dijepit, `answered`
-   0/negatif dan NaN/Infinity → `""`), plus penjaga statis route (impor helper,
-   pemakaian sesudah `retentionPercent`, kelas `text-xs text-muted-foreground`,
-   bukan `sr-only`/`aria-hidden`, kartu lain tetap, tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi). Jangan melonggarkan
-   penjaga `weeklyFocus`/**Recent activity** yang ada.
-4. **Smoke** — tidak ada cek baru (nilai bergantung event seed); penjaga baris
-   smoke 2748 (`tests/skip-link.test.ts`) tetap.
-5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+1. **Tombol** — pada kedua `<button type="button" disabled={busy}
+   onClick={() => void selfReport(...)}>` tambahkan `aria-busy={busy}` tepat
+   sesudah `disabled`; `type`, `onClick`, `disabled`, kelas persis, dan label
+   terlihat (`I&apos;ve got it`, `Still learning`) tidak berubah. Jangan
+   menambah ikon `Loader2`/spinner dan jangan mengubah tata letak.
+2. **Status** — tepat sesudah tombol **Still learning** dan masih di dalam
+   `<div className="mt-3 flex flex-wrap gap-2">` (anak terakhir wadah itu), satu
+   `<p role="status" aria-live="polite" className="sr-only">` yang membacakan
+   `Saving…` saat `busy` dan kosong saat idle (`{busy ? 'Saving…' : ''}`), agar
+   tidak ada teks tersembunyi yang menetap. Notice hasil yang sudah ada
+   (`noticeRef`, `role="status"`, `aria-live="polite"`, `tabIndex={-1}`,
+   `className` dari `cn(...)`) tetap satu-satunya pengumuman hasil dan tidak
+   diubah; jangan menyentuh `setNotice(null)`/pesan sukses/galat.
+3. **Tidak berubah** — alur `selfReport` (`setBusy(true)`, `recordStudyOutcome`,
+   `load()`, `finally setBusy(false)`), teks paragraf "This concept has no quiz
+   yet…", tombol kuis/format learning, `<TutorContext>`, navigasi **Next step**,
+   `quizResultNotice`/`finishQuiz`/`cancelQuiz`, dan copy lain; tanpa
+   server/RPC/migrasi/dependensi baru; UI bahasa Inggris (D2).
+4. **Test** — test statis baru `tests/learn-self-report-status.test.ts`:
+   tepat dua tombol laporan diri, keduanya `aria-busy={busy}` + `disabled={busy}`
+   dengan label/kelas tetap; satu status baru dengan `role="status"`,
+   `aria-live="polite"`, `className="sr-only"`, teks `Saving…` saat `busy` dan
+   kosong saat idle, berada sesudah kedua tombol di wadah yang sama; notice
+   `noticeRef` tetap; `Loader2` baru tidak ditambahkan di blok itu; tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi. Jangan melonggarkan test
+   `/learn` yang ada.
+5. **Smoke** — tidak ada cek baru (status pending hanya sesaat dan bergantung
+   request); penjaga baris smoke 2748 (`tests/skip-link.test.ts`) tetap.
+6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
@@ -59,16 +62,12 @@ Gerbang: `npm run ci` utuh hijau sebelum PR; commit bahasa Indonesia `feat:`.
 Semua tanpa migrasi skema, terlihat pelajar, dan bisa diverifikasi otomatis;
 baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Setelah tugas retensi selesai: audit `docs/ROADMAP.md` (P0 #5 aksesibilitas,
-   baris "Sebagian:") atau surface pelajar lain (`/gaps`, `/learn/$conceptId`)
-   untuk poles kecil berikutnya. Baris "Lanjutan:" yang belum dicoret saat ini
-   hanya butuh keputusan pemilik, error SSR langka, atau migrasi data — jangan
-   dipilih tanpa perubahan kondisi.
-2. Kandidat aman yang belum dikerjakan: status proses tombol laporan diri
-   **I've got it**/**Still learning** di `/learn/$conceptId` (aria-busy + satu
-   `role="status"` yang membacakan "Saving…"), mengikuti pola PR #131/#133;
-   verifikasi statis, tanpa server/RPC/migrasi baru.
-3. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
+1. Setelah tugas status laporan diri selesai: audit `docs/ROADMAP.md` (P0 #5
+   aksesibilitas, baris "Sebagian:") atau surface pelajar lain (`/gaps`,
+   `/learn/$conceptId`) untuk poles kecil berikutnya. Baris "Lanjutan:" yang
+   belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
+   migrasi data — jangan dipilih tanpa perubahan kondisi.
+2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
    digugurkan — jangan diulang.
@@ -78,6 +77,17 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #157 — **Ukuran sampel di samping "Reviews remembered" tiap
+  minggu `/progress`** — tiap baris retensi minggu di **Week by week** kini
+  menampilkan `(3 of 4)` sesudah persentase lewat helper murni baru
+  `retentionSampleLabel(correct, answered)` di `src/lib/evidence/progress.ts`
+  (diawali spasi; `correct` dijepit ke `answered`; `''` bila tidak ada review
+  atau angka tidak valid), dirender sebagai `<span className="text-xs
+  text-muted-foreground">` yang terlihat sehingga pembaca layar ikut mendengar;
+  minggu tanpa review tetap `—`. Tanpa query/RPC/migrasi/dependensi baru.
+  Test `tests/learner-progress.test.ts` diperluas (unit helper + penjaga statis
+  route) tanpa melonggarkan penjaga `weeklyFocus`/**Recent activity**. Tanpa
+  cek smoke baru; penjaga baris smoke 2748 tetap. `npm run ci` utuh hijau.
 - 2026-11-25: PR #156 — **Angka hitungan di chip "You reviewed these this
   week" `/gaps`** — tiap chip fokus mingguan di kartu Reviews kini menambah
   `<span aria-hidden="true"> · {concept.count}</span>` tepat sesudah `{name}`
