@@ -1,76 +1,75 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (status proses tombol **Prepare the context**
-panel **Ask an AI tutor** selesai lewat PR #161; berikutnya: status proses
-tombol **Ask Claude** di komponen yang sama)
+Terakhir diperbarui: 2026-11-25 (status proses tombol **Ask Claude**
+panel **Ask an AI tutor** selesai lewat PR #162; berikutnya: status proses
+tombol **Review them now** di ringkasan snooze panel Today)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol "Ask Claude" (`src/components/TutorContext.tsx`)** —
-saat `asking` (menunggu `askTutorChat`), tombol **Ask Claude** hanya
-menampilkan ikon `Loader2` dan diredupkan lewat `disabled`, tanpa `aria-busy`
-dan tanpa pengumuman, sehingga pembaca layar tidak tahu jawaban sedang diminta.
-Tombol **Prepare the context** (`busy`) sudah selesai (PR #161) dan tidak
-termasuk tugas ini. Tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil: **Status proses tombol "Review them now" ringkasan snooze panel
+Today (`src/components/StudyToday.tsx`)** — saat `busy === UNSNOOZE_BUSY`,
+tombol di ringkasan snooze hanya menampilkan ikon `Loader2` dan diredupkan lewat
+`disabled={!!busy}`, tanpa `aria-busy` dan tanpa pengumuman, sehingga pembaca
+layar tidak tahu review sedang dikembalikan ke antrean. Tombol per-item
+**Review it now** (`busy === item.conceptId`) tidak termasuk tugas ini (kandidat
+sesudahnya). Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: komponen `TutorContext` (dipakai di `/learn/$conceptId` dan surface
-pelajar lain) tetap dirender sebagai `<section aria-labelledby={ids.heading}
-className="glass-card mt-6 p-4 sm:p-5" data-testid="tutor-context">`; blok
-chat tetap `<div className="mt-5 border-t border-border/60 pt-4"
-data-testid="tutor-chat">` dengan baris input key + tombol tepat sesudah
-`<h3 id={ids.chat}>` dan paragraf penjelas, yaitu `<div className="mt-2 flex
-flex-col gap-2 sm:flex-row sm:items-end">` berisi `<div className="flex-1">`
-(input `type="password"` berlabel **Anthropic API key**) dan tombol
-`<button type="button" onClick={() => void ask()} disabled={asking}>`
-berlabel **Ask Claude** (berisi `{asking && <Loader2 className="h-4 w-4
-animate-spin" aria-hidden="true" />}`). `ask` menyetel `asking` true sebelum
-`askTutorChat` dan `false` pada `finally`; galat tampil di `chatError`
-(`<p role="alert">`). Ikuti pola PR #131/#133/#158/#159/#160/#161 (aria-busy +
-satu baris status `sr-only`).
+Tujuan: ringkasan snooze tetap `<div className="mt-2"
+data-testid="snoozed-summary">`; paragraf ringkasan tetap `<p className="text-xs
+text-muted-foreground">` berisi `snoozedSummary(current.snoozed.map((s) =>
+s.until), new Date())`; tombol **Review them now** tetap hanya dirender bila
+`current.snoozed.length > 1`, di dalam fragmen `{' '}·{' '}`, sebagai
+`<button type="button" onClick={unsnoozeAll} disabled={!!busy} ...>` berlabel
+**Review them now** dengan ikon `{busy === UNSNOOZE_BUSY && <Loader2
+className="h-3 w-3 animate-spin" aria-hidden="true" />}`. Daftar `<ul
+className="mt-1 space-y-1" aria-label="Snoozed reviews">` dan tombol
+per-item tidak berubah. `unsnoozeAll` menyetel `setBusy(UNSNOOZE_BUSY)` lalu
+`setBusy(null)` pada `finally`; galat lewat `setError`. Ikuti pola
+PR #131/#133/#158/#159/#160/#161/#162 (aria-busy + satu baris status `sr-only`).
 
 Rancangan:
 
-1. **Tombol Ask Claude** — tambahkan `aria-busy={asking}` tepat sesudah
-   `disabled={asking}`; jangan mengubah `type="button"`, `onClick={() =>
-   void ask()}`, kelas persis (`inline-flex min-h-9 items-center justify-center
-   gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium
-   text-primary-foreground hover:bg-primary/90 disabled:opacity-60`), label,
-   atau ikon `Loader2` (tetap `aria-hidden="true"` dengan kelas `h-4 w-4
-   animate-spin`). Tombol **Prepare the context** tidak berubah (`type="submit"`,
-   `disabled={busy}`, `aria-busy={busy}`, statusnya tetap).
-2. **Status** — tepat sesudah penutup `<div className="mt-2 flex flex-col gap-2
-   sm:flex-row sm:items-end">` yang memuat input key + tombol **Ask Claude**,
-   dan sebelum baris checkbox `<div className="mt-2 flex flex-wrap gap-x-4
-   gap-y-1 text-xs text-muted-foreground">`, satu `<p role="status"
-   aria-live="polite" className="sr-only">` yang membacakan `Asking Claude…`
-   saat `asking` dan kosong saat idle (`{asking ? 'Asking Claude…' : ''}`).
-   Blok jawaban `<div className="mt-3 space-y-3" aria-live="polite">`, galat
-   `chatError` (`role="alert"`), status penilaian `rated` (`role="status"`),
-   status **Copied…**, dan status **Preparing the context…** tidak berubah.
-3. **Tidak berubah** — `ask` (guard `asking`, validasi regex `sk-ant-…`,
-   `setChatError` untuk key/pertanyaan kosong, `setAsking(true)`,
-   `setChatError(null)`, `setChat(null)`, `setRated(null)`, `writeKey`,
-   `askTutorChat({ data: { learnerId, conceptId, question: query, apiKey:
-   apiKey.trim(), compare } })`, `catch`, `finally`), `rate`, `prepare`, state
-   `apiKey`/`rememberKey`/`compare`/`chat`/`asking`/`chatError`/`rated`, `ids`,
-   input API key, checkbox **Remember the key in this browser**/**Compare with
-   an answer that doesn’t know me**, tombol **About the same**/`Answer N`,
-   copy, dan struktur `section`; tanpa server function/RPC/migrasi/dependensi
+1. **Tombol Review them now** — tambahkan `aria-busy={busy === UNSNOOZE_BUSY}`
+   tepat sesudah `disabled={!!busy}`; jangan mengubah `type="button"`,
+   `onClick={unsnoozeAll}`, kelas persis (`inline-flex min-h-6 items-center
+   gap-1 font-medium text-primary underline underline-offset-2 focus:outline-none
+   focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50`), label,
+   atau ikon `Loader2` (tetap `aria-hidden="true"` dengan kelas `h-3 w-3
+   animate-spin`). Tombol **Review it now** per item tidak berubah (tetap
+   `disabled={!!busy}`, `aria-label={`Review it now: ${item.name}`}`, tanpa
+   `aria-busy`).
+2. **Status** — tepat sesudah penutup `</p>` paragraf ringkasan snooze dan
+   sebelum `<ul className="mt-1 space-y-1" aria-label="Snoozed reviews">`, satu
+   `<p role="status" aria-live="polite" className="sr-only">` yang membacakan
+   `Bringing your snoozed reviews back…` saat `busy === UNSNOOZE_BUSY` dan
+   kosong saat idle (`{busy === UNSNOOZE_BUSY ? 'Bringing your snoozed reviews
+   back…' : ''}`). Tautan **See snoozed reviews**, `data-testid`, dan blok lain
+   tidak berubah.
+3. **Tidak berubah** — `unsnoozeAll` (guard `!db || !learnerId || busy ||
+   data?.learnerId !== learnerId || data.snoozed.length === 0`, `setBusy`,
+   `Promise.all`/`applyUnsnooze`/`recordStudyOutcome` bila ada, reload, `catch
+   setError`, `finally setBusy(null)`), `unsnoozeOne` (marker
+   `item.conceptId`), `focusAfterAnswer`/`focusAfterUnsnooze`, state
+   `busy`/`error`/`data`, konstanta `UNSNOOZE_BUSY = '\u0000snoozed'`, copy
+   ringkasan, dan struktur panel; tanpa server function/RPC/migrasi/dependensi
    baru; UI bahasa Inggris (D2).
-4. **Test** — test statis baru `tests/tutor-context-ask-status.test.ts`:
-   tombol **Ask Claude** punya `aria-busy={asking}` sesudah `disabled={asking}`
-   dengan kelas/label/ikon tetap; tombol submit **Prepare the context** tetap
-   `disabled={busy}` + `aria-busy={busy}`; satu status baru `role="status"` +
-   `aria-live="polite"` + `className="sr-only"` berteks `Asking Claude…` saat
-   `asking` dan kosong saat idle, berada sesudah baris input key/tombol dan
-   sebelum baris checkbox; galat `role="alert"`, status **Copied…**,
-   `Preparing the context…`, dan blok jawaban `aria-live="polite"` tetap; alur
-   `ask` utuh; tanpa `aria-label`/`aria-labelledby`/`aria-atomic` baru; tanpa
-   `createServerFn`/`rpc-schemas`/migrasi. Jangan melonggarkan
-   `tests/tutor-context.test.ts`/`tests/tutor-chat.test.ts`/
-   `tests/tutor-context-prepare-status.test.ts`.
-5. **Smoke** — tidak ada cek baru (status pending hanya sesaat dan butuh API
-   key Anthropic); penjaga baris smoke 2748 (`tests/skip-link.test.ts`) tetap.
+4. **Test** — test statis baru `tests/study-today-unsnooze-status.test.ts`:
+   tombol **Review them now** punya `aria-busy={busy === UNSNOOZE_BUSY}` sesudah
+   `disabled={!!busy}` dengan kelas/label/ikon tetap; tombol per-item **Review
+   it now** tetap `disabled={!!busy}` tanpa `aria-busy`; satu status baru
+   `role="status"` + `aria-live="polite"` + `className="sr-only"` berteks
+   `Bringing your snoozed reviews back…` saat marker itu dan kosong saat idle,
+   berada sesudah paragraf ringkasan dan sebelum `<ul aria-label="Snoozed
+   reviews">`; `data-testid="snoozed-summary"`, `snoozedSummary`, tautan
+   **See snoozed reviews**, `aria-label="Snoozed reviews"`, dan alur
+   `unsnoozeAll`/`unsnoozeOne` tetap; tanpa `aria-label`/`aria-labelledby`/
+   `aria-atomic` baru (selain `aria-label` tombol per-item yang sudah ada);
+   tanpa `createServerFn`/`rpc-schemas`/migrasi. Jangan melonggarkan
+   `tests/snoozed-display.test.ts`, `tests/unsnooze.test.ts`, atau test Today
+   lain.
+5. **Smoke** — tidak ada cek baru (status pending hanya sesaat dan ringkasan
+   snooze butuh data snooze); penjaga baris smoke 2748 (`tests/skip-link.test.ts`)
+   tetap.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -102,18 +101,33 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 3. Pola `aria-busy` + status `sr-only` sudah dipakai di `/sign-in`,
    `/forgot-password`, `/reset-password`, `/learn/$conceptId` (laporan diri dan
    kuis konsep), `DownloadMyData`, `DownloadWorkspace`,
-   `RefreshExampleData`, dan `DeleteAccount`; kandidat berikutnya adalah tombol
-   aksi pelajar lain yang punya `busy`/`Loader2` tetapi belum punya keduanya.
-   `TutorContext.tsx` tombol **Prepare the context** sudah ditangani (PR #161),
-   dan tombol **Ask Claude** (`asking`, state terpisah) menjadi tugas
-   berikutnya; sesudahnya periksa tombol **Review them now** di ringkasan snooze
-   `StudyToday.tsx` (`busy === UNSNOOZE_BUSY` / `busy === item.conceptId`).
+   `RefreshExampleData`, `DeleteAccount`, dan kedua tombol panel **Ask an AI
+   tutor** (`TutorContext`: **Prepare the context** PR #161, **Ask Claude**
+   PR #162); kandidat berikutnya adalah tombol aksi pelajar lain yang punya
+   `busy`/`Loader2` tetapi belum punya keduanya. Sesudah tombol **Review them
+   now** di ringkasan snooze `StudyToday.tsx` (`busy === UNSNOOZE_BUSY`), periksa
+   tombol per-item **Review it now** di daftar **Snoozed reviews** pada komponen
+   yang sama (`busy === item.conceptId`).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #162 — **Status proses tombol "Ask Claude" panel "Ask an AI
+  tutor" `TutorContext`** — tombol kini membawa `aria-busy={asking}` tepat
+  sesudah `disabled={asking}` (kelas/label/spinner utuh), dan di antara baris
+  input key/tombol dan baris checkbox ada satu `<p role="status"
+  aria-live="polite" className="sr-only">{asking ? 'Asking Claude…' : ''}</p>`
+  yang hanya berbunyi selama `askTutorChat` berjalan; tombol **Prepare the
+  context** (`busy`) tetap dengan statusnya sendiri, galat `role="alert"`,
+  status **Copied…**, dan blok jawaban `aria-live="polite"` tidak berubah. Alur
+  `ask`, state, dan copy lain utuh; tanpa query/RPC/migrasi/dependensi baru.
+  Test baru `tests/tutor-context-ask-status.test.ts` (11 penjaga statis);
+  `tests/tutor-context-prepare-status.test.ts` hanya menyesuaikan tombol **Ask
+  Claude** tanpa melonggarkan penjaga form. Tanpa cek smoke baru, penjaga baris
+  smoke 2748 tetap. `npm run ci` utuh hijau (`TMPDIR=/tmp/opencode`,
+  `CI_PORT=8481 CI_PREVIEW_PORT=8483`).
 - 2026-11-25: PR #161 — **Status proses tombol "Prepare the context" panel
   "Ask an AI tutor" `TutorContext`** — tombol submit kini membawa
   `aria-busy={busy}` tepat sesudah `disabled` (kelas/label/spinner utuh), dan
