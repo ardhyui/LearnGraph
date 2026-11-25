@@ -102,6 +102,7 @@ export function DeleteAccount() {
             <button
               type="submit"
               disabled={busy}
+              aria-busy={busy}
               className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:opacity-60"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
@@ -121,6 +122,9 @@ export function DeleteAccount() {
               Keep my account
             </button>
           </div>
+          <p role="status" aria-live="polite" className="sr-only">
+            {busy ? 'Deleting your account…' : ''}
+          </p>
         </form>
       )}
     </section>

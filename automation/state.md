@@ -1,65 +1,68 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-25 (status proses tombol **Check my answers** kuis
-`ConceptQuiz` selesai lewat PR #159; berikutnya: status proses tombol hapus akun
-`DeleteAccount`)
+Terakhir diperbarui: 2026-11-25 (status proses tombol hapus akun `DeleteAccount`
+selesai lewat PR #160; berikutnya: status proses tombol **Prepare the context**
+panel **Ask an AI tutor**)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol submit hapus akun
-(`src/components/DeleteAccount.tsx`)** — saat `busy` (menunggu
-`authClient.deleteUser`), tombol submit hanya menampilkan ikon `Loader2` dan
-diredupkan lewat `disabled`, tanpa `aria-busy` dan tanpa pengumuman, sementara
-tombol **Keep my account** di sebelahnya juga hanya `disabled`; pembaca layar
-tidak tahu penghapusan sedang berjalan. Tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil: **Status proses tombol submit "Prepare the context"
+(`src/components/TutorContext.tsx`)** — saat `busy` (menunggu
+`getTutorContext`), tombol submit form pertanyaan hanya menampilkan ikon
+`Loader2` dan diredupkan lewat `disabled`, tanpa `aria-busy` dan tanpa
+pengumuman, sehingga pembaca layar tidak tahu brief tutor sedang disiapkan.
+Tombol **Ask Claude** memakai state `asking` terpisah dan tidak termasuk tugas
+ini. Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: komponen `DeleteAccount` (dipakai dari halaman profil) dirender sebagai
-`<section aria-labelledby={ids.heading} … data-testid="delete-account">`; saat
-form terbuka ia berisi `<form onSubmit={submit} className="mt-4 max-w-sm
-space-y-3" noValidate>` dengan tombol `<button type="submit" disabled={busy}>`
-berlabel **Delete my account and all data** (berisi `{busy && <Loader2
-className="h-4 w-4 animate-spin" aria-hidden="true" />}`) dan tombol
-`<button type="button" onClick={…} disabled={busy}>` berlabel **Keep my
-account**. `submit` menyetel `busy` true sebelum `authClient.deleteUser` dan
-`false` pada kedua jalur gagal; galat tampil di `<p role="alert">`. Ikuti pola
-PR #131/#133/#158/#159 (aria-busy + satu baris status `sr-only`).
+Tujuan: komponen `TutorContext` (dipakai di `/learn/$conceptId` dan surface
+pelajar lain) tetap dirender sebagai `<section aria-labelledby={ids.heading}
+className="glass-card mt-6 p-4 sm:p-5" data-testid="tutor-context">`; form
+pertanyaan tetap `<form onSubmit={prepare} className="mt-3 flex flex-col gap-2
+sm:flex-row sm:items-end">` dengan tombol `<button type="submit"
+disabled={busy}>` berlabel **Prepare the context** (berisi `{busy && <Loader2
+className="h-4 w-4 animate-spin" aria-hidden="true" />}`). `prepare` menyetel
+`busy` true sebelum `getTutorContext` dan `false` pada `finally`; galat tampil
+di `<p role="alert">` yang sudah ada. Ikuti pola PR #131/#133/#158/#159/#160
+(aria-busy + satu baris status `sr-only`).
 
 Rancangan:
 
 1. **Tombol submit** — tambahkan `aria-busy={busy}` tepat sesudah
-   `disabled={busy}` pada tombol **Delete my account and all data**; jangan
-   mengubah `type="submit"`, kelas persis, label, atau ikon `Loader2` (tetap
-   `aria-hidden="true"` dengan kelas `h-4 w-4 animate-spin`). Tombol **Keep my
-   account** tidak perlu `aria-busy`; `type="button"`, `onClick` (yang menutup
-   form dan mengosongkan `password`/`confirmText`/`error`), `disabled={busy}`,
-   dan kelasnya tidak berubah.
-2. **Status** — tepat sesudah `<div className="flex flex-wrap gap-2">` berisi
-   kedua tombol dan masih di dalam `<form>` (anak terakhir form), satu
-   `<p role="status" aria-live="polite" className="sr-only">` yang membacakan
-   `Deleting your account…` saat `busy` dan kosong saat idle
-   (`{busy ? 'Deleting your account…' : ''}`). Galat tetap satu-satunya
-   `<p role="alert">`.
-3. **Tidak berubah** — `submit` (guard `busy`, validasi `Type DELETE to
-   confirm.`/`Enter your password.`, `authClient.deleteUser({ password })`,
-   `setError` + `setBusy(false)` pada `failed` dan `catch`,
-   `window.location.assign('/sign-in?deleted=1')`), state
-   `open`/`password`/`confirmText`/`busy`/`error`, `ids`, cabang
-   `!open` (tombol **Delete my account…**), dua pasangan label/kontrol,
-   `CONFIRM_WORD`, `LOCAL_OWNER_ID` guard, tautan `/privacy`, copy, dan
-   struktur `section`; tanpa server function/RPC/migrasi/dependensi baru; UI
-   bahasa Inggris (D2).
-4. **Test** — test statis baru `tests/delete-account-pending-status.test.ts`:
+   `disabled={busy}` pada tombol **Prepare the context**; jangan mengubah
+   `type="submit"`, kelas persis
+   (`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg
+   border border-border bg-background px-3 py-2 text-sm font-medium
+   text-foreground hover:bg-primary/10 disabled:opacity-60`), label, atau ikon
+   `Loader2` (tetap `aria-hidden="true"` dengan kelas `h-4 w-4 animate-spin`).
+   Tombol **Ask Claude** tidak berubah (`type="button"`, `onClick={() =>
+   void ask()}`, `disabled={asking}`, tanpa `aria-busy`).
+2. **Status** — tepat sesudah tombol **Prepare the context** dan masih di
+   dalam `<form>` sebagai anak terakhirnya, satu `<p role="status"
+   aria-live="polite" className="sr-only">` yang membacakan
+   `Preparing the context…` saat `busy` dan kosong saat idle
+   (`{busy ? 'Preparing the context…' : ''}`). Galat form tetap satu-satunya
+   `<p role="alert">` pertama; status **Copied. Paste it into your AI tutor,
+   with your question.** (`role="status" aria-live="polite"`) dan galat chat
+   (`chatError`) tidak berubah.
+3. **Tidak berubah** — `prepare` (guard `busy`, `setError(null)`,
+   `setCopied(false)`, `getTutorContext({ data: { learnerId, conceptId,
+   query: query.trim() || undefined } })`, fokus `textRef`, `catch`, `finally`),
+   state `query`/`context`/`busy`/`error`/`copied`, `ids`, label + input
+   pertanyaan, tombol **Copy context for AI tutor**, `ask`/`rate`, input API
+   key, checkbox, blok chat, copy, dan struktur `section`; tanpa server
+   function/RPC/migrasi/dependensi baru; UI bahasa Inggris (D2).
+4. **Test** — test statis baru `tests/tutor-context-prepare-status.test.ts`:
    tombol submit punya `aria-busy={busy}` sesudah `disabled={busy}` dengan
-   kelas/label/ikon tetap; tombol **Keep my account** tetap `disabled={busy}`
+   kelas/label/ikon tetap; tombol **Ask Claude** tetap `disabled={asking}`
    tanpa `aria-busy`; satu status baru `role="status"` + `aria-live="polite"` +
-   `className="sr-only"` berteks `Deleting your account…` saat `busy` dan
-   kosong saat idle, berada sesudah wadah dua tombol sebagai anak terakhir
-   `<form>`; galat `role="alert"` tetap; alur `submit` dan guard
-   `LOCAL_OWNER_ID` utuh; tanpa `createServerFn`/`graphCall`/`rpc-schemas`/
-   migrasi. Jangan melonggarkan test profil/hapus akun yang ada.
-5. **Smoke** — tidak ada cek baru (penghapusan akun destruktif butuh sesi
-   nyata + kata sandi; status pending hanya sesaat); penjaga baris smoke 2748
-   (`tests/skip-link.test.ts`) tetap.
+   `className="sr-only"` berteks `Preparing the context…` saat `busy` dan
+   kosong saat idle, berada sesudah tombol submit sebagai anak terakhir
+   `<form>`; galat `role="alert"` dan status **Copied…** tetap; alur `prepare`
+   utuh; tanpa `aria-label`/`aria-labelledby`/`aria-atomic` baru; tanpa
+   `createServerFn`/`rpc-schemas`/migrasi. Jangan melonggarkan
+   `tests/tutor-context.test.ts`/`tests/tutor-chat.test.ts`.
+5. **Smoke** — tidak ada cek baru (status pending hanya sesaat dan bergantung
+   request); penjaga baris smoke 2748 (`tests/skip-link.test.ts`) tetap.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -89,17 +92,31 @@ baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
    digugurkan — jangan diulang.
 3. Pola `aria-busy` + status `sr-only` sudah dipakai di `/sign-in`,
-   `/forgot-password`, `/reset-password`, `/learn/$conceptId` (laporan diri),
-   `DownloadMyData`, `DownloadWorkspace`, dan `RefreshExampleData`; kandidat
-   berikutnya adalah tombol aksi pelajar lain yang punya `busy`/`Loader2`
-   tetapi belum punya keduanya (periksa `StudyToday.tsx`, `TutorContext.tsx`).
-   `DeleteAccount.tsx` sudah ditangani pada tugas berikutnya (PR #159).
+   `/forgot-password`, `/reset-password`, `/learn/$conceptId` (laporan diri dan
+   kuis konsep), `DownloadMyData`, `DownloadWorkspace`,
+   `RefreshExampleData`, dan `DeleteAccount`; kandidat berikutnya adalah tombol
+   aksi pelajar lain yang punya `busy`/`Loader2` tetapi belum punya keduanya.
+   `TutorContext.tsx` tombol **Prepare the context** ditangani pada tugas
+   berikutnya (PR #160); sesudahnya periksa tombol **Ask Claude** (`asking`,
+   state terpisah) dan tombol **Review them now** di ringkasan snooze
+   `StudyToday.tsx` (`busy === UNSNOOZE_BUSY` / `busy === item.conceptId`).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-25: PR #160 — **Status proses tombol hapus akun `DeleteAccount`** —
+  tombol submit kini membawa `aria-busy={busy}` tepat sesudah `disabled`
+  (kelas/label/spinner utuh), dan tepat sesudah wadah kedua tombol di dalam
+  `<form>` ada satu `<p role="status" aria-live="polite" className="sr-only">{busy
+  ? 'Deleting your account…' : ''}</p>` yang hanya berbunyi selama penghapusan;
+  tombol **Keep my account** tetap `disabled={busy}` tanpa `aria-busy`, galat
+  `role="alert"` dan alur `submit`/guard `LOCAL_OWNER_ID` tidak berubah. Tanpa
+  query/RPC/migrasi/dependensi baru. Test baru
+  `tests/delete-account-pending-status.test.ts` (11 penjaga statis); tanpa cek
+  smoke baru, penjaga baris smoke 2748 tetap. `npm run ci` utuh hijau
+  (`TMPDIR=/tmp/opencode`).
 - 2026-11-25: PR #159 — **Status proses tombol "Check my answers" kuis konsep
   `ConceptQuiz`** — tombol submit kini membawa `aria-busy={busy}` tepat sesudah
   `disabled` (kelas/label/spinner utuh), dan tepat sesudah wadah kedua tombol di
