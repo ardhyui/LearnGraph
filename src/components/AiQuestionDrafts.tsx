@@ -120,6 +120,7 @@ export function AiQuestionDrafts({
           type="button"
           onClick={() => void draft()}
           disabled={busy}
+          aria-busy={busy}
           className="btn btn-primary flex items-center justify-center gap-2 disabled:opacity-60"
         >
           {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
@@ -157,6 +158,9 @@ export function AiQuestionDrafts({
           ))}
         </div>
       )}
+      <p role="status" aria-live="polite" className="sr-only">
+        {busy ? 'Drafting questions…' : ''}
+      </p>
     </section>
   );
 }
