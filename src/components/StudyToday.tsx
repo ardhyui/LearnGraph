@@ -769,6 +769,7 @@ export function StudyToday() {
                       type="button"
                       onClick={unsnoozeAll}
                       disabled={!!busy}
+                      aria-busy={busy === UNSNOOZE_BUSY}
                       className="inline-flex min-h-6 items-center gap-1 font-medium text-primary underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
                     >
                       {busy === UNSNOOZE_BUSY && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
@@ -780,6 +781,9 @@ export function StudyToday() {
                 <Link to="/gaps" className="font-medium text-primary underline underline-offset-2">
                   See snoozed reviews
                 </Link>
+              </p>
+              <p role="status" aria-live="polite" className="sr-only">
+                {busy === UNSNOOZE_BUSY ? 'Bringing your snoozed reviews back…' : ''}
               </p>
               <ul className="mt-1 space-y-1" aria-label="Snoozed reviews">
                 {current.snoozed.map((item) => (
