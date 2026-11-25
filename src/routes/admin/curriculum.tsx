@@ -32,6 +32,8 @@ function CurriculumPage() {
   const [keepConcepts, setKeepConcepts] = useState<Set<string>>(new Set());
   const [keepEdges, setKeepEdges] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const ids = { subject: useId(), text: useId(), key: useId(), pdf: useId() };
@@ -104,6 +106,7 @@ function CurriculumPage() {
     if (!subject.trim()) return setError('Name the subject.');
     if (text.trim().length < 20 && !pdf) return setError('Paste a longer course description or attach a PDF.');
     setBusy(true);
+    setDrafting(true);
     setError(null);
     setNotice(null);
     setPlan(null);
@@ -116,12 +119,14 @@ function CurriculumPage() {
       setError(err instanceof Error ? err.message : 'Could not draft the curriculum.');
     } finally {
       setBusy(false);
+      setDrafting(false);
     }
   };
 
   const save = async () => {
     if (!plan || busy) return;
     setBusy(true);
+    setSaving(true);
     setError(null);
     try {
       const keptIds = new Set([...keepConcepts, ...plan.concepts.filter((c) => c.exists).map((c) => c.conceptId)]);
@@ -142,6 +147,7 @@ function CurriculumPage() {
       setError(err instanceof Error ? err.message : 'Could not save.');
     } finally {
       setBusy(false);
+      setSaving(false);
     }
   };
 
@@ -234,10 +240,13 @@ function CurriculumPage() {
                 />
                 {pdf && <p className="mt-1 text-xs text-muted-foreground">Attached: {pdf.name}</p>}
               </div>
-              <button type="submit" disabled={busy} className="btn btn-primary flex items-center gap-2 disabled:opacity-60">
+              <button type="submit" disabled={busy} aria-busy={drafting} className="btn btn-primary flex items-center gap-2 disabled:opacity-60">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
                 Draft with Claude
               </button>
+              <p role="status" aria-live="polite" className="sr-only">
+                {drafting ? 'Drafting your curriculum…' : ''}
+              </p>
             </form>
           ) : (
             ai && <p className="text-sm text-muted-foreground">Turn on “Let Claude draft …” above to describe a course.</p>
@@ -305,10 +314,13 @@ function CurriculumPage() {
                   })}
                 </ul>
               </fieldset>
-              <button type="button" onClick={() => void save()} disabled={busy} className="btn btn-primary flex items-center gap-2 disabled:opacity-60">
+              <button type="button" onClick={() => void save()} disabled={busy} aria-busy={saving} className="btn btn-primary flex items-center gap-2 disabled:opacity-60">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
                 Save what I kept
               </button>
+              <p role="status" aria-live="polite" className="sr-only">
+                {saving ? 'Saving what you kept…' : ''}
+              </p>
             </section>
           )}
         </div>
