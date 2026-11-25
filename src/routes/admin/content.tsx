@@ -330,7 +330,7 @@ function ContentPage() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button type="submit" disabled={saving} className="btn btn-primary flex items-center gap-2 disabled:opacity-60">
+                      <button type="submit" disabled={saving} aria-busy={saving} className="btn btn-primary flex items-center gap-2 disabled:opacity-60">
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
                         Save item
                       </button>
@@ -338,6 +338,7 @@ function ContentPage() {
                         Cancel
                       </button>
                     </div>
+                    <p role="status" aria-live="polite" className="sr-only">{saving ? 'Saving the item…' : ''}</p>
                   </form>
                 )}
 
