@@ -370,14 +370,19 @@ function StatusPage() {
               </div>
             </div>
             <button
+              type="button"
               onClick={fetchStatus}
               disabled={loading}
+              aria-busy={loading}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
               Refresh
             </button>
           </div>
+          <p role="status" aria-live="polite" className="sr-only">
+            {loading ? 'Refreshing the system status…' : ''}
+          </p>
         </motion.div>
 
         {/* Loading State */}
