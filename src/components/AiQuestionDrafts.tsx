@@ -27,6 +27,7 @@ export function AiQuestionDrafts({
   const [drafts, setDrafts] = useState<QuestionInput[] | null>(null);
   const [rejected, setRejected] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [deciding, setDeciding] = useState<QuestionInput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ids = { key: useId(), kind: useId() };
 
@@ -62,12 +63,16 @@ export function AiQuestionDrafts({
   };
 
   const decide = async (d: QuestionInput, decision: 'approved' | 'discarded') => {
+    if (deciding) return;
+    setDeciding(d);
     try {
       await reviewQuestionDraft({ data: { draft: d, decision } });
       setDrafts((prev) => prev?.filter((x) => x !== d) ?? null);
       if (decision === 'approved') onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save the decision.');
+    } finally {
+      setDeciding(null);
     }
   };
 
@@ -144,13 +149,13 @@ export function AiQuestionDrafts({
               </p>
               {d.explanation && <p className="mt-1 text-xs text-muted-foreground">{d.explanation}</p>}
               <div className="mt-2 flex flex-wrap gap-2">
-                <button type="button" onClick={() => void decide(d, 'approved')} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700">
+                <button type="button" onClick={() => void decide(d, 'approved')} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700" disabled={deciding !== null} aria-busy={deciding === d}>
                   <Check className="h-3.5 w-3.5" aria-hidden="true" /> Approve
                 </button>
                 <button type="button" onClick={() => edit(d)} className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-primary/10">
                   <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Edit first
                 </button>
-                <button type="button" onClick={() => void decide(d, 'discarded')} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-red-500/10 hover:text-red-700">
+                <button type="button" onClick={() => void decide(d, 'discarded')} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-red-500/10 hover:text-red-700" disabled={deciding !== null} aria-busy={deciding === d}>
                   <X className="h-3.5 w-3.5" aria-hidden="true" /> Discard
                 </button>
               </div>
@@ -160,6 +165,9 @@ export function AiQuestionDrafts({
       )}
       <p role="status" aria-live="polite" className="sr-only">
         {busy ? 'Drafting questions…' : ''}
+      </p>
+      <p role="status" aria-live="polite" className="sr-only">
+        {deciding ? 'Saving your decision…' : ''}
       </p>
     </section>
   );
