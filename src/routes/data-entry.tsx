@@ -187,6 +187,9 @@ function DataEntryPage() {
   // Concept save progress
   const [savingConcept, setSavingConcept] = useState(false);
 
+  // Prerequisite save progress
+  const [savingPrerequisite, setSavingPrerequisite] = useState(false);
+
   // Expanded category tracking
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
 
@@ -361,7 +364,9 @@ function DataEntryPage() {
 
   const handleAddPrerequisite = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingPrerequisite) return;
     try {
+      setSavingPrerequisite(true);
       await createEdge({
         from: prereqForm.from,
         to: prereqForm.to,
@@ -373,6 +378,8 @@ function DataEntryPage() {
       setPrereqForm({ from: '', to: '', strength: 'recommended', reason: '' });
     } catch (err) {
       showMessage('error', err instanceof Error ? err.message : 'Failed to add prerequisite');
+    } finally {
+      setSavingPrerequisite(false);
     }
   };
 
@@ -1551,9 +1558,15 @@ function DataEntryPage() {
                     <button
                       type="submit"
                       className="btn w-full bg-amber-600 text-white hover:bg-amber-700 shadow-lg shadow-amber-600/20"
+                      disabled={savingPrerequisite}
+                      aria-busy={savingPrerequisite}
                     >
                       Add Prerequisite Edge
                     </button>
+
+                    <p role="status" aria-live="polite" className="sr-only">
+                      {savingPrerequisite ? 'Adding the prerequisite…' : ''}
+                    </p>
                   </form>
 
                   {prereqForm.from && prereqForm.to && (

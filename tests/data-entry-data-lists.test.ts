@@ -128,7 +128,7 @@ describe('data-entry data lists: four named lists', () => {
       assert.equal(/aria-live=/.test(block), false, `${list.label}: not a live region`);
       assert.equal(/tabIndex|\.focus\(\)/.test(block), false, `${list.label}: no forced focus`);
     }
-    assert.equal(count(page, /aria-live=/g), 3, 'the message banner and both save status lines are the live regions');
+    assert.equal(count(page, /aria-live=/g), 4, 'the message banner and all three save status lines are the live regions');
   });
 });
 

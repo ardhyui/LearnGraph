@@ -114,8 +114,8 @@ describe('data-entry message banner: no replaced name or new live region', () =>
     assert.equal(count(banner, /aria-atomic=/g), 0);
   });
 
-  it('keeps aria-live on the banner and the two save status lines only', () => {
-    assert.equal(count(page, /aria-live=/g), 3, 'the banner plus both save status lines');
+  it('keeps aria-live on the banner and the three save status lines only', () => {
+    assert.equal(count(page, /aria-live=/g), 4, 'the banner plus all three save status lines');
     assert.equal(count(banner, /aria-live=/g), 1);
     const learnerFormStart = page.indexOf('<form onSubmit={handleAddLearner}');
     assert.ok(learnerFormStart > 0, 'the learner form exists');
@@ -125,6 +125,10 @@ describe('data-entry message banner: no replaced name or new live region', () =>
     assert.ok(conceptFormStart > 0, 'the concept form exists');
     const conceptStatus = page.slice(conceptFormStart, page.indexOf('</form>', conceptFormStart));
     assert.equal(count(conceptStatus, /aria-live=/g), 1, 'the concept form holds one live region');
+    const prereqFormStart = page.indexOf('<form onSubmit={handleAddPrerequisite}');
+    assert.ok(prereqFormStart > 0, 'the prerequisite form exists');
+    const prereqStatus = page.slice(prereqFormStart, page.indexOf('</form>', prereqFormStart));
+    assert.equal(count(prereqStatus, /aria-live=/g), 1, 'the prerequisite form holds one live region');
     const tabs = page.slice(page.indexOf('role="tablist"'), page.indexOf('{/* Overview Tab'));
     assert.ok(tabs.length > 0, 'the tab list block exists');
     assert.equal(count(tabs, /aria-live=/g), 0, 'tablist/tabpanel markup stays outside live regions');
