@@ -1,78 +1,82 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (status proses tombol simpan form knowledge
-state `/admin/states` selesai lewat PR #193; berikutnya: tombol **Refresh**
-grafik `/domains`)
+Terakhir diperbarui: 2026-11-26 (status proses tombol Refresh grafik `/domains`
+selesai lewat PR #194; berikutnya: form **Create learner** `/data-entry`)
 
 ## Tugas berikutnya
 
-Poles kecil + fitur: **Status proses tombol Refresh grafik psychometric
-`/domains` (`src/routes/domains.tsx`)** — tombol **Refresh** di kartu kontrol
-`<motion.div className="glass-card p-4 mb-6">` adalah `<motion.button>` dengan
-`whileHover={{ scale: 1.02 }}`, `whileTap={{ scale: 0.98 }}`,
-`onClick={buildGraph}`, kelas persis `flex items-center gap-2 px-4 py-2.5
-rounded-xl bg-primary text-primary-foreground font-medium shadow-lg
-shadow-primary/25 hover:shadow-xl transition-all`, dan isi
-`<RefreshCw size={18} className={loading ? 'animate-spin' : ''}
-aria-hidden="true" />` + label `Refresh`. Tombol itu **belum** punya
-`type`/`disabled`/`aria-busy`, sehingga selama `loading` hanya ikon yang
-berputar, klik ganda bisa memicu dua `buildGraph`, dan halaman belum punya satu
-pun `aria-live`, `role`, `aria-label`, `aria-labelledby`, `aria-atomic`, atau
-`className="sr-only"` (hitungan semuanya 0), jadi pembaca layar tidak tahu
-grafik domain sedang dibangun ulang. Pola tombol + status yang sama sudah
+Poles kecil + fitur: **Status proses tombol simpan form learner di
+`/data-entry` (`src/routes/data-entry.tsx`, tab **Learners**)** — form
+`<form onSubmit={handleAddLearner} className="space-y-4">` (sekitar baris 850)
+punya tombol submit `<button type="submit" className="btn btn-success
+w-full">{learnerInputMode === 'json' ? 'Submit JSON' : 'Add Learner'}</button>`
+(sekitar baris 1106) yang memanggil `handleAddLearner` (sekitar baris 265).
+Tombol itu **belum** punya `disabled`/`aria-busy`, dan form tidak punya
+pengumuman proses; selama `createLearner` berjalan pembaca layar tidak tahu
+learner sedang ditambahkan dan klik ganda bisa mengirim dua kali. Halaman ini
+sudah punya satu live region hasil (`role={message.type === 'success' ?
+'status' : 'alert'}` + `aria-live={...}` sekitar baris 446) yang harus
+dipertahankan. Hitungan file saat ini: `aria-busy` 0, `aria-live` 1,
+`role="status"` 0, `role="alert"` 0, `aria-label` 10, `aria-labelledby` 5,
+`aria-atomic` 0, `className="sr-only"` 0. Pola tombol + status yang sama sudah
 dipakai di `/sign-in`, `/forgot-password`, `/reset-password`, laporan diri/kuis
 `/learn`, `DeleteAccount`, kedua tombol panel **Ask an AI tutor**, tombol
 snooze, **Create a read-only key**, **Save subjects**, lima tombol `/japanese`,
-**Start learning** onboarding, tombol-tombol admin (termasuk form knowledge
-state PR #193), **Refresh** `/gaps`, `/graph`, `/combined-graph`, `/progress`,
-`/recommendations`, `/status`, tombol simpan asesmen/**Save Profile**
-`profile.tsx`, **Refresh study plan** kartu Today, **Run All Tests** `/tests`,
-dan **Import from a file** `/admin/learners`. UI bahasa Inggris (D2). Tanpa
-query/RPC/migrasi/dependensi baru.
+**Start learning** onboarding, tombol-tombol admin (konsep/prasyarat/knowledge
+state), **Refresh** `/gaps`, `/graph`, `/combined-graph`, `/progress`,
+`/recommendations`, `/status`, `/domains`, tombol simpan asesmen/**Save
+Profile** `profile.tsx`, **Refresh study plan** kartu Today, **Run All Tests**
+`/tests`, dan **Import from a file** `/admin/learners`. UI bahasa Inggris (D2).
+Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: tombol **Refresh** membawa `type="button"`, `disabled={loading}`, dan
-`aria-busy={loading}` tepat sesudah `onClick={buildGraph}` (urutan `onClick`,
-`disabled`, `aria-busy`); `whileHover`/`whileTap`, kelas persis, ikon
-`RefreshCw` (`size={18}`, kelas spin, `aria-hidden="true"`), dan label
-**Refresh** utuh. **Satu** pengumuman baru:
-`<p role="status" aria-live="polite" className="sr-only">{loading ?
-'Refreshing the domain graph…' : ''}</p>` sebagai anak terakhir baris kontrol
-`<div className="flex flex-wrap items-center gap-4">` — sesudah `</motion.button>`
-**Subscales**, sebelum `</div>` penutup baris (yakni sesudah ketiga tombol
-Refresh/**Correlations**/**Subscales**). Hitungan file setelah tugas: `aria-busy`
-1, `aria-live="polite"` 1, `role="status"` 1, `role="alert"` 0, `aria-label` 0,
-`aria-labelledby` 0, `aria-atomic` 0, `className="sr-only"` 1. `loading` hanya
-dipakai tombol Refresh, ikonnya, dan blok loading grafik, jadi tidak ada state
-baru. Jangan mengubah `buildGraph` (yang menyetel `setLoading(true)` di awal dan
-`setLoading(false)` sebelum selesai), efek `useEffect(() => { buildGraph(); },
-[buildGraph])`, `fetchLearnerScores`/efek pemilih learner, kedua tombol
-**Correlations**/**Subscales** (tetap `aria-pressed`, tanpa
-`aria-busy`/`disabled`), pemilih learner, blok `loading ?` + `Loader2`, kanvas
-React Flow, `closeDetails`/`onNodeClick`, panel detail domain, heading, dan copy
-lain; jangan menambah `aria-label`/`aria-labelledby`/`aria-atomic` baru.
+Tujuan: tombol submit mempertahankan `type="submit"` dan kelas persis
+`btn btn-success w-full`, lalu membawa `disabled={savingLearner}` dan
+`aria-busy={savingLearner}` tepat sesudah `className` (urutan `type`,
+`className`, `disabled`, `aria-busy`); label
+`{learnerInputMode === 'json' ? 'Submit JSON' : 'Add Learner'}` utuh. **Satu**
+pengumuman baru: `<p role="status" aria-live="polite" className="sr-only">
+{savingLearner ? 'Adding the learner…' : ''}</p>` sebagai anak terakhir form
+learner — sesudah `</button>` submit, sebelum `</form>`.
+
+State baru `const [savingLearner, setSavingLearner] = useState(false);`
+diletakkan bersama state learner lain (sesudah `learnerInputMode`/
+`learnerJson` sekitar baris 179–206). `handleAddLearner` diawali `e.preventDefault();`
+lalu guard `if (savingLearner) return;`; jalur `return` karena JSON rusak tetap
+sebelum `setSavingLearner(true)` agar penolakan tidak meninggalkan tombol sibuk.
+`setSavingLearner(true)` disetel tepat sebelum `await createLearner(...)`, dan
+`finally { setSavingLearner(false); }` ditambahkan pada `try/catch` yang sudah
+ada — isi `try` (perakitan `payload` form/JSON, `userId`, `createLearner`,
+`showMessage('success', ...)`, reset `learnerForm`/`psychometricScores`/
+`learnerJson`) dan `catch` (`showMessage('error', ...)`) tidak berubah.
+Tombol/label, `learnerInputMode`/`learnerJson`, tablist, live region hasil, dan
+tiga form lain (**Create concept**, **Create prerequisite**, **Create
+knowledge state**) tidak berubah; jangan menambah `aria-label`/
+`aria-labelledby`/`aria-atomic` baru.
 
 Rancangan:
 
-1. **Tombol** — `type="button"`, `disabled={loading}`, `aria-busy={loading}`
-   sesudah `onClick={buildGraph}`; kelas/animasi/ikon/label utuh.
+1. **Tombol** — `disabled={savingLearner}` lalu `aria-busy={savingLearner}`
+   sesudah `className`; `type`, kelas, dan label utuh.
 2. **Status** — satu `<p role="status" aria-live="polite" className="sr-only">`
-   sebagai anak terakhir baris kontrol, sesudah tombol **Subscales**.
-3. **Test** — tambahkan `tests/domains-refresh-status.test.ts` (penjaga statis,
-   pola `tests/graph-refresh-status.test.ts`): tombol dengan `type="button"`,
-   `onClick`, `disabled`, `aria-busy` berurutan dan `whileHover`/`whileTap`/
-   kelas/label utuh, ikon `RefreshCw` dengan `size={18}`, spin, dan
-   `aria-hidden`, satu status `role="status"` + `aria-live="polite"` +
-   `className="sr-only"` berteks `Refreshing the domain graph…`/kosong dan
-   berada sesudah tombol **Subscales** sebagai anak terakhir baris, hitungan
-   file `aria-busy` 1/`aria-live="polite"` 1/`role="status"` 1/`role="alert"`
-   0/`aria-label` 0/`aria-labelledby` 0/`aria-atomic` 0/`className="sr-only"`
-   1, `buildGraph` serta efeknya dan pemilih learner tidak berubah, kedua
-   tombol **Correlations**/**Subscales** tetap `aria-pressed` tanpa
-   `aria-busy`, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi
-   baru di file halaman.
-4. **Smoke** — tidak ada cek baru (pembangunan ulang hanya sesaat dan halaman
-   `/domains` sudah dicek smoke); jangan mengubah penjaga baris smoke 2748.
-5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+   sebagai anak terakhir form learner, sesudah tombol submit.
+3. **Handler** — guard `if (savingLearner) return;`, `setSavingLearner(true)`
+   tepat sebelum `await createLearner`, `finally` pada `try/catch` yang ada.
+4. **Test** — tambahkan `tests/data-entry-learner-save-status.test.ts`
+   (penjaga statis, pola `tests/concept-save-status.test.ts`): tombol dengan
+   `type="submit"`, `className`, `disabled`, `aria-busy` berurutan dan label
+   utuh, satu status `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Adding the learner…`/kosong dan berada
+   sesudah tombol sebagai anak terakhir form, state `savingLearner`, guard baris
+   pertama + `setSavingLearner(true)` tepat sebelum `await createLearner` +
+   `finally` membersihkan, isi `handleAddLearner` lama utuh, live region hasil
+   `role={message.type === 'success' ? 'status' : 'alert'}` tetap, hitungan file
+   `aria-busy` 1/`aria-live` 2/`role="status"` 1/`role="alert"` 0/`aria-label`
+   10/`aria-labelledby` 5/`aria-atomic` 0/`className="sr-only"` 1, tiga form
+   lain tetap tanpa `aria-busy`, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru.
+5. **Smoke** — tidak ada cek baru (menyimpan butuh mengisi form dan interaksi);
+   jangan mengubah penjaga baris smoke 2748.
+6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`); commit
@@ -92,15 +96,14 @@ bahasa Indonesia `feat:`.
 Semua tanpa migrasi skema, terlihat pelajar/admin, dan bisa diverifikasi
 otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Setelah tombol simpan form **Create**/**Update** konsep `/admin/concepts`
-   (PR #191), form **Create** prerequisite `/admin/prerequisites` (PR #192), dan
-   form simpan knowledge state `/admin/states` (PR #193) selesai: tombol
-   **Refresh** grafik `/domains` (lihat Tugas berikutnya), lalu audit surface
-   pelajar/admin yang belum punya penanda. `src/routes/data-entry.tsx` masih
-   punya empat form submit (learner, konsep, prerequisite, knowledge state)
-   tanpa penanda — kandidat kuat setelah `/domains`. Baris "Lanjutan:" yang
-   belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
-   migrasi data — jangan dipilih tanpa perubahan kondisi.
+1. Setelah form simpan knowledge state `/admin/states` (PR #193) dan tombol
+   **Refresh** grafik `/domains` (lihat Riwayat terbaru) selesai: form
+   **Create learner** `src/routes/data-entry.tsx` (lihat Tugas berikutnya),
+   lalu tiga form submit lain di file yang sama (concept, prerequisite,
+   knowledge state), lalu audit surface pelajar/admin lain yang belum punya
+   penanda. Baris "Lanjutan:" yang belum dicoret saat ini hanya butuh keputusan
+   pemilik, error SSR langka, atau migrasi data — jangan dipilih tanpa
+   perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
@@ -135,17 +138,37 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    halaman `/status` (PR #188), tombol **Run All Tests** `/tests` (PR #189),
    **Import from a file** `/admin/learners` (PR #190), form
    **Create**/**Update** konsep `/admin/concepts` (PR #191), form
-   **Create** prerequisite `/admin/prerequisites` (PR #192), dan form simpan
-   knowledge state `/admin/states` (PR #193). Kandidat berikutnya: tombol
-   **Refresh** grafik `/domains` (lihat Tugas berikutnya; belum punya
-   `type`/`disabled`/`aria-busy`), lalu empat form submit
-   `src/routes/data-entry.tsx`, lalu audit surface pelajar/admin lain yang belum
-   punya penanda.
+   **Create** prerequisite `/admin/prerequisites` (PR #192), form simpan
+   knowledge state `/admin/states` (PR #193), dan tombol **Refresh** grafik
+   `/domains` (lihat Riwayat terbaru). Kandidat berikutnya: form **Create
+   learner** `src/routes/data-entry.tsx` (lihat Tugas berikutnya), lalu tiga
+   form submit lain di file yang sama, lalu audit surface pelajar/admin lain
+   yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-26: PR #194 — **Status proses tombol Refresh grafik `/domains`** —
+  tombol kini membawa `type="button"`, `disabled={loading}`, dan
+  `aria-busy={loading}` tepat sesudah `onClick={buildGraph}` (urutan `onClick`,
+  `type`, `disabled`, `aria-busy`; `whileHover`/`whileTap`, kelas persis, ikon
+  `RefreshCw` `size={18}` + spin + `aria-hidden`, dan label **Refresh** utuh),
+  plus satu pengumuman baru `<p role="status" aria-live="polite"
+  className="sr-only">{loading ? 'Refreshing the domain graph…' : ''}</p>`
+  sebagai anak terakhir baris kontrol `<div className="flex flex-wrap
+  items-center gap-4">` sesudah wadah pemilih learner. `loading` hanya dipakai
+  tombol, ikonnya, dan blok loading, jadi tidak ada state baru. `buildGraph`
+  serta efek/pemilih learner tidak berubah, kedua tombol
+  **Correlations**/**Subscales** tetap `aria-pressed` tanpa
+  `disabled`/`aria-busy`. Hitungan file: `aria-busy` 1, `aria-live="polite"`
+  1, `role="status"` 1, `role="alert"` 0, `aria-label` 0, `aria-labelledby` 0,
+  `aria-atomic` 0, `className="sr-only"` 1. Test baru
+  `tests/domains-refresh-status.test.ts` (10 penjaga statis); tidak ada test
+  lain yang dilonggarkan. Tanpa cek smoke baru; penjaga baris smoke 2748 tetap.
+  Satu entri log bertanggal di `docs/ROADMAP.md`. `npm run ci` utuh hijau
+  sebelum merge.
 
 - 2026-11-26: PR #193 — **Status proses tombol simpan form knowledge state
   `/admin/states`** — tombol submit kini membawa `disabled={saving}` lalu
