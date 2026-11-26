@@ -12,8 +12,8 @@
  * `aria-busy` right after `className` on the submit button with its type,
  * classes and label untouched, one `sr-only` polite `role="status"` line as
  * the last child of the learner form, the untouched result banner and the
- * other concept/prerequisite/knowledge-state forms, and that no server
- * function, RPC schema or migration was added.
+ * prerequisite/knowledge-state forms, and that no server function, RPC schema
+ * or migration was added.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -68,7 +68,7 @@ describe('/data-entry: the learner submit button announces it is busy', () => {
       typeAt < classAt && classAt < disabledAt && disabledAt < busyAt,
       'type, class, disabled and aria-busy stay in order',
     );
-    assert.equal(count(page, /aria-busy=/g), 1, 'one aria-busy in the page');
+    assert.equal(count(page, /aria-busy=/g), 2, 'the learner and concept buttons carry aria-busy');
   });
 
   it('keeps both labels of the toggle', () => {
@@ -124,13 +124,13 @@ describe('/data-entry: one polite status line after the learner submit button', 
       form.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the learner status line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(page, /aria-live=/g), 2, 'the result banner plus the new status line');
-    assert.equal(count(page, /role="status"/g), 1, 'one status line on the page');
+    assert.equal(count(page, /aria-live=/g), 3, 'the result banner plus both save status lines');
+    assert.equal(count(page, /role="status"/g), 2, 'one status line per save form');
     assert.equal(count(page, /role="alert"/g), 0, 'no alert is added');
     assert.equal(count(page, /aria-label=/g), 5, 'no aria-label is added');
     assert.equal(count(page, /aria-labelledby=/g), 5, 'no aria-labelledby is added');
     assert.equal(count(page, /aria-atomic=/g), 0, 'no aria-atomic is added');
-    assert.equal(count(page, /className="sr-only"/g), 1, 'the learner status line is the only sr-only node');
+    assert.equal(count(page, /className="sr-only"/g), 2, 'the learner and concept status lines');
   });
 
   it('says Adding the learner… while saving and clears when idle', () => {
@@ -166,8 +166,8 @@ describe('/data-entry: the result banner and the other forms stay intact', () =>
     );
   });
 
-  it('leaves the other three forms without aria-busy', () => {
-    for (const handler of ['handleAddConcept', 'handleAddPrerequisite', 'handleAddKnowledgeState']) {
+  it('leaves the prerequisite and knowledge-state forms without aria-busy', () => {
+    for (const handler of ['handleAddPrerequisite', 'handleAddKnowledgeState']) {
       const start = page.indexOf(`<form onSubmit={${handler}`);
       assert.ok(start > 0, `the ${handler} form is rendered`);
       const end = page.indexOf('</form>', start) + '</form>'.length;

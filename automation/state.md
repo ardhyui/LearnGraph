@@ -1,81 +1,85 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (status proses tombol simpan learner `/data-entry`
-selesai lewat PR #195; berikutnya: form **Create concept** `/data-entry`)
+Terakhir diperbarui: 2026-11-26 (status proses tombol simpan concept `/data-entry`
+selesai lewat PR #196; berikutnya: form **Create prerequisite** `/data-entry`)
 
 ## Tugas berikutnya
 
-Poles kecil + fitur: **Status proses tombol simpan form concept di `/data-entry`
-(`src/routes/data-entry.tsx`, tab **Concepts**)** — form
-`<form onSubmit={handleAddConcept} className="space-y-4">` (sekitar baris 1210)
-punya tombol submit `<button type="submit" className="btn w-full bg-purple-600
-text-white hover:bg-purple-700 shadow-lg shadow-purple-600/20">Add Concept</button>`
-(sekitar baris 1337) yang memanggil `handleAddConcept` (sekitar baris 317).
-Tombol itu **belum** punya `disabled`/`aria-busy`, dan form tidak punya
-pengumuman proses; selama `createConcept` berjalan pembaca layar tidak tahu
-konsep sedang ditambahkan dan klik ganda bisa mengirim dua kali. Halaman ini
-sudah punya banner hasil (`role={message.type === 'success' ? 'status' :
-'alert'}` + `aria-live={...}`) dan status form learner (PR #195) yang harus
-dipertahankan. Hitungan file saat ini: `aria-busy` 1 (tombol learner),
-`aria-live` 2, `role="status"` 1, `role="alert"` 0, `aria-label` 5,
-`aria-labelledby` 5, `aria-atomic` 0, `className="sr-only"` 1, `role="` 8.
-Pola tombol + status yang sama sudah dipakai di seluruh surface sebelumnya
-(lihat Riwayat). UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi
-baru.
+Poles kecil + fitur: **Status proses tombol simpan form prerequisite di
+`/data-entry` (`src/routes/data-entry.tsx`, tab **Prerequisites**)** — form
+`<form onSubmit={handleAddPrerequisite} className="space-y-4">` (sekitar baris
+1460) punya tombol submit `<button type="submit" className="btn w-full
+bg-amber-600 text-white hover:bg-amber-700 shadow-lg shadow-amber-600/20">Add
+Prerequisite Edge</button>` (sekitar baris 1551) yang memanggil
+`handleAddPrerequisite` (sekitar baris 362). Tombol itu **belum** punya
+`disabled`/`aria-busy`, dan form tidak punya pengumuman proses; selama
+`createEdge` berjalan pembaca layar tidak tahu prerequisite sedang ditambahkan
+dan klik ganda bisa mengirim dua kali. Halaman ini sudah punya banner hasil
+(`role={message.type === 'success' ? 'status' : 'alert'}` + `aria-live={...}`)
+serta status form learner (PR #195) dan concept (PR #196) yang harus
+dipertahankan. Hitungan file saat ini: `aria-busy` 2, `aria-live` 3,
+`role="status"` 2, `role="alert"` 0, `aria-label=` 5, `aria-labelledby` 5,
+`aria-atomic` 0, `className="sr-only"` 2, `role="` 9. Pola tombol + status yang
+sama sudah dipakai di seluruh surface sebelumnya (lihat Riwayat). UI bahasa
+Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
 
 Tujuan: tombol submit mempertahankan `type="submit"` dan kelas persis
-`btn w-full bg-purple-600 text-white hover:bg-purple-700 shadow-lg
-shadow-purple-600/20`, lalu membawa `disabled={savingConcept}` dan
-`aria-busy={savingConcept}` tepat sesudah `className` (urutan `type`,
-`className`, `disabled`, `aria-busy`); label `Add Concept` utuh. **Satu**
-pengumuman baru: `<p role="status" aria-live="polite" className="sr-only">
-{savingConcept ? 'Adding the concept…' : ''}</p>` sebagai anak terakhir form
-concept — sesudah `</button>` submit, sebelum `</form>`.
+`btn w-full bg-amber-600 text-white hover:bg-amber-700 shadow-lg
+shadow-amber-600/20`, lalu membawa `disabled={savingPrerequisite}` dan
+`aria-busy={savingPrerequisite}` tepat sesudah `className` (urutan `type`,
+`className`, `disabled`, `aria-busy`); label `Add Prerequisite Edge` utuh.
+**Satu** pengumuman baru: `<p role="status" aria-live="polite"
+className="sr-only">{savingPrerequisite ? 'Adding the prerequisite…' : ''}</p>`
+sebagai anak terakhir form prerequisite — sesudah `</button>` submit, sebelum
+`</form>`.
 
-State baru `const [savingConcept, setSavingConcept] = useState(false);`
-diletakkan sesudah state `savingLearner` (sekitar baris 184–186).
-`handleAddConcept` diawali `e.preventDefault();` lalu guard
-`if (savingConcept) return;`; `setSavingConcept(true)` disetel tepat sebelum
-`await createConcept({...})`, dan `finally { setSavingConcept(false); }`
-ditambahkan pada `try/catch` yang sudah ada — isi `try` (perakitan objek
-`conceptId`/`name`/`domain`/`description`/`difficulty`, `createConcept`,
-`showMessage('success', 'Concept added successfully!')`, reset `conceptForm`)
-dan `catch` (`'Failed to add concept'`) tidak berubah. Tidak ada cabang
-validasi/`return` lain di handler ini.
+State baru `const [savingPrerequisite, setSavingPrerequisite] =
+useState(false);` diletakkan sesudah state `savingConcept` (sekitar baris
+188–190). `handleAddPrerequisite` diawali `e.preventDefault();` lalu guard
+`if (savingPrerequisite) return;`; `setSavingPrerequisite(true)` disetel tepat
+sebelum `await createEdge({...})`, dan `finally {
+setSavingPrerequisite(false); }` ditambahkan pada `try/catch` yang sudah ada —
+isi `try` (`createEdge`, `showMessage('success', 'Prerequisite edge added
+successfully!')`, reset `prereqForm`) dan `catch` (`'Failed to add
+prerequisite'`) tidak berubah. Tidak ada cabang validasi/`return` lain di
+handler ini.
 
-Tombol/label, tablist, banner hasil, status form learner (PR #195), serta tiga
-form lain (**Create learner**, **Create prerequisite**, **Create knowledge
-state**) tidak berubah; jangan menambah `aria-label`/`aria-labelledby`/
-`aria-atomic` baru.
+Tombol/label, tablist, banner hasil, status form learner + concept, serta form
+**Create knowledge state** (tetap tanpa penanda baru) tidak berubah; jangan
+menambah `aria-label`/`aria-labelledby`/`aria-atomic` baru.
 
 Rancangan:
 
-1. **Tombol** — `disabled={savingConcept}` lalu `aria-busy={savingConcept}`
-   sesudah `className`; `type`, kelas, dan label utuh.
-2. **Status** — satu `<p role="status" aria-live="polite" className="sr-only">`
-   sebagai anak terakhir form concept, sesudah tombol submit.
-3. **Handler** — guard `if (savingConcept) return;`, `setSavingConcept(true)`
-   tepat sebelum `await createConcept`, `finally` pada `try/catch` yang ada.
-4. **Test** — tambahkan `tests/data-entry-concept-save-status.test.ts`
-   (penjaga statis, pola `tests/concept-save-status.test.ts`): tombol dengan
-   `type="submit"`, `className`, `disabled`, `aria-busy` berurutan dan label
-   utuh, satu status `role="status"` + `aria-live="polite"` +
-   `className="sr-only"` berteks `Adding the concept…`/kosong dan berada
-   sesudah tombol sebagai anak terakhir form, state `savingConcept` sesudah
-   `savingLearner`, guard baris pertama + `setSavingConcept(true)` tepat
-   sebelum `await createConcept` + `finally` membersihkan, isi
-   `handleAddConcept` lama utuh, banner hasil dan status learner tetap, tiga
-   form lain tanpa `aria-busy`/status baru, hitungan file `aria-busy` 2/
-   `aria-live` 3/`role="status"` 2/`role="alert"` 0/`aria-label=` 5/
-   `aria-labelledby` 5/`aria-atomic` 0/`className="sr-only"` 2/`role="` 9,
+1. **Tombol** — `disabled={savingPrerequisite}` lalu
+   `aria-busy={savingPrerequisite}` sesudah `className`; `type`, kelas, dan
+   label utuh.
+2. **Status** — satu `<p role="status" aria-live="polite"
+   className="sr-only">` sebagai anak terakhir form prerequisite, sesudah
+   tombol submit.
+3. **Handler** — guard `if (savingPrerequisite) return;`,
+   `setSavingPrerequisite(true)` tepat sebelum `await createEdge`, `finally`
+   pada `try/catch` yang ada.
+4. **Test** — tambahkan `tests/data-entry-prerequisite-save-status.test.ts`
+   (penjaga statis, pola `tests/data-entry-concept-save-status.test.ts`): tombol
+   dengan `type="submit"`, `className`, `disabled`, `aria-busy` berurutan dan
+   label utuh, satu status `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Adding the prerequisite…`/kosong dan berada
+   sesudah tombol sebagai anak terakhir form, state `savingPrerequisite`
+   sesudah `savingConcept`, guard baris pertama + `setSavingPrerequisite(true)`
+   tepat sebelum `await createEdge` + `finally` membersihkan, isi
+   `handleAddPrerequisite` lama utuh, banner hasil, status learner + concept,
+   dan blok **Preview** tetap, form knowledge state tanpa penanda baru, hitungan file
+   `aria-busy` 3/`aria-live` 4/`role="status"` 3/`role="alert"` 0/`aria-label=`
+   5/`aria-labelledby` 5/`aria-atomic` 0/`className="sr-only"` 3/`role="` 10,
    serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru.
    Sesuaikan hitungan halaman di `tests/data-entry-message-banner.test.ts`,
    `tests/data-entry-tabs.test.ts`, `tests/data-entry-data-lists.test.ts`,
-   dan `tests/data-entry-learner-save-status.test.ts` (di file terakhir,
-   persempit penjaga "tiga form lain" menjadi dua form prerequisite/state)
-   tanpa melonggarkan penjaga posisi/kunci.
-5. **Smoke** — tidak ada cek baru (menyimpan butuh mengisi form dan interaksi);
-   jangan mengubah penjaga baris smoke 2748.
+   `tests/data-entry-learner-save-status.test.ts`, dan
+   `tests/data-entry-concept-save-status.test.ts` (di file terakhir, persempit
+   penjaga "dua form lain" menjadi form knowledge state saja) tanpa melonggarkan
+   penjaga posisi/kunci.
+5. **Smoke** — tidak ada cek baru (menyimpan butuh memilih dua konsep dan
+   interaksi); jangan mengubah penjaga baris smoke 2748.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -96,14 +100,14 @@ bahasa Indonesia `feat:`.
 Semua tanpa migrasi skema, terlihat pelajar/admin, dan bisa diverifikasi
 otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Setelah form simpan knowledge state `/admin/states` (PR #193) dan tombol
-   **Refresh** grafik `/domains` (PR #194) dan form **Create learner**
-   `src/routes/data-entry.tsx` (PR #195) selesai: form **Create concept**
-   di file yang sama (lihat Tugas berikutnya), lalu dua form submit lain
-   (prerequisite, knowledge state), lalu audit surface pelajar/admin lain yang
-   belum punya penanda. Baris "Lanjutan:" yang belum dicoret saat ini hanya
-   butuh keputusan pemilik, error SSR langka, atau migrasi data — jangan dipilih
-   tanpa perubahan kondisi.
+1. Setelah form simpan knowledge state `/admin/states` (PR #193), tombol
+   **Refresh** grafik `/domains` (PR #194), form **Create learner**
+   `src/routes/data-entry.tsx` (PR #195), dan form **Create concept** di file
+   yang sama (PR #196) selesai: form **Create prerequisite** (lihat Tugas
+   berikutnya), lalu form **Create knowledge state**, lalu audit surface
+   pelajar/admin lain yang belum punya penanda. Baris "Lanjutan:" yang belum
+   dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
+   migrasi data — jangan dipilih tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
@@ -140,15 +144,43 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    **Create**/**Update** konsep `/admin/concepts` (PR #191), form
    **Create** prerequisite `/admin/prerequisites` (PR #192), form simpan
    knowledge state `/admin/states` (PR #193), tombol **Refresh** grafik
-   `/domains` (PR #194), dan form **Create learner** `/data-entry` (PR #195).
-   Kandidat berikutnya: form **Create concept** `src/routes/data-entry.tsx`
-   (lihat Tugas berikutnya), lalu dua form submit lain di file yang sama, lalu
+   `/domains` (PR #194), form **Create learner** `/data-entry` (PR #195), dan
+   form **Create concept** `/data-entry` (PR #196). Kandidat berikutnya: form
+   **Create prerequisite** `src/routes/data-entry.tsx` (lihat Tugas
+   berikutnya), lalu form **Create knowledge state** di file yang sama, lalu
    audit surface pelajar/admin lain yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-26: PR #196 — **Status proses tombol simpan form concept
+  `/data-entry`** — tombol submit kini membawa `disabled={savingConcept}` lalu
+  `aria-busy={savingConcept}` tepat sesudah `className` (urutan `type`,
+  `className`, `disabled`, `aria-busy`; kelas `btn w-full bg-purple-600
+  text-white hover:bg-purple-700 shadow-lg shadow-purple-600/20` dan label
+  `Add Concept` utuh), dan satu pengumuman baru `<p role="status"
+  aria-live="polite" className="sr-only">{savingConcept ? 'Adding the
+  concept…' : ''}</p>` sebagai anak terakhir form concept sesudah `</button>`
+  submit. State baru `savingConcept` sesudah `savingLearner`;
+  `handleAddConcept` diawali `e.preventDefault()` lalu guard
+  `if (savingConcept) return;`, penanda disetel tepat sebelum
+  `await createConcept`, dan dibersihkan lewat `finally` pada `try/catch` yang
+  sudah ada — isi `try` dan `catch` tidak berubah. Banner hasil
+  `role={message.type === 'success' ? 'status' : 'alert'}` serta status learner
+  PR #195 tetap; dua form lain (prerequisite, knowledge state) tanpa
+  `aria-busy`/status baru. Hitungan file: `aria-busy` 2, `aria-live` 3,
+  `role="status"` 2, `role="alert"` 0, `aria-label=` 5, `aria-labelledby` 5,
+  `aria-atomic` 0, `className="sr-only"` 2, `role="` 9. Test baru
+  `tests/data-entry-concept-save-status.test.ts` (penjaga statis);
+  `tests/data-entry-learner-save-status.test.ts`,
+  `tests/data-entry-message-banner.test.ts`, `tests/data-entry-tabs.test.ts`,
+  dan `tests/data-entry-data-lists.test.ts` hanya menyesuaikan hitungan
+  `aria-busy`/`aria-live`/`role`/`sr-only` dan mempersempit penjaga "tiga form
+  lain" menjadi dua form prerequisite/state. Tanpa cek smoke baru; penjaga
+  baris smoke 2748 tetap. Satu entri log bertanggal di `docs/ROADMAP.md`.
+  `npm run ci` utuh hijau sebelum merge.
 
 - 2026-11-26: PR #195 — **Status proses tombol simpan form learner
   `/data-entry`** — tombol submit kini membawa `disabled={savingLearner}` lalu
