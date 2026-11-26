@@ -15,6 +15,7 @@ import {
   Route as RouteIcon,
   AlertCircle,
   BookOpen,
+  RefreshCw,
 } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
@@ -337,7 +338,20 @@ function RecommendationsPage() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() => void computeZPD()}
+              disabled={loading || !selectedLearner}
+              aria-busy={loading}
+              className="btn btn-secondary inline-flex items-center gap-2"
+            >
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
+              Refresh
+            </button>
           </div>
+          <p role="status" aria-live="polite" className="sr-only">
+            {loading ? 'Refreshing your recommendations…' : ''}
+          </p>
         </motion.div>
 
         {/* Find a concept: jump straight to a lesson by name instead of scrolling the lists. */}

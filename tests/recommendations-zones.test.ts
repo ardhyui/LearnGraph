@@ -142,7 +142,11 @@ describe('recommendations zones: surrounding contract', () => {
   it('adds no visible marker, list role or live region', () => {
     assert.equal(/list-(disc|decimal|none)|listStyleType/.test(page), false);
     assert.equal(/role="list"/.test(page), false);
-    assert.equal(/aria-live/.test(page), false);
+    assert.equal(
+      /aria-live/.test(zones.mastered + zones.ready + zones.notyet),
+      false,
+      'the zone cards gain no live region',
+    );
   });
 
   it('keeps the tab panel wiring untouched', () => {

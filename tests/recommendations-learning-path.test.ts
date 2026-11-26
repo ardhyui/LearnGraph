@@ -111,7 +111,7 @@ describe('recommendations learning path: surrounding page contract', () => {
   it('adds no visible marker, list role, live region or forced focus', () => {
     assert.equal(/list-(disc|decimal|none)|listStyleType/.test(page), false);
     assert.equal(/role="list"/.test(page), false);
-    assert.equal(/aria-live/.test(page), false);
+    assert.equal(/aria-live/.test(listBlock), false, 'the path list gains no live region');
     assert.equal(/\.focus\(\)/.test(listBlock), false);
     assert.equal(/tabIndex/.test(listBlock), false);
   });
