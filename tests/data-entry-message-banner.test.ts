@@ -114,9 +114,13 @@ describe('data-entry message banner: no replaced name or new live region', () =>
     assert.equal(count(banner, /aria-atomic=/g), 0);
   });
 
-  it('keeps aria-live exclusive to the banner', () => {
-    assert.equal(count(page, /aria-live=/g), 1, 'the only live region is the banner');
+  it('keeps aria-live on the banner and the learner save status only', () => {
+    assert.equal(count(page, /aria-live=/g), 2, 'the banner plus the learner save status');
     assert.equal(count(banner, /aria-live=/g), 1);
+    const learnerFormStart = page.indexOf('<form onSubmit={handleAddLearner}');
+    assert.ok(learnerFormStart > 0, 'the learner form exists');
+    const learnerStatus = page.slice(learnerFormStart, page.indexOf('</form>', learnerFormStart));
+    assert.equal(count(learnerStatus, /aria-live=/g), 1, 'the learner form holds one live region');
     const tabs = page.slice(page.indexOf('role="tablist"'), page.indexOf('{/* Overview Tab'));
     assert.ok(tabs.length > 0, 'the tab list block exists');
     assert.equal(count(tabs, /aria-live=/g), 0, 'tablist/tabpanel markup stays outside live regions');
