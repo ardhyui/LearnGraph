@@ -1,77 +1,85 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (tombol **Run All Tests** + status proses
-`/tests` selesai lewat PR #189; berikutnya: tombol **Import from a file** di
-`/admin/learners`)
+Terakhir diperbarui: 2026-11-26 (status proses tombol **Import from a file**
+`/admin/learners` selesai lewat PR #190; berikutnya: tombol simpan form
+**Create**/**Update** konsep di `/admin/concepts`)
 
 ## Tugas berikutnya
 
-Poles kecil + fitur: **Status proses tombol "Import from a file" di
-`/admin/learners` (`src/routes/admin/learners.tsx`)** — tombol impor adalah
-`<label className="btn btn-secondary flex cursor-pointer items-center gap-2
-focus-within:ring-2 focus-within:ring-primary">` berisi `<Upload
-className="w-4 h-4" aria-hidden="true" />`, label teks `{importing ?
-'Importing…' : 'Import from a file'}`, dan `<input type="file"
-accept="application/json,.json" className="sr-only" disabled={importing}
-onChange={...} />`. Selama `importing` label hanya berganti teks dan input
-diredupkan; halaman sudah punya satu `role="status" aria-live="polite"` (notice
-hasil `data-testid="import-notice"`, `sr-only` saat kosong) tetapi notice itu
-dikosongkan sebelum impor (`setImportNotice('')`), jadi pembaca layar tidak
-mendengar apa pun selama impor berjalan. State `importing` hanya dipakai
-`handleImport` dan `disabled` input, jadi aman dipakai langsung tanpa state
-baru. Pola tombol + status yang sama sudah dipakai di `/sign-in`,
-`/forgot-password`, `/reset-password`, laporan diri/kuis `/learn`,
-`DeleteAccount`, kedua tombol panel **Ask an AI tutor**, tombol snooze, **Create
-a read-only key**, **Save subjects**, lima tombol `/japanese`, **Start
-learning** onboarding, tombol-tombol admin, **Refresh** `/gaps`, tombol simpan
+Poles kecil + fitur: **Status proses tombol simpan form Create/Update konsep di
+`/admin/concepts` (`src/routes/admin/concepts.tsx`)** — tombol submit
+form adalah `<button type="submit" className="btn btn-success flex items-center
+gap-2">` berisi `<Save className="w-4 h-4" />` dan label
+`{editingConcept ? 'Update' : 'Create'}`, tanpa `disabled` dan tanpa
+`aria-busy`; tombol **Cancel** di sebelahnya (`type="button"`,
+`onClick={() => setShowForm(false)}`, `className="btn btn-secondary"`) juga
+tanpa `disabled`. `handleSubmit` menyetel `setError('')`, memanggil
+`updateConcept`/`createConcept`, lalu menutup form (`setShowForm(false)`,
+`setEditingConcept(null)`, `resetForm()`); tidak ada guard klik ganda dan
+halaman belum punya satu pun `aria-busy`, `aria-live`, `role="status"`,
+`role="alert"`, `aria-label`, `aria-labelledby`, `aria-atomic`, atau
+`className="sr-only"`, jadi pembaca layar tidak tahu konsep sedang disimpan dan
+klik ganda bisa mengirim dua kali. Pola tombol + status yang sama sudah dipakai
+di `/sign-in`, `/forgot-password`, `/reset-password`, laporan diri/kuis
+`/learn`, `DeleteAccount`, kedua tombol panel **Ask an AI tutor**, tombol
+snooze, **Create a read-only key**, **Save subjects**, lima tombol `/japanese`,
+**Start learning** onboarding, tombol-tombol admin (**Draft 4 questions**,
+**Draft with Claude**/**Save what I kept**, **Save item**, **Save question**,
+**Compute Profiles**/**Save Scores**), **Refresh** `/gaps`, `/graph`,
+`/combined-graph`, `/progress`, `/recommendations`, `/status`, tombol simpan
 asesmen/**Save Profile** `profile.tsx`, **Refresh study plan** kartu Today,
-**Refresh** `/graph`, `/combined-graph`, `/progress`, `/recommendations`,
-`/status`, dan **Run All Tests** `/tests` (PR #189). UI bahasa Inggris (D2).
-Tanpa query/RPC/migrasi/dependensi/state baru.
+**Run All Tests** `/tests`, dan **Import from a file** `/admin/learners` (PR
+#190). UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: label pembungkus membawa `aria-busy={importing}` tepat sesudah
-`className="btn btn-secondary flex cursor-pointer items-center gap-2
-focus-within:ring-2 focus-within:ring-primary"` (sebelum `<Upload ...>`);
-`className`, `<Upload className="w-4 h-4" aria-hidden="true" />`, teks
-`{importing ? 'Importing…' : 'Import from a file'}`, dan `<input type="file"
-accept="application/json,.json" className="sr-only" disabled={importing}`
-beserta handler `onChange` (reset `e.target.value`, `void handleImport(file)`)
-utuh. **Satu** pengumuman baru: `<p role="status" aria-live="polite"
-className="sr-only">{importing ? 'Importing the learner file…' : ''}</p>`
-sebagai anak terakhir baris aksi `<motion.div ... className="flex ... mb-6">` —
-sesudah `<RefreshExampleData />`, sebelum `</motion.div>` penutup baris aksi;
-notice `data-testid="import-notice"` tetap tepat sesudah baris aksi seperti
-sekarang. Hitungan file setelah tugas: `aria-busy` 1, `aria-live="polite"` 2,
-`role="status"` 2, `role="alert"` 0, `aria-label` 0, `aria-labelledby` 0,
-`aria-atomic` 0, `className="sr-only"` 2 (satu `sr-only` pada input file tetap).
-Jangan mengubah `handleImport` (guard ukuran `MAX_IMPORT_BYTES`, `setError('')`,
-`setImportNotice('')`, `setImporting(true)`, `importLearner`, `refresh`, pesan
-`importNotice`, `finally setImporting(false)`), `handleSubmit`/`handleDelete`,
-daftar learner, tombol **Add Learner**/**Edit**/**Delete**, `DownloadWorkspace`,
-`RefreshExampleData`, notice hasil, atau copy lain; jangan menambah
+Tujuan: state baru `const [saving, setSaving] = useState(false);` tepat sesudah
+`const [error, setError] = useState('');`; di `handleSubmit` tambahkan guard
+`if (saving) return;` sebagai baris pertama fungsi, `setSaving(true)` tepat
+sesudah `setError('')`, dan `finally { setSaving(false); }` baru pada
+`try/catch` yang sudah ada — isi `try` (perakitan `conceptData`, `updateConcept`/
+`createConcept`, `setShowForm(false)`, `setEditingConcept(null)`, `resetForm()`)
+dan `catch` (pesan `An error occurred`) tidak berubah. Tombol submit kini
+membawa `disabled={saving}` lalu `aria-busy={saving}` tepat sesudah `className`
+(urutan `type`, `className`, `disabled`, `aria-busy`); ikon `Save`, label
+`{editingConcept ? 'Update' : 'Create'}`, dan kelas
+`btn btn-success flex items-center gap-2` utuh. Tombol **Cancel** mendapat
+`disabled={saving}` (tanpa `aria-busy`); `type="button"`,
+`onClick={() => setShowForm(false)}`, dan kelasnya utuh. **Satu** pengumuman
+baru: `<p role="status" aria-live="polite" className="sr-only">{saving ?
+'Saving the concept…' : ''}</p>` sebagai anak terakhir
+`<form onSubmit={handleSubmit} className="space-y-5">` — sesudah `</div>` wadah
+dua tombol, sebelum `</form>`. Hitungan file setelah tugas: `aria-busy` 1,
+`aria-live="polite"` 1, `role="status"` 1, `role="alert"` 0, `aria-label` 0,
+`aria-labelledby` 0, `aria-atomic` 0, `className="sr-only"` 1. Jangan mengubah
+`handleDelete`, `openNewForm`/`openEditForm`/`resetForm`, blok galat, filter
+`DOMAINS`, tabel/daftar konsep, tombol **Add Concept**/**Edit**/**Delete**,
+field form, heading, atau copy lain; jangan menambah
 `aria-label`/`aria-labelledby`/`aria-atomic` baru.
 
 Rancangan:
 
-1. **Label** — tambahkan `aria-busy={importing}` tepat sesudah `className`
-   label pembungkus; isi, ikon, dan input tidak berubah.
-2. **Status** — satu `<p role="status" aria-live="polite"
-   className="sr-only">` sebagai anak terakhir baris aksi, sesudah
-   `<RefreshExampleData />`.
-3. **Test** — tambahkan `tests/learners-import-status.test.ts` (penjaga statis,
-   pola `tests/tests-run-status.test.ts`): label dengan `aria-busy={importing}`
-   sesudah `className`, ikon `Upload`/teks/input/handler utuh, satu status baru
-   `role="status"` + `aria-live="polite"` + `className="sr-only"` berteks
-   `Importing the learner file…`/kosong dan berada sesudah
-   `<RefreshExampleData />` sebagai anak terakhir baris aksi, hitungan file
-   `aria-busy` 1/`aria-live="polite"` 2/`role="status"` 2/`role="alert"` 0/
-   `aria-label` 0/`aria-labelledby` 0/`aria-atomic` 0/`className="sr-only"` 2,
-   notice hasil `data-testid="import-notice"` dan alur `handleImport` utuh,
-   serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru di file
-   halaman (`importLearner` dari `@/server/import.functions` sudah ada dan tetap).
-4. **Smoke** — tidak ada cek baru (impor butuh file JSON dan interaksi); jangan
-   mengubah penjaga baris smoke 2748.
-5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+1. **State + guard** — `saving` sesudah `error`; guard `if (saving) return;`
+   dan `finally { setSaving(false); }` seperti di atas.
+2. **Tombol** — submit `disabled={saving}` + `aria-busy={saving}` sesudah
+   `className`; **Cancel** `disabled={saving}` tanpa `aria-busy`.
+3. **Status** — satu `<p role="status" aria-live="polite"
+   className="sr-only">` sebagai anak terakhir form, sesudah wadah dua tombol.
+4. **Test** — tambahkan `tests/concept-save-status.test.ts` (penjaga statis,
+   pola `tests/learners-import-status.test.ts` dan
+   `tests/content-save-status.test.ts`): state `saving` sesudah `error`, guard
+   baris pertama + `setSaving(true)` sesudah `setError('')` + `finally`
+   membersihkan, tombol submit `type`/`className`/`disabled`/`aria-busy`
+   berurutan dengan ikon/label utuh, **Cancel** `disabled={saving}` tanpa
+   `aria-busy`, satu status `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Saving the concept…`/kosong dan berada
+   sesudah wadah dua tombol sebagai anak terakhir form, hitungan file
+   `aria-busy` 1/`aria-live="polite"` 1/`role="status"` 1/`role="alert"` 0/
+   `aria-label` 0/`aria-labelledby` 0/`aria-atomic` 0/`className="sr-only"` 1,
+   isi `handleSubmit` lama serta `handleDelete`/`openNewForm`/`openEditForm`/
+   `resetForm` utuh, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/
+   migrasi baru di file halaman.
+5. **Smoke** — tidak ada cek baru (menyimpan butuh mengisi form dan interaksi);
+   jangan mengubah penjaga baris smoke 2748.
+6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`); commit
@@ -91,11 +99,12 @@ bahasa Indonesia `feat:`.
 Semua tanpa migrasi skema, terlihat pelajar/admin, dan bisa diverifikasi
 otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Setelah tombol **Run All Tests** `/tests` selesai (PR #189): tombol **Import
-   from a file** `/admin/learners` (lihat Tugas berikutnya), lalu audit surface
-   pelajar/admin yang belum punya penanda. Baris "Lanjutan:" yang belum dicoret
-   saat ini hanya butuh keputusan pemilik, error SSR langka, atau migrasi data —
-   jangan dipilih tanpa perubahan kondisi.
+1. Setelah tombol **Import from a file** `/admin/learners` selesai (PR #190):
+   tombol simpan form **Create**/**Update** konsep `/admin/concepts` (lihat
+   Tugas berikutnya), lalu audit surface pelajar/admin yang belum punya
+   penanda. Baris "Lanjutan:" yang belum dicoret saat ini hanya butuh
+   keputusan pemilik, error SSR langka, atau migrasi data — jangan dipilih
+   tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
@@ -127,18 +136,41 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    grafik `/graph` (PR #184), tombol **Refresh** grafik `/combined-graph`
    (PR #185), tombol **Refresh** halaman `/progress` (PR #186), tombol
    **Refresh** halaman `/recommendations` (PR #187), tombol **Refresh**
-   halaman `/status` (PR #188), dan tombol **Run All Tests** `/tests` (PR
-   #189). Kandidat berikutnya: tombol impor **Import from a file**
-   `/admin/learners` (lihat Tugas berikutnya; `disabled={importing}` pada input
-   file + label **Importing…**, belum `aria-busy`) dan audit surface admin yang
-   belum punya penanda (mis. Concepts tanpa state `saving` dan form
-   Prerequisites/States yang `disabled`-nya hanya validitas data, bukan proses
-   berjalan).
+   halaman `/status` (PR #188), tombol **Run All Tests** `/tests` (PR #189),
+   dan tombol **Import from a file** `/admin/learners` (PR #190). Kandidat
+   berikutnya: tombol simpan form **Create**/**Update** konsep
+   `/admin/concepts` (lihat Tugas berikutnya; belum punya state `saving`,
+   `disabled`, maupun `aria-busy`) dan audit surface admin yang belum punya
+   penanda (mis. form Prerequisites/States yang `disabled`-nya hanya validitas
+   data, bukan proses berjalan).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-26: PR #190 — **Tombol "Import from a file" + status proses halaman
+  `/admin/learners`** — label pembungkus impor kini membawa
+  `aria-busy={importing}` tepat sesudah `className`
+  (`btn btn-secondary flex cursor-pointer items-center gap-2
+  focus-within:ring-2 focus-within:ring-primary`; ikon `Upload`
+  `aria-hidden="true"`, teks **Importing…**/**Import from a file**, input file
+  `sr-only` `disabled={importing}`, dan handler `onChange` yang mereset
+  `e.target.value` lalu `void handleImport(file)` utuh) dan satu pengumuman
+  baru `<p role="status" aria-live="polite" className="sr-only">{importing ?
+  'Importing the learner file…' : ''}</p>` sebagai anak terakhir baris aksi
+  sesudah `<RefreshExampleData />`. Tanpa state baru; notice hasil
+  `data-testid="import-notice"` tetap tepat sesudah baris aksi, `handleImport`
+  (guard `MAX_IMPORT_BYTES`, `setError('')`, `setImportNotice('')`,
+  `setImporting(true)`, `importLearner`, `refresh`, pesan notice, `finally`),
+  `handleSubmit`/`handleDelete`, daftar learner, tombol
+  **Add Learner**/**Edit**/**Delete**, `DownloadWorkspace`, dan copy lain utuh.
+  Hitungan file: `aria-busy` 1, `aria-live="polite"` 2, `role="status"` 2,
+  `role="alert"` 0, `aria-label` 0, `aria-labelledby` 0, `aria-atomic` 0,
+  `className="sr-only"` 2. Test baru `tests/learners-import-status.test.ts`
+  (7 penjaga statis); tidak ada test lain yang dilonggarkan. Tanpa cek smoke
+  baru; penjaga baris smoke 2748 tetap. Satu entri log bertanggal di
+  `docs/ROADMAP.md`. `npm run ci` utuh hijau sebelum merge.
 
 - 2026-11-26: PR #189 — **Tombol "Run All Tests" + status proses halaman
   `/tests`** — tombol di wadah `<motion.div className="mb-6">` kini membawa

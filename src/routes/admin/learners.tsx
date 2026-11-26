@@ -208,7 +208,7 @@ function LearnersPage() {
               Add Learner
             </button>
             {/* Roadmap M3: import a learner from a LearnGraph JSON export (always a new learner). */}
-            <label className="btn btn-secondary flex cursor-pointer items-center gap-2 focus-within:ring-2 focus-within:ring-primary">
+            <label className="btn btn-secondary flex cursor-pointer items-center gap-2 focus-within:ring-2 focus-within:ring-primary" aria-busy={importing}>
               <Upload className="w-4 h-4" aria-hidden="true" />
               {importing ? 'Importing…' : 'Import from a file'}
               <input
@@ -229,6 +229,9 @@ function LearnersPage() {
             {/* Roadmap P0 #2: example progress seeded before round #17 can be
                 moved to "as of now" on request (dates only, demo learners only). */}
             <RefreshExampleData />
+            <p role="status" aria-live="polite" className="sr-only">
+              {importing ? 'Importing the learner file…' : ''}
+            </p>
           </motion.div>
           <p role="status" aria-live="polite" className={importNotice ? 'mb-6 text-sm text-emerald-700 dark:text-emerald-400' : 'sr-only'} data-testid="import-notice">
             {importNotice}
