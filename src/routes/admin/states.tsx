@@ -65,6 +65,7 @@ function StatesPage() {
     bloomLevel: 'understand',
   });
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [filterUser, setFilterUser] = useState('');
   const [filterConcept, setFilterConcept] = useState('');
 
@@ -105,6 +106,7 @@ function StatesPage() {
   const loading = dbLoading || learnersLoading || conceptsLoading || statesLoading;
 
   async function handleSubmit(e: React.FormEvent) {
+    if (saving) return;
     e.preventDefault();
     setError('');
 
@@ -113,6 +115,7 @@ function StatesPage() {
       return;
     }
 
+    setSaving(true);
     try {
       await db.setKnowledgeState(formData.userId, formData.conceptId, {
         mastery: formData.mastery,
@@ -125,6 +128,8 @@ function StatesPage() {
       fetchStates();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -399,7 +404,12 @@ function StatesPage() {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <button type="submit" className="btn btn-success flex items-center gap-2">
+                    <button
+                      type="submit"
+                      className="btn btn-success flex items-center gap-2"
+                      disabled={saving}
+                      aria-busy={saving}
+                    >
                       <Save className="w-4 h-4" />
                       Save
                     </button>
@@ -407,10 +417,14 @@ function StatesPage() {
                       type="button"
                       onClick={() => setShowForm(false)}
                       className="btn btn-secondary"
+                      disabled={saving}
                     >
                       Cancel
                     </button>
                   </div>
+                  <p role="status" aria-live="polite" className="sr-only">
+                    {saving ? 'Saving the knowledge state…' : ''}
+                  </p>
                 </form>
               </motion.div>
             )}
