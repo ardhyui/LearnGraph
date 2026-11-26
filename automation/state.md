@@ -1,7 +1,7 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
 Terakhir diperbarui: 2026-11-26 (status proses tombol **Refresh** halaman
-`/gaps` selesai lewat PR #PLACEHOLDER; berikutnya: status proses tombol simpan
+`/gaps` selesai lewat PR #179; berikutnya: status proses tombol simpan
 kuis asesmen di `src/routes/profile.tsx`)
 
 ## Tugas berikutnya
@@ -28,7 +28,7 @@ sudah dipakai di `/sign-in`, `/forgot-password`, `/reset-password`, laporan
 diri/kuis `/learn`, `DeleteAccount`, kedua tombol panel **Ask an AI tutor**,
 tombol snooze, **Create a read-only key**, **Save subjects**, lima tombol
 `/japanese`, **Start learning** onboarding, tombol-tombol admin, dan tombol
-**Refresh** `/gaps` (PR #PLACEHOLDER). Halaman `profile.tsx` belum punya
+**Refresh** `/gaps` (PR #179). Halaman `profile.tsx` belum punya
 `aria-busy`; UI pelajar berbahasa Inggris (D2). Tanpa query/RPC/migrasi/
 dependensi baru.
 
@@ -125,7 +125,7 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    tombol **Save question** di `src/routes/admin/questions.tsx` (PR #177), dan
    tombol **Compute Profiles**/**Save Scores** di
    `src/routes/admin/psychometrics.tsx` (PR #178), dan tombol **Refresh** di
-   `src/routes/gaps.tsx` (PR #PLACEHOLDER). Kandidat berikutnya: tombol simpan
+   `src/routes/gaps.tsx` (PR #179). Kandidat berikutnya: tombol simpan
    kuis asesmen `src/routes/profile.tsx` (lihat Tugas berikutnya), lalu audit
    surface pelajar yang belum punya penanda.
 
@@ -134,7 +134,7 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
-- 2026-11-26: PR #PLACEHOLDER — **Status proses tombol "Refresh" halaman
+- 2026-11-26: PR #179 — **Status proses tombol "Refresh" halaman
   `/gaps`** — tombol di kartu pemilih learner kini membawa
   `aria-busy={loading}` tepat sesudah `disabled={loading}`
   (`whileHover`/`whileTap`/`onClick`/kelas/ikon/label utuh), dengan satu
