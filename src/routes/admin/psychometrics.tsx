@@ -84,6 +84,8 @@ function PsychometricsPage() {
   const [psychometricData, setPsychometricData] = useState<PsychometricData | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [computing, setComputing] = useState(false);
+  const [savingScores, setSavingScores] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['Big Five', 'Cognitive']));
@@ -165,6 +167,7 @@ function PsychometricsPage() {
 
     try {
       setSaving(true);
+      setSavingScores(true);
       setError('');
       setSuccess('');
 
@@ -200,6 +203,7 @@ function PsychometricsPage() {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setSaving(false);
+      setSavingScores(false);
     }
   }
 
@@ -208,6 +212,7 @@ function PsychometricsPage() {
 
     try {
       setSaving(true);
+      setComputing(true);
       setError('');
       setSuccess('');
 
@@ -236,6 +241,7 @@ function PsychometricsPage() {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setSaving(false);
+      setComputing(false);
     }
   }
 
@@ -529,6 +535,7 @@ function PsychometricsPage() {
                     <button
                       onClick={handleComputeProfiles}
                       disabled={saving || !hasScores}
+                      aria-busy={computing}
                       className="btn btn-secondary flex items-center gap-2 disabled:opacity-50"
                     >
                       <RefreshCw className={cn('w-4 h-4', saving && 'animate-spin')} />
@@ -537,6 +544,7 @@ function PsychometricsPage() {
                     <button
                       onClick={handleSaveScores}
                       disabled={saving || Object.keys(editedScores).length === 0}
+                      aria-busy={savingScores}
                       className="btn btn-success flex items-center gap-2 disabled:opacity-50"
                     >
                       <Save className="w-4 h-4" />
@@ -544,6 +552,7 @@ function PsychometricsPage() {
                     </button>
                   </div>
                 </div>
+                <p role="status" aria-live="polite" className="sr-only">{computing ? 'Computing profiles…' : savingScores ? 'Saving scores…' : ''}</p>
               </motion.div>
 
               {/* Domain Scores by Category */}
