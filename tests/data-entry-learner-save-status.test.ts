@@ -68,7 +68,7 @@ describe('/data-entry: the learner submit button announces it is busy', () => {
       typeAt < classAt && classAt < disabledAt && disabledAt < busyAt,
       'type, class, disabled and aria-busy stay in order',
     );
-    assert.equal(count(page, /aria-busy=/g), 2, 'the learner and concept buttons carry aria-busy');
+    assert.equal(count(page, /aria-busy=/g), 3, 'the learner, concept and prerequisite buttons carry aria-busy');
   });
 
   it('keeps both labels of the toggle', () => {
@@ -124,13 +124,13 @@ describe('/data-entry: one polite status line after the learner submit button', 
       form.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the learner status line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(page, /aria-live=/g), 3, 'the result banner plus both save status lines');
-    assert.equal(count(page, /role="status"/g), 2, 'one status line per save form');
+    assert.equal(count(page, /aria-live=/g), 4, 'the result banner plus all three save status lines');
+    assert.equal(count(page, /role="status"/g), 3, 'one status line per save form');
     assert.equal(count(page, /role="alert"/g), 0, 'no alert is added');
     assert.equal(count(page, /aria-label=/g), 5, 'no aria-label is added');
     assert.equal(count(page, /aria-labelledby=/g), 5, 'no aria-labelledby is added');
     assert.equal(count(page, /aria-atomic=/g), 0, 'no aria-atomic is added');
-    assert.equal(count(page, /className="sr-only"/g), 2, 'the learner and concept status lines');
+    assert.equal(count(page, /className="sr-only"/g), 3, 'the learner, concept and prerequisite status lines');
   });
 
   it('says Adding the learner… while saving and clears when idle', () => {
@@ -166,8 +166,8 @@ describe('/data-entry: the result banner and the other forms stay intact', () =>
     );
   });
 
-  it('leaves the prerequisite and knowledge-state forms without aria-busy', () => {
-    for (const handler of ['handleAddPrerequisite', 'handleAddKnowledgeState']) {
+  it('leaves the knowledge-state form without aria-busy', () => {
+    for (const handler of ['handleAddKnowledgeState']) {
       const start = page.indexOf(`<form onSubmit={${handler}`);
       assert.ok(start > 0, `the ${handler} form is rendered`);
       const end = page.indexOf('</form>', start) + '</form>'.length;

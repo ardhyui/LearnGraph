@@ -72,7 +72,7 @@ describe('/data-entry: the concept submit button announces it is busy', () => {
       typeAt < classAt && classAt < disabledAt && disabledAt < busyAt,
       'type, class, disabled and aria-busy stay in order',
     );
-    assert.equal(count(page, /aria-busy=/g), 2, 'the learner and concept buttons carry aria-busy');
+    assert.equal(count(page, /aria-busy=/g), 3, 'the learner, concept and prerequisite buttons carry aria-busy');
   });
 
   it('keeps the Add Concept label', () => {
@@ -118,14 +118,14 @@ describe('/data-entry: one polite status line after the concept submit button', 
       form.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the concept status line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(page, /aria-live=/g), 3, 'the banner plus both save status lines');
-    assert.equal(count(page, /role="status"/g), 2, 'one status line per save form');
+    assert.equal(count(page, /aria-live=/g), 4, 'the banner plus all three save status lines');
+    assert.equal(count(page, /role="status"/g), 3, 'one status line per save form');
     assert.equal(count(page, /role="alert"/g), 0, 'no alert is added');
     assert.equal(count(page, /aria-label=/g), 5, 'no aria-label is added');
     assert.equal(count(page, /aria-labelledby=/g), 5, 'no aria-labelledby is added');
     assert.equal(count(page, /aria-atomic=/g), 0, 'no aria-atomic is added');
-    assert.equal(count(page, /className="sr-only"/g), 2, 'the learner and concept status lines');
-    assert.equal(count(page, /role="/g), 9, 'the page keeps its nine literal roles');
+    assert.equal(count(page, /className="sr-only"/g), 3, 'the learner, concept and prerequisite status lines');
+    assert.equal(count(page, /role="/g), 10, 'the page keeps its ten literal roles');
   });
 
   it('says Adding the concept… while saving and clears when idle', () => {
@@ -173,8 +173,8 @@ describe('/data-entry: the banner, learner status and other forms stay intact', 
     );
   });
 
-  it('leaves the prerequisite and knowledge-state forms without a new marker', () => {
-    for (const handler of ['handleAddPrerequisite', 'handleAddKnowledgeState']) {
+  it('leaves the knowledge-state form without a new marker', () => {
+    for (const handler of ['handleAddKnowledgeState']) {
       const start = page.indexOf(`<form onSubmit={${handler}`);
       assert.ok(start > 0, `the ${handler} form is rendered`);
       const end = page.indexOf('</form>', start) + '</form>'.length;
