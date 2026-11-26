@@ -128,7 +128,7 @@ describe('data-entry data lists: four named lists', () => {
       assert.equal(/aria-live=/.test(block), false, `${list.label}: not a live region`);
       assert.equal(/tabIndex|\.focus\(\)/.test(block), false, `${list.label}: no forced focus`);
     }
-    assert.equal(count(page, /aria-live=/g), 1, 'the only live region is the message banner');
+    assert.equal(count(page, /aria-live=/g), 2, 'the message banner and learner save status are the live regions');
   });
 });
 

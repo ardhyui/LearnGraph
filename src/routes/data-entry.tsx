@@ -181,6 +181,9 @@ function DataEntryPage() {
   // JSON input states
   const [learnerJson, setLearnerJson] = useState('');
 
+  // Learner save progress
+  const [savingLearner, setSavingLearner] = useState(false);
+
   // Expanded category tracking
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
 
@@ -264,6 +267,7 @@ function DataEntryPage() {
   // Handle learner submission (form or JSON)
   const handleAddLearner = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingLearner) return;
     try {
       let payload: Record<string, unknown>;
 
@@ -299,6 +303,7 @@ function DataEntryPage() {
         ? String(payload.userId)
         : learnerForm.userId || uuidv4();
 
+      setSavingLearner(true);
       await createLearner(userId, payload as Record<string, unknown>);
 
       showMessage('success', 'Learner added successfully!');
@@ -311,6 +316,8 @@ function DataEntryPage() {
       setLearnerJson('');
     } catch (err) {
       showMessage('error', err instanceof Error ? err.message : 'Failed to add learner');
+    } finally {
+      setSavingLearner(false);
     }
   };
 
@@ -1106,9 +1113,15 @@ function DataEntryPage() {
                     <button
                       type="submit"
                       className="btn btn-success w-full"
+                      disabled={savingLearner}
+                      aria-busy={savingLearner}
                     >
                       {learnerInputMode === 'json' ? 'Submit JSON' : 'Add Learner'}
                     </button>
+
+                    <p role="status" aria-live="polite" className="sr-only">
+                      {savingLearner ? 'Adding the learner…' : ''}
+                    </p>
                   </form>
 
                   <div className="mt-6">
