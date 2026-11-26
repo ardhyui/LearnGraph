@@ -1,83 +1,69 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-27 (status proses tombol simpan form knowledge
-state `/data-entry` selesai lewat PR #198; berikutnya: tombol keputusan draf
-**Approve/Discard** panel "Draft questions with Claude"
-`src/components/AiQuestionDrafts.tsx`)
+Terakhir diperbarui: 2026-11-27 (status proses tombol keputusan draf
+**Approve/Discard** panel "Draft questions with Claude" selesai lewat PR #199;
+berikutnya: tombol **Try again** kartu "My learning"
+`src/components/LearningOverview.tsx`)
 
 ## Tugas berikutnya
 
-Poles kecil + fitur: **Status proses tombol keputusan draf (Approve/Discard)
-panel "Draft questions with Claude"** — `src/components/AiQuestionDrafts.tsx`
-(Admin → Quiz Questions, panel draf AI). Kedua tombol aksi per-draf —
-**Approve** `<button type="button" onClick={() => void decide(d, 'approved')}
-className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1
-text-xs font-medium text-white hover:bg-emerald-700">` (sekitar baris 147) dan
-**Discard** `<button type="button" onClick={() => void decide(d, 'discarded')}
-className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs
-font-medium text-muted-foreground hover:bg-red-500/10 hover:text-red-700">`
-(sekitar baris 153) — memanggil `decide` (async; `await reviewQuestionDraft
-({ data: { draft: d, decision } })`) tanpa `disabled`/`aria-busy` dan tanpa
-pengumuman, sehingga selama keputusan disimpan pembaca layar tidak tahu apa
-yang sedang terjadi dan klik ganda bisa mengirim dua `reviewQuestionDraft`.
-Tombol **Edit first** (`onClick={() => edit(d)}`, sinkron, hanya memfilter draf
-dan memanggil `onEdit`) tetap tanpa penanda. Panel ini sudah punya tombol
-**Draft 4 questions** `aria-busy={busy}` + baris status `sr-only` (PR #174),
-wadah draf `aria-live="polite"`, dan galat `role="alert"` yang harus
-dipertahankan. Hitungan file saat ini: `aria-busy` 1, `aria-live` 2,
-`role="status"` 1, `role="alert"` 1, `aria-label=` 1 (label section),
-`aria-labelledby` 0, `aria-atomic` 0, `className="sr-only"` 1. UI bahasa
-Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil + fitur: **Status proses tombol Try again kartu "My learning"** —
+`src/components/LearningOverview.tsx` (kartu **My learning** di `/profile`).
+Tombol **Try again** di dalam galat `role="alert"` (sekitar baris 154–158)
+kini `<button type="button" onClick={() => load()} className="font-medium
+underline">Try again</button>` — memanggil `load` (async, `useCallback`)
+tanpa `disabled`/`aria-busy` dan tanpa pengumuman, sehingga saat percobaan
+ulang berjalan pembaca layar tidak tahu apa yang terjadi dan klik ganda bisa
+memicu dua permintaan baca. Kartu sudah punya baris `notice` (`role="status"`
++ `aria-live="polite"`, `sr-only` saat kosong), status "Loading your
+progress…" (`role="status"`), dan galat `role="alert"` yang harus
+dipertahankan. Hitungan file saat ini: `aria-busy` 0, `aria-live` 1,
+`role="status"` 2, `role="alert"` 1, `aria-label=` 3, `aria-labelledby` 1,
+`aria-atomic` 0, `className="sr-only"` 0 (baris notice memakai className
+dinamis, bukan string persis), `role="` 5. UI bahasa Inggris (D2). Tanpa
+query/RPC/migrasi/dependensi baru.
 
-Tujuan: state baru `const [deciding, setDeciding] = useState<QuestionInput |
-null>(null);` diletakkan sesudah state `busy` (sekitar baris 29, sesudah
-`const [busy, setBusy] = useState(false);`). `decide` diawali guard
-`if (deciding) return;`, `setDeciding(d)` disetel tepat sebelum `await
-reviewQuestionDraft(...)`, dan `finally { setDeciding(null); }` ditambahkan
-pada `try/catch` yang sudah ada — isi `try` (`reviewQuestionDraft`, `setDrafts`
-yang memfilter draf, `if (decision === 'approved') onSaved();`) dan `catch`
-(`'Could not save the decision.'`) tidak berubah. Kedua tombol keputusan
-masing-masing membawa `disabled={deciding !== null}` lalu
-`aria-busy={deciding === d}` tepat sesudah `className` (handler, ikon
-`Check`/`X` `aria-hidden`, kelas, dan label **Approve**/**Discard** utuh);
-**Edit first** dan tombol **Draft 4 questions** tidak berubah. **Satu**
-pengumuman baru: `<p role="status" aria-live="polite" className="sr-only">
-{deciding ? 'Saving your decision…' : ''}</p>` sebagai anak terakhir section —
-sesudah baris status `Drafting questions…` (PR #174, sekitar baris 161–163),
-sebelum `</section>`.
+Tujuan: state baru `const [retrying, setRetrying] = useState(false);`
+diletakkan sesudah state `notice` (sekitar baris 40, sesudah
+`const [notice, setNotice] = useState<string | null>(null);`). Tambah satu
+fungsi `retry` sesudah `load` (sesudah blok `useCallback`, sebelum `useEffect`
+yang memanggil `load`): `if (retrying) return;` lalu `setRetrying(true);`,
+`try { await load(); } finally { setRetrying(false); }`. `load` sendiri tidak
+berubah. Tombol **Try again** mempertahankan `type="button"` dan kelas persis
+`font-medium underline`, lalu membawa `onClick={() => void retry()}`,
+`disabled={retrying}`, dan `aria-busy={retrying}` tepat sesudah `className`;
+teks **Try again** utuh. **Satu** pengumuman baru: `<p role="status"
+aria-live="polite" className="sr-only">{retrying ? 'Retrying…' : ''}</p>`
+sebagai anak terakhir section (sesudah blok data/`</>`), sebelum `</section>`.
 
 Rancangan:
 
-1. **State + handler** — `deciding` sesudah `busy`; guard `if (deciding)
-   return;`, `setDeciding(d)` tepat sebelum `await reviewQuestionDraft`,
-   `finally` pada `try/catch` yang ada; isi `try`/`catch` lama utuh.
-2. **Tombol** — di **Approve** dan **Discard**: `disabled={deciding !== null}`
-   lalu `aria-busy={deciding === d}` sesudah `className`; `type`, handler,
-   kelas, ikon, label utuh; **Edit first** dan **Draft 4 questions** tetap.
-3. **Status** — satu `<p role="status" aria-live="polite" className="sr-only">`
-   berteks `Saving your decision…`/kosong sebagai anak terakhir section,
-   sesudah baris status PR #174.
-4. **Test** — tambahkan `tests/ai-question-drafts-decide-status.test.ts`
-   (penjaga statis, pola `tests/ai-question-drafts-status.test.ts`): kedua
-   tombol dengan `type="button"`/handler/`className`/`disabled`/`aria-busy`
-   berurutan dan label/ikon utuh, **Edit first** tanpa `aria-busy`, satu
-   status baru `role="status"` + `aria-live="polite"` +
-   `className="sr-only"` berteks `Saving your decision…`/kosong dan berada
-   sesudah baris `Drafting questions…` sebagai anak terakhir section, state
-   `deciding` sesudah `busy`, guard + `setDeciding(d)` tepat sebelum `await
-   reviewQuestionDraft` + `finally` membersihkan, isi `decide` lama utuh,
-   tombol **Draft 4 questions** + wadah draf `aria-live` + galat `role="alert"`
-   tetap, hitungan file `aria-busy` 3/`aria-live` 3/`role="status"` 2/
-   `role="alert"` 1/`aria-label=` 1/`aria-labelledby` 0/`aria-atomic` 0/
-   `className="sr-only"` 2, serta tanpa `createServerFn`/`graphCall`/
-   `rpc-schemas`/migrasi baru. Sesuaikan hitungan di
-   `tests/ai-question-drafts-status.test.ts` (`aria-busy` 1→3, `aria-live`
-   2→3, `role="status"` 1→2, `className="sr-only"` 1→2) dan persempit penjaga
-   "keeps Approve, Edit first and Discard without aria-busy" menjadi hanya
-   **Edit first** tanpa melonggarkan penjaga posisi/kunci lain.
-5. **Smoke** — tidak ada cek baru (memutuskan draf butuh API key Anthropic
-   sungguhan untuk membuat draf lebih dulu); jangan mengubah penjaga baris
-   smoke 2748.
+1. **State + handler** — `retrying` sesudah `notice`; `retry` sesudah `load`
+   dengan guard, `setRetrying(true)`, `try { await load(); } finally {
+   setRetrying(false); }`; `load`, `useEffect`, dan `useCallback` lama utuh.
+2. **Tombol** — **Try again**: `type`, `className`, `onClick={() => void
+   retry()}`, `disabled`, `aria-busy` sesuai urutan di atas; label dan posisi
+   di dalam galat `role="alert"` utuh; tombol **Change subjects**/**Choose
+   subjects**, `FocusEditor`, dan blok progres tidak berubah.
+3. **Status** — satu `<p role="status" aria-live="polite"
+   className="sr-only">` berteks `Retrying…`/kosong sebagai anak terakhir
+   section.
+4. **Test** — tambahkan `tests/learning-overview-retry-status.test.ts`
+   (penjaga statis, pola `tests/study-today-refresh-status.test.ts`): tombol
+   dengan `type`/`onClick`/`className`/`disabled`/`aria-busy` berurutan dan
+   label utuh, satu status baru `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Retrying…`/kosong dan berada sesudah galat
+   sebagai anak terakhir section, state `retrying` sesudah `notice`, guard +
+   `setRetrying(true)` + `try { await load(); }` + `finally` membersihkan,
+   `load` lama utuh, baris `notice`, status "Loading your progress…", dan galat
+   `role="alert"` tetap, tombol **Change subjects** dan `FocusEditor` tetap,
+   hitungan file `aria-busy` 1/`aria-live` 2/`role="status"` 3/
+   `role="alert"` 1/`aria-label=` 3/`aria-labelledby` 1/`aria-atomic` 0/
+   `className="sr-only"` 1/`role="` 6, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Sesuaikan test lama
+   bila perlu, tanpa melonggarkan penjaga posisi/kunci.
+5. **Smoke** — tidak ada cek baru (galat muat sulit dipicu otomatis tanpa
+   mematahkan RPC); jangan mengubah penjaga baris smoke 2748.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -101,13 +87,13 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 1. Setelah form simpan knowledge state `/admin/states` (PR #193), tombol
    **Refresh** grafik `/domains` (PR #194), form **Create learner**
    `src/routes/data-entry.tsx` (PR #195), form **Create concept** di file
-   yang sama (PR #196), form **Create prerequisite** (PR #197), dan form
-   **Create knowledge state** (PR #198) selesai: tombol keputusan draf
-   **Approve/Discard** `AiQuestionDrafts.tsx` (lihat Tugas berikutnya), lalu
-   audit surface pelajar/admin lain yang belum punya penanda (mis. tombol
-   **Try again** `LearningOverview.tsx` atau tombol per-baris **Delete** di
-   halaman admin; tombol **Try again** `StudyToday.tsx` sengaja dibiarkan
-   tanpa penanda oleh PR #183 dan dikunci
+   yang sama (PR #196), form **Create prerequisite** (PR #197), form
+   **Create knowledge state** (PR #198), dan tombol keputusan draf
+   **Approve/Discard** `AiQuestionDrafts.tsx` (PR #199) selesai: tombol
+   **Try again** `LearningOverview.tsx` (lihat Tugas berikutnya), lalu audit
+   surface pelajar/admin lain yang belum punya penanda (mis. tombol per-baris
+   **Delete** di halaman admin; tombol **Try again** `StudyToday.tsx` sengaja
+   dibiarkan tanpa penanda oleh PR #183 dan dikunci
    `tests/study-today-refresh-status.test.ts`). Baris "Lanjutan:" yang belum
    dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
    migrasi data — jangan dipilih tanpa perubahan kondisi.
@@ -149,15 +135,42 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    knowledge state `/admin/states` (PR #193), tombol **Refresh** grafik
    `/domains` (PR #194), form **Create learner** `/data-entry` (PR #195), form
    **Create concept** `/data-entry` (PR #196), dan form **Create prerequisite**
-   `/data-entry` (PR #197), dan form **Create knowledge state** `/data-entry`
-   (PR #198). Kandidat berikutnya: tombol keputusan draf **Approve/Discard**
-   `src/components/AiQuestionDrafts.tsx` (lihat Tugas berikutnya), lalu audit
-   surface pelajar/admin lain yang belum punya penanda.
+   `/data-entry` (PR #197), form **Create knowledge state** `/data-entry`
+   (PR #198), dan tombol keputusan draf **Approve/Discard**
+   `src/components/AiQuestionDrafts.tsx` (PR #199). Kandidat berikutnya:
+   tombol **Try again** `src/components/LearningOverview.tsx` (lihat Tugas
+   berikutnya), lalu audit surface pelajar/admin lain yang belum punya
+   penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-27: PR #199 — **Status proses tombol keputusan draf
+  Approve/Discard panel "Draft questions with Claude"** — kedua tombol aksi
+  per-draf `src/components/AiQuestionDrafts.tsx` kini membawa
+  `disabled={deciding !== null}` lalu `aria-busy={deciding === d}` tepat
+  sesudah `className` (handler `decide(d, 'approved'|'discarded')`, kelas
+  persis, ikon `Check`/`X` `aria-hidden`, dan label **Approve**/**Discard**
+  utuh), dan satu pengumuman baru `<p role="status" aria-live="polite"
+  className="sr-only">{deciding ? 'Saving your decision…' : ''}</p>` sebagai
+  anak terakhir section sesudah baris status **Drafting questions…**.
+  State baru `deciding` sesudah `busy`; `decide` diawali guard `if (deciding)
+  return;`, `setDeciding(d)` disetel tepat sebelum `await reviewQuestionDraft`,
+  dan `finally { setDeciding(null); }` membersihkan — isi `try`/`catch` lama
+  utuh. **Edit first** (sinkron) dan **Draft 4 questions** tetap tanpa
+  penanda baru; wadah draf `aria-live="polite"` dan galat `role="alert"`
+  dipertahankan. Hitungan file: `aria-busy` 3, `aria-live` 3, `role="status"`
+  2, `role="alert"` 1, `aria-label=` 1, `aria-labelledby` 0, `aria-atomic` 0,
+  `className="sr-only"` 2. Test baru
+  `tests/ai-question-drafts-decide-status.test.ts` (penjaga statis);
+  `tests/ai-question-drafts-status.test.ts` hanya menyesuaikan hitungan
+  (`aria-busy` 1→3, `aria-live` 2→3, `role="status"` 1→2,
+  `className="sr-only"` 1→2) dan mempersempit penjaga per-draf menjadi hanya
+  **Edit first** tanpa melonggarkan penjaga posisi/kunci lain. Tanpa cek smoke
+  baru; penjaga baris smoke 2748 tetap. Satu entri log bertanggal di
+  `docs/ROADMAP.md`. Tanpa migrasi skema/dependensi/server function/RPC baru.
 
 - 2026-11-27: PR #198 — **Status proses tombol simpan form knowledge state
   `/data-entry`** — tombol submit kini membawa `disabled={savingKnowledgeState}`
