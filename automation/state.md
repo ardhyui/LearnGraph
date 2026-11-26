@@ -1,89 +1,78 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (status proses tombol **Save question** form
-soal halaman admin Quiz Questions selesai lewat PR #177;
-berikutnya: status proses tombol **Compute Profiles** dan **Save Scores**
-halaman admin Psychometrics)
+Terakhir diperbarui: 2026-11-26 (status proses tombol **Compute Profiles**
+dan **Save Scores** halaman admin Psychometrics selesai lewat PR #178;
+berikutnya: status proses tombol **Refresh** halaman `/gaps`)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol "Compute Profiles" dan "Save Scores"
-halaman admin Psychometrics** — di `src/routes/admin/psychometrics.tsx`
-(Admin → Psychometrics), dua tombol berbagi satu state `saving`:
+Poles kecil: **Status proses tombol "Refresh" halaman `/gaps`** — di
+`src/routes/gaps.tsx`, tombol Refresh di kartu pemilih learner:
 
-- **Compute Profiles** — `<button onClick={handleComputeProfiles}
-  disabled={saving || !hasScores} className="btn btn-secondary flex
-  items-center gap-2 disabled:opacity-50">` berisi `<RefreshCw
-  className={cn('w-4 h-4', saving && 'animate-spin')} />` (tanpa
-  `aria-hidden`) + label;
-- **Save Scores** — `<button onClick={handleSaveScores} disabled={saving ||
-  Object.keys(editedScores).length === 0} className="btn btn-success flex
-  items-center gap-2 disabled:opacity-50">` berisi `<Save className="w-4
-  h-4" />` (tanpa `aria-hidden`) + label;
+- kartu `<motion.div ... className="glass-card p-5 mb-6">` memuat
+  `<label htmlFor={learnerSelectId} ...>Learner</label>` lalu
+  `<div className="flex gap-4">` berisi `<select id={learnerSelectId} ...>`
+  + `<motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+  onClick={() => fetchGapData(selectedLearnerId)} disabled={loading}
+  className="btn btn-primary flex items-center gap-2">` dengan
+  `<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />` +
+  label **Refresh**;
+- tombol hanya dirender bila `selectedLearnerId`;
+- `fetchGapData` menyalakan `setLoading(true)` (kecuali `quiet`) lalu
+  `setLoading(false)` di `finally`; dipakai juga oleh efek pemuatan awal dan
+  reload senyap setelah snooze.
 
-keduanya anak `<div className="flex gap-3">` di dalam baris header kartu
-**Score Progress** (`<div className="flex flex-col md:flex-row
-justify-between items-start md:items-center gap-4">`), kartu itu
-`<motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-transition={{ duration: 0.4, delay: 0.1 }} className="glass-card p-6">`
-sesudah grid dua kartu profil. `handleSaveScores`/`handleComputeProfiles`
-sama-sama `setSaving(true)` sebelum `updateLearner` dan `setSaving(false)` di
-`finally` yang sudah ada. Selama `saving` kedua tombol hanya diredupkan dan
-ikon berputar, tanpa `aria-busy` maupun pengumuman; pembaca layar tidak tahu
-skor/profil sedang disimpan atau dihitung. Halaman ini belum punya `role`
-atau `aria-*` sama sekali. Halaman admin berbahasa Inggris (D2). Tanpa
+Selama `loading` tombol hanya kehilangan aksi (`disabled`) dan ikon berputar;
+tidak ada `aria-busy` maupun pengumuman, sehingga pembaca layar tidak tahu
+data gaps sedang dimuat dan tombol tampak diam — padahal pola yang sama sudah
+dipakai di `/sign-in`, `/forgot-password`, `/reset-password`, laporan
+diri/kuis `/learn`, `DeleteAccount`, kedua tombol panel **Ask an AI tutor**,
+tombol snooze, **Create a read-only key**, **Save subjects**, lima tombol
+`/japanese`, **Start learning** onboarding, dan tombol-tombol admin
+(**Draft 4 questions**, **Draft with Claude**/**Save what I kept**, **Save
+item**, **Save question**, **Compute Profiles**/**Save Scores**). Halaman
+`/gaps` belum punya `aria-busy`; UI pelajar berbahasa Inggris (D2). Tanpa
 query/RPC/migrasi/dependensi baru.
 
-Tujuan: tombol **Compute Profiles** membawa `aria-busy={computing}` tepat
-sesudah `disabled={saving || !hasScores}` dan tombol **Save Scores**
-`aria-busy={savingScores}` tepat sesudah `disabled={saving ||
-Object.keys(editedScores).length === 0}`; `onClick`, kelas persis, ikon,
-dan label tidak berubah. Dua penanda baru `const [computing, setComputing] =
-useState(false);` dan `const [savingScores, setSavingScores] =
-useState(false);` sesudah state `saving`, disetel `true` tepat sesudah
-`setSaving(true)` di handler masing-masing dan dibersihkan tepat sesudah
-`setSaving(false)` di `finally` yang sudah ada (tanpa `finally` baru, tanpa
-mengubah arti `saving`; guard `if (!selectedUserId || !db) return;` tetap).
-**Satu** status pengumuman baru: `<p role="status" aria-live="polite"
-className="sr-only">{computing ? 'Computing profiles…' : savingScores ?
-'Saving scores…' : ''}</p>` sebagai anak terakhir kartu **Score Progress**
-— sesudah baris header `</div>` yang memuat dua tombol, sebelum
-`</motion.div>`. Blok galat/sukses (`AnimatePresence` + `motion.div`, tanpa
-`role` hari ini), pilihan learner, kartu **Learning Style**/**Cognitive
-Profile**, bar progres **Scores: x / y domains**, akordeon
-`DOMAIN_CATEGORIES` + input skor, `fetchPsychometricData` (guard, loop
-`ALL_DOMAIN_IDS`, `setEditedScores`), `handleSaveScores` (konversi skor,
-`derivedProfilesFromScores`, `updateLearner`, `setSuccess`, reload),
-`handleComputeProfiles` (guard skor, `derivedProfilesFromScores`,
-`updateLearner`, `setSuccess`, reload), `toggleCategory`, dan copy lain tidak
-berubah; jangan menambah `role` pada blok galat/sukses di tugas ini.
+Tujuan: tombol Refresh membawa `aria-busy={loading}` tepat sesudah
+`disabled={loading}`; `whileHover`, `whileTap`, `onClick`, kelas persis, ikon,
+dan label tidak berubah. **Satu** status pengumuman baru: `<p role="status"
+aria-live="polite" className="sr-only">{loading ? 'Refreshing gaps…' :
+''}</p>` sebagai anak terakhir kartu pemilih learner — sesudah `</div>` baris
+pemilih + tombol, sebelum `</motion.div>` — sehingga status hanya berbunyi
+selama pemuatan dan kosong saat idle. Status **Checking what needs attention…**
+(`role="status"` tanpa `aria-live`) dan notice snooze `role="status"
+aria-live="polite"` (`data-testid="snooze-notice"`) tetap; hitungan halaman
+setelah tugas: `aria-busy` 1, `aria-live` 2, `role="status"` 3, `role="alert"`
+0. Pilihan learner (`learners`, `handleLearnerChange`), tombol per-review
+**Review it now** (`disabled={!!unsnoozing}`, `aria-label`, spinner) tanpa
+`aria-busy`, daftar **Snoozed**, `ReviewQueue`, `remediation`, `weekFocus`,
+`ConceptSearch`, notice/fokus snooze, dan copy lain tidak berubah; jangan
+menambah `aria-label`/`aria-labelledby`/`aria-atomic` baru.
 
 Rancangan:
 
-1. **Tombol** — `aria-busy={computing}`/`aria-busy={savingScores}` tepat
-   sesudah `disabled`; `onClick`, kelas, ikon, dan label utuh. Tanpa
-   mengubah handler selain penanda.
-2. **Status** — satu `<p role="status" aria-live="polite" className=
-   "sr-only">` seperti di atas (teks kosong saat idle) sebagai anak terakhir
-   kartu **Score Progress**; jangan menambah `aria-label`/`aria-labelledby`/
-   `aria-atomic` lain di halaman.
-3. **Tidak berubah** — kedua alur handler (urutan `setSaving(true)` →
-   `setError('')` → `setSuccess('')` → kerja → `setSuccess(...)` →
-   `fetchPsychometricData` → `finally setSaving(false)`), `loading`,
-   `error`/`success` beserta tombol tutupnya, `selectedUserId`/`learners`,
-   `hasScores`, `editedScores`, `expandedCategories`, dan copy.
-4. **Test** — tambahkan `tests/psychometrics-save-status.test.ts` (penjaga
-   statis, pola `tests/question-save-status.test.ts` PR #177): tiap tombol
-   dengan `aria-busy` tepat sesudah `disabled` dan kelas/ikon/label utuh, dua
-   penanda disetel/dibersihkan di sekitar `setSaving`, satu status baru
-   `role="status"` + `aria-live="polite"` + `className="sr-only"` berteks
-   `Computing profiles…`/`Saving scores…`/kosong dan berada sesudah baris
-   header dua tombol sebagai anak terakhir kartu, hitungan di file halaman
-   `aria-busy` 2/`aria-live` 1/`role="status"` 1/`role="alert"` 0, kedua
-   alur handler utuh, serta tanpa
+1. **Tombol** — `aria-busy={loading}` tepat sesudah `disabled={loading}`;
+   `motion.button` dan seluruh atribut lain utuh.
+2. **Status** — satu `<p role="status" aria-live="polite"
+   className="sr-only">` seperti di atas (teks kosong saat idle) sebagai anak
+   terakhir kartu pemilih learner.
+3. **Tidak berubah** — `fetchGapData` (guard `!db || !isReady`, `requestSeq`,
+   `quiet`, `setLoadedFor`), `handleLearnerChange`, `reviewNow`/snooze,
+   struktur kartu/daftar, dan copy.
+4. **Test** — tambahkan `tests/gaps-refresh-status.test.ts` (penjaga statis,
+   pola `tests/psychometrics-save-status.test.ts` PR #178): tombol dengan
+   `aria-busy={loading}` tepat sesudah `disabled={loading}` dan
+   kelas/ikon/label/`motion` utuh serta hanya dirender saat learner dipilih,
+   satu status baru `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Refreshing gaps…`/kosong dan berada sesudah
+   baris pemilih sebagai anak terakhir kartu, hitungan halaman
+   `aria-busy` 1/`aria-live` 2/`role="status"` 3/`role="alert"` 0, notice
+   snooze dan baris **Checking what needs attention…** tetap, tombol per-review
+   tanpa `aria-busy`, alur `fetchGapData` utuh, serta tanpa
    `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-5. **Smoke** — tidak ada cek baru (menyimpan skor butuh mengisi input dan
-   memilih learner); penjaga baris smoke 2748 tetap.
+5. **Smoke** — tidak ada cek baru (status pending hanya sesaat); penjaga baris
+   smoke 2748 tetap.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -104,11 +93,12 @@ bahasa Indonesia `fix:`.
 Semua tanpa migrasi skema, terlihat pelajar/admin, dan bisa diverifikasi
 otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Setelah tombol status `/japanese` selesai: audit `docs/ROADMAP.md` (P0 #5
-   aksesibilitas, baris "Sebagian:") atau surface pelajar lain (`/gaps`,
-   `/progress`, kartu Today) untuk poles kecil berikutnya. Baris "Lanjutan:"
-   yang belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka,
-   atau migrasi data — jangan dipilih tanpa perubahan kondisi.
+1. Setelah tombol Refresh `/gaps` selesai: lanjutkan audit surface pelajar yang
+   belum punya penanda proses — tombol simpan kuis/asesmen di
+   `src/routes/profile.tsx` (`saving` dipakai bersama beberapa tombol), lalu
+   `/progress` dan kartu Today. Baris "Lanjutan:" yang belum dicoret saat ini
+   hanya butuh keputusan pemilik, error SSR langka, atau migrasi data — jangan
+   dipilih tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
@@ -129,9 +119,10 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    questions** `AiQuestionDrafts.tsx` (PR #174), dan tombol **Draft with
    Claude**/**Save what I kept** di `src/routes/admin/curriculum.tsx` (PR
    #175), tombol **Save item** di `src/routes/admin/content.tsx` (PR #176),
-   dan tombol **Save question** di `src/routes/admin/questions.tsx` (PR
-   #177). Kandidat berikutnya: tombol **Compute Profiles**/**Save Scores** di
-   `src/routes/admin/psychometrics.tsx` (lihat Tugas berikutnya), lalu audit
+   tombol **Save question** di `src/routes/admin/questions.tsx` (PR #177), dan
+   tombol **Compute Profiles**/**Save Scores** di
+   `src/routes/admin/psychometrics.tsx` (PR #178). Kandidat berikutnya: tombol
+   **Refresh** di `src/routes/gaps.tsx` (lihat Tugas berikutnya), lalu audit
    surface pelajar yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
@@ -139,6 +130,26 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-26: PR #178 — **Status proses tombol "Compute Profiles" dan "Save
+  Scores" halaman admin Psychometrics** — kedua tombol di kartu **Score
+  Progress** kini membawa `aria-busy={computing}`/`aria-busy={savingScores}`
+  tepat sesudah `disabled` (onClick/kelas/ikon/label utuh), dengan dua penanda
+  baru sesudah `saving` yang disetel tepat sesudah `setSaving(true)` dan
+  dibersihkan tepat sesudah `setSaving(false)` di `finally` yang sudah ada
+  (tanpa `finally` baru; guard tetap). Satu pengumuman baru `<p role="status"
+  aria-live="polite" className="sr-only">{computing ? 'Computing profiles…' :
+  savingScores ? 'Saving scores…' : ''}</p>` sebagai anak terakhir kartu
+  **Score Progress** sesudah baris header dua tombol (hitungan halaman:
+  `aria-busy` 2, `aria-live` 1, `role="status"` 1, `role="alert"` 0). Alur
+  `handleSaveScores`/`handleComputeProfiles`, kartu **Learning
+  Style**/**Cognitive Profile**, bar progres, akordeon skor, pilihan learner,
+  blok galat/sukses, dan copy lain tidak berubah. Tanpa
+  query/RPC/migrasi/dependensi baru. Test baru
+  `tests/psychometrics-save-status.test.ts` (13 penjaga statis); tidak ada
+  test lain yang dilonggarkan. Tanpa cek smoke baru (menyimpan skor butuh
+  mengisi input dan memilih learner), penjaga baris smoke 2748 tetap.
+  `npm run ci` utuh hijau (`TMPDIR=/tmp/opencode`: 1874/1874 test, 515 suite,
+  lint 0/0, build, anggaran bundel, CSP produksi, smoke Playwright + PGlite).
 - 2026-11-26: PR #177 — **Status proses tombol "Save question" form soal
   halaman admin Quiz Questions** — tombol submit kini membawa
   `aria-busy={saving}` tepat sesudah `disabled={saving}`
