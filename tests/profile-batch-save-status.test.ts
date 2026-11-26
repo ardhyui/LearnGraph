@@ -114,7 +114,7 @@ describe('/profile: the batch Save buttons announce their busy state', () => {
       STICKY_SAVE.indexOf('disabled={saving}') < STICKY_SAVE.indexOf('aria-busy={saving}'),
       'aria-busy sits right after disabled',
     );
-    assert.equal(count(page, /aria-busy=/g), 5, 'exactly five aria-busy attributes on the page');
+    assert.equal(count(page, /aria-busy=/g), 6, 'exactly six aria-busy attributes on the page');
   });
 
   it('keeps the classes, icons and labels of all three batch buttons untouched', () => {
@@ -170,8 +170,8 @@ describe('/profile: one polite status line announces the batch save', () => {
       card.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the progress line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(page, /aria-live="polite"/g), 2, 'two polite live regions on the page');
-    assert.equal(count(page, /role="status"/g), 3, 'three status lines on the page');
+    assert.equal(count(page, /aria-live="polite"/g), 3, 'three polite live regions on the page');
+    assert.equal(count(page, /role="status"/g), 4, 'four status lines on the page');
     assert.equal(count(page, /role="alert"/g), 1, 'the one existing alert role stays');
   });
 

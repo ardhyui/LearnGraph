@@ -1,92 +1,81 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (status proses tombol simpan batch asesmen
-`src/routes/profile.tsx` selesai lewat PR #181; berikutnya: status proses
-tombol **Save Profile** di file yang sama)
+Terakhir diperbarui: 2026-11-26 (status proses tombol **Save Profile**
+`src/routes/profile.tsx` selesai lewat PR #182; berikutnya: status proses
+tombol **Refresh** rencana belajar di kartu Today)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol "Save Profile" di
-`src/routes/profile.tsx`** — blok `{/* Save Button & Surprise Me (for
-editable modes) */}` (dirender saat `{(activeMode === 'manual' ||
-activeMode === 'adaptive') && !loading && profile && (...)}`) memuat
-`<motion.div className="mb-6 flex justify-between items-center gap-4
-flex-wrap">` dengan dua `motion.button`:
+Poles kecil: **Status proses tombol Refresh rencana belajar di kartu Today
+(`src/components/StudyToday.tsx`)** — header Today memuat `<div
+className="flex items-center gap-2">` berisi `<label htmlFor={selectId}>`
+**Learner**, `<select id={selectId}>` (tidak berubah), dan satu tombol
+ikon:
 
-- tombol **Surprise Me!**: `whileHover={{ scale: 1.02 }}`,
-  `whileTap={{ scale: 0.98 }}`, `onClick={handleSurpriseMe}`, kelas `px-5
-  py-3 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white
-  font-medium shadow-lg shadow-pink-500/25 flex items-center gap-2`, ikon
-  `<Shuffle className="w-5 h-5" />`, label **Surprise Me!** — tanpa
-  `disabled` maupun `aria-busy`;
-- tombol **Save Profile**: `whileHover={{ scale: 1.02 }}`,
-  `whileTap={{ scale: 0.98 }}`, `onClick={saveProfile}`,
-  `disabled={saving}`, kelas `px-6 py-3 rounded-xl bg-gradient-to-r
-  from-primary to-purple-500 text-white font-medium shadow-lg
-  shadow-primary/25 flex items-center gap-2 disabled:opacity-50`, ikon
-  `<Save className="w-5 h-5" />`, label `{saving ? 'Saving...' : 'Save
-  Profile'}`.
+- `<button type="button" onClick={() => load()} disabled={loading}
+  aria-label="Refresh study plan" className="rounded-lg p-2
+  text-muted-foreground hover:bg-primary/10 hover:text-primary
+  focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+  disabled:opacity-50">` dengan `<RefreshCw className={cn('h-4 w-4',
+  loading && 'animate-spin')} aria-hidden="true" />`.
 
-Selama `saving` tombol Save Profile hanya kehilangan aksi dan berubah label;
-tidak ada `aria-busy` maupun pengumuman, sehingga pembaca layar tidak tahu
-profil sedang disimpan dan tombol tampak diam — padahal pola yang sama sudah
-dipakai di `/sign-in`, `/forgot-password`, `/reset-password`, laporan
+Selama `loading` tombol hanya kehilangan aksi dan ikonnya berputar; tidak ada
+`aria-busy` maupun pengumuman, sehingga pembaca layar tidak tahu rencana
+belajar sedang dimuat ulang dan tombol tampak diam — padahal pola yang sama
+sudah dipakai di `/sign-in`, `/forgot-password`, `/reset-password`, laporan
 diri/kuis `/learn`, `DeleteAccount`, kedua tombol panel **Ask an AI tutor**,
-tombol snooze, **Create a read-only key**, **Save subjects**, lima tombol
-`/japanese`, **Start learning** onboarding, tombol-tombol admin, **Refresh**
-`/gaps` (PR #179), kedua tombol simpan kuis asesmen (PR #180), dan ketiga
-tombol simpan batch asesmen `profile.tsx` (PR #181). UI pelajar berbahasa
-Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru. `saving` dipakai
-bersama tombol-tombol asesmen dan batch di file yang sama — label tombol ini
-memang sudah bergantung `saving` sejak lama, jadi cukup pakai `saving`
-langsung tanpa state baru.
+tombol snooze (termasuk kedua tombol snooze di file ini, PR #164/#165),
+**Create a read-only key**, **Save subjects**, lima tombol `/japanese`,
+**Start learning** onboarding, tombol-tombol admin, **Refresh** `/gaps` (PR
+#179), ketiga tombol simpan asesmen `profile.tsx` (PR #180/#181), dan
+**Save Profile** `profile.tsx` (PR #182). UI pelajar berbahasa Inggris (D2).
+Tanpa query/RPC/migrasi/dependensi baru. `loading` hanya dipakai tombol ini
+dan `Placeholder` (`<Placeholder loading={loading} />`), jadi cukup pakai
+`loading` langsung tanpa state baru.
 
-Tujuan: tombol **Save Profile** membawa `aria-busy={saving}` tepat sesudah
-`disabled={saving}` miliknya (`motion.button` framer-motion meneruskan
-atribut ke DOM); `whileHover`/`whileTap`/`onClick`/kelas persis, ikon, dan
-label tidak berubah. **Satu** status pengumuman baru: `<p role="status"
-aria-live="polite" className="sr-only">{saving ? 'Saving your profile…' :
-''}</p>` sebagai anak terakhir `<motion.div>` blok tersebut — sesudah
-`</motion.button>` Save Profile, sebelum `</motion.div>` penutup blok —
-sehingga status hanya berbunyi selama penyimpanan dan kosong saat idle
-(blok sendiri hanya dirender di mode manual/adaptive, seperti sekarang).
-Hitungan halaman setelah tugas: `aria-busy` 6, `aria-live` 3,
-`role="status"` 4, `role="alert"` 1 (status kuis asesmen PR #180, status
-batch PR #181, dan galat lama tetap). Tombol **Surprise Me!** tetap tanpa
-`disabled`/`aria-busy`; `handleSurpriseMe`, `saveProfile`, `persistScores`
-(guard `if (!profile) return false;`, `setSaving(true)`, `updateLearner`,
-`computeAndStoreDerivedProfiles`, guard `selectedLearnerRef`, `setProfile`,
-`setSuccess` + `setTimeout` 5000, catch `setError`, `finally
-setSaving(false)`), kartu asesmen/batch, dan mode lain tidak berubah;
-jangan menambah `aria-label`/`aria-labelledby`/`aria-atomic` baru
-(hitungan lama: 4/3/0).
+Tujuan: tombol Refresh membawa `aria-busy={loading}` tepat sesudah
+`disabled={loading}` miliknya; `type="button"`, `onClick={() => load()}`,
+`aria-label="Refresh study plan"`, kelas persis, dan ikon `RefreshCw` tidak
+berubah. **Satu** status pengumuman baru: `<p role="status"
+aria-live="polite" className="sr-only">{loading ? 'Refreshing your study
+plan…' : ''}</p>` sebagai anak terakhir `<div className="flex items-center
+gap-2">` — sesudah `</button>` Refresh, sebelum `</div>` penutup baris
+pemilih learner + tombol — sehingga status hanya berbunyi selama pemuatan
+ulang dan kosong saat idle. Hitungan file setelah tugas: `aria-busy` 3
+(dua tombol snooze + Refresh), `aria-live="polite"` 4 (notice lama baris
+~607, status ringkasan snooze, status per-item snooze, status baru),
+`role="status"` 5 (baris **Loading your study plan…** di cabang awal tanpa
+`aria-live`, notice, dua status snooze, status baru). Jangan mengubah
+`load` (guard `if (!db || !isReady || !learnerId) return;`, `requestSeq`,
+`setLoading(true)`, `Promise.all`, `setData`, `finally setLoading(false)`),
+`chooseLearner`, `focusSaved`, tombol **Try again**, tombol snooze,
+`Placeholder`, atau copy lain; jangan menambah
+`aria-label`/`aria-labelledby`/`aria-atomic` baru.
 
 Rancangan:
 
-1. **Tombol** — `aria-busy={saving}` tepat sesudah `disabled={saving}` pada
-   `motion.button` **Save Profile**; atribut lain utuh.
+1. **Tombol** — `aria-busy={loading}` tepat sesudah `disabled={loading}` pada
+   tombol Refresh; atribut lain utuh.
 2. **Status** — satu `<p role="status" aria-live="polite"
-   className="sr-only">` seperti di atas sebagai anak terakhir blok.
-3. **Tidak berubah** — `saveProfile` (`persistScores(editedScores, 'Saved.
-   Your suggestions on Recommendations now use this profile.')`),
-   `persistScores`, `handleSurpriseMe`, dan copy.
-4. **Test** — tambahkan `tests/profile-save-status.test.ts` (penjaga statis,
-   pola `tests/profile-batch-save-status.test.ts`): tombol dengan
-   `aria-busy={saving}` tepat sesudah `disabled` dan
-   kelas/ikon/label/handler utuh, **Surprise Me!** tanpa penanda, satu
-   status baru `role="status"` + `aria-live="polite"` +
-   `className="sr-only"` berteks `Saving your profile…`/kosong dan berada
-   sesudah `</motion.button>` Save Profile sebagai anak terakhir blok,
-   hitungan halaman `aria-busy` 6/`aria-live` 3/`role="status"` 4/
-   `role="alert"` 1, status kuis asesmen/batch dan galat lama tetap, alur
-   `saveProfile`/`persistScores` utuh, tanpa `aria-label`/
-   `aria-labelledby`/`aria-atomic` baru, serta tanpa
+   className="sr-only">` seperti di atas sebagai anak terakhir baris pemilih
+   learner + tombol.
+3. **Tidak berubah** — `load`, `aria-label="Refresh study plan"`, ikon,
+   kelas, dan tombol lain.
+4. **Test** — tambahkan `tests/study-today-refresh-status.test.ts` (penjaga
+   statis, pola `tests/gaps-refresh-status.test.ts`): tombol dengan
+   `aria-busy={loading}` tepat sesudah `disabled` dan
+   kelas/ikon/`aria-label`/handler utuh, satu status baru `role="status"` +
+   `aria-live="polite"` + `className="sr-only"` berteks `Refreshing your
+   study plan…`/kosong dan berada sesudah `</button>` Refresh sebagai anak
+   terakhir baris, hitungan file `aria-busy` 3/`aria-live="polite"` 4/
+   `role="status"` 5, status snooze ringkasan/per-item dan notice lama tetap,
+   `load` serta tombol **Try again**/snooze tidak berubah, tanpa
+   `aria-label`/`aria-labelledby`/`aria-atomic` baru, serta tanpa
    `createServerFn`/`graphCall`/`rpc-schemas`/migrasi;
-   `tests/profile-batch-save-status.test.ts` dan
-   `tests/profile-assessment-save-status.test.ts` hanya menyesuaikan
-   hitungan halaman tanpa melonggarkan penjaga posisi/kunci.
-5. **Smoke** — tidak ada cek baru (menyimpan butuh mengubah skor dan status
-   pending hanya sesaat); penjaga baris smoke 2748 tetap.
+   `tests/study-today-unsnooze-status.test.ts` hanya menyesuaikan hitungan
+   file bila menghitung total, tanpa melonggarkan penjaga posisi/kunci.
+5. **Smoke** — tidak ada cek baru (memuat ulang hanya sesaat dan data seed
+   tidak menjamin teks tertentu); penjaga baris smoke 2748 tetap.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -107,8 +96,8 @@ bahasa Indonesia `fix:`.
 Semua tanpa migrasi skema, terlihat pelajar/admin, dan bisa diverifikasi
 otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Setelah tombol **Save Profile** `profile.tsx` selesai: audit surface
-   pelajar yang belum punya penanda, lalu `/progress` dan kartu Today.
+1. Setelah tombol **Refresh** kartu Today selesai: audit surface pelajar
+   yang belum punya penanda, lalu `/progress`.
    Baris "Lanjutan:" yang belum dicoret saat ini
    hanya butuh keputusan pemilik, error SSR langka, atau migrasi data — jangan
    dipilih tanpa perubahan kondisi.
@@ -136,15 +125,36 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    tombol **Compute Profiles**/**Save Scores** di
    `src/routes/admin/psychometrics.tsx` (PR #178), tombol **Refresh** di
    `src/routes/gaps.tsx` (PR #179), kedua tombol simpan kuis asesmen
-   `src/routes/profile.tsx` (PR #180), dan ketiga tombol simpan batch asesmen
-   `src/routes/profile.tsx` (PR #181). Kandidat berikutnya: tombol
-   **Save Profile** `src/routes/profile.tsx` (lihat Tugas berikutnya), lalu
-   audit surface pelajar yang belum punya penanda.
+   `src/routes/profile.tsx` (PR #180), ketiga tombol simpan batch asesmen
+   `src/routes/profile.tsx` (PR #181), dan tombol **Save Profile**
+   `src/routes/profile.tsx` (PR #182). Kandidat berikutnya: tombol
+   **Refresh study plan** kartu Today (lihat Tugas berikutnya), lalu audit
+   surface pelajar yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-26: PR #182 — **Status proses tombol "Save Profile" halaman
+  profil** — tombol **Save Profile** di blok **Save Button & Surprise Me**
+  `src/routes/profile.tsx` kini membawa `aria-busy={saving}` tepat sesudah
+  `disabled={saving}` (handler `onClick={saveProfile}`, kelas persis, ikon
+  `Save`, dan label `Saving...`/`Save Profile` utuh), dengan satu pengumuman
+  baru `<p role="status" aria-live="polite" className="sr-only">{saving ?
+  'Saving your profile…' : ''}</p>` sebagai anak terakhir blok sesudah
+  `</motion.button>` Save Profile (hitungan halaman: `aria-busy` 6,
+  `aria-live` 3, `role="status"` 4, `role="alert"` 1). Tombol **Surprise
+  Me!** tetap tanpa `disabled`/`aria-busy`; status kuis asesmen/batch dan
+  notice galat/sukses lama, serta alur `saveProfile`/`persistScores`/
+  `handleSurpriseMe` tidak berubah; tanpa `aria-label`/`aria-labelledby`/
+  `aria-atomic` baru. Tanpa query/RPC/migrasi/dependensi baru. Test baru
+  `tests/profile-save-status.test.ts` (13 penjaga statis);
+  `tests/profile-assessment-save-status.test.ts` dan
+  `tests/profile-batch-save-status.test.ts` hanya menyesuaikan hitungan
+  halaman tanpa melonggarkan penjaga posisi/kunci. Tanpa cek smoke baru,
+  penjaga baris smoke 2748 tetap. `npm run ci` utuh hijau
+  (`TMPDIR=/tmp/opencode`).
 
 - 2026-11-26: PR #181 — **Status proses tombol simpan batch asesmen halaman
   profil** — ketiga tombol di kartu **All questions on one page**

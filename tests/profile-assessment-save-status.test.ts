@@ -93,7 +93,7 @@ describe('/profile: the assessment Save buttons announce their busy state', () =
       SAVE_ANSWERS.indexOf('disabled={saving ||') < SAVE_ANSWERS.indexOf('aria-busy={saving}'),
       'aria-busy sits right after disabled',
     );
-    assert.equal(count(page, /aria-busy=/g), 5, 'exactly five aria-busy attributes on the page (three batch buttons PR-level added)');
+    assert.equal(count(page, /aria-busy=/g), 6, 'exactly six aria-busy attributes on the page (three batch buttons and Save Profile added)');
   });
 
   it('keeps the classes, icons and labels of both Save buttons untouched', () => {
@@ -131,8 +131,8 @@ describe('/profile: one polite status line announces the save', () => {
       card.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the progress line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(page, /aria-live="polite"/g), 2, 'two polite live regions on the page');
-    assert.equal(count(page, /role="status"/g), 3, 'three status lines on the page');
+    assert.equal(count(page, /aria-live="polite"/g), 3, 'three polite live regions on the page');
+    assert.equal(count(page, /role="status"/g), 4, 'four status lines on the page');
     assert.equal(count(page, /role="alert"/g), 1, 'the one existing alert role stays');
   });
 
