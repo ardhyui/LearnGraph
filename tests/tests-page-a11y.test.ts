@@ -7,7 +7,8 @@
  * too. This file locks the two real fixes — aria-expanded/aria-controls on the
  * group headers with a matching content id, and an exact `sr-only` word for
  * each status — plus the hidden decorations, the group order, and the fact that
- * no live region, focus handling, server function, RPC or migration was added.
+ * the run status line is the one live region and no focus handling, server
+ * function, RPC or migration was added.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -129,7 +130,7 @@ describe('tests page: every result has a text equivalent', () => {
       page,
       /\{getStatusIcon\(test\.status\)\}\r?\n\s+<span className="sr-only">\{statusLabel\(test\.status\)\}<\/span>/,
     );
-    assert.equal(count(page, /className="sr-only"/g), 1);
+    assert.equal(count(page, /className="sr-only"/g), 2);
   });
 
   it('keeps the four status icons with their size and classes', () => {
@@ -186,9 +187,13 @@ describe('tests page: decorative icons are hidden', () => {
 });
 
 describe('tests page: no new semantics or data path', () => {
-  it('adds no live region, focus handling, role or extra control', () => {
-    assert.doesNotMatch(page, /aria-live/);
-    assert.doesNotMatch(page, /\brole=/);
+  it('adds exactly one live region and no focus handling or extra control', () => {
+    assert.equal(count(page, /aria-live/g), 1, 'only the run-tests status line is a live region');
+    assert.equal(count(page, /\brole=/g), 1, 'only the run-tests status line carries a role');
+    assert.ok(
+      page.includes('<p role="status" aria-live="polite" className="sr-only">'),
+      'the single live region is the polite run-tests status line',
+    );
     assert.doesNotMatch(page, /tabIndex|tabindex/);
     assert.doesNotMatch(page, /\.focus\(/);
   });

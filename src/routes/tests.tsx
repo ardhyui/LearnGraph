@@ -1313,6 +1313,7 @@ function TestsPage() {
               whileTap={{ scale: 0.98 }}
               onClick={runAllTests}
               disabled={isRunning}
+              aria-busy={isRunning}
               className={cn(
                 'flex items-center gap-2 px-6 py-3 rounded-xl font-medium shadow-lg transition-all',
                 isRunning
@@ -1323,6 +1324,9 @@ function TestsPage() {
               <Play size={20} className={isRunning ? 'animate-pulse' : ''} aria-hidden="true" />
               {isRunning ? 'Running Tests...' : 'Run All Tests'}
             </motion.button>
+            <p role="status" aria-live="polite" className="sr-only">
+              {isRunning ? 'Running your tests…' : ''}
+            </p>
           </motion.div>
 
           {/* Summary Cards */}
