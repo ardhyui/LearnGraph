@@ -41,10 +41,12 @@ function PrerequisitesPage() {
     reason: '',
   });
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const loading = dbLoading || edgesLoading || conceptsLoading;
 
   async function handleSubmit(e: React.FormEvent) {
+    if (saving) return;
     e.preventDefault();
     setError('');
 
@@ -53,6 +55,7 @@ function PrerequisitesPage() {
       return;
     }
 
+    setSaving(true);
     try {
       await createEdge({
         from: formData.from,
@@ -65,6 +68,8 @@ function PrerequisitesPage() {
       setFormData({ from: '', to: '', strength: 'required', reason: '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -309,7 +314,12 @@ function PrerequisitesPage() {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <button type="submit" className="btn btn-success flex items-center gap-2">
+                    <button
+                      type="submit"
+                      className="btn btn-success flex items-center gap-2"
+                      disabled={saving}
+                      aria-busy={saving}
+                    >
                       <Save className="w-4 h-4" />
                       Create
                     </button>
@@ -317,10 +327,12 @@ function PrerequisitesPage() {
                       type="button"
                       onClick={() => setShowForm(false)}
                       className="btn btn-secondary"
+                      disabled={saving}
                     >
                       Cancel
                     </button>
                   </div>
+                  <p role="status" aria-live="polite" className="sr-only">{saving ? 'Saving the prerequisite…' : ''}</p>
                 </form>
               </motion.div>
             )}
