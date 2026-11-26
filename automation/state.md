@@ -1,98 +1,78 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (status proses tombol **Create** prerequisite
-`/admin/prerequisites` selesai lewat PR #192; berikutnya: tombol simpan form
-knowledge state `/admin/states`)
+Terakhir diperbarui: 2026-11-26 (status proses tombol simpan form knowledge
+state `/admin/states` selesai lewat PR #193; berikutnya: tombol **Refresh**
+grafik `/domains`)
 
 ## Tugas berikutnya
 
-Poles kecil + fitur: **Status proses tombol simpan form knowledge state di
-`/admin/states` (`src/routes/admin/states.tsx`)** — tombol submit form adalah
-`<button type="submit" className="btn btn-success flex items-center gap-2">`
-berisi `<Save className="w-4 h-4" />` dan label `Save`, tanpa `disabled` dan
-tanpa `aria-busy`; tombol **Cancel** di sebelahnya (`type="button"`,
-`onClick={() => setShowForm(false)}`, `className="btn btn-secondary"`) juga tanpa
-`disabled`. `handleSubmit` menyetel `setError('')`, menolak database yang belum
-siap (`if (!db) { setError('Database not ready'); return; }`), lalu
-`db.setKnowledgeState(formData.userId, formData.conceptId, { mastery,
-bloomLevel })`, `setShowForm(false)`, reset `formData` ke
-`{ userId: '', conceptId: '', mastery: 50, bloomLevel: 'understand' }`, dan
-`fetchStates()`. Tidak ada guard klik ganda dan halaman belum punya satu pun
-`aria-busy`, `aria-live`, `role="status"`, `role="alert"`, `aria-label`,
-`aria-labelledby`, `aria-atomic`, atau `className="sr-only"`, jadi pembaca layar
-tidak tahu knowledge state sedang disimpan dan klik ganda bisa mengirim dua kali.
-Pola tombol + status yang sama sudah dipakai di `/sign-in`, `/forgot-password`,
-`/reset-password`, laporan diri/kuis `/learn`, `DeleteAccount`, kedua tombol
-panel **Ask an AI tutor**, tombol snooze, **Create a read-only key**, **Save
-subjects**, lima tombol `/japanese`, **Start learning** onboarding, tombol-tombol
-admin (**Draft 4 questions**, **Draft with Claude**/**Save what I kept**, **Save
-item**, **Save question**, **Compute Profiles**/**Save Scores**, **Create**/
-**Update** konsep PR #191, **Create** prerequisite PR #192), **Refresh**
-`/gaps`, `/graph`, `/combined-graph`, `/progress`, `/recommendations`, `/status`,
-tombol simpan asesmen/**Save Profile** `profile.tsx`, **Refresh study plan**
-kartu Today, **Run All Tests** `/tests`, dan **Import from a file**
-`/admin/learners` (PR #190). UI bahasa Inggris (D2). Tanpa
+Poles kecil + fitur: **Status proses tombol Refresh grafik psychometric
+`/domains` (`src/routes/domains.tsx`)** — tombol **Refresh** di kartu kontrol
+`<motion.div className="glass-card p-4 mb-6">` adalah `<motion.button>` dengan
+`whileHover={{ scale: 1.02 }}`, `whileTap={{ scale: 0.98 }}`,
+`onClick={buildGraph}`, kelas persis `flex items-center gap-2 px-4 py-2.5
+rounded-xl bg-primary text-primary-foreground font-medium shadow-lg
+shadow-primary/25 hover:shadow-xl transition-all`, dan isi
+`<RefreshCw size={18} className={loading ? 'animate-spin' : ''}
+aria-hidden="true" />` + label `Refresh`. Tombol itu **belum** punya
+`type`/`disabled`/`aria-busy`, sehingga selama `loading` hanya ikon yang
+berputar, klik ganda bisa memicu dua `buildGraph`, dan halaman belum punya satu
+pun `aria-live`, `role`, `aria-label`, `aria-labelledby`, `aria-atomic`, atau
+`className="sr-only"` (hitungan semuanya 0), jadi pembaca layar tidak tahu
+grafik domain sedang dibangun ulang. Pola tombol + status yang sama sudah
+dipakai di `/sign-in`, `/forgot-password`, `/reset-password`, laporan diri/kuis
+`/learn`, `DeleteAccount`, kedua tombol panel **Ask an AI tutor**, tombol
+snooze, **Create a read-only key**, **Save subjects**, lima tombol `/japanese`,
+**Start learning** onboarding, tombol-tombol admin (termasuk form knowledge
+state PR #193), **Refresh** `/gaps`, `/graph`, `/combined-graph`, `/progress`,
+`/recommendations`, `/status`, tombol simpan asesmen/**Save Profile**
+`profile.tsx`, **Refresh study plan** kartu Today, **Run All Tests** `/tests`,
+dan **Import from a file** `/admin/learners`. UI bahasa Inggris (D2). Tanpa
 query/RPC/migrasi/dependensi baru.
 
-Tujuan: state baru `const [saving, setSaving] = useState(false);` tepat sesudah
-`const [error, setError] = useState('');`; di `handleSubmit` tambahkan guard
-`if (saving) return;` sebagai baris pertama fungsi dan biarkan
-`e.preventDefault(); setError('');` tetap sesudahnya. Blok
-`if (!db) { setError('Database not ready'); return; }` **tetap sebelum**
-`setSaving(true)` agar penolakan database yang belum siap tidak meninggalkan
-tombol sibuk selamanya; `setSaving(true)` diletakkan tepat sebelum `try {` yang
-sudah ada, dan `finally { setSaving(false); }` ditambahkan pada `try/catch` itu —
-isi `try` (`db.setKnowledgeState` dengan `mastery`/`bloomLevel`,
-`setShowForm(false)`, reset `formData`, `fetchStates()`) dan `catch` (pesan
-`An error occurred`) tidak berubah. Tombol submit kini membawa
-`disabled={saving}` lalu `aria-busy={saving}` tepat sesudah `className` (urutan
-`type`, `className`, `disabled`, `aria-busy`); ikon `Save`, label `Save`, dan
-kelas `btn btn-success flex items-center gap-2` utuh. Tombol **Cancel** mendapat
-`disabled={saving}` (tanpa `aria-busy`); `type="button"`,
-`onClick={() => setShowForm(false)}`, dan kelasnya utuh. **Satu** pengumuman
-baru: `<p role="status" aria-live="polite" className="sr-only">{saving ?
-'Saving the knowledge state…' : ''}</p>` sebagai anak terakhir
-`<form onSubmit={handleSubmit} className="space-y-5">` — sesudah `</div>` wadah
-dua tombol, sebelum `</form>`. Hitungan file setelah tugas: `aria-busy` 1,
-`aria-live="polite"` 1, `role="status"` 1, `role="alert"` 0, `aria-label` 0,
-`aria-labelledby` 0, `aria-atomic` 0, `className="sr-only"` 1;
-`role="table"`/`rowgroup`/`row`/`columnheader`/`cell` tabel knowledge state
-tidak berubah. Jangan mengubah `handleDelete`/`fetchStates`/`filteredStates`,
-blok galat (tanpa `role`), banner **You need at least 1 learner and 1 concept**,
-tombol **Add Knowledge State** header (tetap `disabled={!canCreateState}`, tanpa
-`aria-busy`), tombol **Add Knowledge State** empty state (tetap dirender hanya
-bila `canCreateState`), filter learner/konsep, field form (pilih learner/konsep,
-slider **Mastery Level**, select **Bloom Level**), tabel knowledge state,
-heading, atau copy lain; jangan menambah `aria-label`/`aria-labelledby`/
-`aria-atomic` baru.
+Tujuan: tombol **Refresh** membawa `type="button"`, `disabled={loading}`, dan
+`aria-busy={loading}` tepat sesudah `onClick={buildGraph}` (urutan `onClick`,
+`disabled`, `aria-busy`); `whileHover`/`whileTap`, kelas persis, ikon
+`RefreshCw` (`size={18}`, kelas spin, `aria-hidden="true"`), dan label
+**Refresh** utuh. **Satu** pengumuman baru:
+`<p role="status" aria-live="polite" className="sr-only">{loading ?
+'Refreshing the domain graph…' : ''}</p>` sebagai anak terakhir baris kontrol
+`<div className="flex flex-wrap items-center gap-4">` — sesudah `</motion.button>`
+**Subscales**, sebelum `</div>` penutup baris (yakni sesudah ketiga tombol
+Refresh/**Correlations**/**Subscales**). Hitungan file setelah tugas: `aria-busy`
+1, `aria-live="polite"` 1, `role="status"` 1, `role="alert"` 0, `aria-label` 0,
+`aria-labelledby` 0, `aria-atomic` 0, `className="sr-only"` 1. `loading` hanya
+dipakai tombol Refresh, ikonnya, dan blok loading grafik, jadi tidak ada state
+baru. Jangan mengubah `buildGraph` (yang menyetel `setLoading(true)` di awal dan
+`setLoading(false)` sebelum selesai), efek `useEffect(() => { buildGraph(); },
+[buildGraph])`, `fetchLearnerScores`/efek pemilih learner, kedua tombol
+**Correlations**/**Subscales** (tetap `aria-pressed`, tanpa
+`aria-busy`/`disabled`), pemilih learner, blok `loading ?` + `Loader2`, kanvas
+React Flow, `closeDetails`/`onNodeClick`, panel detail domain, heading, dan copy
+lain; jangan menambah `aria-label`/`aria-labelledby`/`aria-atomic` baru.
 
 Rancangan:
 
-1. **State + guard** — `saving` sesudah `error`; guard `if (saving) return;`
-   baris pertama, `setSaving(true)` tepat sebelum `try`, dan
-   `finally { setSaving(false); }` pada `try/catch` yang ada (tanpa `finally`
-   kedua).
-2. **Tombol** — submit `disabled={saving}` + `aria-busy={saving}` sesudah
-   `className`; **Cancel** `disabled={saving}` tanpa `aria-busy`.
-3. **Status** — satu `<p role="status" aria-live="polite"
-   className="sr-only">` sebagai anak terakhir form, sesudah wadah dua tombol.
-4. **Test** — tambahkan `tests/knowledge-state-save-status.test.ts` (penjaga
-   statis, pola `tests/prerequisite-save-status.test.ts`): state `saving`
-   sesudah `error`, guard baris pertama + blok `if (!db)` tetap sebelum
-   `setSaving(true)` + `finally` membersihkan, tombol submit
-   `type`/`className`/`disabled`/`aria-busy` berurutan dengan ikon/label utuh,
-   **Cancel** `disabled={saving}` tanpa `aria-busy`, satu status `role="status"`
-   + `aria-live="polite"` + `className="sr-only"` berteks
-   `Saving the knowledge state…`/kosong dan berada sesudah wadah dua tombol
-   sebagai anak terakhir form, hitungan file `aria-busy` 1/`aria-live="polite"`
-   1/`role="status"` 1/`role="alert"` 0/`aria-label` 0/`aria-labelledby` 0/
-   `aria-atomic` 0/`className="sr-only"` 1, isi `handleSubmit` lama serta
-   `handleDelete`/`fetchStates`/`getLearnerName`/`getConceptName` utuh, kedua
-   tombol **Add Knowledge State** tetap terjaga `canCreateState`, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru di file halaman.
-5. **Smoke** — tidak ada cek baru (menyimpan butuh memilih learner dan konsep);
-   jangan mengubah penjaga baris smoke 2748.
-6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+1. **Tombol** — `type="button"`, `disabled={loading}`, `aria-busy={loading}`
+   sesudah `onClick={buildGraph}`; kelas/animasi/ikon/label utuh.
+2. **Status** — satu `<p role="status" aria-live="polite" className="sr-only">`
+   sebagai anak terakhir baris kontrol, sesudah tombol **Subscales**.
+3. **Test** — tambahkan `tests/domains-refresh-status.test.ts` (penjaga statis,
+   pola `tests/graph-refresh-status.test.ts`): tombol dengan `type="button"`,
+   `onClick`, `disabled`, `aria-busy` berurutan dan `whileHover`/`whileTap`/
+   kelas/label utuh, ikon `RefreshCw` dengan `size={18}`, spin, dan
+   `aria-hidden`, satu status `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Refreshing the domain graph…`/kosong dan
+   berada sesudah tombol **Subscales** sebagai anak terakhir baris, hitungan
+   file `aria-busy` 1/`aria-live="polite"` 1/`role="status"` 1/`role="alert"`
+   0/`aria-label` 0/`aria-labelledby` 0/`aria-atomic` 0/`className="sr-only"`
+   1, `buildGraph` serta efeknya dan pemilih learner tidak berubah, kedua
+   tombol **Correlations**/**Subscales** tetap `aria-pressed` tanpa
+   `aria-busy`, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi
+   baru di file halaman.
+4. **Smoke** — tidak ada cek baru (pembangunan ulang hanya sesaat dan halaman
+   `/domains` sudah dicek smoke); jangan mengubah penjaga baris smoke 2748.
+5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`); commit
@@ -113,11 +93,14 @@ Semua tanpa migrasi skema, terlihat pelajar/admin, dan bisa diverifikasi
 otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
 1. Setelah tombol simpan form **Create**/**Update** konsep `/admin/concepts`
-   dan form **Create** prerequisite `/admin/prerequisites` selesai (PR #191,
-   #192): form simpan knowledge state `/admin/states` (lihat Tugas berikutnya),
-   lalu audit surface pelajar/admin yang belum punya penanda. Baris "Lanjutan:"
-   yang belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka,
-   atau migrasi data — jangan dipilih tanpa perubahan kondisi.
+   (PR #191), form **Create** prerequisite `/admin/prerequisites` (PR #192), dan
+   form simpan knowledge state `/admin/states` (PR #193) selesai: tombol
+   **Refresh** grafik `/domains` (lihat Tugas berikutnya), lalu audit surface
+   pelajar/admin yang belum punya penanda. `src/routes/data-entry.tsx` masih
+   punya empat form submit (learner, konsep, prerequisite, knowledge state)
+   tanpa penanda — kandidat kuat setelah `/domains`. Baris "Lanjutan:" yang
+   belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
+   migrasi data — jangan dipilih tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
@@ -151,16 +134,39 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    **Refresh** halaman `/recommendations` (PR #187), tombol **Refresh**
    halaman `/status` (PR #188), tombol **Run All Tests** `/tests` (PR #189),
    **Import from a file** `/admin/learners` (PR #190), form
-   **Create**/**Update** konsep `/admin/concepts` (PR #191), dan form
-   **Create** prerequisite `/admin/prerequisites` (PR #192). Kandidat
-   berikutnya: form simpan knowledge state `/admin/states` (lihat Tugas
-   berikutnya; belum punya state `saving`, `disabled`, maupun `aria-busy`),
-   lalu audit surface pelajar/admin lain yang belum punya penanda.
+   **Create**/**Update** konsep `/admin/concepts` (PR #191), form
+   **Create** prerequisite `/admin/prerequisites` (PR #192), dan form simpan
+   knowledge state `/admin/states` (PR #193). Kandidat berikutnya: tombol
+   **Refresh** grafik `/domains` (lihat Tugas berikutnya; belum punya
+   `type`/`disabled`/`aria-busy`), lalu empat form submit
+   `src/routes/data-entry.tsx`, lalu audit surface pelajar/admin lain yang belum
+   punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-26: PR #193 — **Status proses tombol simpan form knowledge state
+  `/admin/states`** — tombol submit kini membawa `disabled={saving}` lalu
+  `aria-busy={saving}` tepat sesudah `className` (urutan `type`, `className`,
+  `disabled`, `aria-busy`; kelas `btn btn-success flex items-center gap-2`,
+  ikon `<Save className="w-4 h-4" />`, dan label `Save` utuh), tombol
+  **Cancel** `disabled={saving}` tanpa `aria-busy` (`type="button"`,
+  `onClick={() => setShowForm(false)}`, kelas persis), dan satu pengumuman baru
+  `<p role="status" aria-live="polite" className="sr-only">{saving ? 'Saving the
+  knowledge state…' : ''}</p>` sebagai anak terakhir form sesudah wadah dua
+  tombol. State baru `saving` sesudah `error`; `handleSubmit` diawali guard
+  `if (saving) return;`, blok `if (!db)` tetap sebelum `setSaving(true)`,
+  `setSaving(true)` tepat sebelum `try`, dan pembersihan lewat `finally` pada
+  `try/catch` yang sudah ada — isi `try` (`setKnowledgeState`, penutupan form,
+  reset `formData`, `fetchStates`) dan `catch` tidak berubah. Hitungan file:
+  `aria-busy` 1, `aria-live="polite"` 1, `role="status"` 1, `role="alert"` 0,
+  `aria-label` 0, `aria-labelledby` 0, `aria-atomic` 0,
+  `className="sr-only"` 1. Test baru `tests/knowledge-state-save-status.test.ts`
+  (14 penjaga statis); tidak ada test lain yang dilonggarkan. Tanpa cek smoke
+  baru; penjaga baris smoke 2748 tetap. Satu entri log bertanggal di
+  `docs/ROADMAP.md`. `npm run ci` utuh hijau sebelum merge.
 
 - 2026-11-26: PR #192 — **Status proses tombol Create form prerequisite
   `/admin/prerequisites`** — tombol submit kini membawa `disabled={saving}` lalu
