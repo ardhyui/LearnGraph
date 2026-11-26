@@ -1402,6 +1402,7 @@ function ProfilePage() {
                         ref={batchSubmitRef}
                         onClick={() => submitBatchAssessments()}
                         disabled={saving || getBatchProgress().answered === 0}
+                        aria-busy={saving}
                         className="px-5 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium shadow-lg shadow-amber-500/25 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl transition-all"
                       >
                         <Send className="w-5 h-5" aria-hidden="true" />
@@ -1443,6 +1444,7 @@ function ProfilePage() {
                       <button
                         onClick={() => submitBatchAssessments(true)}
                         disabled={saving}
+                        aria-busy={saving}
                         className="flex-1 px-4 py-2 rounded-lg bg-primary text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         <CheckCircle className="w-4 h-4" aria-hidden="true" />
@@ -1588,6 +1590,7 @@ function ProfilePage() {
                       <button
                         onClick={() => submitBatchAssessments()}
                         disabled={saving}
+                        aria-busy={saving}
                         className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium shadow-lg shadow-amber-500/25 flex items-center gap-2 hover:shadow-xl transition-all"
                       >
                         <Send className="w-5 h-5" aria-hidden="true" />
@@ -1596,6 +1599,10 @@ function ProfilePage() {
                     </div>
                   </motion.div>
                 )}
+
+                <p role="status" aria-live="polite" className="sr-only">
+                  {saving ? 'Saving your quiz results…' : ''}
+                </p>
               </motion.div>
             )}
           </motion.div>
