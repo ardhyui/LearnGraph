@@ -54,6 +54,7 @@ function ConceptsPage() {
     tags: '',
   });
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [filterDomain, setFilterDomain] = useState('');
 
   // Filter concepts by domain
@@ -63,8 +64,10 @@ function ConceptsPage() {
   }, [concepts, filterDomain]);
 
   async function handleSubmit(e: React.FormEvent) {
+    if (saving) return;
     e.preventDefault();
     setError('');
+    setSaving(true);
 
     const conceptData = {
       conceptId: formData.conceptId,
@@ -92,6 +95,8 @@ function ConceptsPage() {
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -426,7 +431,12 @@ function ConceptsPage() {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <button type="submit" className="btn btn-success flex items-center gap-2">
+                    <button
+                      type="submit"
+                      className="btn btn-success flex items-center gap-2"
+                      disabled={saving}
+                      aria-busy={saving}
+                    >
                       <Save className="w-4 h-4" />
                       {editingConcept ? 'Update' : 'Create'}
                     </button>
@@ -434,10 +444,12 @@ function ConceptsPage() {
                       type="button"
                       onClick={() => setShowForm(false)}
                       className="btn btn-secondary"
+                      disabled={saving}
                     >
                       Cancel
                     </button>
                   </div>
+                  <p role="status" aria-live="polite" className="sr-only">{saving ? 'Saving the concept…' : ''}</p>
                 </form>
               </motion.div>
             )}
