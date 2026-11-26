@@ -434,6 +434,7 @@ function GapsDashboard() {
                 whileTap={{ scale: 0.98 }}
                 onClick={() => fetchGapData(selectedLearnerId)}
                 disabled={loading}
+                aria-busy={loading}
                 className="btn btn-primary flex items-center gap-2"
               >
                 <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -441,6 +442,7 @@ function GapsDashboard() {
               </motion.button>
             )}
           </div>
+          <p role="status" aria-live="polite" className="sr-only">{loading ? 'Refreshing gaps…' : ''}</p>
         </motion.div>
 
         {/* Find a concept: jump straight to a lesson by name instead of scrolling the lists. */}
