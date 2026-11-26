@@ -160,6 +160,28 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-26: PR #191 — **Status proses tombol simpan form konsep
+  `/admin/concepts`** — tombol submit **Create**/**Update** kini membawa
+  `disabled={saving}` lalu `aria-busy={saving}` tepat sesudah `className`
+  (urutan `type`, `className`, `disabled`, `aria-busy`; kelas
+  `btn btn-success flex items-center gap-2`, ikon `<Save className="w-4 h-4" />`,
+  dan label `{editingConcept ? 'Update' : 'Create'}` utuh), tombol **Cancel**
+  `disabled={saving}` tanpa `aria-busy` (`type="button"`,
+  `onClick={() => setShowForm(false)}`, kelas persis), dan satu pengumuman baru
+  `<p role="status" aria-live="polite" className="sr-only">{saving ?
+  'Saving the concept…' : ''}</p>` sebagai anak terakhir form sesudah wadah dua
+  tombol. State baru `saving` sesudah `error`; `handleSubmit` diawali guard
+  `if (saving) return;`, menyetel `setSaving(true)` sesudah `setError('')`, dan
+  membersihkan lewat `finally` pada `try/catch` yang sudah ada — isi `try`
+  (perakitan `conceptData`, `updateConcept`/`createConcept`, penutupan form,
+  `resetForm()`) dan `catch` tidak berubah. Hitungan file: `aria-busy` 1,
+  `aria-live="polite"` 1, `role="status"` 1, `role="alert"` 0, `aria-label` 0,
+  `aria-labelledby` 0, `aria-atomic` 0, `className="sr-only"` 1. Test baru
+  `tests/concept-save-status.test.ts` (12 penjaga statis); tidak ada test lain
+  yang dilonggarkan. Tanpa cek smoke baru; penjaga baris smoke 2748 tetap. Satu
+  entri log bertanggal di `docs/ROADMAP.md`. `npm run ci` utuh hijau sebelum
+  merge.
+
 - 2026-11-26: PR #190 — **Tombol "Import from a file" + status proses halaman
   `/admin/learners`** — label pembungkus impor kini membawa
   `aria-busy={importing}` tepat sesudah `className`
