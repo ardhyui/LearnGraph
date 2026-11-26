@@ -576,11 +576,15 @@ export function StudyToday() {
             type="button"
             onClick={() => load()}
             disabled={loading}
+            aria-busy={loading}
             aria-label="Refresh study plan"
             className="rounded-lg p-2 text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
           >
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} aria-hidden="true" />
           </button>
+          <p role="status" aria-live="polite" className="sr-only">
+            {loading ? 'Refreshing your study plan…' : ''}
+          </p>
         </div>
       </div>
 
