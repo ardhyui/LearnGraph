@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { pageHead } from '@/lib/page-titles';
 import { useEffect, useId, useRef, useState } from 'react';
-import { AlertCircle, BarChart3, BookOpen, CalendarDays, Flame } from 'lucide-react';
+import { AlertCircle, BarChart3, BookOpen, CalendarDays, Flame, RefreshCw } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { WorkspaceLoading } from '@/components/WorkspaceLoading';
 import { useDB, useLearners } from '@/lib/DBContext';
@@ -59,6 +59,8 @@ function ProgressPage() {
   // Only the latest request may update the page: switching learners while a
   // load is in flight must not show the previous learner's progress.
   const requestSeq = useRef(0);
+  // Bumped by the Refresh button so the same learner can be loaded again.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!db) return;
@@ -98,7 +100,7 @@ function ProgressPage() {
       .finally(() => {
         if (seq === requestSeq.current) setLoading(false);
       });
-  }, [selectedLearnerId]);
+  }, [selectedLearnerId, refreshKey]);
 
   if (dbLoading) {
     return <WorkspaceLoading />;
@@ -161,6 +163,19 @@ function ProgressPage() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() => setRefreshKey((n) => n + 1)}
+              disabled={loading || !selectedLearnerId}
+              aria-busy={loading}
+              className="btn btn-secondary inline-flex items-center gap-2 mt-3"
+            >
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
+              Refresh
+            </button>
+            <p role="status" aria-live="polite" className="sr-only">
+              {loading ? 'Refreshing your progress…' : ''}
+            </p>
           </div>
         )}
 
