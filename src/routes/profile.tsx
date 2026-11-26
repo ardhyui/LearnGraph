@@ -1131,6 +1131,7 @@ function ProfilePage() {
                       <button
                         onClick={() => submitAssessment(true)}
                         disabled={saving}
+                        aria-busy={saving}
                         className="flex-1 px-4 py-2 rounded-lg bg-primary text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         <CheckCircle className="w-4 h-4" aria-hidden="true" />
@@ -1148,6 +1149,7 @@ function ProfilePage() {
                       <button
                         onClick={() => submitAssessment()}
                         disabled={saving || Object.keys(assessmentAnswers).length < activeAssessment.questions.length}
+                        aria-busy={saving}
                         className="flex-1 px-4 py-2 rounded-lg bg-primary text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         <CheckCircle className="w-4 h-4" aria-hidden="true" />
@@ -1156,6 +1158,9 @@ function ProfilePage() {
                     </>
                   )}
                 </div>
+                <p role="status" aria-live="polite" className="sr-only">
+                  {saving ? 'Saving your quiz result…' : ''}
+                </p>
               </motion.div>
             </motion.div>
           )}
