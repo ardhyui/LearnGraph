@@ -6,17 +6,19 @@
  * While `busy`, the button only fades (`disabled` + `disabled:opacity-60`)
  * and shows an `aria-hidden` `Loader2` spinner; a screen reader hears no
  * name change and no announcement, so it looks like the button does nothing.
- * `busy` is only used by the draft action (Approve/Edit first/Discard call
- * `decide`/`edit` without `busy`), so `aria-busy={busy}` is safe to use
- * directly on this one button.
+ * `busy` is only used by the draft action (`decide` has its own `deciding`
+ * state for Approve/Discard, locked in
+ * `ai-question-drafts-decide-status.test.ts`; **Edit first** calls `edit`
+ * without any marker), so `aria-busy={busy}` is safe to use directly on
+ * this one button.
  *
  * This file locks `aria-busy={busy}` right after `disabled={busy}`, the
- * untouched handler/classes/spinner/label, one new `role="status"` +
- * `aria-live="polite"` + `sr-only` line as the last child of the section
- * (after the drafts block), the untouched drafts live container and error
- * alert, the per-draft buttons without `aria-busy`, the `draft`/`decide`/
- * `edit` flows, and that no server function, RPC schema or migration was
- * added.
+ * untouched handler/classes/spinner/label, the `role="status"` +
+ * `aria-live="polite"` + `sr-only` line with the drafting copy (after the
+ * drafts block, before the deciding status), the untouched drafts live
+ * container and error alert, **Edit first** without `aria-busy`, the
+ * `draft`/`decide`/`edit` flows, and that no server function, RPC schema
+ * or migration was added.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -109,10 +111,10 @@ describe('ai question drafts: one dedicated status line speaks while drafting', 
       'the status line is rendered',
     );
     assert.equal(count(page, /Drafting questions…/g), 1, 'only the status carries the pending copy');
-    assert.equal(count(page, /className="sr-only"/g), 1, 'only the status is sr-only');
+    assert.equal(count(page, /className="sr-only"/g), 2, 'the drafting and deciding statuses are sr-only');
   });
 
-  it('is the last child of the section, after the drafts block', () => {
+  it('sits after the drafts block, before the section closes', () => {
     const status = page.indexOf("{busy ? 'Drafting questions…' : ''}");
     const draftsBlock = page.lastIndexOf('{drafts && (');
     const sectionClose = page.lastIndexOf('</section>');
@@ -133,13 +135,13 @@ describe('ai question drafts: one dedicated status line speaks while drafting', 
       page.includes('<p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">'),
       'the error alert stays',
     );
-    assert.equal(count(page, /aria-busy=/g), 1, 'only the draft button is busy');
+    assert.equal(count(page, /aria-busy=/g), 3, 'the draft, Approve and Discard buttons are busy');
     assert.equal(
       count(page, /aria-live=/g),
-      2,
-      'the drafts container and the new status are live',
+      3,
+      'the drafts container and both statuses are live',
     );
-    assert.equal(count(page, /role="status"/g), 1, 'only the new pending status');
+    assert.equal(count(page, /role="status"/g), 2, 'the drafting and deciding statuses');
     assert.equal(count(page, /role="alert"/g), 1, 'the single error alert stays');
   });
 
@@ -151,13 +153,11 @@ describe('ai question drafts: one dedicated status line speaks while drafting', 
 });
 
 describe('ai question drafts: the per-draft actions stay independent', () => {
-  it('keeps Approve, Edit first and Discard without aria-busy', () => {
-    for (const label of ['Approve', 'Edit first', 'Discard']) {
-      const button = buttonOf(label);
-      assert.ok(button.includes('type="button"'), `${label} keeps its button type`);
-      assert.equal(button.includes('aria-busy'), false, `${label} gains no aria-busy`);
-    }
-    assert.equal(count(page, /aria-busy=/g), 1, 'only the draft button is busy');
+  it('keeps Edit first without aria-busy', () => {
+    const button = buttonOf('Edit first');
+    assert.ok(button.includes('type="button"'), 'Edit first keeps its button type');
+    assert.equal(button.includes('aria-busy'), false, 'Edit first gains no aria-busy');
+    assert.equal(count(page, /aria-busy=/g), 3, 'the draft, Approve and Discard buttons are busy');
   });
 
   it('keeps the draft, decide and edit flows intact', () => {
