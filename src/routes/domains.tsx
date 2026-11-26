@@ -562,6 +562,9 @@ function DomainsPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={buildGraph}
+                type="button"
+                disabled={loading}
+                aria-busy={loading}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium shadow-lg shadow-primary/25 hover:shadow-xl transition-all"
               >
                 <RefreshCw size={18} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
@@ -617,6 +620,7 @@ function DomainsPage() {
                   ))}
                 </select>
               </div>
+              <p role="status" aria-live="polite" className="sr-only">{loading ? 'Refreshing the domain graph…' : ''}</p>
             </div>
           </motion.div>
 
