@@ -1,86 +1,92 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (status proses tombol simpan kuis asesmen
-`src/routes/profile.tsx` selesai lewat PR #180; berikutnya: status proses
-tombol simpan batch asesmen di file yang sama)
+Terakhir diperbarui: 2026-11-26 (status proses tombol simpan batch asesmen
+`src/routes/profile.tsx` selesai lewat PR #181; berikutnya: status proses
+tombol **Save Profile** di file yang sama)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol simpan batch asesmen di
-`src/routes/profile.tsx`** — kartu **All questions on one page** (dirender saat
-`assessmentViewMode === 'all'`, `<motion.div ... className="glass-card p-5">`)
-memuat tiga tombol yang semuanya bergantung pada `saving`:
+Poles kecil: **Status proses tombol "Save Profile" di
+`src/routes/profile.tsx`** — blok `{/* Save Button & Surprise Me (for
+editable modes) */}` (dirender saat `{(activeMode === 'manual' ||
+activeMode === 'adaptive') && !loading && profile && (...)}`) memuat
+`<motion.div className="mb-6 flex justify-between items-center gap-4
+flex-wrap">` dengan dua `motion.button`:
 
-- tombol header di blok progres: `ref={batchSubmitRef}`,
-  `onClick={() => submitBatchAssessments()}`,
-  `disabled={saving || getBatchProgress().answered === 0}`, ikon `Send`,
-  label `{saving ? 'Saving…' : 'Save answers'}`;
-- tombol **Save quiz results** di blok
-  `data-testid="batch-overwrite-confirm"` (`onClick={() =>
-  submitBatchAssessments(true)}`, `disabled={saving}`, ikon `CheckCircle`,
-  label `{saving ? 'Saving…' : 'Save quiz results'}`);
-- tombol **Save answers** di panel lengket bawah (`onClick={() =>
-  submitBatchAssessments()}`, `disabled={saving}`, ikon `Send`, label
-  `{saving ? 'Saving…' : 'Save answers'}`; panel hanya dirender bila
-  `getBatchProgress().answered > 0`).
+- tombol **Surprise Me!**: `whileHover={{ scale: 1.02 }}`,
+  `whileTap={{ scale: 0.98 }}`, `onClick={handleSurpriseMe}`, kelas `px-5
+  py-3 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white
+  font-medium shadow-lg shadow-pink-500/25 flex items-center gap-2`, ikon
+  `<Shuffle className="w-5 h-5" />`, label **Surprise Me!** — tanpa
+  `disabled` maupun `aria-busy`;
+- tombol **Save Profile**: `whileHover={{ scale: 1.02 }}`,
+  `whileTap={{ scale: 0.98 }}`, `onClick={saveProfile}`,
+  `disabled={saving}`, kelas `px-6 py-3 rounded-xl bg-gradient-to-r
+  from-primary to-purple-500 text-white font-medium shadow-lg
+  shadow-primary/25 flex items-center gap-2 disabled:opacity-50`, ikon
+  `<Save className="w-5 h-5" />`, label `{saving ? 'Saving...' : 'Save
+  Profile'}`.
 
-Selama `saving` ketiganya hanya kehilangan aksi dan berubah label; tidak ada
-`aria-busy` maupun pengumuman, sehingga pembaca layar tidak tahu hasil batch
-sedang disimpan dan tombol tampak diam — padahal pola yang sama sudah dipakai
-di `/sign-in`, `/forgot-password`, `/reset-password`, laporan diri/kuis
-`/learn`, `DeleteAccount`, kedua tombol panel **Ask an AI tutor**, tombol
-snooze, **Create a read-only key**, **Save subjects**, lima tombol
+Selama `saving` tombol Save Profile hanya kehilangan aksi dan berubah label;
+tidak ada `aria-busy` maupun pengumuman, sehingga pembaca layar tidak tahu
+profil sedang disimpan dan tombol tampak diam — padahal pola yang sama sudah
+dipakai di `/sign-in`, `/forgot-password`, `/reset-password`, laporan
+diri/kuis `/learn`, `DeleteAccount`, kedua tombol panel **Ask an AI tutor**,
+tombol snooze, **Create a read-only key**, **Save subjects**, lima tombol
 `/japanese`, **Start learning** onboarding, tombol-tombol admin, **Refresh**
-`/gaps` (PR #179), dan kedua tombol simpan kuis asesmen `profile.tsx`
-(PR #180). UI pelajar berbahasa Inggris (D2). Tanpa query/RPC/migrasi/
-dependensi baru.
+`/gaps` (PR #179), kedua tombol simpan kuis asesmen (PR #180), dan ketiga
+tombol simpan batch asesmen `profile.tsx` (PR #181). UI pelajar berbahasa
+Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru. `saving` dipakai
+bersama tombol-tombol asesmen dan batch di file yang sama — label tombol ini
+memang sudah bergantung `saving` sejak lama, jadi cukup pakai `saving`
+langsung tanpa state baru.
 
-Tujuan: ketiga tombol membawa `aria-busy={saving}` tepat sesudah
-`disabled=...` miliknya (masing-masing tetap persis seperti sekarang);
-`ref`, `onClick`, kelas persis, ikon, dan label tidak berubah. **Satu** status
-pengumuman baru: `<p role="status" aria-live="polite" className="sr-only">
-{saving ? 'Saving your quiz results…' : ''}</p>` sebagai anak terakhir
-`<motion.div>` kartu **All questions on one page** — sesudah blok panel lengket
-(termasuk `)}` penutup kondisinya), sebelum `</motion.div>` penutup kartu —
-sehingga status hanya berbunyi selama penyimpanan dan kosong saat idle.
-Hitungan halaman setelah tugas: `aria-busy` 5, `aria-live` 2, `role="status"`
-3, `role="alert"` 1 (status/galat lama dan status kuis asesmen PR #180 tetap).
-Tombol **Go back** batch (`onClick={cancelBatchOverwrite}`) tetap tanpa
-`disabled`/`aria-busy`; blok konfirmasi timpa, daftar soal per kategori,
-progres, `submitBatchAssessments`, `cancelBatchOverwrite`, `getBatchProgress`,
-`fullyAnsweredBatchTopics`, `handleBatchAnswer`, `submitAssessment`, dan
-`saveProfile` tidak berubah; jangan menambah `aria-label`/
-`aria-labelledby`/`aria-atomic` baru (hitungan lama: 4/3/0).
-
-Di luar cakupan (simpan sebagai tugas berikutnya): **Save Profile**
-(`motion.button`, `onClick={saveProfile}`, `disabled={saving}`, label
-`{saving ? 'Saving...' : 'Save Profile'}`) dan tombol **Surprise Me!** (tanpa
-`saving`).
+Tujuan: tombol **Save Profile** membawa `aria-busy={saving}` tepat sesudah
+`disabled={saving}` miliknya (`motion.button` framer-motion meneruskan
+atribut ke DOM); `whileHover`/`whileTap`/`onClick`/kelas persis, ikon, dan
+label tidak berubah. **Satu** status pengumuman baru: `<p role="status"
+aria-live="polite" className="sr-only">{saving ? 'Saving your profile…' :
+''}</p>` sebagai anak terakhir `<motion.div>` blok tersebut — sesudah
+`</motion.button>` Save Profile, sebelum `</motion.div>` penutup blok —
+sehingga status hanya berbunyi selama penyimpanan dan kosong saat idle
+(blok sendiri hanya dirender di mode manual/adaptive, seperti sekarang).
+Hitungan halaman setelah tugas: `aria-busy` 6, `aria-live` 3,
+`role="status"` 4, `role="alert"` 1 (status kuis asesmen PR #180, status
+batch PR #181, dan galat lama tetap). Tombol **Surprise Me!** tetap tanpa
+`disabled`/`aria-busy`; `handleSurpriseMe`, `saveProfile`, `persistScores`
+(guard `if (!profile) return false;`, `setSaving(true)`, `updateLearner`,
+`computeAndStoreDerivedProfiles`, guard `selectedLearnerRef`, `setProfile`,
+`setSuccess` + `setTimeout` 5000, catch `setError`, `finally
+setSaving(false)`), kartu asesmen/batch, dan mode lain tidak berubah;
+jangan menambah `aria-label`/`aria-labelledby`/`aria-atomic` baru
+(hitungan lama: 4/3/0).
 
 Rancangan:
 
-1. **Tombol** — `aria-busy={saving}` tepat sesudah `disabled` pada ketiga
-   tombol batch; atribut lain utuh.
+1. **Tombol** — `aria-busy={saving}` tepat sesudah `disabled={saving}` pada
+   `motion.button` **Save Profile**; atribut lain utuh.
 2. **Status** — satu `<p role="status" aria-live="polite"
-   className="sr-only">` seperti di atas sebagai anak terakhir kartu batch.
-3. **Tidak berubah** — `submitBatchAssessments` (guard `if (saving) return;`,
-   konfirmasi timpa, `submittedCount`, `persistScores`, reset
-   `setBatchAnswers`), `cancelBatchOverwrite` (fokus ke `batchSubmitRef`),
-   dan copy.
-4. **Test** — tambahkan `tests/profile-batch-save-status.test.ts` (penjaga
-   statis, pola `tests/profile-assessment-save-status.test.ts`): ketiga
-   tombol dengan `aria-busy={saving}` tepat sesudah `disabled` dan
-   kelas/ikon/label/handler/ref utuh, **Go back** tanpa penanda, satu status
-   baru `role="status"` + `aria-live="polite"` + `className="sr-only"`
-   berteks `Saving your quiz results…`/kosong dan berada sesudah panel lengket
-   sebagai anak terakhir kartu batch, hitungan halaman
-   `aria-busy` 5/`aria-live` 2/`role="status"` 3/`role="alert"` 1, status
-   kuis asesmen dan galat lama tetap, blok konfirmasi timpa tetap, alur
-   `submitBatchAssessments`/`cancelBatchOverwrite` utuh, tanpa
-   `aria-label`/`aria-labelledby`/`aria-atomic` baru, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-5. **Smoke** — tidak ada cek baru (menyimpan batch butuh menjawab banyak soal
-   dan status pending hanya sesaat); penjaga baris smoke 2748 tetap.
+   className="sr-only">` seperti di atas sebagai anak terakhir blok.
+3. **Tidak berubah** — `saveProfile` (`persistScores(editedScores, 'Saved.
+   Your suggestions on Recommendations now use this profile.')`),
+   `persistScores`, `handleSurpriseMe`, dan copy.
+4. **Test** — tambahkan `tests/profile-save-status.test.ts` (penjaga statis,
+   pola `tests/profile-batch-save-status.test.ts`): tombol dengan
+   `aria-busy={saving}` tepat sesudah `disabled` dan
+   kelas/ikon/label/handler utuh, **Surprise Me!** tanpa penanda, satu
+   status baru `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Saving your profile…`/kosong dan berada
+   sesudah `</motion.button>` Save Profile sebagai anak terakhir blok,
+   hitungan halaman `aria-busy` 6/`aria-live` 3/`role="status"` 4/
+   `role="alert"` 1, status kuis asesmen/batch dan galat lama tetap, alur
+   `saveProfile`/`persistScores` utuh, tanpa `aria-label`/
+   `aria-labelledby`/`aria-atomic` baru, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi;
+   `tests/profile-batch-save-status.test.ts` dan
+   `tests/profile-assessment-save-status.test.ts` hanya menyesuaikan
+   hitungan halaman tanpa melonggarkan penjaga posisi/kunci.
+5. **Smoke** — tidak ada cek baru (menyimpan butuh mengubah skor dan status
+   pending hanya sesaat); penjaga baris smoke 2748 tetap.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -101,9 +107,8 @@ bahasa Indonesia `fix:`.
 Semua tanpa migrasi skema, terlihat pelajar/admin, dan bisa diverifikasi
 otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Setelah tombol simpan batch asesmen `profile.tsx` selesai: lanjutkan dengan
-   **Save Profile** di file yang sama (lihat Tugas berikutnya), lalu
-   `/progress` dan kartu Today.
+1. Setelah tombol **Save Profile** `profile.tsx` selesai: audit surface
+   pelajar yang belum punya penanda, lalu `/progress` dan kartu Today.
    Baris "Lanjutan:" yang belum dicoret saat ini
    hanya butuh keputusan pemilik, error SSR langka, atau migrasi data — jangan
    dipilih tanpa perubahan kondisi.
@@ -129,15 +134,46 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    #175), tombol **Save item** di `src/routes/admin/content.tsx` (PR #176),
    tombol **Save question** di `src/routes/admin/questions.tsx` (PR #177), dan
    tombol **Compute Profiles**/**Save Scores** di
-   `src/routes/admin/psychometrics.tsx` (PR #178), dan tombol **Refresh** di
-   `src/routes/gaps.tsx` (PR #179). Kandidat berikutnya: tombol simpan batch
-   asesmen `src/routes/profile.tsx` (lihat Tugas berikutnya), lalu **Save
-   Profile**, lalu audit surface pelajar yang belum punya penanda.
+   `src/routes/admin/psychometrics.tsx` (PR #178), tombol **Refresh** di
+   `src/routes/gaps.tsx` (PR #179), kedua tombol simpan kuis asesmen
+   `src/routes/profile.tsx` (PR #180), dan ketiga tombol simpan batch asesmen
+   `src/routes/profile.tsx` (PR #181). Kandidat berikutnya: tombol
+   **Save Profile** `src/routes/profile.tsx` (lihat Tugas berikutnya), lalu
+   audit surface pelajar yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-26: PR #181 — **Status proses tombol simpan batch asesmen halaman
+  profil** — ketiga tombol di kartu **All questions on one page**
+  `src/routes/profile.tsx` (tombol header `ref={batchSubmitRef}`
+  `onClick={() => submitBatchAssessments()}` dengan `disabled={saving ||
+  getBatchProgress().answered === 0}`, **Save quiz results** di blok
+  `data-testid="batch-overwrite-confirm"` `onClick={() =>
+  submitBatchAssessments(true)}`, dan **Save answers** di panel lengket bawah
+  `onClick={() => submitBatchAssessments()}`) kini membawa
+  `aria-busy={saving}` tepat sesudah `disabled` miliknya (handler, ref,
+  kelas persis, ikon `Send`/`CheckCircle` `aria-hidden`, dan label
+  `Saving…`/`Save answers`/`Save quiz results` utuh), dengan satu pengumuman
+  baru `<p role="status" aria-live="polite" className="sr-only">{saving ?
+  'Saving your quiz results…' : ''}</p>` sebagai anak terakhir kartu batch
+  sesudah `)}` penutup kondisi panel lengket (hitungan halaman: `aria-busy`
+  5, `aria-live` 2, `role="status"` 3, `role="alert"` 1). **Go back** tetap
+  tanpa `disabled`/`aria-busy`; blok konfirmasi timpa, daftar soal per
+  kategori, progres, status kuis asesmen (PR #180) dan notice galat/sukses
+  lama, serta alur `submitBatchAssessments`/`cancelBatchOverwrite` tidak
+  berubah; tanpa `aria-label`/`aria-labelledby`/`aria-atomic` baru. Tanpa
+  query/RPC/migrasi/dependensi baru. Test baru
+  `tests/profile-batch-save-status.test.ts` (14 penjaga statis);
+  `tests/profile-assessment-save-status.test.ts` hanya menyesuaikan hitungan
+  halaman (`aria-busy` kini lima, `aria-live` dua, `role="status"` tiga)
+  tanpa melonggarkan penjaga posisi/kunci. Tanpa cek smoke baru (menyimpan
+  batch butuh menjawab banyak soal dan status pending hanya sesaat), penjaga
+  baris smoke 2748 tetap. `npm run ci` utuh hijau (`TMPDIR=/tmp/opencode`,
+  `CI_PORT=9201 CI_PREVIEW_PORT=9203`: install, typecheck, lint 0/0, tests,
+  build, anggaran bundel, CSP produksi, smoke Playwright + PGlite).
 
 - 2026-11-26: PR #180 — **Status proses tombol simpan kuis asesmen halaman
   profil** — kedua tombol simpan di kartu soal asesmen `src/routes/profile.tsx`
