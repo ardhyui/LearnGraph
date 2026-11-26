@@ -529,12 +529,15 @@ function GraphPage() {
           >
             <div className="flex flex-wrap items-center gap-4">
               <motion.button
+                type="button"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={buildGraph}
+                disabled={loading}
+                aria-busy={loading}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all"
               >
-                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
                 Refresh
               </motion.button>
 
@@ -555,6 +558,7 @@ function GraphPage() {
                   ))}
                 </select>
               </div>
+              <p role="status" aria-live="polite" className="sr-only">{loading ? 'Refreshing the knowledge graph…' : ''}</p>
             </div>
           </motion.div>
 
