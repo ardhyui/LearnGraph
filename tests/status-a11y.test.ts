@@ -113,8 +113,8 @@ describe('status page: card status has a text equivalent', () => {
     }
   });
 
-  it('adds exactly two sr-only sentences to the page', () => {
-    assert.equal(count(page, /className="sr-only"/g), 2);
+  it('adds exactly two sr-only sentences and one sr-only refresh line', () => {
+    assert.equal(count(page, /className="sr-only"/g), 3);
     assert.equal(count(page, /<span className="sr-only">/g), 2);
   });
 });
@@ -203,9 +203,13 @@ describe('status page: card contracts and order are unchanged', () => {
 });
 
 describe('status page: no new semantics or data path', () => {
-  it('adds no live region, focus handling, role or extra control', () => {
-    assert.doesNotMatch(page, /aria-live/);
-    assert.doesNotMatch(page, /\brole=/);
+  it('adds only the refresh live region and no focus handling or extra control', () => {
+    assert.equal(count(page, /aria-live=/g), 1, 'the Refresh line is the only live region');
+    assert.equal(count(page, /\brole=/g), 1, 'the Refresh line is the only role');
+    assert.ok(
+      page.includes('<p role="status" aria-live="polite" className="sr-only">'),
+      'the live region is the polite refresh line',
+    );
     assert.doesNotMatch(page, /tabIndex|tabindex/);
     assert.doesNotMatch(page, /\.focus\(/);
   });
