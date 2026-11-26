@@ -1,87 +1,89 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
 Terakhir diperbarui: 2026-11-26 (status proses tombol **Refresh** grafik
-`/graph` selesai lewat PR #184; berikutnya: status proses tombol **Refresh**
-grafik `/combined-graph`)
+`/combined-graph` selesai lewat PR #185; berikutnya: tombol **Refresh** manual
+di `/progress`)
 
 ## Tugas berikutnya
 
-Poles kecil: **Status proses tombol Refresh grafik `/combined-graph`
-(`src/routes/combined-graph.tsx`)** — kartu kontrol `<motion.div ...
-className="glass-card p-4 mb-6">` memuat `<div className="flex flex-wrap
-items-center gap-4">` dengan tombol Refresh dan wadah pemilih learner:
+Poles kecil + fitur: **Tombol Refresh manual di `/progress`
+(`src/routes/progress.tsx`)** — halaman **Your progress** memuat kartu pemilih
+learner `<div className="glass-card p-5 mb-6">` dengan `<label
+htmlFor={learnerSelectId}>Learner</label>` dan `<select id={learnerSelectId}>`,
+tetapi tidak punya cara memuat ulang data manual: satu-satunya pemuatan adalah
+efek `useEffect` yang berjalan saat `selectedLearnerId` berubah. Pelajar yang
+menyelesaikan review/kuis di tab lain harus berpindah learner atau memuat ulang
+seluruh halaman. Halaman ini belum punya satu pun `aria-busy` atau
+`aria-live`. Pola tombol + status yang sama sudah dipakai di `/sign-in`,
+`/forgot-password`, `/reset-password`, laporan diri/kuis `/learn`,
+`DeleteAccount`, kedua tombol panel **Ask an AI tutor**, tombol snooze,
+**Create a read-only key**, **Save subjects**, lima tombol `/japanese`,
+**Start learning** onboarding, tombol-tombol admin, **Refresh** `/gaps`
+(PR #179), tombol simpan asesmen/**Save Profile** `profile.tsx`
+(PR #180–#182), **Refresh study plan** kartu Today (PR #183), **Refresh**
+`/graph` (PR #184), dan **Refresh** `/combined-graph` (PR #185). UI pelajar
+berbahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru: tombol hanya
+memicu ulang `getLearnerProgress` yang sudah ada lewat efek yang sama.
 
-- `<motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-  onClick={buildGraph} className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-  bg-primary text-primary-foreground font-medium shadow-lg shadow-primary/25">`
-  dengan `<RefreshCw size={18} className={loading ? 'animate-spin' : ''}
-  aria-hidden="true" />` dan label **Refresh**.
-
-Selama `loading` tombol ini tidak punya `disabled` maupun `aria-busy`: hanya
-ikonnya berputar, tanpa pengumuman, sehingga pembaca layar tidak tahu grafik
-gabungan sedang dibangun ulang, tombol tampak diam, dan klik ganda bisa
-memicu dua `buildGraph`. Halaman ini belum punya satu pun `aria-live`,
-`role="status"`, `aria-busy`, `aria-label`, `aria-labelledby`, atau
-`aria-atomic`. Pola yang sama sudah dipakai di `/sign-in`, `/forgot-password`,
-`/reset-password`, laporan diri/kuis `/learn`, `DeleteAccount`, kedua tombol
-panel **Ask an AI tutor**, tombol snooze, **Create a read-only key**, **Save
-subjects**, lima tombol `/japanese`, **Start learning** onboarding,
-tombol-tombol admin, **Refresh** `/gaps` (PR #179), tombol simpan
-asesmen/**Save Profile** `profile.tsx` (PR #180–#182), **Refresh study plan**
-kartu Today (PR #183), dan tombol **Refresh** `/graph` (PR #184). UI pelajar
-berbahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru. `loading`
-dipakai tombol Refresh, ikonnya, dan blok grafik, jadi cukup pakai `loading`
-langsung tanpa state baru.
-
-Tujuan: tombol Refresh membawa `type="button"`, `disabled={loading}`, dan
-`aria-busy={loading}` tepat sesudah `onClick={buildGraph}` (urutan: `onClick`,
-`disabled`, `aria-busy`); `whileHover`/`whileTap`, kelas persis, ikon
-`RefreshCw` (`size={18}`, kelas spin, `aria-hidden="true"` yang sudah ada), dan
-label **Refresh** tidak berubah. **Satu** status pengumuman baru: `<p
-role="status" aria-live="polite" className="sr-only">{loading ? 'Refreshing the
-combined graph…' : ''}</p>` sebagai anak terakhir `<div className="flex
-flex-wrap items-center gap-4">` — sesudah `</div>` wadah pemilih learner,
-sebelum `</div>` penutup baris dan sebelum blok **View Toggles** — sehingga
-status hanya berbunyi selama pembangunan ulang dan kosong saat idle. Hitungan
-file setelah tugas: `aria-busy` 1, `aria-live="polite"` 1, `role="status"` 1,
-`role="alert"` 0, `aria-label` 0, `aria-labelledby` 0, `aria-atomic` 0.
-Jangan mengubah `buildGraph` (guard `!selectedLearnerData`, `setLoading(true)`,
-node/edge learner/domain/concept/bridge, `setLoading(false)`), efek yang
-memanggilnya, `selectedLearner`, tiga tombol **View Toggles** (`aria-pressed`,
-tanpa `disabled`/`aria-busy`), pemilih learner, grafik/panel, atau copy lain;
+Tujuan: tombol Refresh baru di dalam kartu pemilih learner membawa
+`type="button"`, `onClick={() => setRefreshKey((n) => n + 1)}`,
+`disabled={loading || !selectedLearnerId}`, dan `aria-busy={loading}` (urutan
+`onClick`, `disabled`, `aria-busy`); kelas persis `btn btn-secondary
+inline-flex items-center gap-2 mt-3`, ikon `<RefreshCw size={16}
+className={loading ? 'animate-spin' : ''} aria-hidden="true" />`, dan label
+**Refresh** — `RefreshCw` ditambahkan ke impor lucide yang ada. **Satu** status
+pengumuman baru: `<p role="status" aria-live="polite" className="sr-only">
+{loading ? 'Refreshing your progress…' : ''}</p>` sebagai anak terakhir kartu
+pemilih learner, sesudah tombol. Efek pemuatan tetap satu: tambahkan state
+`const [refreshKey, setRefreshKey] = useState(0);` sesudah `requestSeq`, lalu
+ganti dependensi efek dari `[selectedLearnerId]` menjadi
+`[selectedLearnerId, refreshKey]`; isi efek (guard `!selectedLearnerId`,
+`requestSeq`, `setData(null)`, `setLoading(true/false)`, `setError`,
+`getLearnerProgress`) tidak berubah. Hitungan file setelah tugas: `aria-busy`
+1, `aria-live="polite"` 1, `role="status"` 2 (baris **Loading your progress…**
+lama tetap `role="status"` tanpa `aria-live`), `role="alert"` 1, `aria-label`
+6, `aria-labelledby` 4, `aria-atomic` 0 (tidak ada yang baru). Jangan mengubah
+label/`select`/`useId`, kartu This week/Streaks/Retention/Recent activity/Focus/
+empty state, `busy`, `noLearner`, alur `getLearnerProgress`, atau copy lain;
 jangan menambah `aria-label`/`aria-labelledby`/`aria-atomic` baru.
 
 Rancangan:
 
-1. **Tombol** — `type="button"`, `disabled={loading}`, lalu
-   `aria-busy={loading}` sesudah `onClick={buildGraph}`; atribut lain utuh.
-2. **Ikon** — tidak berubah (`size={18}`, spin, `aria-hidden="true"` sudah
-   ada).
-3. **Status** — satu `<p role="status" aria-live="polite"
-   className="sr-only">` seperti di atas sebagai anak terakhir baris kontrol
-   pertama (bukan baris **View Toggles**).
-4. **Tidak berubah** — `buildGraph`, ketiga tombol toggle, pemilih learner,
-   kelas tombol, label, dan blok lain.
-5. **Test** — tambahkan `tests/combined-graph-refresh-status.test.ts` (penjaga
-   statis, pola `tests/graph-refresh-status.test.ts`): tombol Refresh dengan
-   `type="button"`, `onClick={buildGraph}`, `disabled={loading}`, dan
-   `aria-busy={loading}` berurutan, `whileHover`/`whileTap`/kelas/label utuh,
-   ikon `RefreshCw` dengan `size={18}`, spin, dan `aria-hidden`, satu status
-   baru `role="status"` + `aria-live="polite"` + `className="sr-only"`
-   berteks `Refreshing the combined graph…`/kosong dan berada sesudah wadah
-   pemilih learner sebagai anak terakhir baris pertama, hitungan file
-   `aria-busy` 1/`aria-live="polite"` 1/`role="status"` 1/`role="alert"`
-   0/`aria-label` 0/`aria-labelledby` 0/`aria-atomic` 0, `buildGraph` serta
-   pemilih learner tidak berubah, ketiga tombol **View Toggles** tetap
-   `aria-pressed` tanpa `aria-busy`, tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi.
-6. **Smoke** — tidak ada cek baru (pembangunan ulang hanya sesaat); jangan
-   mengubah penjaga baris smoke.
-7. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+1. **Impor** — tambahkan `RefreshCw` ke `import { AlertCircle, BarChart3,
+   BookOpen, CalendarDays, Flame } from 'lucide-react';`.
+2. **State** — `const [refreshKey, setRefreshKey] = useState(0);` sesudah
+   `const requestSeq = useRef(0);`.
+3. **Efek** — dependensi menjadi `[selectedLearnerId, refreshKey]`; isi efek
+   tidak berubah (guard, `requestSeq`, `setData(null)`, `setLoading`,
+   `setError`, `getLearnerProgress`, `finally`).
+4. **Tombol** — di dalam kartu pemilih learner, sesudah `</select>` dan sebelum
+   `</div>` penutup kartu: tombol seperti di atas (atribut, kelas, ikon, label
+   persis).
+5. **Status** — satu `<p role="status" aria-live="polite"
+   className="sr-only">` sesudah tombol sebagai anak terakhir kartu pemilih
+   learner.
+6. **Test** — tambahkan `tests/progress-refresh-status.test.ts` (penjaga
+   statis, pola `tests/graph-refresh-status.test.ts`): tombol dengan
+   `type="button"`, `onClick` yang menaikkan `refreshKey`, `disabled={loading
+   || !selectedLearnerId}`, dan `aria-busy={loading}` berurutan, kelas/ikon
+   `RefreshCw` (`size={16}`, spin, `aria-hidden`)/label utuh, state `refreshKey`
+   sesudah `requestSeq`, efek bergantung `[selectedLearnerId, refreshKey]`
+   dengan isi lama utuh, satu status baru `role="status"` + `aria-live="polite"`
+   + `className="sr-only"` berteks `Refreshing your progress…`/kosong dan
+   berada sesudah tombol sebagai anak terakhir kartu pemilih learner, hitungan
+   file `aria-busy` 1/`aria-live="polite"` 1/`role="status"` 2/`role="alert"`
+   1/`aria-label` 6/`aria-labelledby` 4/`aria-atomic` 0, baris **Loading your
+   progress…** dan `getLearnerProgress` tidak berubah, pemilih learner
+   (`htmlFor={learnerSelectId}`, `value={selectedLearnerId}`, onChange) tetap,
+   serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru di file
+   halaman (impor `getLearnerProgress` yang sudah ada tetap).
+7. **Smoke** — tidak ada cek baru (tombol hanya memuat ulang data yang sudah
+   dicek smoke); jangan mengubah penjaga baris smoke.
+8. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`); commit
-bahasa Indonesia `fix:`.
+bahasa Indonesia `feat:`.
 
 ## Catatan lingkungan
 
@@ -97,12 +99,11 @@ bahasa Indonesia `fix:`.
 Semua tanpa migrasi skema, terlihat pelajar/admin, dan bisa diverifikasi
 otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 
-1. Setelah tombol **Refresh** `/graph` selesai (PR #184): tombol
-   **Refresh** `/combined-graph` (lihat Tugas berikutnya), lalu audit surface
-   pelajar yang belum punya penanda (termasuk `/progress`, yang tidak punya
-   tombol muat ulang manual). Baris "Lanjutan:" yang belum dicoret saat ini
-   hanya butuh keputusan pemilik, error SSR langka, atau migrasi data — jangan
-   dipilih tanpa perubahan kondisi.
+1. Setelah tombol **Refresh** `/combined-graph` selesai (PR #185): tombol
+   **Refresh** manual di `/progress` (lihat Tugas berikutnya), lalu audit
+   surface pelajar yang belum punya penanda. Baris "Lanjutan:" yang belum
+   dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
+   migrasi data — jangan dipilih tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
@@ -130,16 +131,33 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `src/routes/profile.tsx` (PR #180), ketiga tombol simpan batch asesmen
    `src/routes/profile.tsx` (PR #181), tombol **Save Profile**
    `src/routes/profile.tsx` (PR #182), tombol **Refresh study plan** kartu
-   Today `src/components/StudyToday.tsx` (PR #183), dan tombol **Refresh**
-   grafik `/graph` (PR #184). Kandidat berikutnya: tombol **Refresh**
-   `/combined-graph` (lihat Tugas berikutnya), lalu audit surface pelajar yang
-   belum punya penanda.
+   Today `src/components/StudyToday.tsx` (PR #183), tombol **Refresh**
+   grafik `/graph` (PR #184), dan tombol **Refresh** grafik `/combined-graph`
+   (PR #185). Kandidat berikutnya: tombol **Refresh** manual `/progress`
+   (lihat Tugas berikutnya), lalu audit surface pelajar yang belum punya
+   penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
+- 2026-11-26: PR #185 — **Status proses tombol "Refresh" grafik
+  `/combined-graph`** — tombol di kartu kontrol `src/routes/combined-graph.tsx`
+  kini membawa `type="button"`, `disabled={loading}`, dan `aria-busy={loading}`
+  tepat sesudah `onClick={buildGraph}` (urutan click/disabled/aria-busy;
+  `whileHover`/`whileTap`/kelas/label **Refresh** utuh, ikon `RefreshCw` tetap
+  `size={18}` + spin + `aria-hidden="true"`), dengan satu pengumuman baru
+  `<p role="status" aria-live="polite" className="sr-only">{loading ?
+  'Refreshing the combined graph…' : ''}</p>` sebagai anak terakhir baris
+  kontrol pertama, sesudah wadah pemilih learner dan sebelum blok **View
+  Toggles**. Hitungan file: `aria-busy` 1, `aria-live="polite"` 1,
+  `role="status"` 1, `role="alert"` 0, `aria-label` 0, `aria-labelledby` 0,
+  `aria-atomic` 0. `buildGraph`, efeknya, `selectedLearner`, ketiga **View
+  Toggles** (`aria-pressed`, tanpa `aria-busy`), pemilih learner, dan copy lain
+  tidak berubah; tanpa query/RPC/migrasi/dependensi baru. Test baru
+  `tests/combined-graph-refresh-status.test.ts` (10 penjaga statis); tanpa cek
+  smoke baru. `npm run ci` utuh hijau sebelum merge.
 - 2026-11-26: PR #184 — **Status proses tombol "Refresh" grafik `/graph`** —
   tombol di kartu kontrol `src/routes/graph.tsx` kini membawa `type="button"`,
   `disabled={loading}`, dan `aria-busy={loading}` tepat sesudah
