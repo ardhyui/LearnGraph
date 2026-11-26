@@ -1646,11 +1646,13 @@ function ProfilePage() {
               whileTap={{ scale: 0.98 }}
               onClick={saveProfile}
               disabled={saving}
+              aria-busy={saving}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary to-purple-500 text-white font-medium shadow-lg shadow-primary/25 flex items-center gap-2 disabled:opacity-50"
             >
               <Save className="w-5 h-5" />
               {saving ? 'Saving...' : 'Save Profile'}
             </motion.button>
+            <p role="status" aria-live="polite" className="sr-only">{saving ? 'Saving your profile…' : ''}</p>
           </motion.div>
         )}
 
