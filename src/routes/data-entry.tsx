@@ -190,6 +190,9 @@ function DataEntryPage() {
   // Prerequisite save progress
   const [savingPrerequisite, setSavingPrerequisite] = useState(false);
 
+  // Knowledge state save progress
+  const [savingKnowledgeState, setSavingKnowledgeState] = useState(false);
+
   // Expanded category tracking
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
 
@@ -385,7 +388,9 @@ function DataEntryPage() {
 
   const handleAddKnowledgeState = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingKnowledgeState) return;
     try {
+      setSavingKnowledgeState(true);
       await setKnowledgeState(
         stateForm.userId,
         stateForm.conceptId,
@@ -399,6 +404,8 @@ function DataEntryPage() {
       setStateForm({ userId: '', conceptId: '', mastery: 0, bloomLevel: 1 });
     } catch (err) {
       showMessage('error', err instanceof Error ? err.message : 'Failed to add knowledge state');
+    } finally {
+      setSavingKnowledgeState(false);
     }
   };
 
@@ -1763,9 +1770,14 @@ function DataEntryPage() {
                     <button
                       type="submit"
                       className="btn w-full bg-cyan-600 text-white hover:bg-cyan-700 shadow-lg shadow-cyan-600/20"
+                      disabled={savingKnowledgeState}
+                      aria-busy={savingKnowledgeState}
                     >
                       Save Knowledge State
                     </button>
+                    <p role="status" aria-live="polite" className="sr-only">
+                      {savingKnowledgeState ? 'Saving the knowledge state…' : ''}
+                    </p>
                   </form>
 
                   {stateForm.userId && stateForm.conceptId && (

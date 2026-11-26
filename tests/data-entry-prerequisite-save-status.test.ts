@@ -13,9 +13,8 @@
  * `aria-busy` right after `className` on the submit button with its type,
  * classes and label untouched, one `sr-only` polite `role="status"` line as the
  * last child of the prerequisite form, the untouched result banner and the
- * learner/concept statuses, the remaining knowledge-state form without a new
- * marker, the untouched **Preview** block, and that no server function, RPC
- * schema or migration was added.
+ * learner/concept/knowledge-state statuses, the untouched **Preview** block,
+ * and that no server function, RPC schema or migration was added.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -77,7 +76,7 @@ describe('/data-entry: the prerequisite submit button announces it is busy', () 
       typeAt < classAt && classAt < disabledAt && disabledAt < busyAt,
       'type, class, disabled and aria-busy stay in order',
     );
-    assert.equal(count(page, /aria-busy=/g), 3, 'the learner, concept and prerequisite buttons carry aria-busy');
+    assert.equal(count(page, /aria-busy=/g), 4, 'the learner, concept, prerequisite and knowledge-state buttons carry aria-busy');
   });
 
   it('keeps the Add Prerequisite Edge label', () => {
@@ -123,14 +122,14 @@ describe('/data-entry: one polite status line after the prerequisite submit butt
       form.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the prerequisite status line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(page, /aria-live=/g), 4, 'the banner plus all three save status lines');
-    assert.equal(count(page, /role="status"/g), 3, 'one status line per save form');
+    assert.equal(count(page, /aria-live=/g), 5, 'the banner plus all four save status lines');
+    assert.equal(count(page, /role="status"/g), 4, 'one status line per save form');
     assert.equal(count(page, /role="alert"/g), 0, 'no alert is added');
     assert.equal(count(page, /aria-label=/g), 5, 'no aria-label is added');
     assert.equal(count(page, /aria-labelledby=/g), 5, 'no aria-labelledby is added');
     assert.equal(count(page, /aria-atomic=/g), 0, 'no aria-atomic is added');
-    assert.equal(count(page, /className="sr-only"/g), 3, 'the learner, concept and prerequisite status lines');
-    assert.equal(count(page, /role="/g), 10, 'the page keeps ten literal roles');
+    assert.equal(count(page, /className="sr-only"/g), 4, 'the learner, concept, prerequisite and knowledge-state status lines');
+    assert.equal(count(page, /role="/g), 11, 'the page keeps eleven literal roles');
   });
 
   it('says Adding the prerequisite… while saving and clears when idle', () => {
@@ -166,10 +165,11 @@ describe('/data-entry: the banner, other statuses, preview and knowledge state s
     );
   });
 
-  it('keeps the untouched learner and concept save statuses', () => {
+  it('keeps the untouched learner, concept and knowledge-state save statuses', () => {
     for (const [handler, marker, copy] of [
       ['handleAddLearner', 'aria-busy={savingLearner}', "{savingLearner ? 'Adding the learner…' : ''}"],
       ['handleAddConcept', 'aria-busy={savingConcept}', "{savingConcept ? 'Adding the concept…' : ''}"],
+      ['handleAddKnowledgeState', 'aria-busy={savingKnowledgeState}', "{savingKnowledgeState ? 'Saving the knowledge state…' : ''}"],
     ] as const) {
       const start = page.indexOf(`<form onSubmit={${handler}`);
       assert.ok(start > 0, `the ${handler} form is rendered`);
@@ -178,15 +178,6 @@ describe('/data-entry: the banner, other statuses, preview and knowledge state s
       assert.ok(otherForm.includes(marker), `${handler} keeps its aria-busy`);
       assert.ok(otherForm.includes(copy), `${handler} keeps its status copy`);
     }
-  });
-
-  it('leaves the knowledge-state form without a new marker', () => {
-    const start = page.indexOf('<form onSubmit={handleAddKnowledgeState}');
-    assert.ok(start > 0, 'the knowledge-state form is rendered');
-    const end = page.indexOf('</form>', start) + '</form>'.length;
-    const otherForm = page.slice(start, end);
-    assert.equal(otherForm.includes('aria-busy'), false, 'the knowledge-state form gains no aria-busy');
-    assert.equal(otherForm.includes('role="status"'), false, 'the knowledge-state form gains no status line');
   });
 
   it('keeps the Preview block', () => {

@@ -1,89 +1,83 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-26 (status proses tombol simpan prerequisite
-`/data-entry` selesai lewat PR #197; berikutnya: form **Create knowledge state**
-`/data-entry`)
+Terakhir diperbarui: 2026-11-27 (status proses tombol simpan form knowledge
+state `/data-entry` selesai lewat PR #198; berikutnya: tombol keputusan draf
+**Approve/Discard** panel "Draft questions with Claude"
+`src/components/AiQuestionDrafts.tsx`)
 
 ## Tugas berikutnya
 
-Poles kecil + fitur: **Status proses tombol simpan form knowledge state di
-`/data-entry` (`src/routes/data-entry.tsx`, tab **Knowledge States**)** — form
-`<form onSubmit={handleAddKnowledgeState} className="space-y-4">` (sekitar baris
-1674) punya tombol submit `<button type="submit" className="btn w-full
-bg-cyan-600 text-white hover:bg-cyan-700 shadow-lg shadow-cyan-600/20">Save
-Knowledge State</button>` (sekitar baris 1763) yang memanggil
-`handleAddKnowledgeState` (sekitar baris 386). Tombol itu **belum** punya
-`disabled`/`aria-busy`, dan form tidak punya pengumuman proses; selama
-`setKnowledgeState` berjalan pembaca layar tidak tahu knowledge state sedang
-disimpan dan klik ganda bisa mengirim dua kali. Halaman ini sudah punya banner
-hasil (`role={message.type === 'success' ? 'status' : 'alert'}` + `aria-live=`)
-serta status form learner (PR #195), concept (PR #196), dan prerequisite
-(PR #197) yang harus dipertahankan. Hitungan file saat ini: `aria-busy` 3,
-`aria-live` 4, `role="status"` 3, `role="alert"` 0, `aria-label=` 5,
-`aria-labelledby` 5, `aria-atomic` 0, `className="sr-only"` 3, `role="` 10.
-Pola tombol + status yang sama sudah dipakai di seluruh surface sebelumnya
-(lihat Riwayat). UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi
-baru.
+Poles kecil + fitur: **Status proses tombol keputusan draf (Approve/Discard)
+panel "Draft questions with Claude"** — `src/components/AiQuestionDrafts.tsx`
+(Admin → Quiz Questions, panel draf AI). Kedua tombol aksi per-draf —
+**Approve** `<button type="button" onClick={() => void decide(d, 'approved')}
+className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1
+text-xs font-medium text-white hover:bg-emerald-700">` (sekitar baris 147) dan
+**Discard** `<button type="button" onClick={() => void decide(d, 'discarded')}
+className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs
+font-medium text-muted-foreground hover:bg-red-500/10 hover:text-red-700">`
+(sekitar baris 153) — memanggil `decide` (async; `await reviewQuestionDraft
+({ data: { draft: d, decision } })`) tanpa `disabled`/`aria-busy` dan tanpa
+pengumuman, sehingga selama keputusan disimpan pembaca layar tidak tahu apa
+yang sedang terjadi dan klik ganda bisa mengirim dua `reviewQuestionDraft`.
+Tombol **Edit first** (`onClick={() => edit(d)}`, sinkron, hanya memfilter draf
+dan memanggil `onEdit`) tetap tanpa penanda. Panel ini sudah punya tombol
+**Draft 4 questions** `aria-busy={busy}` + baris status `sr-only` (PR #174),
+wadah draf `aria-live="polite"`, dan galat `role="alert"` yang harus
+dipertahankan. Hitungan file saat ini: `aria-busy` 1, `aria-live` 2,
+`role="status"` 1, `role="alert"` 1, `aria-label=` 1 (label section),
+`aria-labelledby` 0, `aria-atomic` 0, `className="sr-only"` 1. UI bahasa
+Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: tombol submit mempertahankan `type="submit"` dan kelas persis
-`btn w-full bg-cyan-600 text-white hover:bg-cyan-700 shadow-lg
-shadow-cyan-600/20`, lalu membawa `disabled={savingKnowledgeState}` dan
-`aria-busy={savingKnowledgeState}` tepat sesudah `className` (urutan `type`,
-`className`, `disabled`, `aria-busy`); label `Save Knowledge State` utuh.
-**Satu** pengumuman baru: `<p role="status" aria-live="polite"
-className="sr-only">{savingKnowledgeState ? 'Saving the knowledge state…' :
-''}</p>` sebagai anak terakhir form knowledge state — sesudah `</button>`
-submit, sebelum `</form>`.
-
-State baru `const [savingKnowledgeState, setSavingKnowledgeState] =
-useState(false);` diletakkan sesudah state `savingPrerequisite` (sekitar baris
-190). `handleAddKnowledgeState` diawali `e.preventDefault();` lalu guard
-`if (savingKnowledgeState) return;`; `setSavingKnowledgeState(true)` disetel
-tepat sebelum `await setKnowledgeState(...)`, dan `finally {
-setSavingKnowledgeState(false); }` ditambahkan pada `try/catch` yang sudah
-ada — isi `try` (`setKnowledgeState(userId, conceptId, { mastery, bloomLevel })`,
-`showMessage('success', 'Knowledge state added successfully!')`, reset
-`stateForm`) dan `catch` (`'Failed to add knowledge state'`) tidak berubah.
-Tidak ada cabang validasi/`return` lain di handler ini.
-
-Tombol/label, tablist, banner hasil, status form learner + concept +
-prerequisite, serta blok **Preview** knowledge state tidak berubah; jangan
-menambah `aria-label`/`aria-labelledby`/`aria-atomic` baru.
+Tujuan: state baru `const [deciding, setDeciding] = useState<QuestionInput |
+null>(null);` diletakkan sesudah state `busy` (sekitar baris 29, sesudah
+`const [busy, setBusy] = useState(false);`). `decide` diawali guard
+`if (deciding) return;`, `setDeciding(d)` disetel tepat sebelum `await
+reviewQuestionDraft(...)`, dan `finally { setDeciding(null); }` ditambahkan
+pada `try/catch` yang sudah ada — isi `try` (`reviewQuestionDraft`, `setDrafts`
+yang memfilter draf, `if (decision === 'approved') onSaved();`) dan `catch`
+(`'Could not save the decision.'`) tidak berubah. Kedua tombol keputusan
+masing-masing membawa `disabled={deciding !== null}` lalu
+`aria-busy={deciding === d}` tepat sesudah `className` (handler, ikon
+`Check`/`X` `aria-hidden`, kelas, dan label **Approve**/**Discard** utuh);
+**Edit first** dan tombol **Draft 4 questions** tidak berubah. **Satu**
+pengumuman baru: `<p role="status" aria-live="polite" className="sr-only">
+{deciding ? 'Saving your decision…' : ''}</p>` sebagai anak terakhir section —
+sesudah baris status `Drafting questions…` (PR #174, sekitar baris 161–163),
+sebelum `</section>`.
 
 Rancangan:
 
-1. **Tombol** — `disabled={savingKnowledgeState}` lalu
-   `aria-busy={savingKnowledgeState}` sesudah `className`; `type`, kelas, dan
-   label utuh.
-2. **Status** — satu `<p role="status" aria-live="polite"
-   className="sr-only">` sebagai anak terakhir form knowledge state, sesudah
-   tombol submit.
-3. **Handler** — guard `if (savingKnowledgeState) return;`,
-   `setSavingKnowledgeState(true)` tepat sebelum `await setKnowledgeState`,
-   `finally` pada `try/catch` yang ada.
-4. **Test** — tambahkan `tests/data-entry-knowledge-state-save-status.test.ts`
-   (penjaga statis, pola `tests/data-entry-prerequisite-save-status.test.ts`):
-   tombol dengan `type="submit"`, `className`, `disabled`, `aria-busy`
-   berurutan dan label utuh, satu status `role="status"` + `aria-live="polite"`
-   + `className="sr-only"` berteks `Saving the knowledge state…`/kosong dan
-   berada sesudah tombol sebagai anak terakhir form, state
-   `savingKnowledgeState` sesudah `savingPrerequisite`, guard baris pertama +
-   `setSavingKnowledgeState(true)` tepat sebelum `await setKnowledgeState` +
-   `finally` membersihkan, isi `handleAddKnowledgeState` lama utuh, banner
-   hasil, status learner + concept + prerequisite, dan blok **Preview** tetap,
-   hitungan file `aria-busy` 4/`aria-live` 5/`role="status"` 4/`role="alert"` 0/
-   `aria-label=` 5/`aria-labelledby` 5/`aria-atomic` 0/`className="sr-only"` 4/
-   `role="` 11, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi
-   baru.
-   Sesuaikan hitungan halaman di `tests/data-entry-message-banner.test.ts`,
-   `tests/data-entry-tabs.test.ts`, `tests/data-entry-data-lists.test.ts`,
-   `tests/data-entry-learner-save-status.test.ts`,
-   `tests/data-entry-concept-save-status.test.ts`, dan
-   `tests/data-entry-prerequisite-save-status.test.ts`; di dua file terakhir
-   hapus penjaga "form knowledge state tanpa penanda baru" (kini form itu
-   memang membawa penanda) tanpa melonggarkan penjaga posisi/kunci lain.
-5. **Smoke** — tidak ada cek baru (menyimpan butuh memilih learner dan konsep
-   serta interaksi); jangan mengubah penjaga baris smoke 2748.
+1. **State + handler** — `deciding` sesudah `busy`; guard `if (deciding)
+   return;`, `setDeciding(d)` tepat sebelum `await reviewQuestionDraft`,
+   `finally` pada `try/catch` yang ada; isi `try`/`catch` lama utuh.
+2. **Tombol** — di **Approve** dan **Discard**: `disabled={deciding !== null}`
+   lalu `aria-busy={deciding === d}` sesudah `className`; `type`, handler,
+   kelas, ikon, label utuh; **Edit first** dan **Draft 4 questions** tetap.
+3. **Status** — satu `<p role="status" aria-live="polite" className="sr-only">`
+   berteks `Saving your decision…`/kosong sebagai anak terakhir section,
+   sesudah baris status PR #174.
+4. **Test** — tambahkan `tests/ai-question-drafts-decide-status.test.ts`
+   (penjaga statis, pola `tests/ai-question-drafts-status.test.ts`): kedua
+   tombol dengan `type="button"`/handler/`className`/`disabled`/`aria-busy`
+   berurutan dan label/ikon utuh, **Edit first** tanpa `aria-busy`, satu
+   status baru `role="status"` + `aria-live="polite"` +
+   `className="sr-only"` berteks `Saving your decision…`/kosong dan berada
+   sesudah baris `Drafting questions…` sebagai anak terakhir section, state
+   `deciding` sesudah `busy`, guard + `setDeciding(d)` tepat sebelum `await
+   reviewQuestionDraft` + `finally` membersihkan, isi `decide` lama utuh,
+   tombol **Draft 4 questions** + wadah draf `aria-live` + galat `role="alert"`
+   tetap, hitungan file `aria-busy` 3/`aria-live` 3/`role="status"` 2/
+   `role="alert"` 1/`aria-label=` 1/`aria-labelledby` 0/`aria-atomic` 0/
+   `className="sr-only"` 2, serta tanpa `createServerFn`/`graphCall`/
+   `rpc-schemas`/migrasi baru. Sesuaikan hitungan di
+   `tests/ai-question-drafts-status.test.ts` (`aria-busy` 1→3, `aria-live`
+   2→3, `role="status"` 1→2, `className="sr-only"` 1→2) dan persempit penjaga
+   "keeps Approve, Edit first and Discard without aria-busy" menjadi hanya
+   **Edit first** tanpa melonggarkan penjaga posisi/kunci lain.
+5. **Smoke** — tidak ada cek baru (memutuskan draf butuh API key Anthropic
+   sungguhan untuk membuat draf lebih dulu); jangan mengubah penjaga baris
+   smoke 2748.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -107,9 +101,14 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
 1. Setelah form simpan knowledge state `/admin/states` (PR #193), tombol
    **Refresh** grafik `/domains` (PR #194), form **Create learner**
    `src/routes/data-entry.tsx` (PR #195), form **Create concept** di file
-   yang sama (PR #196), dan form **Create prerequisite** (PR #197) selesai:
-   form **Create knowledge state** (lihat Tugas berikutnya), lalu audit surface
-   pelajar/admin lain yang belum punya penanda. Baris "Lanjutan:" yang belum
+   yang sama (PR #196), form **Create prerequisite** (PR #197), dan form
+   **Create knowledge state** (PR #198) selesai: tombol keputusan draf
+   **Approve/Discard** `AiQuestionDrafts.tsx` (lihat Tugas berikutnya), lalu
+   audit surface pelajar/admin lain yang belum punya penanda (mis. tombol
+   **Try again** `LearningOverview.tsx` atau tombol per-baris **Delete** di
+   halaman admin; tombol **Try again** `StudyToday.tsx` sengaja dibiarkan
+   tanpa penanda oleh PR #183 dan dikunci
+   `tests/study-today-refresh-status.test.ts`). Baris "Lanjutan:" yang belum
    dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
    migrasi data — jangan dipilih tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
@@ -150,14 +149,46 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    knowledge state `/admin/states` (PR #193), tombol **Refresh** grafik
    `/domains` (PR #194), form **Create learner** `/data-entry` (PR #195), form
    **Create concept** `/data-entry` (PR #196), dan form **Create prerequisite**
-   `/data-entry` (PR #197). Kandidat berikutnya: form **Create knowledge state**
-   `src/routes/data-entry.tsx` (lihat Tugas berikutnya), lalu audit surface
-   pelajar/admin lain yang belum punya penanda.
+   `/data-entry` (PR #197), dan form **Create knowledge state** `/data-entry`
+   (PR #198). Kandidat berikutnya: tombol keputusan draf **Approve/Discard**
+   `src/components/AiQuestionDrafts.tsx` (lihat Tugas berikutnya), lalu audit
+   surface pelajar/admin lain yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-27: PR #198 — **Status proses tombol simpan form knowledge state
+  `/data-entry`** — tombol submit kini membawa `disabled={savingKnowledgeState}`
+  lalu `aria-busy={savingKnowledgeState}` tepat sesudah `className` (urutan
+  `type`, `className`, `disabled`, `aria-busy`; kelas `btn w-full bg-cyan-600
+  text-white hover:bg-cyan-700 shadow-lg shadow-cyan-600/20` dan label
+  `Save Knowledge State` utuh), dan satu pengumuman baru `<p role="status"
+  aria-live="polite" className="sr-only">{savingKnowledgeState ? 'Saving the
+  knowledge state…' : ''}</p>` sebagai anak terakhir form knowledge state
+  sesudah `</button>` submit. State baru `savingKnowledgeState` sesudah
+  `savingPrerequisite`; `handleAddKnowledgeState` diawali `e.preventDefault()`
+  lalu guard `if (savingKnowledgeState) return;`, penanda disetel tepat sebelum
+  `await setKnowledgeState`, dan dibersihkan lewat `finally` pada `try/catch`
+  yang sudah ada — isi `try` dan `catch` tidak berubah. Banner hasil
+  `role={message.type === 'success' ? 'status' : 'alert'}` serta status learner
+  (PR #195), concept (PR #196), prerequisite (PR #197), dan blok **Preview**
+  knowledge state tetap. Hitungan file: `aria-busy` 4, `aria-live` 5,
+  `role="status"` 4, `role="alert"` 0, `aria-label=` 5, `aria-labelledby` 5,
+  `aria-atomic` 0, `className="sr-only"` 4, `role="` 11. Test baru
+  `tests/data-entry-knowledge-state-save-status.test.ts` (penjaga statis);
+  `tests/data-entry-message-banner.test.ts`, `tests/data-entry-tabs.test.ts`,
+  `tests/data-entry-data-lists.test.ts`,
+  `tests/data-entry-learner-save-status.test.ts`,
+  `tests/data-entry-concept-save-status.test.ts`, dan
+  `tests/data-entry-prerequisite-save-status.test.ts` hanya menyesuaikan
+  hitungan `aria-busy`/`aria-live`/`role`/`sr-only` dan menghapus penjaga "form
+  knowledge state tanpa penanda baru" (kini form itu memang membawa penanda;
+  di file prerequisite penjaga itu diganti loop positif yang memverifikasi
+  status knowledge state) tanpa melonggarkan penjaga posisi/kunci lain. Tanpa
+  cek smoke baru; penjaga baris smoke 2748 tetap. Satu entri log bertanggal di
+  `docs/ROADMAP.md`. `npm run ci` utuh hijau sebelum merge.
 
 - 2026-11-26: PR #197 — **Status proses tombol simpan form prerequisite
   `/data-entry`** — tombol submit kini membawa `disabled={savingPrerequisite}`
