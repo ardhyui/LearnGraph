@@ -184,6 +184,9 @@ function DataEntryPage() {
   // Learner save progress
   const [savingLearner, setSavingLearner] = useState(false);
 
+  // Concept save progress
+  const [savingConcept, setSavingConcept] = useState(false);
+
   // Expanded category tracking
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
 
@@ -323,7 +326,9 @@ function DataEntryPage() {
 
   const handleAddConcept = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingConcept) return;
     try {
+      setSavingConcept(true);
       await createConcept({
         conceptId: conceptForm.conceptId,
         name: conceptForm.name,
@@ -349,6 +354,8 @@ function DataEntryPage() {
       });
     } catch (err) {
       showMessage('error', err instanceof Error ? err.message : 'Failed to add concept');
+    } finally {
+      setSavingConcept(false);
     }
   };
 
@@ -1338,9 +1345,15 @@ function DataEntryPage() {
                     <button
                       type="submit"
                       className="btn w-full bg-purple-600 text-white hover:bg-purple-700 shadow-lg shadow-purple-600/20"
+                      disabled={savingConcept}
+                      aria-busy={savingConcept}
                     >
                       Add Concept
                     </button>
+
+                    <p role="status" aria-live="polite" className="sr-only">
+                      {savingConcept ? 'Adding the concept…' : ''}
+                    </p>
                   </form>
 
                   <div className="mt-6">
