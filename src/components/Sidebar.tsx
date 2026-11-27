@@ -83,9 +83,15 @@ export function Sidebar() {
   const router = useRouter();
 
   async function handleSignOut() {
-    await authClient.signOut();
-    await router.invalidate();
-    await router.navigate({ to: '/sign-in', search: {} });
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await authClient.signOut();
+      await router.invalidate();
+      await router.navigate({ to: '/sign-in', search: {} });
+    } finally {
+      setSigningOut(false);
+    }
   }
 
   // Open/closed choice for the collapsible groups (Manage data, Developer
@@ -114,6 +120,7 @@ export function Sidebar() {
   // Below the `lg` breakpoint the sidebar is an off-canvas drawer opened from
   // a compact top bar; from `lg` up it is the usual sticky column.
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
@@ -358,6 +365,8 @@ export function Sidebar() {
                 type="button"
                 onClick={handleSignOut}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                disabled={signingOut}
+                aria-busy={signingOut}
                 aria-label="Sign out"
               >
                 <LogOut className="h-3.5 w-3.5" />
@@ -365,6 +374,9 @@ export function Sidebar() {
               </button>
             </div>
           )}
+          <p role="status" aria-live="polite" className="sr-only">
+            {signingOut ? 'Signing you out…' : ''}
+          </p>
         </div>
       </aside>
     </>

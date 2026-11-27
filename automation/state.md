@@ -1,81 +1,76 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-27 (status proses tombol per-key **Revoke** panel
-**Connect an AI assistant** selesai lewat PR #207; berikutnya: status proses
-tombol **Sign out** footer sidebar `src/components/Sidebar.tsx`)
+Terakhir diperbarui: 2026-11-27 (status proses tombol **Sign out** footer
+sidebar selesai lewat PR #208; berikutnya: `type="button"` + fokus keyboard +
+ikon dekoratif pada **ThemeToggle**)
 
 ## Tugas berikutnya
 
-Poles kecil + fitur: **Status proses tombol Sign out footer sidebar** —
-`src/components/Sidebar.tsx` (sidebar dirender di layout root semua halaman:
-kolom sticky `lg` ke atas dan drawer off-canvas di bawahnya, jadi poles ini
-terlihat pelajar di setiap halaman). Handler `async function handleSignOut()`
-(baris ~85–89) berisi `await authClient.signOut();`, `await
-router.invalidate();`, `await router.navigate({ to: '/sign-in', search: {}
-});` — dipanggil tombol footer `<button type="button" onClick=
-{handleSignOut} className="flex items-center gap-1 text-xs
-text-muted-foreground hover:text-foreground" aria-label="Sign out">` dengan
-ikon `<LogOut className="h-3.5 w-3.5" />` dan label **Sign out** (baris
-~352–366), di dalam blok `{user && (<div className="mt-3 flex items-center
-justify-between gap-2">` pada footer `<div className="p-4 border-t
-border-sidebar-border">` (baris pertama footer memuat `<ThemeToggle />`).
-Tombol tidak punya `disabled`/`aria-busy` dan tidak ada pengumuman, sehingga
-selama sign-out pembaca layar tidak tahu sesi sedang ditutup dan klik ganda
-bisa memicu dua `authClient.signOut()`. Hitungan file saat ini: `aria-busy`
-0, `aria-busy=` 0, `aria-live` 0, `role="status"` 0, `role="alert"` 0,
-`aria-label=` 5 (Open menu, Close menu, Main navigation, Pages, Sign out),
-`aria-labelledby` 1 (`aria-labelledby={headingId}`), `aria-atomic` 0,
-`className="sr-only"` 0, `role="` 0. UI bahasa Inggris (D2). Tanpa
-query/RPC/migrasi/dependensi baru; jangan sentuh `src/components/michi/`.
+Poles aksesibilitas terlihat pelajar: **`type="button"`, fokus keyboard, dan
+ikon dekoratif pada `ThemeToggle`** —
+`src/components/ui/theme-toggle.tsx` (dipakai di top bar mobile dan footer
+sidebar `src/components/Sidebar.tsx` pada setiap halaman, jadi terlihat
+pelajar di semua halaman). Berkas ini punya **dua** elemen `<button>`:
 
-Tujuan: state baru `const [signingOut, setSigningOut] = useState(false);`
-sesudah `const [open, setOpen] = useState(false);`. `handleSignOut` diawali
-guard `if (signingOut) return;`, lalu `setSigningOut(true);` sebelum `try`,
-isi lama (tiga `await` di atas) utuh di dalam `try`, **tanpa `catch` baru**
-(perilaku galat lama — rejection tak tertangani — dipertahankan), dan
-`finally { setSigningOut(false); }` ditambahkan. Tombol **Sign out**
-mempertahankan `type="button"`, `onClick={handleSignOut}`, `className`
-persis, ikon `LogOut`, dan label `Sign out`, lalu membawa
-`disabled={signingOut}` dan `aria-busy={signingOut}` tepat sesudah
-`className` (sebelum `aria-label="Sign out"` yang sudah ada). **Satu**
-pengumuman baru: `<p role="status" aria-live="polite" className="sr-only">
-{signingOut ? 'Signing you out…' : ''}</p>` sebagai anak terakhir footer
-`<div className="p-4 border-t border-sidebar-border">` sesudah `)}` penutup
-blok `{user && (...)}`. Hitungan file sesudah: `aria-busy` 1, `aria-busy=`
-1, `aria-live` 1, `role="status"` 1, `role="alert"` 0, `aria-label=` 5,
-`aria-labelledby` 1, `aria-atomic` 0, `className="sr-only"` 1, `role="` 1.
+- tombol placeholder pra-mount (dikembalikan saat `!mounted`, baris ~17–25):
+  `<button className={cn('relative h-9 w-9 rounded-full bg-white/10
+  backdrop-blur-sm border border-white/20', 'flex items-center justify-center
+  transition-all duration-300', className)}>` dengan satu ikon `<Sun
+  className="h-4 w-4 text-foreground/50" />`;
+- tombol asli (baris ~27–58): `<button onClick={() => setTheme(theme === 'dark'
+  ? 'light' : 'dark')} className={cn('relative h-9 w-9 rounded-full
+  backdrop-blur-sm border', 'flex items-center justify-center transition-all
+  duration-300', 'hover:scale-110 active:scale-95', <tiga baris warna
+  kondisional>, className)} aria-label="Toggle theme">` dengan dua ikon
+  `<Sun .../>` dan `<Moon .../>` ber-`style={{ position: 'absolute' }}`.
+
+Keduanya tanpa `type="button"` (bukan pola repo; tombol bisa ikut submit bila
+kelak dipasang di dalam form), tanpa gaya fokus keyboard — `src/styles.css`
+tidak punya aturan `:focus-visible` global, dan tombol menu/drawer sidebar
+memakai `focus-visible:outline-2 focus-visible:outline-primary` — sehingga
+pengguna keyboard tidak melihat fokus pada tombol tema, dan ketiga ikon tidak
+`aria-hidden` padahal tombol sudah punya `aria-label` (pembaca layar bisa
+mengumumkan ikon dekoratif). Hitungan file saat ini: `type="button"` 0,
+`aria-label=` 1 (`Toggle theme`), `aria-hidden` 0, `focus-visible` 0,
+`<button` 2, `className={cn(` 2, `useState` 1 (`mounted`), `aria-busy` 0,
+`aria-live` 0, `role=` 0, `className="sr-only"` 0. UI bahasa Inggris (D2).
+Tanpa query/RPC/migrasi/dependensi baru; jangan sentuh `src/components/michi/`
+dan jangan mengubah perilaku tema (`useTheme`, `setTheme`, guard `mounted`).
+
+Tujuan: pada **kedua** tombol, tambahkan `type="button"` sebagai atribut
+pertama sesudah `<button`, dan tambahkan `'focus-visible:outline-2
+focus-visible:outline-primary'` sebagai baris kelas **terakhir sebelum**
+`className` di dalam `cn(...)` (jangan menghapus/merangkai ulang baris kelas
+yang ada; `className` prop tetap diteruskan terakhir agar konsumen bisa
+menimpa). Pada tombol asli, `onClick` dan `aria-label="Toggle theme"` tetap;
+urutan atribut menjadi `type`, `onClick` (hanya tombol asli), `className`,
+`aria-label` (hanya tombol asli). Ketiga ikon dekoratif (satu `Sun`
+placeholder, `Sun` + `Moon` asli) mendapat `aria-hidden="true"` tanpa
+mengubah kelas/`style`/animasi. Hitungan file sesudah: `type="button"` 2,
+`aria-label=` 1, `aria-hidden` 3, `focus-visible` 4 (dua per baris kelas, dua
+tombol), `<button` 2,
+`className="sr-only"` 0, `aria-busy` 0, `aria-live` 0, `role=` 0.
 
 Rancangan:
 
-1. **State + handler** — `signingOut` sesudah `open`; guard baris pertama
-   `handleSignOut`, `setSigningOut(true)` sebelum `try`, isi tiga `await`
-   lama utuh dalam `try`, tanpa `catch`, `finally` membersihkan.
-2. **Tombol** — `type`, handler, `className`, ikon, label utuh, lalu
-   `disabled={signingOut}` dan `aria-busy={signingOut}` sesuai urutan,
-   `aria-label="Sign out"` tetap setelahnya.
-3. **Status** — satu `<p role="status" aria-live="polite" className=
-   "sr-only">` berteks `Signing you out…`/kosong sebagai anak terakhir
-   footer sesudah blok `{user && (...)}`.
-4. **Test** — tambahkan `tests/sidebar-sign-out-status.test.ts` (penjaga
-   statis, pola `tests/api-access-revoke-status.test.ts`): tombol Sign out
-   dengan atribut berurutan (type → onClick → className → disabled →
-   aria-busy → aria-label) dan ikon/label utuh, satu status baru berteks
-   `Signing you out…`/kosong sebagai anak terakhir footer, state
-   `signingOut` sesudah `open`, guard + penanda + `finally` membersihkan,
-   isi tiga `await` lama utuh dan tanpa `catch` baru, hitungan file
-   (`aria-busy` 1/`aria-live` 1/`role="status"` 1/`role="alert"` 0/
-   `aria-label=` 5/`aria-labelledby` 1/`aria-atomic` 0/
-   `className="sr-only"` 1/`role="` 1), serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru.
-   `tests/navigation-direct.test.ts` hanya mengunci impor modul navigasi
-   (`NAV_SECTIONS`, `NAV_STORAGE_KEY`, dll.) — tidak perlu diubah; jangan
-   melonggarkannya.
-5. **Smoke** — tidak ada cek baru; smoke sudah mengklik **Sign out**
-   (`scripts/smoke.mjs` baris 717 dan 2695–2704, loop retry di sana
-   menangkap klik gagal; tombol hanya `disabled` sesaat selama sign-out
-   berjalan, klik saat idle tetap berhasil). Jangan mengubah penjaga baris
-   smoke 2748 dan alur sign-out/sign-in smoke.
-6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+1. **Placeholder** — `type="button"` + baris kelas fokus + `aria-hidden="true"`
+   pada `Sun`; kelas/struktur lain utuh.
+2. **Tombol asli** — `type="button"` + baris kelas fokus + `aria-hidden="true"`
+   pada `Sun` dan `Moon`; `onClick`, `aria-label`, kelas warna kondisional,
+   `hover:scale-110 active:scale-95`, dan `style` ikon utuh.
+3. **Test** — tambahkan `tests/theme-toggle-button.test.ts` (penjaga statis,
+   pola `tests/sidebar-sign-out-status.test.ts`): kedua `<button>` membawa
+   `type="button"`; dua blok `cn(...)` memuat baris
+   `'focus-visible:outline-2 focus-visible:outline-primary'` tepat sebelum
+   `className`; tombol asli mempertahankan `onClick={() => setTheme(theme ===
+   'dark' ? 'light' : 'dark')}` dan `aria-label="Toggle theme"`; ketiga ikon
+   `aria-hidden="true"`; guard `mounted`/`if (!mounted)`/`React.useEffect` dan
+   kelas persis utuh; hitungan file seperti di atas; tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Tidak ada test
+   lama yang menyentuh berkas ini, jadi jangan mengubah test lain.
+4. **Smoke** — tidak ada cek baru; smoke tidak mengklik tombol tema dan
+   penjaga baris smoke 2748 tetap.
+5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`); commit
@@ -118,14 +113,19 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    halaman admin Knowledge States (PR #205), tombol per-baris **Delete**
    halaman admin Prerequisites (PR #206), dan tombol per-key **Revoke**
    panel **Connect an AI assistant** `src/components/ApiAccess.tsx`
-   (PR #207) selesai: tombol **Sign out** footer sidebar
-   `src/components/Sidebar.tsx` (lihat Tugas berikutnya), lalu audit
-   surface pelajar/admin lain yang belum punya penanda. Tombol **Try
-   again** `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183
-   dan dikunci `tests/study-today-refresh-status.test.ts`; satu-satunya
-   file `<button>` async lain tanpa `aria-busy` hanya
-   `src/components/michi/SkillEvidence.tsx` (kontrak Michi — jangan
-   disentuh). Baris "Lanjutan:"
+   (PR #207), serta tombol **Sign out** footer sidebar
+   `src/components/Sidebar.tsx` (PR #208) selesai. Audit 2026-11-27: berkas
+   ber-`<button>` yang belum punya `aria-busy` tinggal `ErrorPages.tsx`
+   (tombol **Try again** boundary galat), `GraphDetailPanel.tsx` (tombol
+   tutup), `theme-toggle.tsx`, dan `edu-psychology.tsx` (tombol akordeon) —
+   semuanya tombol sinkron/UI, bukan operasi async; jangan menambah
+   `aria-busy` palsu. Kandidat berikutnya: poles fokus keyboard +
+   `type="button"`/`aria-hidden` pada **ThemeToggle** (lihat Tugas berikutnya),
+   lalu poles fokus keyboard navigasi sidebar, dan audit surface
+   pelajar/admin lain yang belum punya penanda. Tombol **Try again**
+   `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183 dan dikunci
+   `tests/study-today-refresh-status.test.ts`; `src/components/michi/`
+   adalah kontrak Michi — jangan disentuh. Baris "Lanjutan:"
    yang belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka,
    atau migrasi data — jangan dipilih tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
@@ -174,15 +174,37 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    **Delete** halaman admin Lesson Content (PR #202), Concepts (PR #203),
    Learners (PR #204), Knowledge States (PR #205), Prerequisites (PR #206),
    dan tombol per-key **Revoke** panel **Connect an AI assistant**
-   `src/components/ApiAccess.tsx` (PR #207). Kandidat berikutnya: tombol
-   **Sign out** footer sidebar `src/components/Sidebar.tsx` (lihat Tugas
-   berikutnya), kemudian audit surface pelajar/admin lain yang belum punya
-   penanda.
+   `src/components/ApiAccess.tsx` (PR #207), serta tombol **Sign out** footer
+   sidebar `src/components/Sidebar.tsx` (PR #208). Kandidat berikutnya:
+   **ThemeToggle** `src/components/ui/theme-toggle.tsx` (lihat Tugas
+   berikutnya), kemudian poles fokus keyboard navigasi sidebar.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-27: PR #208 — **Status proses tombol Sign out footer sidebar** —
+  tombol **Sign out** `src/components/Sidebar.tsx` kini membawa
+  `disabled={signingOut}` dan `aria-busy={signingOut}` tepat sesudah
+  `className` (`type="button"`, `onClick={handleSignOut}`, kelas persis, ikon
+  `LogOut` dan label `Sign out` utuh, `aria-label="Sign out"` tetap setelahnya);
+  state baru `signingOut` sesudah `open`, `handleSignOut` diawali guard
+  `if (signingOut) return;` lalu `setSigningOut(true);` sebelum `try`, ketiga
+  `await` lama (`authClient.signOut`, `router.invalidate`,
+  `router.navigate({ to: '/sign-in', search: {} })`) utuh di dalam `try`,
+  **tanpa `catch` baru** (rejection tak tertangani dipertahankan), dan
+  `finally { setSigningOut(false); }` membersihkan. Satu pengumuman baru
+  `<p role="status" aria-live="polite" className="sr-only">{signingOut ?
+  'Signing you out…' : ''}</p>` sebagai anak terakhir footer sesudah `)}`
+  penutup blok `{user && (...)}`. Hitungan file: `aria-busy` 1, `aria-busy=`
+  1, `aria-live` 1, `role="status"` 1, `role="alert"` 0, `aria-label=` 5,
+  `aria-labelledby` 1, `aria-atomic` 0, `className="sr-only"` 1, `role="` 1.
+  Test baru `tests/sidebar-sign-out-status.test.ts` (penjaga statis);
+  `tests/navigation-direct.test.ts` tidak diubah. Tanpa cek smoke baru; smoke
+  lama tetap mengklik **Sign out** lalu menunggu `/sign-in`, penjaga baris
+  smoke 2748 tetap. Satu entri log bertanggal di `docs/ROADMAP.md`.
+  `npm run ci` utuh hijau sebelum merge (`TMPDIR=/tmp/opencode`).
 
 - 2026-11-27: PR #207 — **Status proses tombol per-key Revoke panel "Connect
   an AI assistant"** — tombol **Revoke** per kunci kini membawa
