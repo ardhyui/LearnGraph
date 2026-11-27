@@ -1,79 +1,80 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-27 (status proses tombol per-baris **Delete**
-halaman admin Prerequisites selesai lewat PR #206; berikutnya: status proses
-tombol per-key **Revoke** panel **Connect an AI assistant**
-`src/components/ApiAccess.tsx`)
+Terakhir diperbarui: 2026-11-27 (status proses tombol per-key **Revoke** panel
+**Connect an AI assistant** selesai lewat PR #207; berikutnya: status proses
+tombol **Sign out** footer sidebar `src/components/Sidebar.tsx`)
 
 ## Tugas berikutnya
 
-Poles kecil + fitur: **Status proses tombol per-key Revoke panel "Connect an
-AI assistant"** — `src/components/ApiAccess.tsx` (panel di `/profile`, kartu
-`<section aria-labelledby={ids.heading} className="mt-10 rounded-xl border
-border-border p-4 sm:p-6" data-testid="api-access">`; daftar kunci `<ul
-className="mt-4 space-y-2 text-sm" aria-label="Your API keys">`, tombol
-**Revoke** sekitar baris 164–170). Tombol per-kunci:
-`<button type="button" onClick={() => void revoke(k)}
-className="rounded-lg px-2 py-1 text-sm font-medium text-red-700
-hover:bg-red-500/10 dark:text-red-400">Revoke<span className="sr-only">
-{k.name}</span></button>` — memanggil `revoke` (async) tanpa
-`disabled`/`aria-busy` dan tanpa pengumuman, sehingga selama pencabutan
-pembaca layar tidak tahu kunci sedang dicabut dan klik ganda bisa memicu dua
-`revokeMyApiKey`. Tombol **Create a read-only key** sudah membawa
-`aria-busy={busy}` + status **Creating your key…** (PR #166); tombol **Copy**
-dan blok kunci baru tidak boleh berubah. Hitungan file saat ini: `aria-busy` 1,
-`aria-busy=` 1, `aria-live` 1, `role="status"` 1, `role="alert"` 1,
-`aria-label=` 1, `aria-labelledby` 1, `aria-atomic` 0,
-`className="sr-only"` 2 (baris status create + nama kunci di tombol Revoke),
-`role="` 2. UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil + fitur: **Status proses tombol Sign out footer sidebar** —
+`src/components/Sidebar.tsx` (sidebar dirender di layout root semua halaman:
+kolom sticky `lg` ke atas dan drawer off-canvas di bawahnya, jadi poles ini
+terlihat pelajar di setiap halaman). Handler `async function handleSignOut()`
+(baris ~85–89) berisi `await authClient.signOut();`, `await
+router.invalidate();`, `await router.navigate({ to: '/sign-in', search: {}
+});` — dipanggil tombol footer `<button type="button" onClick=
+{handleSignOut} className="flex items-center gap-1 text-xs
+text-muted-foreground hover:text-foreground" aria-label="Sign out">` dengan
+ikon `<LogOut className="h-3.5 w-3.5" />` dan label **Sign out** (baris
+~352–366), di dalam blok `{user && (<div className="mt-3 flex items-center
+justify-between gap-2">` pada footer `<div className="p-4 border-t
+border-sidebar-border">` (baris pertama footer memuat `<ThemeToggle />`).
+Tombol tidak punya `disabled`/`aria-busy` dan tidak ada pengumuman, sehingga
+selama sign-out pembaca layar tidak tahu sesi sedang ditutup dan klik ganda
+bisa memicu dua `authClient.signOut()`. Hitungan file saat ini: `aria-busy`
+0, `aria-busy=` 0, `aria-live` 0, `role="status"` 0, `role="alert"` 0,
+`aria-label=` 5 (Open menu, Close menu, Main navigation, Pages, Sign out),
+`aria-labelledby` 1 (`aria-labelledby={headingId}`), `aria-atomic` 0,
+`className="sr-only"` 0, `role="` 0. UI bahasa Inggris (D2). Tanpa
+query/RPC/migrasi/dependensi baru; jangan sentuh `src/components/michi/`.
 
-Tujuan: state baru `const [revoking, setRevoking] = useState<string | null>
-(null);` sesudah `const [busy, setBusy] = useState(false);`. `revoke` diawali
-guard `if (revoking) return;` sebelum `window.confirm(...)`, `setRevoking(key.id)`
-disetel sesudah `setError(null);` dan sebelum `try`, dan `finally {
-setRevoking(null); }` ditambahkan pada `try/catch` yang sudah ada — isi `try`
-(`await revokeMyApiKey({ data: { id: key.id } });`, `await load();`), `catch`
-(`Could not revoke the key.`), dan pemanggilan `confirm` tidak berubah. Tombol
-**Revoke** mempertahankan `type="button"`, `onClick={() => void revoke(k)}`,
-`className` persis, dan label `Revoke<span className="sr-only"> {k.name}</span>`,
-lalu membawa `disabled={revoking !== null}` dan `aria-busy={revoking === k.id}`
-tepat sesudah `className`. **Satu** pengumuman baru: `<p role="status"
-aria-live="polite" className="sr-only">{revoking ? 'Revoking the key…' : ''}</p>`
-sebagai anak terakhir `<section>` sesudah `)}` penutup kondisi daftar kunci
-(jangan di dalam `<ul>`; paragraf tidak sah di sana). Hitungan file sesudah:
-`aria-busy` 2, `aria-busy=` 2, `aria-live` 2, `role="status"` 2,
-`role="alert"` 1, `aria-label=` 1, `aria-labelledby` 1, `aria-atomic` 0,
-`className="sr-only"` 3, `role="` 3.
+Tujuan: state baru `const [signingOut, setSigningOut] = useState(false);`
+sesudah `const [open, setOpen] = useState(false);`. `handleSignOut` diawali
+guard `if (signingOut) return;`, lalu `setSigningOut(true);` sebelum `try`,
+isi lama (tiga `await` di atas) utuh di dalam `try`, **tanpa `catch` baru**
+(perilaku galat lama — rejection tak tertangani — dipertahankan), dan
+`finally { setSigningOut(false); }` ditambahkan. Tombol **Sign out**
+mempertahankan `type="button"`, `onClick={handleSignOut}`, `className`
+persis, ikon `LogOut`, dan label `Sign out`, lalu membawa
+`disabled={signingOut}` dan `aria-busy={signingOut}` tepat sesudah
+`className` (sebelum `aria-label="Sign out"` yang sudah ada). **Satu**
+pengumuman baru: `<p role="status" aria-live="polite" className="sr-only">
+{signingOut ? 'Signing you out…' : ''}</p>` sebagai anak terakhir footer
+`<div className="p-4 border-t border-sidebar-border">` sesudah `)}` penutup
+blok `{user && (...)}`. Hitungan file sesudah: `aria-busy` 1, `aria-busy=`
+1, `aria-live` 1, `role="status"` 1, `role="alert"` 0, `aria-label=` 5,
+`aria-labelledby` 1, `aria-atomic` 0, `className="sr-only"` 1, `role="` 1.
 
 Rancangan:
 
-1. **State + handler** — `revoking` sesudah `busy`; guard baris pertama
-   `revoke`, `setRevoking(key.id)` sesudah `setError(null)` dan sebelum `try`,
-   `finally` membersihkan; isi lama utuh.
-2. **Tombol** — per-kunci **Revoke**: `type`, handler, `className`, label +
-   nama tersembunyi utuh, lalu `disabled={revoking !== null}` dan
-   `aria-busy={revoking === k.id}` sesuai urutan.
-3. **Status** — satu `<p role="status" aria-live="polite"
-   className="sr-only">` berteks `Revoking the key…`/kosong sebagai anak
-   terakhir `<section>` (di luar `<ul>`).
-4. **Test** — tambahkan `tests/api-access-revoke-status.test.ts` (penjaga
-   statis, pola `tests/knowledge-state-delete-status.test.ts`): tombol Revoke
-   dengan atribut berurutan dan label/nama tersembunyi utuh, satu status baru
-   berteks `Revoking the key…`/kosong dan berada di luar `<ul>` sebagai anak
-   terakhir section, state `revoking` sesudah `busy`, guard + penanda sesudah
-   `setError(null)` + `finally` membersihkan, isi `try`/`catch` lama utuh,
-   tombol **Create a read-only key** + status **Creating your key…** serta
-   tombol **Copy** tetap, hitungan file `aria-busy` 2/`aria-live` 2/
-   `role="status"` 2/`role="alert"` 1/`aria-label=` 1/`aria-labelledby` 1/
-   `aria-atomic` 0/`className="sr-only"` 3/`role="` 3, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Sesuaikan test lama
-   (`tests/api-access-create-status.test.ts`) hanya untuk hitungan
-   `aria-busy=` 1→2 dan mempersempit penjaga "Copy dan Revoke tanpa
-   aria-busy" menjadi **Copy** saja, tanpa melonggarkan penjaga
-   posisi/kunci.
-5. **Smoke** — tidak ada cek baru (mencabut butuh membuat kunci dan dialog
-   `window.confirm`); smoke sudah memeriksa kunci yang dicabut berhenti
-   bekerja. Jangan mengubah penjaga baris smoke 2748.
+1. **State + handler** — `signingOut` sesudah `open`; guard baris pertama
+   `handleSignOut`, `setSigningOut(true)` sebelum `try`, isi tiga `await`
+   lama utuh dalam `try`, tanpa `catch`, `finally` membersihkan.
+2. **Tombol** — `type`, handler, `className`, ikon, label utuh, lalu
+   `disabled={signingOut}` dan `aria-busy={signingOut}` sesuai urutan,
+   `aria-label="Sign out"` tetap setelahnya.
+3. **Status** — satu `<p role="status" aria-live="polite" className=
+   "sr-only">` berteks `Signing you out…`/kosong sebagai anak terakhir
+   footer sesudah blok `{user && (...)}`.
+4. **Test** — tambahkan `tests/sidebar-sign-out-status.test.ts` (penjaga
+   statis, pola `tests/api-access-revoke-status.test.ts`): tombol Sign out
+   dengan atribut berurutan (type → onClick → className → disabled →
+   aria-busy → aria-label) dan ikon/label utuh, satu status baru berteks
+   `Signing you out…`/kosong sebagai anak terakhir footer, state
+   `signingOut` sesudah `open`, guard + penanda + `finally` membersihkan,
+   isi tiga `await` lama utuh dan tanpa `catch` baru, hitungan file
+   (`aria-busy` 1/`aria-live` 1/`role="status"` 1/`role="alert"` 0/
+   `aria-label=` 5/`aria-labelledby` 1/`aria-atomic` 0/
+   `className="sr-only"` 1/`role="` 1), serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru.
+   `tests/navigation-direct.test.ts` hanya mengunci impor modul navigasi
+   (`NAV_SECTIONS`, `NAV_STORAGE_KEY`, dll.) — tidak perlu diubah; jangan
+   melonggarkannya.
+5. **Smoke** — tidak ada cek baru; smoke sudah mengklik **Sign out**
+   (`scripts/smoke.mjs` baris 717 dan 2695–2704, loop retry di sana
+   menangkap klik gagal; tombol hanya `disabled` sesaat selama sign-out
+   berjalan, klik saat idle tetap berhasil). Jangan mengubah penjaga baris
+   smoke 2748 dan alur sign-out/sign-in smoke.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -88,6 +89,15 @@ bahasa Indonesia `feat:`.
   `TMPDIR=/home` gagal di tahap tests karena alasan ini, bukan kode.
 - Smoke memilih port bebas; `CI_PORT`/`CI_PREVIEW_PORT` eksplisit membantu bila
   port default dipakai proses lain.
+- Bila tahap tests CI gagal dengan `errno: -122`/`errno: 28` (EDQUOT/ENOSPC)
+  saat menulis DB sementara atau `copyfile` ke `os.tmpdir()`, itu tmpfs `/tmp`
+  yang penuh oleh sisa sesi-sesi sebelumnya — bukan kode. Percobaan 2026-11-27:
+  `/tmp/opencode/node-compile-cache` (1,9G) + 158 direktori `learngraph-*`
+  (242M) + log `ci-*.log` lama memenuhi tmpfs 4,9G; membersihkannya
+  (`rm -rf /tmp/opencode/node-compile-cache /tmp/opencode/learngraph-*
+  /tmp/opencode/ci-*.log`) membebaskan ~2,2G dan CI berikutnya hijau utuh.
+  `/tmp/node-compile-cache` (default, ~1,8G) dibiarkan karena bisa dipakai
+  proses lain.
 
 ## Kandidat fitur (untuk siklus-siklus berikutnya, pilih satu per sesi)
 
@@ -105,13 +115,17 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    halaman admin Lesson Content (PR #202), tombol per-baris **Delete**
    halaman admin Concepts (PR #203), tombol per-baris **Delete**
    halaman admin Learners (PR #204), tombol per-baris **Delete**
-   halaman admin Knowledge States (PR #205), dan tombol per-baris **Delete**
-   halaman admin Prerequisites (PR #206) selesai: tombol per-key **Revoke**
-   panel **Connect an AI assistant** `src/components/ApiAccess.tsx` (lihat
-   Tugas berikutnya), lalu audit surface pelajar/admin lain yang belum punya
-   penanda (mis. tombol per-baris **Delete** di halaman admin lain; tombol
-   **Try again** `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183
-   dan dikunci `tests/study-today-refresh-status.test.ts`). Baris "Lanjutan:"
+   halaman admin Knowledge States (PR #205), tombol per-baris **Delete**
+   halaman admin Prerequisites (PR #206), dan tombol per-key **Revoke**
+   panel **Connect an AI assistant** `src/components/ApiAccess.tsx`
+   (PR #207) selesai: tombol **Sign out** footer sidebar
+   `src/components/Sidebar.tsx` (lihat Tugas berikutnya), lalu audit
+   surface pelajar/admin lain yang belum punya penanda. Tombol **Try
+   again** `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183
+   dan dikunci `tests/study-today-refresh-status.test.ts`; satu-satunya
+   file `<button>` async lain tanpa `aria-busy` hanya
+   `src/components/michi/SkillEvidence.tsx` (kontrak Michi — jangan
+   disentuh). Baris "Lanjutan:"
    yang belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka,
    atau migrasi data — jangan dipilih tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
@@ -158,15 +172,48 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `src/components/LearningOverview.tsx` (PR #200), dan tombol per-baris
    **Delete** halaman admin Quiz Questions (PR #201), serta tombol per-baris
    **Delete** halaman admin Lesson Content (PR #202), Concepts (PR #203),
-   Learners (PR #204), Knowledge States (PR #205), dan Prerequisites (PR #206).
-   Kandidat berikutnya: tombol per-key **Revoke** panel **Connect an AI
-   assistant** `src/components/ApiAccess.tsx` (lihat Tugas berikutnya), kemudian
-   audit surface pelajar/admin lain yang belum punya penanda.
+   Learners (PR #204), Knowledge States (PR #205), Prerequisites (PR #206),
+   dan tombol per-key **Revoke** panel **Connect an AI assistant**
+   `src/components/ApiAccess.tsx` (PR #207). Kandidat berikutnya: tombol
+   **Sign out** footer sidebar `src/components/Sidebar.tsx` (lihat Tugas
+   berikutnya), kemudian audit surface pelajar/admin lain yang belum punya
+   penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-27: PR #207 — **Status proses tombol per-key Revoke panel "Connect
+  an AI assistant"** — tombol **Revoke** per kunci kini membawa
+  `disabled={revoking !== null}` dan `aria-busy={revoking === k.id}` tepat
+  sesudah `className` (`type="button"`, `onClick={() => void revoke(k)}`,
+  kelas persis, dan label `Revoke<span className="sr-only"> {k.name}</span>`
+  utuh); state baru `revoking` sesudah `busy`, `revoke` diawali guard
+  `if (revoking) return;` sebelum `window.confirm(...)`, `setRevoking(key.id)`
+  disetel sesudah `setError(null)` dan sebelum `try`, serta `finally {
+  setRevoking(null); }` membersihkan — isi `try` (`revokeMyApiKey`,
+  `load()`)/`catch` (`Could not revoke the key.`) lama utuh. Satu pengumuman
+  baru `<p role="status" aria-live="polite" className="sr-only">{revoking ?
+  'Revoking the key…' : ''}</p>` sebagai anak terakhir `<section>` sesudah
+  `)}` penutup kondisi daftar kunci, di luar `<ul>` agar paragraf tetap sah.
+  Tombol **Create a read-only key** + status **Creating your key…** (PR #166)
+  serta tombol **Copy** dan blok kunci baru tetap. Hitungan file: `aria-busy`
+  2, `aria-busy=` 2, `aria-live` 2, `role="status"` 2, `role="alert"` 1,
+  `aria-label=` 1, `aria-labelledby` 1, `aria-atomic` 0,
+  `className="sr-only"` 3, `role="` 3. Test baru
+  `tests/api-access-revoke-status.test.ts` (penjaga statis);
+  `tests/api-access-create-status.test.ts` hanya menyesuaikan hitungan
+  (`aria-busy=` 1→2) dan mempersempit penjaga "Copy dan Revoke tanpa
+  aria-busy" menjadi **Copy** saja, tanpa melonggarkan penjaga posisi/kunci.
+  Tanpa cek smoke baru; penjaga baris smoke 2748 tetap, dan smoke lama tetap
+  mengklik **Revoke** lalu memeriksa kunci yang dicabut berhenti bekerja
+  (`api: a revoked key stops working at once`). Satu entri log bertanggal di
+  `docs/ROADMAP.md`. Catatan lingkungan: percobaan CI pertama gagal di tahap
+  tests karena tmpfs `/tmp` penuh sisa sesi lama (node-compile-cache 1,9G +
+  158 direktori `learngraph-*` 242M; `errno -122/-28`, bukan kode) —
+  dibersihkan lalu `npm run ci` utuh hijau sebelum merge
+  (`TMPDIR=/tmp/opencode`).
 
 - 2026-11-27: PR #206 — **Status proses tombol per-baris Delete halaman admin
   Prerequisites** — tombol **Delete** per baris kini membawa
