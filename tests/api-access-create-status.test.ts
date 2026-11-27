@@ -59,7 +59,7 @@ describe('ApiAccess: the submit button announces it is busy', () => {
       CREATE.indexOf('disabled={busy}') < CREATE.indexOf('aria-busy={busy}'),
       'aria-busy sits right after disabled',
     );
-    assert.equal(count(account, /aria-busy=/g), 1, 'one aria-busy in the component');
+    assert.equal(count(account, /aria-busy=/g), 2, 'two aria-busy attributes: submit and per-key Revoke');
   });
 
   it('keeps the submit classes, label and spinner untouched', () => {
@@ -139,10 +139,10 @@ describe('ApiAccess: the error line and the untouched surroundings', () => {
   });
 });
 
-describe('ApiAccess: no aria-busy on the other buttons and no replaced name', () => {
-  it('leaves the Copy and Revoke buttons without aria-busy', () => {
-    assert.equal(count(account, /aria-busy=/g), 1, 'only the submit button carries aria-busy');
-    for (const handler of ['onClick={() => void copy()}', 'onClick={() => void revoke(k)}']) {
+describe('ApiAccess: no aria-busy on the Copy button and no replaced name', () => {
+  it('leaves the Copy button without aria-busy', () => {
+    assert.equal(count(account, /aria-busy=/g), 2, 'the submit button and the per-key Revoke carry aria-busy');
+    for (const handler of ['onClick={() => void copy()}']) {
       const handlerIdx = account.indexOf(handler);
       assert.ok(handlerIdx > 0, `${handler} stays`);
       const open = account.lastIndexOf('<button', handlerIdx);

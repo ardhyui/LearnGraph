@@ -16,6 +16,7 @@ export function ApiAccess() {
   const [secret, setSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ids = { heading: useId(), name: useId(), secret: useId() };
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
@@ -52,13 +53,17 @@ export function ApiAccess() {
   };
 
   const revoke = async (key: KeyInfo) => {
+    if (revoking) return;
     if (!window.confirm(`Revoke “${key.name}”? Anything using it stops working.`)) return;
     setError(null);
+    setRevoking(key.id);
     try {
       await revokeMyApiKey({ data: { id: key.id } });
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not revoke the key.');
+    } finally {
+      setRevoking(null);
     }
   };
 
@@ -165,6 +170,8 @@ export function ApiAccess() {
                 type="button"
                 onClick={() => void revoke(k)}
                 className="rounded-lg px-2 py-1 text-sm font-medium text-red-700 hover:bg-red-500/10 dark:text-red-400"
+                disabled={revoking !== null}
+                aria-busy={revoking === k.id}
               >
                 Revoke<span className="sr-only"> {k.name}</span>
               </button>
@@ -172,6 +179,9 @@ export function ApiAccess() {
           ))}
         </ul>
       )}
+      <p role="status" aria-live="polite" className="sr-only">
+        {revoking ? 'Revoking the key…' : ''}
+      </p>
     </section>
   );
 }
