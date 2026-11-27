@@ -55,6 +55,7 @@ function ConceptsPage() {
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [filterDomain, setFilterDomain] = useState('');
 
   // Filter concepts by domain
@@ -101,7 +102,9 @@ function ConceptsPage() {
   }
 
   async function handleDelete(conceptId: string, button?: HTMLElement) {
+    if (deleting) return;
     if (!confirm('Are you sure you want to delete this concept?')) return;
+    setDeleting(conceptId);
     const focus = rememberRowFocus(button);
 
     try {
@@ -109,6 +112,8 @@ function ConceptsPage() {
       restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -535,6 +540,8 @@ function ConceptsPage() {
                       <button
                         onClick={(e) => handleDelete(concept.conceptId, e.currentTarget)}
                         className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                        disabled={deleting !== null}
+                        aria-busy={deleting === concept.conceptId}
                         title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -543,6 +550,7 @@ function ConceptsPage() {
                   </div>
                 </motion.div>
               ))}
+              <p role="status" aria-live="polite" className="sr-only">{deleting ? 'Deleting the concept…' : ''}</p>
             </motion.div>
           )}
         </div>
