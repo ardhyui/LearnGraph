@@ -75,7 +75,7 @@ export function GraphDetailPanel({
               type="button"
               onClick={onClose}
               aria-label="Close details"
-              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
             >
               <X size={18} aria-hidden="true" />
             </button>
