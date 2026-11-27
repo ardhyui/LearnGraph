@@ -188,7 +188,7 @@ export function Sidebar() {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <Link to="/" activeOptions={{ exact: true }} className="flex min-w-0 items-center gap-2">
+        <Link to="/" activeOptions={{ exact: true }} className="flex min-w-0 items-center gap-2 focus-visible:outline-2 focus-visible:outline-primary">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
             <Brain className="h-4 w-4 text-white" />
           </span>
@@ -312,7 +312,8 @@ export function Sidebar() {
                             'group flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200',
                             isActive
                               ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
-                              : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                              : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+                            'focus-visible:outline-2 focus-visible:outline-primary'
                           )}
                         >
                           <motion.div
