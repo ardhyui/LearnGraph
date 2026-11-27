@@ -1,8 +1,8 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
 Terakhir diperbarui: 2026-11-27 (status proses tombol per-baris **Delete**
-halaman admin Concepts selesai lewat PR #203; berikutnya: tombol per-baris
-**Delete** halaman admin Learners `src/routes/admin/learners.tsx`)
+halaman admin Learners selesai lewat PR #204; berikutnya: tombol per-baris
+**Delete** halaman admin Knowledge States `src/routes/admin/states.tsx`)
 
 ## Tugas berikutnya
 
@@ -105,9 +105,10 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    **Approve/Discard** `AiQuestionDrafts.tsx` (PR #199), tombol **Try
    again** `LearningOverview.tsx` (PR #200), tombol per-baris **Delete**
    halaman admin Quiz Questions (PR #201), dan tombol per-baris **Delete**
-   halaman admin Lesson Content (PR #202), dan tombol per-baris **Delete**
-   halaman admin Concepts (PR #203) selesai: tombol per-baris **Delete**
-   halaman admin Learners (lihat Tugas berikutnya), lalu audit surface
+   halaman admin Lesson Content (PR #202), tombol per-baris **Delete**
+   halaman admin Concepts (PR #203), dan tombol per-baris **Delete**
+   halaman admin Learners (PR #204) selesai: tombol per-baris **Delete**
+   halaman admin Knowledge States (lihat Tugas berikutnya), lalu audit surface
    pelajar/admin lain yang belum punya penanda (mis. tombol per-baris
    **Delete** di halaman admin lain; tombol **Try again** `StudyToday.tsx`
    sengaja dibiarkan tanpa penanda oleh PR #183 dan dikunci
@@ -157,15 +158,40 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `src/components/AiQuestionDrafts.tsx` (PR #199), tombol **Try again**
    `src/components/LearningOverview.tsx` (PR #200), dan tombol per-baris
    **Delete** halaman admin Quiz Questions (PR #201), serta tombol per-baris
-   **Delete** halaman admin Lesson Content (PR #202) dan Concepts (PR #203).
-   Kandidat berikutnya: tombol per-baris **Delete** halaman admin Learners
-   (lihat Tugas berikutnya), lalu audit surface pelajar/admin lain yang
-   belum punya penanda.
+   **Delete** halaman admin Lesson Content (PR #202), Concepts (PR #203), dan
+   Learners (PR #204). Kandidat berikutnya: tombol per-baris **Delete** halaman
+   admin Knowledge States (lihat Tugas berikutnya), lalu tombol per-baris
+   **Delete** halaman admin Prerequisites, kemudian audit surface pelajar/admin
+   lain yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-27: PR #204 — **Status proses tombol per-baris Delete halaman
+  admin Learners** — tombol **Delete** per baris kini membawa
+  `disabled={deleting !== null}` dan `aria-busy={deleting === learner.userId}`
+  tepat sesudah `className` (handler/`title`/kelas/ikon `Trash2` utuh); state
+  baru `deleting` sesudah `importNotice`, `handleDelete` diawali guard
+  `if (deleting) return;` sebelum `confirm`, `setDeleting(userId)` sesudah
+  `confirm` dan sebelum `rememberRowFocus`, serta `finally { setDeleting(null); }`
+  membersihkan — isi `try` (`deleteLearner`, `restoreRowFocus`)/`catch`
+  (`An error occurred`) lama utuh. Satu pengumuman baru `<p role="status"
+  aria-live="polite" className="sr-only">{deleting ? 'Deleting the learner…' :
+  ''}</p>` sebagai anak terakhir kartu tabel (di luar `<table>`). Tombol **Edit**
+  per baris tetap tanpa penanda; label **Import from a file** + status
+  **Importing the learner file…** + notice `import-notice` (PR #190) tetap.
+  Hitungan file: `aria-busy` 2, `aria-busy=` 2, `aria-live` 3, `role="status"`
+  3, `role="alert"` 0, `aria-label=` 0, `aria-labelledby` 0, `aria-atomic` 0,
+  `className="sr-only"` 3, `role="` 18 (semantik tabel + tiga baris status).
+  Test baru `tests/learner-delete-status.test.ts` (penjaga statis);
+  `tests/learners-import-status.test.ts` hanya menyesuaikan hitungan
+  (`aria-busy=` 1→2, `aria-live="polite"` 2→3, `role="status"` 2→3,
+  `className="sr-only"` 2→3) tanpa melonggarkan penjaga posisi/kunci. Tanpa
+  cek smoke baru; penjaga baris smoke 2748 tetap. Satu entri log bertanggal
+  di `docs/ROADMAP.md`. `npm run ci` utuh hijau sebelum merge
+  (`TMPDIR=/tmp/opencode`, `CI_PORT=9321 CI_PREVIEW_PORT=9323`).
 
 - 2026-11-27: PR #203 — **Status proses tombol per-baris Delete halaman
   admin Concepts** — tombol **Delete** per kartu kini membawa
