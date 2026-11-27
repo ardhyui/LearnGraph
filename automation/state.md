@@ -1,7 +1,7 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
 Terakhir diperbarui: 2026-11-27 (poles aksesibilitas **ThemeToggle** selesai
-lewat PR #TBD; berikutnya: `type="button"` sudah ada di semua tombol, fokus
+lewat PR #209; berikutnya: `type="button"` sudah ada di semua tombol, fokus
 keyboard pada **dua tautan** sidebar — brand **LearnGraph** dan setiap item
 navigasi)
 
@@ -178,7 +178,7 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
-- 2026-11-27: PR #TBD — **Tombol tema jadi tombol biasa dengan fokus keyboard
+- 2026-11-27: PR #209 — **Tombol tema jadi tombol biasa dengan fokus keyboard
   dan ikon dekoratif tersembunyi** — kedua `<button>` di
   `src/components/ui/theme-toggle.tsx` (placeholder pra-mount + tombol asli)
   kini diawali `type="button"` dan memuat baris kelas
