@@ -14,19 +14,22 @@ export function ThemeToggle({ className }: { className?: string }) {
   if (!mounted) {
     return (
       <button
+        type="button"
         className={cn(
           'relative h-9 w-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20',
           'flex items-center justify-center transition-all duration-300',
+          'focus-visible:outline-2 focus-visible:outline-primary',
           className
         )}
       >
-        <Sun className="h-4 w-4 text-foreground/50" />
+        <Sun className="h-4 w-4 text-foreground/50" aria-hidden="true" />
       </button>
     );
   }
 
   return (
     <button
+      type="button"
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       className={cn(
         'relative h-9 w-9 rounded-full backdrop-blur-sm border',
@@ -35,6 +38,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         theme === 'dark'
           ? 'bg-white/10 border-white/20 hover:bg-white/20'
           : 'bg-black/5 border-black/10 hover:bg-black/10',
+        'focus-visible:outline-2 focus-visible:outline-primary',
         className
       )}
       aria-label="Toggle theme"
@@ -47,6 +51,7 @@ export function ThemeToggle({ className }: { className?: string }) {
             : 'rotate-0 scale-100 opacity-100 text-amber-500'
         )}
         style={{ position: 'absolute' }}
+        aria-hidden="true"
       />
       <Moon
         className={cn(
@@ -56,6 +61,7 @@ export function ThemeToggle({ className }: { className?: string }) {
             : '-rotate-90 scale-0 opacity-0'
         )}
         style={{ position: 'absolute' }}
+        aria-hidden="true"
       />
     </button>
   );
