@@ -337,10 +337,11 @@ function PsychometricWheel() {
         {categories.map(([categoryName, category]) => (
           <button
             key={categoryName}
+            type="button"
             onClick={() => setExpandedCategory(expandedCategory === categoryName ? null : categoryName)}
             aria-expanded={expandedCategory === categoryName}
             aria-controls="psychometric-category-detail"
-            className={`text-left p-4 rounded-xl border-2 transition-all duration-200 ${
+            className={`text-left p-4 rounded-xl border-2 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-primary ${
               expandedCategory === categoryName
                 ? 'border-pink-500 bg-pink-500/10 dark:bg-pink-500/20 shadow-lg scale-[1.02]'
                 : 'border-border hover:border-muted-foreground/50 hover:bg-muted/50'
@@ -487,10 +488,11 @@ function ExpandableSection({
       className="glass-card overflow-hidden mb-8"
     >
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-controls={contentId}
-        className="w-full flex items-center justify-between p-6 hover:bg-muted/50 transition-colors"
+        className="w-full flex items-center justify-between p-6 hover:bg-muted/50 transition-colors focus-visible:outline-2 focus-visible:outline-primary"
       >
         <div className="flex items-center gap-4">
           <div className={`p-3 rounded-xl ${color}`}>
