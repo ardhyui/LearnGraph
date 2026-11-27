@@ -77,7 +77,7 @@ describe('/admin/learners: the import label reports its busy state', () => {
     assert.ok(LABEL.includes('const file = e.target.files?.[0];'), 'the handler still reads the file');
     assert.ok(LABEL.includes('e.target.value = \'\';'), 'the handler still resets the input');
     assert.ok(LABEL.includes('if (file) void handleImport(file);'), 'the handler still imports the file');
-    assert.equal(count(page, /aria-busy=/g), 1, 'exactly one aria-busy attribute on the page');
+    assert.equal(count(page, /aria-busy=/g), 2, 'the import label and the per-row Delete button');
   });
 });
 
@@ -87,16 +87,16 @@ describe('/admin/learners: one polite status line announces the import', () => {
       ROW.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the import line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(page, /aria-live="polite"/g), 2, 'the result notice and the import line are polite');
-    assert.equal(count(page, /role="status"/g), 2, 'the result notice and the import line carry status');
+    assert.equal(count(page, /aria-live="polite"/g), 3, 'the result notice, the import line and the deleting line are polite');
+    assert.equal(count(page, /role="status"/g), 3, 'the result notice, the import line and the deleting line carry status');
     assert.equal(count(page, /role="alert"/g), 0, 'no error alert is added');
     assert.equal(count(page, /aria-label=/g), 0, 'no aria-label is added');
     assert.equal(count(page, /aria-labelledby=/g), 0, 'no aria-labelledby is added');
     assert.equal(count(page, /aria-atomic=/g), 0, 'no aria-atomic is added');
     assert.equal(
       count(page, /className="sr-only"/g),
-      2,
-      'the hidden file input and the new import line are the only sr-only nodes',
+      3,
+      'the hidden file input, the import line and the deleting line are the only sr-only nodes',
     );
   });
 
