@@ -1,7 +1,7 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
 Terakhir diperbarui: 2026-11-28 (fokus keyboard kedua `<Link>` sidebar selesai
-lewat PR #TBD; berikutnya: fokus keyboard tombol **Close details** panel detail
+lewat PR #211; berikutnya: fokus keyboard tombol **Close details** panel detail
 grafik — `src/components/GraphDetailPanel.tsx`, terlihat pelajar di `/graph`
 dan `/domains`)
 
@@ -103,7 +103,7 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    panel **Connect an AI assistant** `src/components/ApiAccess.tsx`
    (PR #207), serta tombol **Sign out** footer sidebar
    `src/components/Sidebar.tsx` (PR #208), **ThemeToggle** (PR #209), serta
-   fokus keyboard kedua `<Link>` sidebar (PR #TBD) selesai. Audit 2026-11-27: berkas
+   fokus keyboard kedua `<Link>` sidebar (PR #211) selesai. Audit 2026-11-27: berkas
    ber-`<button>` yang belum punya `aria-busy` tinggal `ErrorPages.tsx`
    (tombol **Try again** boundary galat), `GraphDetailPanel.tsx` (tombol
    tutup), `theme-toggle.tsx`, dan `edu-psychology.tsx` (tombol akordeon) —
@@ -177,7 +177,7 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
-- 2026-11-28: PR #TBD — **Fokus keyboard pada kedua tautan sidebar (brand dan
+- 2026-11-28: PR #211 — **Fokus keyboard pada kedua tautan sidebar (brand dan
   item navigasi)** — tautan brand **LearnGraph** di top bar mobile
   `src/components/Sidebar.tsx` kini memakai kelas string persis
   `flex min-w-0 items-center gap-2 focus-visible:outline-2
