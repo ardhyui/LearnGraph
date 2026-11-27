@@ -1,8 +1,9 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
 Terakhir diperbarui: 2026-11-27 (status proses tombol per-baris **Delete**
-halaman admin Knowledge States selesai; berikutnya: tombol per-baris
-**Delete** halaman admin Prerequisites `src/routes/admin/prerequisites.tsx`)
+halaman admin Knowledge States selesai lewat PR #205; berikutnya: tombol
+per-baris **Delete** halaman admin Prerequisites
+`src/routes/admin/prerequisites.tsx`)
 
 ## Tugas berikutnya
 
@@ -106,7 +107,7 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    halaman admin Lesson Content (PR #202), tombol per-baris **Delete**
    halaman admin Concepts (PR #203), tombol per-baris **Delete**
    halaman admin Learners (PR #204), dan tombol per-baris **Delete**
-   halaman admin Knowledge States selesai: tombol per-baris **Delete**
+   halaman admin Knowledge States (PR #205) selesai: tombol per-baris **Delete**
    halaman admin Prerequisites (lihat Tugas berikutnya), lalu audit surface
    pelajar/admin lain yang belum punya penanda (mis. tombol per-baris
    **Delete** di halaman admin lain; tombol **Try again** `StudyToday.tsx`
@@ -158,7 +159,7 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `src/components/LearningOverview.tsx` (PR #200), dan tombol per-baris
    **Delete** halaman admin Quiz Questions (PR #201), serta tombol per-baris
    **Delete** halaman admin Lesson Content (PR #202), Concepts (PR #203),
-   Learners (PR #204), dan Knowledge States selesai. Kandidat berikutnya:
+   Learners (PR #204), dan Knowledge States (PR #205). Kandidat berikutnya:
    tombol per-baris **Delete** halaman admin Prerequisites (lihat Tugas
    berikutnya), kemudian audit surface pelajar/admin lain yang belum punya
    penanda.
@@ -167,6 +168,32 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-27: PR #205 — **Status proses tombol per-baris Delete halaman
+  admin Knowledge States** — tombol **Delete** per baris kini membawa
+  `disabled={deleting !== null}` dan
+  ``aria-busy={deleting === `${state.userId}:${state.conceptId}`}`` tepat
+  sesudah `className` (handler/`title`/kelas/ikon `Trash2` utuh); state baru
+  `deleting` sesudah `saving`, kunci baris `${userId}:${conceptId}` dihitung
+  sekali, `handleDelete` diawali guard `if (deleting) return;` sebelum
+  `confirm`, penanda disetel sesudah blok `if (!db)` + `rememberRowFocus` dan
+  sebelum `try`, serta `finally { setDeleting(null); }` membersihkan — isi
+  `try` (`deleteKnowledgeState`, `fetchStates`, `restoreRowFocus`)/`catch`
+  (`An error occurred`) lama utuh. Satu pengumuman baru `<p role="status"
+  aria-live="polite" className="sr-only">{deleting ? 'Deleting the knowledge
+  state…' : ''}</p>` sebagai anak terakhir kartu tabel (di luar `<table>`).
+  Tombol **Add Knowledge State** header/empty state serta status **Saving the
+  knowledge state…** (PR #193) tetap. Hitungan file: `aria-busy` 2,
+  `aria-busy=` 2, `aria-live` 2, `role="status"` 2, `role="alert"` 0,
+  `aria-label=` 0, `aria-labelledby` 0, `aria-atomic` 0,
+  `className="sr-only"` 2, `role="` 19. Test baru
+  `tests/knowledge-state-delete-status.test.ts` (penjaga statis);
+  `tests/knowledge-state-save-status.test.ts` hanya menyesuaikan hitungan
+  (`aria-busy=` 1→2, `aria-live="polite"` 1→2, `role="status"` 1→2,
+  `className="sr-only"` 1→2) tanpa melonggarkan penjaga posisi/kunci. Tanpa
+  cek smoke baru; penjaga baris smoke 2748 tetap. Satu entri log bertanggal
+  di `docs/ROADMAP.md`. `npm run ci` utuh hijau sebelum merge
+  (`TMPDIR=/tmp/opencode`, `CI_PORT=9331 CI_PREVIEW_PORT=9333`).
 
 - 2026-11-27: PR #204 — **Status proses tombol per-baris Delete halaman
   admin Learners** — tombol **Delete** per baris kini membawa
