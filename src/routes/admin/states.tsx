@@ -66,6 +66,7 @@ function StatesPage() {
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [filterUser, setFilterUser] = useState('');
   const [filterConcept, setFilterConcept] = useState('');
 
@@ -134,6 +135,8 @@ function StatesPage() {
   }
 
   async function handleDelete(userId: string, conceptId: string, button?: HTMLElement) {
+    if (deleting) return;
+    const key = `${userId}:${conceptId}`;
     if (!confirm('Are you sure you want to delete this knowledge state?')) return;
     const focus = rememberRowFocus(button);
 
@@ -142,12 +145,15 @@ function StatesPage() {
       return;
     }
 
+    setDeleting(key);
     try {
       await db.deleteKnowledgeState(userId, conceptId);
       await fetchStates();
       restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -542,6 +548,8 @@ function StatesPage() {
                           <button
                             onClick={(e) => handleDelete(state.userId, state.conceptId, e.currentTarget)}
                             className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                            disabled={deleting !== null}
+                            aria-busy={deleting === `${state.userId}:${state.conceptId}`}
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -552,6 +560,9 @@ function StatesPage() {
                   </tbody>
                 </table>
               </div>
+              <p role="status" aria-live="polite" className="sr-only">
+                {deleting ? 'Deleting the knowledge state…' : ''}
+              </p>
             </motion.div>
           )}
         </div>
