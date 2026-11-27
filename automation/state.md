@@ -1,69 +1,75 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-27 (status proses tombol keputusan draf
-**Approve/Discard** panel "Draft questions with Claude" selesai lewat PR #199;
-berikutnya: tombol **Try again** kartu "My learning"
-`src/components/LearningOverview.tsx`)
+Terakhir diperbarui: 2026-11-27 (status proses tombol **Try again** kartu
+**My learning** selesai lewat PR #200; berikutnya: tombol per-baris **Delete**
+halaman admin Quiz Questions `src/routes/admin/questions.tsx`)
 
 ## Tugas berikutnya
 
-Poles kecil + fitur: **Status proses tombol Try again kartu "My learning"** —
-`src/components/LearningOverview.tsx` (kartu **My learning** di `/profile`).
-Tombol **Try again** di dalam galat `role="alert"` (sekitar baris 154–158)
-kini `<button type="button" onClick={() => load()} className="font-medium
-underline">Try again</button>` — memanggil `load` (async, `useCallback`)
-tanpa `disabled`/`aria-busy` dan tanpa pengumuman, sehingga saat percobaan
-ulang berjalan pembaca layar tidak tahu apa yang terjadi dan klik ganda bisa
-memicu dua permintaan baca. Kartu sudah punya baris `notice` (`role="status"`
-+ `aria-live="polite"`, `sr-only` saat kosong), status "Loading your
-progress…" (`role="status"`), dan galat `role="alert"` yang harus
-dipertahankan. Hitungan file saat ini: `aria-busy` 0, `aria-live` 1,
-`role="status"` 2, `role="alert"` 1, `aria-label=` 3, `aria-labelledby` 1,
-`aria-atomic` 0, `className="sr-only"` 0 (baris notice memakai className
-dinamis, bukan string persis), `role="` 5. UI bahasa Inggris (D2). Tanpa
-query/RPC/migrasi/dependensi baru.
+Poles kecil + fitur: **Status proses tombol per-baris Delete halaman admin
+Quiz Questions** — `src/routes/admin/questions.tsx` (Admin → Quiz Questions,
+daftar soal per konsep dalam `<ol aria-label={`Questions for ${concept.name}`}>`).
+Tombol **Delete** per soal (sekitar baris 430–437) kini `<button
+type="button" onClick={(e) => remove(q, e.currentTarget)}
+aria-label={`Delete question ${n + 1}`}
+className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10
+hover:text-destructive"><Trash2 className="h-4 w-4" aria-hidden="true"
+/></button>` — memanggil `remove` (async) tanpa `disabled`/`aria-busy` dan
+tanpa pengumuman, sehingga selama penghapusan pembaca layar tidak tahu soal
+sedang dihapus dan klik ganda bisa memicu dua `deleteQuizQuestion`. Tombol
+**Edit** per baris (`onClick={() => edit(q)}`, sinkron) sengaja tetap tanpa
+penanda, dan tombol **Save question**/*Cancel* serta status **Saving the
+question…** (PR #177) harus dipertahankan. Hitungan file saat ini: `aria-busy`
+1, `aria-busy=` 1, `aria-live` 2, `role="status"` 3, `role="alert"` 1,
+`aria-label=` 6, `aria-labelledby` 1, `aria-atomic` 0, `className="sr-only"`
+2, `role="` 4. UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi
+baru.
 
-Tujuan: state baru `const [retrying, setRetrying] = useState(false);`
-diletakkan sesudah state `notice` (sekitar baris 40, sesudah
-`const [notice, setNotice] = useState<string | null>(null);`). Tambah satu
-fungsi `retry` sesudah `load` (sesudah blok `useCallback`, sebelum `useEffect`
-yang memanggil `load`): `if (retrying) return;` lalu `setRetrying(true);`,
-`try { await load(); } finally { setRetrying(false); }`. `load` sendiri tidak
-berubah. Tombol **Try again** mempertahankan `type="button"` dan kelas persis
-`font-medium underline`, lalu membawa `onClick={() => void retry()}`,
-`disabled={retrying}`, dan `aria-busy={retrying}` tepat sesudah `className`;
-teks **Try again** utuh. **Satu** pengumuman baru: `<p role="status"
-aria-live="polite" className="sr-only">{retrying ? 'Retrying…' : ''}</p>`
-sebagai anak terakhir section (sesudah blok data/`</>`), sebelum `</section>`.
+Tujuan: state baru `const [deleting, setDeleting] = useState<string | null>(null);`
+diletakkan sesudah state `notice` (`const [notice, setNotice] = useState<string
+| null>(null);`). `remove` diawali guard `if (deleting) return;` sebelum
+`confirm(...)`, lalu `setDeleting(q.id)` disetel sesudah `setError(null)` dan
+sebelum `const focus = rememberRowFocus(button);`; `finally { setDeleting(null); }`
+ditambahkan pada `try/catch` yang sudah ada — isi `try` (`deleteQuizQuestion`,
+`setNotice('Question deleted.')`, `if (draft?.id === q.id) setDraft(null)`,
+`await load()`, `restoreRowFocus(focus)`), `catch`, dan pemanggilan `confirm`
+tidak berubah. Tombol **Delete** mempertahankan `type="button"`,
+`onClick={(e) => remove(q, e.currentTarget)}`, `aria-label`, kelas persis, dan
+ikon, lalu membawa `disabled={deleting !== null}` dan `aria-busy={deleting ===
+q.id}` tepat sesudah `className`; label aksesibel `Delete question {n + 1}`
+utuh. **Satu** pengumuman baru: `<p role="status" aria-live="polite"
+className="sr-only">{deleting ? 'Deleting the question…' : ''}</p>` sebagai
+anak terakhir `<ol>` daftar soal (sesudah `))}` penutup `bank.map`, sebelum
+`</ol>`).
 
 Rancangan:
 
-1. **State + handler** — `retrying` sesudah `notice`; `retry` sesudah `load`
-   dengan guard, `setRetrying(true)`, `try { await load(); } finally {
-   setRetrying(false); }`; `load`, `useEffect`, dan `useCallback` lama utuh.
-2. **Tombol** — **Try again**: `type`, `className`, `onClick={() => void
-   retry()}`, `disabled`, `aria-busy` sesuai urutan di atas; label dan posisi
-   di dalam galat `role="alert"` utuh; tombol **Change subjects**/**Choose
-   subjects**, `FocusEditor`, dan blok progres tidak berubah.
+1. **State + handler** — `deleting` sesudah `notice`; guard baris pertama
+   `remove`, `setDeleting(q.id)` sesudah `setError(null)`, `finally` pada
+   `try/catch` lama; `load`/`edit`/`loadAi` dan alur `confirm` utuh.
+2. **Tombol** — per-baris **Delete**: `type`, `onClick`, `aria-label`,
+   `className`, `disabled={deleting !== null}`, `aria-busy={deleting === q.id}`
+   sesuai urutan; ikon `Trash2` `aria-hidden` dan tombol **Edit** per baris
+   tidak berubah.
 3. **Status** — satu `<p role="status" aria-live="polite"
-   className="sr-only">` berteks `Retrying…`/kosong sebagai anak terakhir
-   section.
-4. **Test** — tambahkan `tests/learning-overview-retry-status.test.ts`
-   (penjaga statis, pola `tests/study-today-refresh-status.test.ts`): tombol
-   dengan `type`/`onClick`/`className`/`disabled`/`aria-busy` berurutan dan
-   label utuh, satu status baru `role="status"` + `aria-live="polite"` +
-   `className="sr-only"` berteks `Retrying…`/kosong dan berada sesudah galat
-   sebagai anak terakhir section, state `retrying` sesudah `notice`, guard +
-   `setRetrying(true)` + `try { await load(); }` + `finally` membersihkan,
-   `load` lama utuh, baris `notice`, status "Loading your progress…", dan galat
-   `role="alert"` tetap, tombol **Change subjects** dan `FocusEditor` tetap,
-   hitungan file `aria-busy` 1/`aria-live` 2/`role="status"` 3/
-   `role="alert"` 1/`aria-label=` 3/`aria-labelledby` 1/`aria-atomic` 0/
-   `className="sr-only"` 1/`role="` 6, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Sesuaikan test lama
-   bila perlu, tanpa melonggarkan penjaga posisi/kunci.
-5. **Smoke** — tidak ada cek baru (galat muat sulit dipicu otomatis tanpa
-   mematahkan RPC); jangan mengubah penjaga baris smoke 2748.
+   className="sr-only">` berteks `Deleting the question…`/kosong sebagai anak
+   terakhir `<ol>` daftar soal.
+4. **Test** — tambahkan `tests/question-delete-status.test.ts` (penjaga
+   statis, pola `tests/study-today-refresh-status.test.ts`): tombol **Delete**
+   dengan atribut berurutan dan `aria-label`/ikon utuh, tombol **Edit** tanpa
+   `disabled`/`aria-busy`, satu status baru berteks `Deleting the
+   question…`/kosong dan berada sesudah `bank.map` sebagai anak terakhir
+   `<ol>`, state `deleting` sesudah `notice`, guard sebelum `confirm`,
+   `setDeleting(q.id)` sesudah `setError(null)` + `finally` membersihkan,
+   isi `try` lama utuh, tombol **Save question**/*Cancel* serta status
+   **Saving the question…** dan notice/galat tetap, hitungan file `aria-busy`
+   2/`aria-live` 3/`role="status"` 4/`role="alert"` 1/`aria-label=` 6/
+   `aria-labelledby` 1/`aria-atomic` 0/`className="sr-only"` 3/`role="` 5,
+   serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru.
+   Sesuaikan test lama (`tests/question-save-status.test.ts`) hanya untuk
+   hitungan bila perlu, tanpa melonggarkan penjaga posisi/kunci.
+5. **Smoke** — tidak ada cek baru (menghapus butuh data soal dan dialog
+   `confirm`); jangan mengubah penjaga baris smoke 2748.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -88,12 +94,13 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    **Refresh** grafik `/domains` (PR #194), form **Create learner**
    `src/routes/data-entry.tsx` (PR #195), form **Create concept** di file
    yang sama (PR #196), form **Create prerequisite** (PR #197), form
-   **Create knowledge state** (PR #198), dan tombol keputusan draf
-   **Approve/Discard** `AiQuestionDrafts.tsx` (PR #199) selesai: tombol
-   **Try again** `LearningOverview.tsx` (lihat Tugas berikutnya), lalu audit
-   surface pelajar/admin lain yang belum punya penanda (mis. tombol per-baris
-   **Delete** di halaman admin; tombol **Try again** `StudyToday.tsx` sengaja
-   dibiarkan tanpa penanda oleh PR #183 dan dikunci
+   **Create knowledge state** (PR #198), tombol keputusan draf
+   **Approve/Discard** `AiQuestionDrafts.tsx` (PR #199), dan tombol **Try
+   again** `LearningOverview.tsx` (PR #200) selesai: tombol per-baris
+   **Delete** halaman admin Quiz Questions (lihat Tugas berikutnya), lalu
+   audit surface pelajar/admin lain yang belum punya penanda (mis. tombol
+   per-baris **Delete** di halaman admin lain; tombol **Try again**
+   `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183 dan dikunci
    `tests/study-today-refresh-status.test.ts`). Baris "Lanjutan:" yang belum
    dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
    migrasi data — jangan dipilih tanpa perubahan kondisi.
@@ -136,9 +143,10 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `/domains` (PR #194), form **Create learner** `/data-entry` (PR #195), form
    **Create concept** `/data-entry` (PR #196), dan form **Create prerequisite**
    `/data-entry` (PR #197), form **Create knowledge state** `/data-entry`
-   (PR #198), dan tombol keputusan draf **Approve/Discard**
-   `src/components/AiQuestionDrafts.tsx` (PR #199). Kandidat berikutnya:
-   tombol **Try again** `src/components/LearningOverview.tsx` (lihat Tugas
+   (PR #198), tombol keputusan draf **Approve/Discard**
+   `src/components/AiQuestionDrafts.tsx` (PR #199), dan tombol **Try again**
+   `src/components/LearningOverview.tsx` (PR #200). Kandidat berikutnya:
+   tombol per-baris **Delete** halaman admin Quiz Questions (lihat Tugas
    berikutnya), lalu audit surface pelajar/admin lain yang belum punya
    penanda.
 
@@ -146,6 +154,26 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-27: PR #200 — **Status proses tombol Try again kartu "My learning"**
+  — tombol di dalam galat `role="alert"` `src/components/LearningOverview.tsx`
+  kini membawa `onClick={() => void retry()}`, `disabled={retrying}`, dan
+  `aria-busy={retrying}` tepat sesudah `className` (kelas persis `font-medium
+  underline`, label **Try again** utuh), dengan fungsi baru `retry` sesudah
+  `load` (guard `if (retrying) return;`, `setRetrying(true)`,
+  `try { await load(); } finally { setRetrying(false); }`) dan state
+  `retrying` sesudah `notice`. Satu pengumuman baru `<p role="status"
+  aria-live="polite" className="sr-only">{retrying ? 'Retrying…' : ''}</p>`
+  sebagai anak terakhir section sesudah `<DownloadMyData />`. `load`, notice,
+  status **Loading your progress…**, galat `role="alert"`, tombol **Change
+  subjects**/**Choose subjects**, `FocusEditor`, dan blok progres utuh.
+  Hitungan file: `aria-busy` 1, `aria-live` 2, `role="status"` 3,
+  `role="alert"` 1, `aria-label=` 3, `aria-labelledby` 1, `aria-atomic` 0,
+  `className="sr-only"` 1, `role="` 6. Test baru
+  `tests/learning-overview-retry-status.test.ts` (penjaga statis); tidak ada
+  test lain yang diubah. Tanpa cek smoke baru; penjaga baris smoke 2748 tetap.
+  Satu entri log bertanggal di `docs/ROADMAP.md`. Tanpa
+  query/RPC/migrasi/dependensi/server function baru.
 
 - 2026-11-27: PR #199 — **Status proses tombol keputusan draf
   Approve/Discard panel "Draft questions with Claude"** — kedua tombol aksi
