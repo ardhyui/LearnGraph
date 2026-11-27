@@ -42,6 +42,7 @@ function PrerequisitesPage() {
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const loading = dbLoading || edgesLoading || conceptsLoading;
 
@@ -74,14 +75,19 @@ function PrerequisitesPage() {
   }
 
   async function handleDelete(from: string, to: string, button?: HTMLElement) {
+    if (deleting) return;
+    const key = `${from}:${to}`;
     if (!confirm('Are you sure you want to delete this prerequisite?')) return;
     const focus = rememberRowFocus(button);
+    setDeleting(key);
 
     try {
       await deleteEdge(from, to);
       restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -444,6 +450,8 @@ function PrerequisitesPage() {
                           <button
                             onClick={(e) => handleDelete(edge.from, edge.to, e.currentTarget)}
                             className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                            disabled={deleting !== null}
+                            aria-busy={deleting === `${edge.from}:${edge.to}`}
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -454,6 +462,7 @@ function PrerequisitesPage() {
                   </tbody>
                 </table>
               </div>
+              <p role="status" aria-live="polite" className="sr-only">{deleting ? 'Deleting the prerequisite…' : ''}</p>
             </motion.div>
           )}
         </div>
