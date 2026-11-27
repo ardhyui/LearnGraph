@@ -1,90 +1,99 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-28 (fokus keyboard tombol **Close details** panel
-detail grafik selesai lewat PR #213; berikutnya: fokus keyboard + `type="button"`
-pada kedua tombol `src/routes/edu-psychology.tsx` — tombol akordeon
-`ExpandableSection` dan tombol kategori `PsychometricWheel`, terlihat pelajar
-di `/edu-psychology`)
+Terakhir diperbarui: 2026-11-28 (fokus keyboard + `type="button"` kedua tombol
+`/edu-psychology` selesai lewat PR #214; berikutnya: fokus keyboard pada empat
+tombol dan dua tautan tiga halaman auth — `/sign-in`, `/forgot-password`,
+`/reset-password` — pintu masuk produk yang terlihat pelajar)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas terlihat pelajar: **fokus keyboard dan `type="button"` pada
-kedua tombol `/edu-psychology`** — `src/routes/edu-psychology.tsx` (halaman
-publik Educational Psychology, tanpa data; halaman memakai `Sidebar` +
-`EtherealShadow`). Berkas ini punya **dua** tombol interaktif — keduanya
-**tanpa** `type="button"` (bisa ikut submit bila kelak dipasang di dalam form)
-dan **tanpa** kelas `:focus-visible`; `src/styles.css` tidak punya aturan
-`:focus-visible` global, sehingga pengguna keyboard yang menekan Tab ke tombol
-mana pun di halaman ini tidak melihat indikator fokus sama sekali.
+Poles aksesibilitas terlihat pelajar: **fokus keyboard pada tombol dan tautan
+tiga halaman auth** — `src/routes/sign-in.tsx`,
+`src/routes/forgot-password.tsx`, `src/routes/reset-password.tsx` (halaman
+publik pintu masuk produk, terlihat pelajar sebelum sign-in). Keenam elemen
+interaktif yang bisa terfokus di ketiga berkas **tidak punya** kelas
+`:focus-visible` sama sekali; `src/styles.css` tidak punya aturan
+`:focus-visible` global, sehingga pengguna keyboard yang menekan Tab dari
+kolom email ke tombol sign-in, tombol ganti mode, atau tautan footer tidak
+melihat indikator fokus sama sekali.
 
-1. **Tombol akordeon `ExpandableSection`** (baris ~489–502; dipakai keenam
-   bagian halaman — ZPD, Bloom, Scaffolding, Forgetting Curve, Psychometrics,
-   Knowledge Graph):
-   - `<button onClick={() => setIsOpen(!isOpen)} aria-expanded={isOpen}
-     aria-controls={contentId} className="w-full flex items-center
-     justify-between p-6 hover:bg-muted/50 transition-colors">` — kelas string
-     tunggal; ikon `ChevronDown` (kelas rotasi kondisional `${isOpen ?
-     'rotate-180' : ''}`) dan `Icon size={24}` `aria-hidden` di dalamnya.
-2. **Tombol kategori `PsychometricWheel`** (baris ~338–361; grid 13 kategori
-   psikometrik):
-   - `<button key={categoryName} onClick={() => setExpandedCategory(
-     expandedCategory === categoryName ? null : categoryName)}
-     aria-expanded={expandedCategory === categoryName}
-     aria-controls="psychometric-category-detail" className={`text-left p-4
-     rounded-xl border-2 transition-all duration-200 ${...}`}>` — kelas
-     template literal dengan dua cabang kondisional (`border-pink-500 ...`
-     aktif / `border-border hover:border-muted-foreground/50
-     hover:bg-muted/50` tidak aktif); ikon kategori `span aria-hidden` + titik
-     warna `aria-hidden` di dalamnya.
+1. **Tombol submit `/sign-in`** (baris ~161–169, di dalam `<form>`):
+   `<button type="submit" disabled={pending} aria-busy={pending}
+   className={cn('btn btn-primary w-full flex items-center justify-center
+   gap-2')}>` — `type="submit"` **jangan diubah** (tombol submit form);
+   tambahkan ` focus-visible:outline-2 focus-visible:outline-primary` **di
+   akhir literal** di dalam `cn(...)`. Ikon `Loader2` `aria-hidden`, label
+   `{mode === 'sign-in' ? 'Sign in' : 'Create account'}`, status
+   `role="status"` sesudah tombol, dan urutan atribut
+   (`type`/`disabled`/`aria-busy`/`className`) utuh.
+2. **Tombol toggle mode `/sign-in`** (baris ~177–186, di luar form):
+   `type="button"` sudah ada; kelas `text-foreground font-medium
+   hover:underline` → tambahkan dua kelas fokus **di akhir** string kelas.
+   Handler `setError(null)` + `setMode(mode === 'sign-in' ? 'sign-up' :
+   'sign-in')` dan label `{mode === 'sign-in' ? 'Create one' : 'Sign in'}`
+   utuh.
+3. **Dua tautan footer `/sign-in`** (baris ~191 & ~197): `<Link
+   to="/forgot-password" className="hover:underline">` dan `<Link
+   to="/privacy" className="hover:underline">` → masing-masing kelas menjadi
+   `hover:underline focus-visible:outline-2 focus-visible:outline-primary`
+   (dua kelas fokus di akhir); teks **Forgot your password?**/**How your data
+   is handled**, kondisi `mode === 'sign-in' &&` pembungkus tautan pertama,
+   dan pemisah `{' · '}` utuh.
+4. **Tombol submit `/forgot-password`** (baris ~76–84): `type="submit"`,
+   `disabled={pending}`, `aria-busy={pending}`, kelas string `btn btn-primary
+   flex w-full items-center justify-center gap-2` → dua kelas fokus di akhir
+   string; label **Send the reset link** dan ikon `Loader2` `aria-hidden`
+   utuh.
+5. **Tombol submit `/reset-password`** (baris ~97–105): sama — kelas string
+   `btn btn-primary flex w-full items-center justify-center gap-2` → dua kelas
+   fokus di akhir; label **Save the new password** dan ikon `Loader2`
+   `aria-hidden` utuh.
 
-Hitungan file saat ini: `focus-visible` 0, `<button` 2, `type="button"` 0,
-`aria-expanded` 2, `aria-controls` 2, `aria-hidden` 6, `aria-label=` 0,
-`aria-busy` 0, `aria-live` 0, `role=` 0, `className={cn(` 0, ``className={` ``
-3, `onClick` 2. Kedua tombol sinkron (hanya toggle state lokal) — jangan
-menambah `aria-busy`/live region palsu. Jangan sentuh `aria-expanded`/
-`aria-controls` kedua tombol, handler toggle (`setIsOpen`/`setExpandedCategory`),
-`useId`/`contentId`, panel detail kategori (`id="psychometric-category-detail"`
-beserta isi domain/markers/eduRelevance), `AnimatePresence`/`motion.div` dan
-animasinya, `ALL_PSYCHOMETRIC_DOMAINS` (13 kategori/39 domain), komponen visual
-lain di berkas (ZPDDiagram, BloomsPyramid, ScaffoldingVisual, ForgettingCurve,
-CodeLocation), `Sidebar`/`EtherealShadow`, atau `pageHead`. UI bahasa Inggris
-(D2). Tanpa query/RPC/migrasi/dependensi baru.
-
-Tujuan:
-
-1. **Tombol akordeon** — tambah `type="button"` sebagai atribut pertama
-   (sebelum `onClick`), lalu tambah ` focus-visible:outline-2
-   focus-visible:outline-primary` **di akhir** string kelas, tanpa
-   menghapus/mengurutkan ulang kelas yang ada.
-2. **Tombol kategori** — tambah `type="button"` tepat sesudah
-   `key={categoryName}` dan sebelum `onClick`, lalu tambah dua kelas fokus di
-   akhir bagian literal statis template kelas (sesudah `duration-200`, sebelum
-   `${`) tanpa menyentuh kedua cabang kondisional.
+Hitungan berkas saat ini (semuanya tanpa `focus-visible`): `sign-in.tsx`
+`<button` 2, `type="submit"` 1, `type="button"` 1, `className={cn(` 1,
+`aria-hidden` 1, `aria-busy` 1, `aria-live` 1, `role=` 2,
+`className="sr-only"` 1, `<Link` 2 (footer); `forgot-password.tsx` `<button` 1,
+`type="submit"` 1, `role=` 3; `reset-password.tsx` `<button` 1,
+`type="submit"` 1, `role=` 4. Sesudah: `sign-in.tsx` `focus-visible` 8 (empat
+elemen: submit, toggle, dua tautan), `forgot-password.tsx` dan
+`reset-password.tsx` `focus-visible` 2 (tombol submit saja). Semua tombol
+async sudah punya `aria-busy` + status sr-only — **jangan** menambah
+`aria-busy`/live region baru. Jangan sentuh skema `credentialsSchema`,
+`safeRedirect`, `authClient.*`, `rateLimitMessage`, alur
+`pending`/`setPending`, pasangan `<label htmlFor>`/`id` field
+name/email/password, `form-error`, struktur `<form>`, atau komponen lain di
+berkas. UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
 
 Rancangan:
 
-1. **Tombol akordeon** — kelas menjadi `"w-full flex items-center
-   justify-between p-6 hover:bg-muted/50 transition-colors
-   focus-visible:outline-2 focus-visible:outline-primary"` (dua kelas fokus di
-   akhir; `onClick`/`aria-expanded`/`aria-controls`/`contentId` utuh).
-2. **Tombol kategori** — kelas menjadi `` `text-left p-4 rounded-xl border-2
-   transition-all duration-200 focus-visible:outline-2
-   focus-visible:outline-primary ${...}` `` (dua kelas fokus di akhir bagian
-   statis; `key`/`onClick`/`aria-expanded`/`aria-controls` utuh, kedua cabang
-   kondisional tidak berubah).
-3. **Test** — tambahkan `tests/edu-psychology-button-focus.test.ts` (penjaga
-   statis, pola `tests/sidebar-nav-focus.test.ts` dan
-   `tests/graph-detail-panel-close-focus.test.ts`): kedua tombol memuat
-   `type="button"` dan pasangan fokus masing-masing tepat satu kali; tombol
-   akordeon memuat kelas string persis dengan dua kelas fokus di akhir; tombol
-   kategori memuat kelas fokus di bagian statis template dengan kedua cabang
-   kondisional utuh; `aria-expanded`/`aria-controls`/handler toggle tetap;
-   hitungan file sesudah `focus-visible` 4, `type="button"` 2, `<button` 2,
-   `aria-expanded` 2, `aria-controls` 2, `aria-hidden` 6; tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru.
-4. **Smoke** — tidak ada cek baru (smoke tidak membuka `/edu-psychology` dan
-   tidak menekan Tab); penjaga baris smoke 2748 tetap.
-5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+1. `/sign-in` submit — kelas menjadi `cn('btn btn-primary w-full flex
+   items-center justify-center gap-2 focus-visible:outline-2
+   focus-visible:outline-primary')`.
+2. `/sign-in` toggle — kelas menjadi `"text-foreground font-medium
+   hover:underline focus-visible:outline-2 focus-visible:outline-primary"`.
+3. `/sign-in` tautan footer — kelas masing-masing menjadi `"hover:underline
+   focus-visible:outline-2 focus-visible:outline-primary"`.
+4. `/forgot-password` submit — kelas menjadi `"btn btn-primary flex w-full
+   items-center justify-center gap-2 focus-visible:outline-2
+   focus-visible:outline-primary"`.
+5. `/reset-password` submit — sama seperti forgot-password.
+6. **Test** — buat `tests/auth-button-focus.test.ts` (penjaga statis, pola
+   `tests/edu-psychology-button-focus.test.ts`): keenam elemen memuat
+   pasangan fokus masing-masing tepat satu kali; kelas persis keenam elemen;
+   `type="submit"` tetap di ketiga tombol submit dan `type="button"` tetap di
+   toggle; handler/label/`Link to` utuh; hitungan berkas (`focus-visible`
+   8/2/2, `<button` 2/1/1, `type="submit"` 1/1/1, `<Link` 2 di sign-in);
+   tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru.
+   Sesuaikan dua test lama **hanya** pada kunci kelas:
+   `tests/password-reset-pending-status.test.ts` `BUTTON_CLASS` (baris ~48)
+   ke string kelas baru (pemakaian `includes` baris ~58 & ~112 tetap), dan
+   `tests/sign-in-pending-status.test.ts` literal `className={cn('btn
+   btn-primary w-full flex items-center justify-center gap-2')}` (baris ~50)
+   ke literal baru — tanpa melonggarkan penjaga posisi/kunci lain.
+7. **Smoke** — tidak ada cek baru (smoke mengklik tombol-tombol ini dan kelas
+   tidak mengubah perilaku; smoke tidak menekan Tab); penjaga baris smoke
+   2748 tetap.
+8. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`; lint 0
@@ -136,11 +145,15 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    (tombol **Try again** boundary galat), `GraphDetailPanel.tsx` (tombol
    tutup), `theme-toggle.tsx`, dan `edu-psychology.tsx` (tombol akordeon) —
    semuanya tombol sinkron/UI, bukan operasi async; jangan menambah
-   `aria-busy` palsu. Kandidat berikutnya: fokus keyboard + `type="button"`
-   kedua tombol `src/routes/edu-psychology.tsx` — tombol akordeon
-   `ExpandableSection` dan tombol kategori `PsychometricWheel` (lihat
-   Tugas berikutnya), lalu surface pelajar/admin lain yang belum punya
-   penanda.
+   `aria-busy` palsu. Fokus keyboard + `type="button"` kedua tombol
+    `src/routes/edu-psychology.tsx` selesai (PR #214). Kandidat berikutnya:
+    fokus keyboard empat tombol dan dua tautan tiga halaman auth —
+    `/sign-in`, `/forgot-password`, `/reset-password` (lihat Tugas
+    berikutnya), lalu surface pelajar/admin lain yang belum punya penanda
+    (audit 2026-11-28: banyak tombol admin di
+    `src/routes/admin/{concepts,learners,prerequisites,psychometrics,states}.tsx`,
+    `src/routes/profile.tsx`, `src/routes/japanese.tsx`, dan tombol
+    **Run All Tests** `src/routes/tests.tsx` masih tanpa kelas fokus).
    Tombol **Try again**
    `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183 dan dikunci
    `tests/study-today-refresh-status.test.ts`; `src/components/michi/`
@@ -198,14 +211,46 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `src/components/ui/theme-toggle.tsx`, serta fokus keyboard kedua `<Link>`
    sidebar `src/components/Sidebar.tsx` (PR #211), serta fokus keyboard tombol
    **Close details** panel detail grafik
-   `src/components/GraphDetailPanel.tsx` (PR #213). Kandidat berikutnya:
-   fokus keyboard + `type="button"` kedua tombol `src/routes/edu-psychology.tsx`
-   (lihat Tugas berikutnya).
+   `src/components/GraphDetailPanel.tsx` (PR #213), serta fokus keyboard kedua tombol
+   `src/routes/edu-psychology.tsx` (PR #214). Kandidat berikutnya: fokus
+   keyboard empat tombol dan dua tautan tiga halaman auth (lihat Tugas
+   berikutnya).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-28: PR #214 — **Fokus keyboard + `type="button"` pada kedua tombol
+  halaman Educational Psychology** — tombol akordeon `ExpandableSection`
+  `src/routes/edu-psychology.tsx` kini memakai `type="button"` sebagai atribut
+  pertama sebelum `onClick` dan kelas string persis `w-full flex items-center
+  justify-between p-6 hover:bg-muted/50 transition-colors
+  focus-visible:outline-2 focus-visible:outline-primary` (dua kelas fokus di
+  akhir; `aria-expanded={isOpen}`, `aria-controls={contentId}`,
+  `useId`/`contentId`, handler `setIsOpen`, ikon `Icon size={24}`
+  `aria-hidden` dan `ChevronDown` rotasi kondisional utuh), dan tombol
+  kategori `PsychometricWheel` kini membawa `type="button"` tepat sesudah
+  `key={categoryName}` sebelum `onClick` dengan pasangan fokus
+  `focus-visible:outline-2 focus-visible:outline-primary` di akhir bagian
+  statis template kelas (sesudah `duration-200`, sebelum `${`) — kedua cabang
+  kondisional (`border-pink-500 ...` aktif / `border-border ...` tidak aktif),
+  handler `setExpandedCategory`,
+  `aria-controls="psychometric-category-detail"`, panel detail kategori,
+  `AnimatePresence`/`motion.div`, `ALL_PSYCHOMETRIC_DOMAINS`, komponen visual
+  lain di berkas, `Sidebar`/`EtherealShadow`, dan `pageHead` tetap utuh.
+  Hitungan file: `focus-visible` 4, `<button` 2, `type="button"` 2,
+  `aria-expanded` 2, `aria-controls` 2, `aria-hidden` 6, `aria-busy` 0,
+  `aria-live` 0, `role=` 0. Test baru
+  `tests/edu-psychology-button-focus.test.ts` (penjaga statis);
+  `tests/edu-psychology-a11y.test.ts` hanya menyesuaikan kunci kelas tombol
+  akordeon. Tanpa cek smoke baru; penjaga baris smoke 2748 tetap. Satu entri
+  log bertanggal di `docs/ROADMAP.md`. `npm run ci` utuh hijau sebelum merge
+  (`TMPDIR=/tmp/opencode`). Catatan lingkungan: sesi sebelumnya terputus
+  setelah membuat commit lokal (branch `feat/edu-psychology-button-focus` di
+  worktree lama, belum ter-push, tanpa uncommitted); siklus ini melanjutkan
+  dari commit itu sebagai branch `feat/edu-psychology-button-focus-2` tanpa
+  mengubah isi.
 
 - 2026-11-28: PR #213 — **Fokus keyboard pada tombol Close details panel
   detail grafik** — tombol tutup `<button>` di `src/components/GraphDetailPanel.tsx`

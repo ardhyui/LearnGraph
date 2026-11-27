@@ -7,8 +7,9 @@
  * detail panel that had no `id`. Decorative icons (section icon, chevron,
  * category emoji, colour dots) were announced too. The page is locked
  * statically so the exact state expressions, the single id pair per pattern and
- * the hidden decoration stay put — without changing clicks, classes, section
- * content or order, and without adding a server function, RPC or migration.
+ * the hidden decoration stay put — without changing clicks, section content,
+ * order or the button class strings (locked including the keyboard focus
+ * pair), and without adding a server function, RPC or migration.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -61,11 +62,11 @@ describe('edu-psychology: expandable sections announce their state', () => {
     onceIn(page, "import { useId, useState } from 'react';", 'the page');
   });
 
-  it('keeps the section clicks, classes and animation contract unchanged', () => {
+  it('keeps the section clicks, focus classes and animation contract unchanged', () => {
     onceIn(section, 'onClick={() => setIsOpen(!isOpen)}', 'the section component');
     onceIn(
       section,
-      'className="w-full flex items-center justify-between p-6 hover:bg-muted/50 transition-colors"',
+      'className="w-full flex items-center justify-between p-6 hover:bg-muted/50 transition-colors focus-visible:outline-2 focus-visible:outline-primary"',
       'the section component',
     );
     onceIn(section, 'const [isOpen, setIsOpen] = useState(true);', 'the section component');
