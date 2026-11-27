@@ -46,6 +46,7 @@ function ContentPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const formHeadingRef = useRef<HTMLHeadingElement>(null);
   const ids = {
     concept: useId(),
@@ -148,8 +149,10 @@ function ContentPage() {
   };
 
   const remove = async (c: ContentItem, button?: HTMLElement) => {
+    if (deleting) return;
     if (!confirm(`Delete “${c.title}”?`)) return;
     setError(null);
+    setDeleting(c.id);
     const focus = rememberRowFocus(button);
     try {
       await deleteLessonContent({ data: { id: c.id } });
@@ -159,6 +162,8 @@ function ContentPage() {
       restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not delete the item.');
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -372,6 +377,8 @@ function ContentPage() {
                               onClick={(e) => remove(c, e.currentTarget)}
                               aria-label={`Delete ${c.title}`}
                               className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              disabled={deleting !== null}
+                              aria-busy={deleting === c.id}
                             >
                               <Trash2 className="h-4 w-4" aria-hidden="true" />
                             </button>
@@ -381,6 +388,7 @@ function ContentPage() {
                         {c.url && <p className="mt-1 break-all text-xs text-muted-foreground">{c.url}</p>}
                       </li>
                     ))}
+                    <p role="status" aria-live="polite" className="sr-only">{deleting ? 'Deleting the item…' : ''}</p>
                   </ol>
                 )}
               </>
