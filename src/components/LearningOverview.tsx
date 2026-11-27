@@ -38,6 +38,7 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const changeRef = useRef<HTMLButtonElement>(null);
   const requestSeq = useRef(0);
   const currentIdRef = useRef(learner.userId);
@@ -76,6 +77,16 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
       setError('Could not load your progress.');
     }
   }, [db, isReady, learnerId, focusKey]);
+
+  const retry = async () => {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      await load();
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -153,7 +164,13 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
       {error ? (
         <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-400">
           {error}{' '}
-          <button type="button" onClick={() => load()} className="font-medium underline">
+          <button
+            type="button"
+            onClick={() => void retry()}
+            className="font-medium underline"
+            disabled={retrying}
+            aria-busy={retrying}
+          >
             Try again
           </button>
         </p>
@@ -239,6 +256,10 @@ export function LearningOverview({ learner, onSubjectsSaved }: LearningOverviewP
       )}
 
       <DownloadMyData learnerId={learnerId} />
+
+      <p role="status" aria-live="polite" className="sr-only">
+        {retrying ? 'Retrying…' : ''}
+      </p>
     </section>
   );
 }
