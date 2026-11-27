@@ -162,7 +162,7 @@ function SignInPage() {
             type="submit"
             disabled={pending}
             aria-busy={pending}
-            className={cn('btn btn-primary w-full flex items-center justify-center gap-2')}
+            className={cn('btn btn-primary w-full flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-primary')}
           >
             {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             {mode === 'sign-in' ? 'Sign in' : 'Create account'}
@@ -176,7 +176,7 @@ function SignInPage() {
           {mode === 'sign-in' ? "Don't have an account?" : 'Already have an account?'}{' '}
           <button
             type="button"
-            className="text-foreground font-medium hover:underline"
+            className="text-foreground font-medium hover:underline focus-visible:outline-2 focus-visible:outline-primary"
             onClick={() => {
               setError(null);
               setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in');
@@ -188,13 +188,13 @@ function SignInPage() {
         <p className="mt-3 text-xs text-center text-muted-foreground">
           {mode === 'sign-in' && (
             <>
-              <Link to="/forgot-password" className="hover:underline">
+              <Link to="/forgot-password" className="hover:underline focus-visible:outline-2 focus-visible:outline-primary">
                 Forgot your password?
               </Link>
               {' · '}
             </>
           )}
-          <Link to="/privacy" className="hover:underline">
+          <Link to="/privacy" className="hover:underline focus-visible:outline-2 focus-visible:outline-primary">
             How your data is handled
           </Link>
         </p>

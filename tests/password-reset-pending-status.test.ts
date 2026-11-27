@@ -45,7 +45,8 @@ const resetForm = formOf(reset, '/reset-password');
 
 const submitOpen = (form: string) => form.match(/<button\s+type="submit"[\s\S]*?>/)?.[0] ?? '';
 
-const BUTTON_CLASS = 'className="btn btn-primary flex w-full items-center justify-center gap-2"';
+const BUTTON_CLASS =
+  'className="btn btn-primary flex w-full items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-primary"';
 
 describe('/forgot-password pending: the submit button announces it is busy', () => {
   it('adds exactly one aria-busy={pending}, on the submit button', () => {
