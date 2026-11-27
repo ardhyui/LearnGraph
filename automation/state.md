@@ -1,71 +1,64 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-27 (poles aksesibilitas **ThemeToggle** selesai
-lewat PR #209; berikutnya: `type="button"` sudah ada di semua tombol, fokus
-keyboard pada **dua tautan** sidebar — brand **LearnGraph** dan setiap item
-navigasi)
+Terakhir diperbarui: 2026-11-28 (fokus keyboard kedua `<Link>` sidebar selesai
+lewat PR #TBD; berikutnya: fokus keyboard tombol **Close details** panel detail
+grafik — `src/components/GraphDetailPanel.tsx`, terlihat pelajar di `/graph`
+dan `/domains`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas terlihat pelajar: **fokus keyboard pada kedua `<Link>`
-sidebar** — `src/components/Sidebar.tsx` (sidebar dirender di layout root semua
-halaman, baik kolom sticky `lg` ke atas maupun drawer off-canvas di bawahnya,
-jadi terlihat pelajar di semua halaman). Berkas ini punya **dua** elemen
-`<Link>`:
+Poles aksesibilitas terlihat pelajar: **fokus keyboard tombol "Close details"
+panel detail grafik** — `src/components/GraphDetailPanel.tsx` (komponen dipakai
+`/graph` dan `/domains`; panel terbuka saat pelajar memilih konsep/domain —
+side panel di layar ≥768px, bottom sheet di ponsel). Berkas ini punya **satu**
+tombol (baris ~74–81):
 
-- tautan brand ke beranda (baris ~191):
-  `<Link to="/" activeOptions={{ exact: true }} className="flex min-w-0
-  items-center gap-2">` — kelas string tunggal, **tanpa** `focus-visible`;
-- tautan setiap item navigasi (baris ~306–316):
-  `<Link to={item.href as any} onClick={() => setOpen(false)}
-  activeOptions={{ exact: item.href === '/' }} className={cn('group flex
-  items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200',
-  isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm' :
-  'text-muted-foreground hover:bg-sidebar-accent/50
-  hover:text-sidebar-foreground')}>` — **tanpa** `focus-visible`.
+- tombol tutup `<button type="button" onClick={onClose} aria-label="Close
+  details" className="rounded-lg p-1.5 text-muted-foreground
+  transition-colors hover:bg-secondary hover:text-foreground">` dengan ikon
+  `<X size={18} aria-hidden="true" />` — kelas string tunggal, **tanpa**
+  `focus-visible`.
 
-Tombol menu, tutup drawer, dan header grup collapsible sudah memakai
-`focus-visible:outline-2 focus-visible:outline-primary` (tiga tempat, 6
-kemunculan `focus-visible`), dan `src/styles.css` tidak punya aturan
-`:focus-visible` global, sehingga pengguna keyboard yang menekan Tab dari
-tombol menu langsung ke tautan brand/item navigasi tidak melihat fokus sama
-sekali. Hitungan file saat ini: `focus-visible` 6, `<Link` 2,
-`className={cn(` 5, `aria-label=` 5, `type="button"` 4,
-`className="sr-only"` 1, `aria-busy` 1, `aria-live` 1, `role="` 1.
-UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru; jangan sentuh
-perilaku navigasi (`to`, `onClick={() => setOpen(false)}`, `activeOptions`,
-`aria-current` bawaan router, `isNavItemActive`/`isSectionOpen`, grup
-collapsible, drawer fokus-trap), status **Sign out** (PR #208), atau
-`ThemeToggle`.
+`src/styles.css` tidak punya aturan `:focus-visible` global, dan tautan
+pelajaran di dalam isi panel (route `/graph`, dijaga
+`tests/graph-detail-lesson-link.test.ts`) sudah memakai
+`focus-visible:ring-2`, jadi tombol tutup adalah satu-satunya interaksi panel
+tanpa cincin fokus: pengguna keyboard yang menekan Tab ke tombol tutup (atau
+Shift+Tab dari isi panel) tidak melihat fokus sama sekali. Hitungan file saat
+ini: `focus-visible` 0, `<button` 1, `type="button"` 1, `aria-label=` 1,
+`aria-hidden` 2 (handle grab sheet + ikon X), `className="sr-only"` 0,
+`aria-busy` 0, `aria-live` 0, `role=` 0, `className={cn(` 0. UI bahasa
+Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru; tombol ini sinkron
+(menutup panel) — jangan menambah `aria-busy`/live region palsu. Jangan
+sentuh handler Escape (`useEffect` + `onKey`), `useWide`/`WIDE` media query,
+`motionProps` (side/sheet), `headingId`/`aria-labelledby`,
+`data-testid="graph-detail-panel"`/`data-layout`, handle grab `aria-hidden`,
+`children`, atau pemakaian komponen di `src/routes/graph.tsx` dan
+`src/routes/domains.tsx`.
 
 Tujuan: tambahkan `focus-visible:outline-2 focus-visible:outline-primary` ke
-**kedua** tautan tanpa menghapus/merangkai ulang kelas yang ada.
+kelas tombol tutup **di akhir** string kelas, dipisah satu spasi, tanpa
+menghapus/mengurutkan ulang kelas yang ada.
 
 Rancangan:
 
-1. **Tautan brand** — ubah kelas string menjadi `"flex min-w-0 items-center
-   gap-2 focus-visible:outline-2 focus-visible:outline-primary"` (dua kelas
-   fokus ditambahkan di akhir, dipisah satu spasi; atribut lain utuh).
-2. **Tautan item navigasi** — tambahkan baris kelas
-   `'focus-visible:outline-2 focus-visible:outline-primary',` sebagai argumen
-   **terakhir** di dalam `cn(...)`, sesudah ekspresi kondisional
-   `isActive ? ... : ...` dan sebelum `)}`; jangan mengubah baris kelas dasar,
-   kondisional aktif/tidak aktif, ikon `Icon size={18} aria-hidden="true"`,
-   label/description, atau indikator aktif.
-3. **Test** — tambahkan `tests/sidebar-nav-focus.test.ts` (penjaga statis,
-   pola `tests/sidebar-sign-out-status.test.ts`): kedua `<Link>` memuat dua
-   kelas fokus; tautan brand memakai kelas string persis dengan dua kelas fokus
-   di akhir; blok `cn(...)` tautan item memuat baris fokus sebagai argumen
-   terakhir sesudah kondisional; `to`/`onClick`/`activeOptions`/`isActive`
-   utuh; tiga focus ring tombol yang sudah ada (menu, tutup, header grup)
-   tetap; hitungan file sesudah `focus-visible` 10, `<Link` 2,
-   `className={cn(` 5, `type="button"` 4, `className="sr-only"` 1,
-   `aria-busy` 1, `aria-live` 1, `role="` 1; tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Jangan mengubah
-   `tests/navigation-direct.test.ts` atau `tests/sidebar-sign-out-status.test.ts`.
-4. **Smoke** — tidak ada cek baru; smoke tidak menekan Tab dan penjaga baris
-   smoke 2748 tetap.
-5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+1. **Tombol tutup** — ubah kelas menjadi `"rounded-lg p-1.5
+   text-muted-foreground transition-colors hover:bg-secondary
+   hover:text-foreground focus-visible:outline-2
+   focus-visible:outline-primary"` (dua kelas fokus di akhir; atribut lain
+   utuh).
+2. **Test** — tambahkan `tests/graph-detail-panel-close-focus.test.ts`
+   (penjaga statis, pola `tests/sidebar-nav-focus.test.ts`): tombol tutup
+   memuat kelas string persis dengan dua kelas fokus di akhir;
+   `type="button"`, `onClick={onClose}`, `aria-label="Close details"`, dan
+   ikon `<X size={18} aria-hidden="true" />` utuh; handler Escape + `useWide`
+   + `motionProps` + `aria-labelledby` tetap; hitungan file sesudah
+   `focus-visible` 2, `<button` 1, `type="button"` 1, `aria-label=` 1,
+   `aria-hidden` 2; tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi
+   baru. Jangan mengubah `tests/graph-detail-lesson-link.test.ts`.
+3. **Smoke** — tidak ada cek baru (smoke tidak menekan Tab; panel dibuka
+   lewat klik node); penjaga baris smoke 2748 tetap.
+4. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`); commit
@@ -109,14 +102,18 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    halaman admin Prerequisites (PR #206), dan tombol per-key **Revoke**
    panel **Connect an AI assistant** `src/components/ApiAccess.tsx`
    (PR #207), serta tombol **Sign out** footer sidebar
-   `src/components/Sidebar.tsx` (PR #208) selesai. Audit 2026-11-27: berkas
+   `src/components/Sidebar.tsx` (PR #208), **ThemeToggle** (PR #209), serta
+   fokus keyboard kedua `<Link>` sidebar (PR #TBD) selesai. Audit 2026-11-27: berkas
    ber-`<button>` yang belum punya `aria-busy` tinggal `ErrorPages.tsx`
    (tombol **Try again** boundary galat), `GraphDetailPanel.tsx` (tombol
    tutup), `theme-toggle.tsx`, dan `edu-psychology.tsx` (tombol akordeon) —
    semuanya tombol sinkron/UI, bukan operasi async; jangan menambah
-   `aria-busy` palsu. Kandidat berikutnya: poles fokus keyboard kedua `<Link>`
-   sidebar (lihat Tugas berikutnya), lalu audit surface pelajar/admin lain yang
-   belum punya penanda. Tombol **Try again**
+   `aria-busy` palsu. Kandidat berikutnya: fokus keyboard tombol **Close
+   details** panel detail grafik `src/components/GraphDetailPanel.tsx` (lihat
+   Tugas berikutnya), lalu audit fokus keyboard tombol kategori
+   `src/routes/edu-psychology.tsx` (kedua tombolnya juga belum memakai
+   `type="button"`) dan surface pelajar/admin lain yang belum punya penanda.
+   Tombol **Try again**
    `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183 dan dikunci
    `tests/study-today-refresh-status.test.ts`; `src/components/michi/`
    adalah kontrak Michi — jangan disentuh. Baris "Lanjutan:"
@@ -170,13 +167,40 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    dan tombol per-key **Revoke** panel **Connect an AI assistant**
    `src/components/ApiAccess.tsx` (PR #207), serta tombol **Sign out** footer
    sidebar `src/components/Sidebar.tsx` (PR #208), serta **ThemeToggle**
-   `src/components/ui/theme-toggle.tsx` (lihat Riwayat). Kandidat berikutnya:
-   fokus keyboard kedua `<Link>` sidebar (lihat Tugas berikutnya).
+   `src/components/ui/theme-toggle.tsx`, serta fokus keyboard kedua `<Link>`
+   sidebar `src/components/Sidebar.tsx` (lihat Riwayat). Kandidat berikutnya:
+   fokus keyboard tombol **Close details** panel detail grafik
+   `src/components/GraphDetailPanel.tsx` (lihat Tugas berikutnya).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-28: PR #TBD — **Fokus keyboard pada kedua tautan sidebar (brand dan
+  item navigasi)** — tautan brand **LearnGraph** di top bar mobile
+  `src/components/Sidebar.tsx` kini memakai kelas string persis
+  `flex min-w-0 items-center gap-2 focus-visible:outline-2
+  focus-visible:outline-primary` (dua kelas fokus di akhir; `to="/"` dan
+  `activeOptions={{ exact: true }}` utuh, atribut hanya dilipat multi-baris
+  oleh panjang baris), dan tautan item navigasi mendapat baris kelas
+  `'focus-visible:outline-2 focus-visible:outline-primary',` sebagai argumen
+  **terakhir** di dalam `cn(...)` sesudah ekspresi kondisional
+  `isActive ? ... : ...` — baris kelas dasar, kedua cabang aktif/tidak aktif,
+  `to={item.href as any}`, `onClick={() => setOpen(false)}`,
+  `activeOptions={{ exact: item.href === '/' }}`, `aria-current` bawaan
+  router, ikon `Icon size={18} aria-hidden="true"`, label/description, dan
+  indikator aktif `layoutId` tidak berubah. Focus-trap drawer, status **Sign
+  out** (PR #208), **ThemeToggle** (PR #209), `isNavItemActive`/
+  `isSectionOpen`, grup collapsible, dan fokus balik ke tombol menu tetap
+  utuh. Hitungan file: `focus-visible` 10, `<Link` 2, `className={cn(` 5,
+  `type="button"` 4, `className="sr-only"` 1, `aria-busy` 1, `aria-live` 1,
+  `role="` 1. Test baru `tests/sidebar-nav-focus.test.ts` (penjaga statis);
+  `tests/navigation-direct.test.ts` dan
+  `tests/sidebar-sign-out-status.test.ts` tidak diubah. Tanpa cek smoke baru;
+  penjaga baris smoke 2748 tetap. Satu entri log bertanggal di
+  `docs/ROADMAP.md`. `npm run ci` utuh hijau sebelum merge
+  (`TMPDIR=/tmp/opencode`).
 
 - 2026-11-27: PR #209 — **Tombol tema jadi tombol biasa dengan fokus keyboard
   dan ikon dekoratif tersembunyi** — kedua `<button>` di
