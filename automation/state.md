@@ -1,67 +1,94 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-28 (fokus keyboard kedua `<Link>` sidebar selesai
-lewat PR #211; berikutnya: fokus keyboard tombol **Close details** panel detail
-grafik — `src/components/GraphDetailPanel.tsx`, terlihat pelajar di `/graph`
-dan `/domains`)
+Terakhir diperbarui: 2026-11-28 (fokus keyboard tombol **Close details** panel
+detail grafik selesai lewat PR #213; berikutnya: fokus keyboard + `type="button"`
+pada kedua tombol `src/routes/edu-psychology.tsx` — tombol akordeon
+`ExpandableSection` dan tombol kategori `PsychometricWheel`, terlihat pelajar
+di `/edu-psychology`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas terlihat pelajar: **fokus keyboard tombol "Close details"
-panel detail grafik** — `src/components/GraphDetailPanel.tsx` (komponen dipakai
-`/graph` dan `/domains`; panel terbuka saat pelajar memilih konsep/domain —
-side panel di layar ≥768px, bottom sheet di ponsel). Berkas ini punya **satu**
-tombol (baris ~74–81):
+Poles aksesibilitas terlihat pelajar: **fokus keyboard dan `type="button"` pada
+kedua tombol `/edu-psychology`** — `src/routes/edu-psychology.tsx` (halaman
+publik Educational Psychology, tanpa data; halaman memakai `Sidebar` +
+`EtherealShadow`). Berkas ini punya **dua** tombol interaktif — keduanya
+**tanpa** `type="button"` (bisa ikut submit bila kelak dipasang di dalam form)
+dan **tanpa** kelas `:focus-visible`; `src/styles.css` tidak punya aturan
+`:focus-visible` global, sehingga pengguna keyboard yang menekan Tab ke tombol
+mana pun di halaman ini tidak melihat indikator fokus sama sekali.
 
-- tombol tutup `<button type="button" onClick={onClose} aria-label="Close
-  details" className="rounded-lg p-1.5 text-muted-foreground
-  transition-colors hover:bg-secondary hover:text-foreground">` dengan ikon
-  `<X size={18} aria-hidden="true" />` — kelas string tunggal, **tanpa**
-  `focus-visible`.
+1. **Tombol akordeon `ExpandableSection`** (baris ~489–502; dipakai keenam
+   bagian halaman — ZPD, Bloom, Scaffolding, Forgetting Curve, Psychometrics,
+   Knowledge Graph):
+   - `<button onClick={() => setIsOpen(!isOpen)} aria-expanded={isOpen}
+     aria-controls={contentId} className="w-full flex items-center
+     justify-between p-6 hover:bg-muted/50 transition-colors">` — kelas string
+     tunggal; ikon `ChevronDown` (kelas rotasi kondisional `${isOpen ?
+     'rotate-180' : ''}`) dan `Icon size={24}` `aria-hidden` di dalamnya.
+2. **Tombol kategori `PsychometricWheel`** (baris ~338–361; grid 13 kategori
+   psikometrik):
+   - `<button key={categoryName} onClick={() => setExpandedCategory(
+     expandedCategory === categoryName ? null : categoryName)}
+     aria-expanded={expandedCategory === categoryName}
+     aria-controls="psychometric-category-detail" className={`text-left p-4
+     rounded-xl border-2 transition-all duration-200 ${...}`}>` — kelas
+     template literal dengan dua cabang kondisional (`border-pink-500 ...`
+     aktif / `border-border hover:border-muted-foreground/50
+     hover:bg-muted/50` tidak aktif); ikon kategori `span aria-hidden` + titik
+     warna `aria-hidden` di dalamnya.
 
-`src/styles.css` tidak punya aturan `:focus-visible` global, dan tautan
-pelajaran di dalam isi panel (route `/graph`, dijaga
-`tests/graph-detail-lesson-link.test.ts`) sudah memakai
-`focus-visible:ring-2`, jadi tombol tutup adalah satu-satunya interaksi panel
-tanpa cincin fokus: pengguna keyboard yang menekan Tab ke tombol tutup (atau
-Shift+Tab dari isi panel) tidak melihat fokus sama sekali. Hitungan file saat
-ini: `focus-visible` 0, `<button` 1, `type="button"` 1, `aria-label=` 1,
-`aria-hidden` 2 (handle grab sheet + ikon X), `className="sr-only"` 0,
-`aria-busy` 0, `aria-live` 0, `role=` 0, `className={cn(` 0. UI bahasa
-Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru; tombol ini sinkron
-(menutup panel) — jangan menambah `aria-busy`/live region palsu. Jangan
-sentuh handler Escape (`useEffect` + `onKey`), `useWide`/`WIDE` media query,
-`motionProps` (side/sheet), `headingId`/`aria-labelledby`,
-`data-testid="graph-detail-panel"`/`data-layout`, handle grab `aria-hidden`,
-`children`, atau pemakaian komponen di `src/routes/graph.tsx` dan
-`src/routes/domains.tsx`.
+Hitungan file saat ini: `focus-visible` 0, `<button` 2, `type="button"` 0,
+`aria-expanded` 2, `aria-controls` 2, `aria-hidden` 6, `aria-label=` 0,
+`aria-busy` 0, `aria-live` 0, `role=` 0, `className={cn(` 0, ``className={` ``
+3, `onClick` 2. Kedua tombol sinkron (hanya toggle state lokal) — jangan
+menambah `aria-busy`/live region palsu. Jangan sentuh `aria-expanded`/
+`aria-controls` kedua tombol, handler toggle (`setIsOpen`/`setExpandedCategory`),
+`useId`/`contentId`, panel detail kategori (`id="psychometric-category-detail"`
+beserta isi domain/markers/eduRelevance), `AnimatePresence`/`motion.div` dan
+animasinya, `ALL_PSYCHOMETRIC_DOMAINS` (13 kategori/39 domain), komponen visual
+lain di berkas (ZPDDiagram, BloomsPyramid, ScaffoldingVisual, ForgettingCurve,
+CodeLocation), `Sidebar`/`EtherealShadow`, atau `pageHead`. UI bahasa Inggris
+(D2). Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: tambahkan `focus-visible:outline-2 focus-visible:outline-primary` ke
-kelas tombol tutup **di akhir** string kelas, dipisah satu spasi, tanpa
-menghapus/mengurutkan ulang kelas yang ada.
+Tujuan:
+
+1. **Tombol akordeon** — tambah `type="button"` sebagai atribut pertama
+   (sebelum `onClick`), lalu tambah ` focus-visible:outline-2
+   focus-visible:outline-primary` **di akhir** string kelas, tanpa
+   menghapus/mengurutkan ulang kelas yang ada.
+2. **Tombol kategori** — tambah `type="button"` tepat sesudah
+   `key={categoryName}` dan sebelum `onClick`, lalu tambah dua kelas fokus di
+   akhir bagian literal statis template kelas (sesudah `duration-200`, sebelum
+   `${`) tanpa menyentuh kedua cabang kondisional.
 
 Rancangan:
 
-1. **Tombol tutup** — ubah kelas menjadi `"rounded-lg p-1.5
-   text-muted-foreground transition-colors hover:bg-secondary
-   hover:text-foreground focus-visible:outline-2
-   focus-visible:outline-primary"` (dua kelas fokus di akhir; atribut lain
-   utuh).
-2. **Test** — tambahkan `tests/graph-detail-panel-close-focus.test.ts`
-   (penjaga statis, pola `tests/sidebar-nav-focus.test.ts`): tombol tutup
-   memuat kelas string persis dengan dua kelas fokus di akhir;
-   `type="button"`, `onClick={onClose}`, `aria-label="Close details"`, dan
-   ikon `<X size={18} aria-hidden="true" />` utuh; handler Escape + `useWide`
-   + `motionProps` + `aria-labelledby` tetap; hitungan file sesudah
-   `focus-visible` 2, `<button` 1, `type="button"` 1, `aria-label=` 1,
-   `aria-hidden` 2; tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi
-   baru. Jangan mengubah `tests/graph-detail-lesson-link.test.ts`.
-3. **Smoke** — tidak ada cek baru (smoke tidak menekan Tab; panel dibuka
-   lewat klik node); penjaga baris smoke 2748 tetap.
-4. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+1. **Tombol akordeon** — kelas menjadi `"w-full flex items-center
+   justify-between p-6 hover:bg-muted/50 transition-colors
+   focus-visible:outline-2 focus-visible:outline-primary"` (dua kelas fokus di
+   akhir; `onClick`/`aria-expanded`/`aria-controls`/`contentId` utuh).
+2. **Tombol kategori** — kelas menjadi `` `text-left p-4 rounded-xl border-2
+   transition-all duration-200 focus-visible:outline-2
+   focus-visible:outline-primary ${...}` `` (dua kelas fokus di akhir bagian
+   statis; `key`/`onClick`/`aria-expanded`/`aria-controls` utuh, kedua cabang
+   kondisional tidak berubah).
+3. **Test** — tambahkan `tests/edu-psychology-button-focus.test.ts` (penjaga
+   statis, pola `tests/sidebar-nav-focus.test.ts` dan
+   `tests/graph-detail-panel-close-focus.test.ts`): kedua tombol memuat
+   `type="button"` dan pasangan fokus masing-masing tepat satu kali; tombol
+   akordeon memuat kelas string persis dengan dua kelas fokus di akhir; tombol
+   kategori memuat kelas fokus di bagian statis template dengan kedua cabang
+   kondisional utuh; `aria-expanded`/`aria-controls`/handler toggle tetap;
+   hitungan file sesudah `focus-visible` 4, `type="button"` 2, `<button` 2,
+   `aria-expanded` 2, `aria-controls` 2, `aria-hidden` 6; tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru.
+4. **Smoke** — tidak ada cek baru (smoke tidak membuka `/edu-psychology` dan
+   tidak menekan Tab); penjaga baris smoke 2748 tetap.
+5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
-Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`); commit
+Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`; lint 0
+warning — jangan meninggalkan variabel tak terpakai di test baru); commit
 bahasa Indonesia `feat:`.
 
 ## Catatan lingkungan
@@ -103,16 +130,17 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    panel **Connect an AI assistant** `src/components/ApiAccess.tsx`
    (PR #207), serta tombol **Sign out** footer sidebar
    `src/components/Sidebar.tsx` (PR #208), **ThemeToggle** (PR #209), serta
-   fokus keyboard kedua `<Link>` sidebar (PR #211) selesai. Audit 2026-11-27: berkas
+   fokus keyboard kedua `<Link>` sidebar (PR #211) dan fokus keyboard tombol
+   **Close details** panel detail grafik (PR #213) selesai. Audit 2026-11-27: berkas
    ber-`<button>` yang belum punya `aria-busy` tinggal `ErrorPages.tsx`
    (tombol **Try again** boundary galat), `GraphDetailPanel.tsx` (tombol
    tutup), `theme-toggle.tsx`, dan `edu-psychology.tsx` (tombol akordeon) —
    semuanya tombol sinkron/UI, bukan operasi async; jangan menambah
-   `aria-busy` palsu. Kandidat berikutnya: fokus keyboard tombol **Close
-   details** panel detail grafik `src/components/GraphDetailPanel.tsx` (lihat
-   Tugas berikutnya), lalu audit fokus keyboard tombol kategori
-   `src/routes/edu-psychology.tsx` (kedua tombolnya juga belum memakai
-   `type="button"`) dan surface pelajar/admin lain yang belum punya penanda.
+   `aria-busy` palsu. Kandidat berikutnya: fokus keyboard + `type="button"`
+   kedua tombol `src/routes/edu-psychology.tsx` — tombol akordeon
+   `ExpandableSection` dan tombol kategori `PsychometricWheel` (lihat
+   Tugas berikutnya), lalu surface pelajar/admin lain yang belum punya
+   penanda.
    Tombol **Try again**
    `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183 dan dikunci
    `tests/study-today-refresh-status.test.ts`; `src/components/michi/`
@@ -168,14 +196,39 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `src/components/ApiAccess.tsx` (PR #207), serta tombol **Sign out** footer
    sidebar `src/components/Sidebar.tsx` (PR #208), serta **ThemeToggle**
    `src/components/ui/theme-toggle.tsx`, serta fokus keyboard kedua `<Link>`
-   sidebar `src/components/Sidebar.tsx` (lihat Riwayat). Kandidat berikutnya:
-   fokus keyboard tombol **Close details** panel detail grafik
-   `src/components/GraphDetailPanel.tsx` (lihat Tugas berikutnya).
+   sidebar `src/components/Sidebar.tsx` (PR #211), serta fokus keyboard tombol
+   **Close details** panel detail grafik
+   `src/components/GraphDetailPanel.tsx` (PR #213). Kandidat berikutnya:
+   fokus keyboard + `type="button"` kedua tombol `src/routes/edu-psychology.tsx`
+   (lihat Tugas berikutnya).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-28: PR #213 — **Fokus keyboard pada tombol Close details panel
+  detail grafik** — tombol tutup `<button>` di `src/components/GraphDetailPanel.tsx`
+  kini memakai kelas string persis `rounded-lg p-1.5 text-muted-foreground
+  transition-colors hover:bg-secondary hover:text-foreground
+  focus-visible:outline-2 focus-visible:outline-primary` (dua kelas fokus di
+  akhir; `type="button"`, `onClick={onClose}`, `aria-label="Close details"`,
+  dan ikon `<X size={18} aria-hidden="true" />` utuh). Handler Escape
+  (`useEffect` + `onKey`), `useWide`/`WIDE`, `motionProps` (side/sheet),
+  `headingId`/`aria-labelledby`, `data-testid="graph-detail-panel"`/
+  `data-layout`, handle grab sheet `aria-hidden`, `children`, dan pemakaian
+  komponen di `src/routes/graph.tsx` dan `src/routes/domains.tsx` tetap utuh.
+  Hitungan file: `focus-visible` 2, `<button` 1, `type="button"` 1,
+  `aria-label=` 1, `aria-hidden` 2, `className="sr-only"` 0, `aria-busy` 0,
+  `aria-live` 0, `role=` 0, `className={cn(` 0. Test baru
+  `tests/graph-detail-panel-close-focus.test.ts` (penjaga statis);
+  `tests/graph-detail-lesson-link.test.ts` tidak diubah. Tanpa cek smoke
+  baru; penjaga baris smoke 2748 tetap. Satu entri log bertanggal di
+  `docs/ROADMAP.md`. Catatan lingkungan: percobaan CI pertama gagal hanya di
+  tahap lint (0 error, 1 warning `no-unused-vars` — konstanta `FOCUS_PAIR`
+  di test baru belum terpakai; diperbaiki dengan memakainya sebagai penjaga
+  "kelas fokus di akhir", bukan masalah kode produk) — setelah perbaikan,
+  `npm run ci` utuh hijau sebelum merge (`TMPDIR=/tmp/opencode`).
 
 - 2026-11-28: PR #211 — **Fokus keyboard pada kedua tautan sidebar (brand dan
   item navigasi)** — tautan brand **LearnGraph** di top bar mobile
