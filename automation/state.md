@@ -1,76 +1,71 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
 Terakhir diperbarui: 2026-11-27 (status proses tombol per-baris **Delete**
-halaman admin Quiz Questions selesai lewat PR #201; berikutnya: tombol
-per-baris **Delete** halaman admin Lesson Content
-`src/routes/admin/content.tsx`)
+halaman admin Lesson Content selesai lewat PR #202; berikutnya: tombol
+per-baris **Delete** halaman admin Concepts `src/routes/admin/concepts.tsx`)
 
 ## Tugas berikutnya
 
 Poles kecil + fitur: **Status proses tombol per-baris Delete halaman admin
-Lesson Content** — `src/routes/admin/content.tsx` (Admin → Lesson Content,
-daftar item per konsep dalam `<ol aria-label={`Lesson content for
-${concept.name}`}>`). Tombol **Delete** per item (sekitar baris 370–377) kini
-`<button type="button" onClick={(e) => remove(c, e.currentTarget)}
-aria-label={`Delete ${c.title}`}
-className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10
-hover:text-destructive"><Trash2 className="h-4 w-4" aria-hidden="true"
-/></button>` — memanggil `remove` (async) tanpa `disabled`/`aria-busy` dan
-tanpa pengumuman, sehingga selama penghapusan pembaca layar tidak tahu item
-sedang dihapus dan klik ganda bisa memicu dua `deleteLessonContent`. Tombol
-**Edit** per baris (`onClick={() => edit(c)}`, sinkron) sengaja tetap tanpa
-penanda, dan tombol **Save item**/*Cancel* serta status **Saving the item…**
-(PR #176) harus dipertahankan. Hitungan file saat ini: `aria-busy` 1,
-`aria-busy=` 1, `aria-live` 2, `role="status"` 3, `role="alert"` 1,
-`aria-label=` 3, `aria-labelledby` 1, `aria-atomic` 0, `className="sr-only"`
-1, `role="` 4. UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi
-baru.
+Concepts** — `src/routes/admin/concepts.tsx` (Admin → Concepts, daftar kartu
+konsep dalam `<motion.div variants={containerVariants} ... className="grid
+gap-4">`). Tombol **Delete** per kartu (sekitar baris 533–541) kini
+`<button onClick={(e) => handleDelete(concept.conceptId, e.currentTarget)}
+className="p-2 rounded-lg hover:bg-destructive/10 text-destructive
+transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>` —
+memanggil `handleDelete` (async) tanpa `disabled`/`aria-busy` dan tanpa
+pengumuman, sehingga selama penghapusan pembaca layar tidak tahu konsep sedang
+dihapus dan klik ganda bisa memicu dua `deleteConcept`. Tombol **Edit** per
+kartu (`onClick={() => openEditForm(concept)}`, sinkron) sengaja tetap tanpa
+penanda, dan tombol **Create**/**Update**/*Cancel* serta status **Saving the
+concept…** (PR #191) harus dipertahankan. Hitungan file saat ini: `aria-busy`
+1, `aria-busy=` 1, `aria-live` 1, `role="status"` 1, `role="alert"` 0,
+`aria-label=` 0, `aria-labelledby` 0, `aria-atomic` 0, `className="sr-only"`
+1, `role="` 1. UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: state baru `const [deleting, setDeleting] = useState<string | null>(null);`
-diletakkan sesudah state `notice` (`const [notice, setNotice] = useState<string
-| null>(null);`). `remove` diawali guard `if (deleting) return;` sebelum
-`confirm(...)`, lalu `setDeleting(c.id)` disetel sesudah `setError(null)` dan
-sebelum `const focus = rememberRowFocus(button);`; `finally { setDeleting(null); }`
-ditambahkan pada `try/catch` yang sudah ada — isi `try` (`deleteLessonContent`,
-`setNotice('Item deleted.')`, `if (draft?.id === c.id) setDraft(null)`,
-`await load()`, `restoreRowFocus(focus)`), `catch`, dan pemanggilan `confirm`
-tidak berubah. Tombol **Delete** mempertahankan `type="button"`,
-`onClick={(e) => remove(c, e.currentTarget)}`, `aria-label`, kelas persis, dan
-ikon, lalu membawa `disabled={deleting !== null}` dan `aria-busy={deleting ===
-c.id}` tepat sesudah `className`; label aksesibel `Delete ${c.title}` utuh.
+Tujuan: state baru `const [deleting, setDeleting] = useState<string | null>
+(null);` diletakkan sesudah `const [saving, setSaving] = useState(false);`.
+`handleDelete` diawali guard `if (deleting) return;` sebelum `confirm(...)`,
+lalu `setDeleting(conceptId);` disetel sesudah `confirm` dan sebelum `const
+focus = rememberRowFocus(button);`; `finally { setDeleting(null); }`
+ditambahkan pada `try/catch` yang sudah ada — isi `try` (`deleteConcept
+(conceptId)`, `restoreRowFocus(focus)`), `catch` (`An error occurred`), dan
+pemanggilan `confirm` tidak berubah. Tombol **Delete** mempertahankan
+`onClick`, `className` persis, `title="Delete"`, dan ikon `<Trash2
+className="w-4 h-4" />`, lalu membawa `disabled={deleting !== null}` dan
+`aria-busy={deleting === concept.conceptId}` tepat sesudah `className`.
 **Satu** pengumuman baru: `<p role="status" aria-live="polite"
-className="sr-only">{deleting ? 'Deleting the item…' : ''}</p>` sebagai anak
-terakhir `<ol>` daftar item (sesudah `))}` penutup `list.map`, sebelum
-`</ol>`).
+className="sr-only">{deleting ? 'Deleting the concept…' : ''}</p>` sebagai
+anak terakhir `<motion.div>` grid daftar (sesudah `))}` penutup
+`filteredConcepts.map`, sebelum `</motion.div>`).
 
 Rancangan:
 
-1. **State + handler** — `deleting` sesudah `notice`; guard baris pertama
-   `remove`, `setDeleting(c.id)` sesudah `setError(null)`, `finally` pada
-   `try/catch` lama; `load`/`edit` dan alur `confirm` utuh.
-2. **Tombol** — per-baris **Delete**: `type`, `onClick`, `aria-label`,
-   `className`, `disabled={deleting !== null}`, `aria-busy={deleting === c.id}`
-   sesuai urutan; ikon `Trash2` `aria-hidden` dan tombol **Edit** per baris
-   tidak berubah.
+1. **State + handler** — `deleting` sesudah `saving`; guard baris pertama
+   `handleDelete`, `setDeleting(conceptId)` sesudah `confirm`, `finally` pada
+   `try/catch` lama; `deleteConcept`/`restoreRowFocus` utuh.
+2. **Tombol** — per-kartu **Delete**: `onClick`, `title`, `className`,
+   `disabled={deleting !== null}`, `aria-busy={deleting === concept.conceptId}`
+   sesuai urutan; ikon `Trash2` dan tombol **Edit** per kartu tidak berubah.
 3. **Status** — satu `<p role="status" aria-live="polite"
-   className="sr-only">` berteks `Deleting the item…`/kosong sebagai anak
-   terakhir `<ol>` daftar item.
-4. **Test** — tambahkan `tests/content-delete-status.test.ts` (penjaga statis,
-   pola `tests/question-delete-status.test.ts`): tombol **Delete** dengan
-   atribut berurutan dan `aria-label`/ikon utuh, tombol **Edit** tanpa
-   `disabled`/`aria-busy`, satu status baru berteks `Deleting the
-   item…`/kosong dan berada sesudah `list.map` sebagai anak terakhir `<ol>`,
-   state `deleting` sesudah `notice`, guard sebelum `confirm`,
-   `setDeleting(c.id)` sesudah `setError(null)` + `finally` membersihkan, isi
-   `try` lama utuh, tombol **Save item**/*Cancel* serta status **Saving the
-   item…** dan notice/galat tetap, hitungan file `aria-busy` 2/`aria-live`
-   3/`role="status"` 4/`role="alert"` 1/`aria-label=` 3/`aria-labelledby`
-   1/`aria-atomic` 0/`className="sr-only"` 2/`role="` 5, serta tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Sesuaikan test lama
-   (`tests/content-save-status.test.ts`) hanya untuk hitungan dan penjaga
-   "Add item, Edit dan Delete tanpa aria-busy" (kini Delete memang berpenanda;
-   pertahankan Add item/Edit), tanpa melonggarkan penjaga posisi/kunci.
-5. **Smoke** — tidak ada cek baru (menghapus butuh data item dan dialog
+   className="sr-only">` berteks `Deleting the concept…`/kosong sebagai anak
+   terakhir grid daftar.
+4. **Test** — tambahkan `tests/concept-delete-status.test.ts` (penjaga statis,
+   pola `tests/content-delete-status.test.ts`): tombol **Delete** dengan
+   atribut berurutan dan `title`/ikon utuh, tombol **Edit** tanpa
+   `disabled`/`aria-busy`, satu status baru berteks `Deleting the concept…`/
+   kosong dan berada sesudah `filteredConcepts.map` sebagai anak terakhir
+   grid, state `deleting` sesudah `saving`, guard sebelum `confirm`,
+   `setDeleting(conceptId)` sesudah `confirm` + `finally` membersihkan, isi
+   `try` lama utuh, tombol **Create**/**Update**/*Cancel* serta status
+   **Saving the concept…** dan blok galat tetap, hitungan file `aria-busy` 2/
+   `aria-live` 2/`role="status"` 2/`role="alert"` 0/`aria-label=` 0/
+   `aria-labelledby` 0/`aria-atomic` 0/`className="sr-only"` 2/`role="` 2,
+   serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru.
+   Sesuaikan test lama (`tests/concept-save-status.test.ts`) hanya untuk
+   hitungan `aria-busy=` 1→2, `aria-live="polite"` 1→2, `role="status"` 1→2,
+   `className="sr-only"` 1→2, tanpa melonggarkan penjaga posisi/kunci.
+5. **Smoke** — tidak ada cek baru (menghapus butuh data konsep dan dialog
    `confirm`); jangan mengubah penjaga baris smoke 2748.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
@@ -98,12 +93,13 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    yang sama (PR #196), form **Create prerequisite** (PR #197), form
    **Create knowledge state** (PR #198), tombol keputusan draf
    **Approve/Discard** `AiQuestionDrafts.tsx` (PR #199), tombol **Try
-   again** `LearningOverview.tsx` (PR #200), dan tombol per-baris **Delete**
-   halaman admin Quiz Questions (PR #201) selesai: tombol per-baris
-   **Delete** halaman admin Lesson Content (lihat Tugas berikutnya), lalu
-   audit surface pelajar/admin lain yang belum punya penanda (mis. tombol
-   per-baris **Delete** di halaman admin lain; tombol **Try again**
-   `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183 dan dikunci
+   again** `LearningOverview.tsx` (PR #200), tombol per-baris **Delete**
+   halaman admin Quiz Questions (PR #201), dan tombol per-baris **Delete**
+   halaman admin Lesson Content (PR #202) selesai: tombol per-baris **Delete**
+   halaman admin Concepts (lihat Tugas berikutnya), lalu audit surface
+   pelajar/admin lain yang belum punya penanda (mis. tombol per-baris
+   **Delete** di halaman admin lain; tombol **Try again** `StudyToday.tsx`
+   sengaja dibiarkan tanpa penanda oleh PR #183 dan dikunci
    `tests/study-today-refresh-status.test.ts`). Baris "Lanjutan:" yang belum
    dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
    migrasi data — jangan dipilih tanpa perubahan kondisi.
@@ -149,8 +145,9 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    (PR #198), tombol keputusan draf **Approve/Discard**
    `src/components/AiQuestionDrafts.tsx` (PR #199), tombol **Try again**
    `src/components/LearningOverview.tsx` (PR #200), dan tombol per-baris
-   **Delete** halaman admin Quiz Questions (PR #201). Kandidat berikutnya:
-   tombol per-baris **Delete** halaman admin Lesson Content (lihat Tugas
+   **Delete** halaman admin Quiz Questions (PR #201), serta tombol per-baris
+   **Delete** halaman admin Lesson Content (PR #202). Kandidat berikutnya:
+   tombol per-baris **Delete** halaman admin Concepts (lihat Tugas
    berikutnya), lalu audit surface pelajar/admin lain yang belum punya
    penanda.
 
@@ -158,6 +155,27 @@ Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-27: PR #202 — **Status proses tombol per-baris Delete halaman
+  admin Lesson Content** — tombol **Delete** per item kini membawa
+  `disabled={deleting !== null}` dan `aria-busy={deleting === c.id}` tepat
+  sesudah `className` (type/handler/`aria-label`/kelas/ikon `Trash2`
+  `aria-hidden` utuh); state baru `deleting` sesudah `notice`, `remove`
+  diawali guard `if (deleting) return;` sebelum `confirm`, `setDeleting(c.id)`
+  sesudah `setError(null)`, dan `finally { setDeleting(null); }` membersihkan
+  — isi `try`/`catch` lama utuh. Satu pengumuman baru `<p role="status"
+  aria-live="polite" className="sr-only">{deleting ? 'Deleting the item…' :
+  ''}</p>` sebagai anak terakhir `<ol>` daftar item; tombol **Edit** per baris
+  tetap tanpa penanda. Hitungan file: `aria-busy` 2, `aria-live` 3,
+  `role="status"` 4, `role="alert"` 1, `aria-label=` 3, `aria-labelledby` 1,
+  `aria-atomic` 0, `className="sr-only"` 2, `role="` 5. Test baru
+  `tests/content-delete-status.test.ts` (penjaga statis);
+  `tests/content-save-status.test.ts` hanya menyesuaikan hitungan
+  (`aria-busy=` 1→2, `aria-live="polite"` 2→3, `role="status"` 3→4) dan
+  mempersempit penjaga "Add item, Edit dan Delete tanpa aria-busy" menjadi Add
+  item + Edit, tanpa melonggarkan penjaga lain. Tanpa cek smoke baru; penjaga
+  baris smoke 2748 tetap. Satu entri log bertanggal di `docs/ROADMAP.md`.
+  `npm run ci` utuh hijau sebelum merge.
 
 - 2026-11-27: PR #201 — **Status proses tombol per-baris Delete halaman
   admin Quiz Questions** — tombol **Delete** per soal kini membawa
