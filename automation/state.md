@@ -1,75 +1,70 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-27 (status proses tombol **Sign out** footer
-sidebar selesai lewat PR #208; berikutnya: `type="button"` + fokus keyboard +
-ikon dekoratif pada **ThemeToggle**)
+Terakhir diperbarui: 2026-11-27 (poles aksesibilitas **ThemeToggle** selesai
+lewat PR #TBD; berikutnya: `type="button"` sudah ada di semua tombol, fokus
+keyboard pada **dua tautan** sidebar — brand **LearnGraph** dan setiap item
+navigasi)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas terlihat pelajar: **`type="button"`, fokus keyboard, dan
-ikon dekoratif pada `ThemeToggle`** —
-`src/components/ui/theme-toggle.tsx` (dipakai di top bar mobile dan footer
-sidebar `src/components/Sidebar.tsx` pada setiap halaman, jadi terlihat
-pelajar di semua halaman). Berkas ini punya **dua** elemen `<button>`:
+Poles aksesibilitas terlihat pelajar: **fokus keyboard pada kedua `<Link>`
+sidebar** — `src/components/Sidebar.tsx` (sidebar dirender di layout root semua
+halaman, baik kolom sticky `lg` ke atas maupun drawer off-canvas di bawahnya,
+jadi terlihat pelajar di semua halaman). Berkas ini punya **dua** elemen
+`<Link>`:
 
-- tombol placeholder pra-mount (dikembalikan saat `!mounted`, baris ~17–25):
-  `<button className={cn('relative h-9 w-9 rounded-full bg-white/10
-  backdrop-blur-sm border border-white/20', 'flex items-center justify-center
-  transition-all duration-300', className)}>` dengan satu ikon `<Sun
-  className="h-4 w-4 text-foreground/50" />`;
-- tombol asli (baris ~27–58): `<button onClick={() => setTheme(theme === 'dark'
-  ? 'light' : 'dark')} className={cn('relative h-9 w-9 rounded-full
-  backdrop-blur-sm border', 'flex items-center justify-center transition-all
-  duration-300', 'hover:scale-110 active:scale-95', <tiga baris warna
-  kondisional>, className)} aria-label="Toggle theme">` dengan dua ikon
-  `<Sun .../>` dan `<Moon .../>` ber-`style={{ position: 'absolute' }}`.
+- tautan brand ke beranda (baris ~191):
+  `<Link to="/" activeOptions={{ exact: true }} className="flex min-w-0
+  items-center gap-2">` — kelas string tunggal, **tanpa** `focus-visible`;
+- tautan setiap item navigasi (baris ~306–316):
+  `<Link to={item.href as any} onClick={() => setOpen(false)}
+  activeOptions={{ exact: item.href === '/' }} className={cn('group flex
+  items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200',
+  isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm' :
+  'text-muted-foreground hover:bg-sidebar-accent/50
+  hover:text-sidebar-foreground')}>` — **tanpa** `focus-visible`.
 
-Keduanya tanpa `type="button"` (bukan pola repo; tombol bisa ikut submit bila
-kelak dipasang di dalam form), tanpa gaya fokus keyboard — `src/styles.css`
-tidak punya aturan `:focus-visible` global, dan tombol menu/drawer sidebar
-memakai `focus-visible:outline-2 focus-visible:outline-primary` — sehingga
-pengguna keyboard tidak melihat fokus pada tombol tema, dan ketiga ikon tidak
-`aria-hidden` padahal tombol sudah punya `aria-label` (pembaca layar bisa
-mengumumkan ikon dekoratif). Hitungan file saat ini: `type="button"` 0,
-`aria-label=` 1 (`Toggle theme`), `aria-hidden` 0, `focus-visible` 0,
-`<button` 2, `className={cn(` 2, `useState` 1 (`mounted`), `aria-busy` 0,
-`aria-live` 0, `role=` 0, `className="sr-only"` 0. UI bahasa Inggris (D2).
-Tanpa query/RPC/migrasi/dependensi baru; jangan sentuh `src/components/michi/`
-dan jangan mengubah perilaku tema (`useTheme`, `setTheme`, guard `mounted`).
+Tombol menu, tutup drawer, dan header grup collapsible sudah memakai
+`focus-visible:outline-2 focus-visible:outline-primary` (tiga tempat, 6
+kemunculan `focus-visible`), dan `src/styles.css` tidak punya aturan
+`:focus-visible` global, sehingga pengguna keyboard yang menekan Tab dari
+tombol menu langsung ke tautan brand/item navigasi tidak melihat fokus sama
+sekali. Hitungan file saat ini: `focus-visible` 6, `<Link` 2,
+`className={cn(` 5, `aria-label=` 5, `type="button"` 4,
+`className="sr-only"` 1, `aria-busy` 1, `aria-live` 1, `role="` 1.
+UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru; jangan sentuh
+perilaku navigasi (`to`, `onClick={() => setOpen(false)}`, `activeOptions`,
+`aria-current` bawaan router, `isNavItemActive`/`isSectionOpen`, grup
+collapsible, drawer fokus-trap), status **Sign out** (PR #208), atau
+`ThemeToggle`.
 
-Tujuan: pada **kedua** tombol, tambahkan `type="button"` sebagai atribut
-pertama sesudah `<button`, dan tambahkan `'focus-visible:outline-2
-focus-visible:outline-primary'` sebagai baris kelas **terakhir sebelum**
-`className` di dalam `cn(...)` (jangan menghapus/merangkai ulang baris kelas
-yang ada; `className` prop tetap diteruskan terakhir agar konsumen bisa
-menimpa). Pada tombol asli, `onClick` dan `aria-label="Toggle theme"` tetap;
-urutan atribut menjadi `type`, `onClick` (hanya tombol asli), `className`,
-`aria-label` (hanya tombol asli). Ketiga ikon dekoratif (satu `Sun`
-placeholder, `Sun` + `Moon` asli) mendapat `aria-hidden="true"` tanpa
-mengubah kelas/`style`/animasi. Hitungan file sesudah: `type="button"` 2,
-`aria-label=` 1, `aria-hidden` 3, `focus-visible` 4 (dua per baris kelas, dua
-tombol), `<button` 2,
-`className="sr-only"` 0, `aria-busy` 0, `aria-live` 0, `role=` 0.
+Tujuan: tambahkan `focus-visible:outline-2 focus-visible:outline-primary` ke
+**kedua** tautan tanpa menghapus/merangkai ulang kelas yang ada.
 
 Rancangan:
 
-1. **Placeholder** — `type="button"` + baris kelas fokus + `aria-hidden="true"`
-   pada `Sun`; kelas/struktur lain utuh.
-2. **Tombol asli** — `type="button"` + baris kelas fokus + `aria-hidden="true"`
-   pada `Sun` dan `Moon`; `onClick`, `aria-label`, kelas warna kondisional,
-   `hover:scale-110 active:scale-95`, dan `style` ikon utuh.
-3. **Test** — tambahkan `tests/theme-toggle-button.test.ts` (penjaga statis,
-   pola `tests/sidebar-sign-out-status.test.ts`): kedua `<button>` membawa
-   `type="button"`; dua blok `cn(...)` memuat baris
-   `'focus-visible:outline-2 focus-visible:outline-primary'` tepat sebelum
-   `className`; tombol asli mempertahankan `onClick={() => setTheme(theme ===
-   'dark' ? 'light' : 'dark')}` dan `aria-label="Toggle theme"`; ketiga ikon
-   `aria-hidden="true"`; guard `mounted`/`if (!mounted)`/`React.useEffect` dan
-   kelas persis utuh; hitungan file seperti di atas; tanpa
-   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Tidak ada test
-   lama yang menyentuh berkas ini, jadi jangan mengubah test lain.
-4. **Smoke** — tidak ada cek baru; smoke tidak mengklik tombol tema dan
-   penjaga baris smoke 2748 tetap.
+1. **Tautan brand** — ubah kelas string menjadi `"flex min-w-0 items-center
+   gap-2 focus-visible:outline-2 focus-visible:outline-primary"` (dua kelas
+   fokus ditambahkan di akhir, dipisah satu spasi; atribut lain utuh).
+2. **Tautan item navigasi** — tambahkan baris kelas
+   `'focus-visible:outline-2 focus-visible:outline-primary',` sebagai argumen
+   **terakhir** di dalam `cn(...)`, sesudah ekspresi kondisional
+   `isActive ? ... : ...` dan sebelum `)}`; jangan mengubah baris kelas dasar,
+   kondisional aktif/tidak aktif, ikon `Icon size={18} aria-hidden="true"`,
+   label/description, atau indikator aktif.
+3. **Test** — tambahkan `tests/sidebar-nav-focus.test.ts` (penjaga statis,
+   pola `tests/sidebar-sign-out-status.test.ts`): kedua `<Link>` memuat dua
+   kelas fokus; tautan brand memakai kelas string persis dengan dua kelas fokus
+   di akhir; blok `cn(...)` tautan item memuat baris fokus sebagai argumen
+   terakhir sesudah kondisional; `to`/`onClick`/`activeOptions`/`isActive`
+   utuh; tiga focus ring tombol yang sudah ada (menu, tutup, header grup)
+   tetap; hitungan file sesudah `focus-visible` 10, `<Link` 2,
+   `className={cn(` 5, `type="button"` 4, `className="sr-only"` 1,
+   `aria-busy` 1, `aria-live` 1, `role="` 1; tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Jangan mengubah
+   `tests/navigation-direct.test.ts` atau `tests/sidebar-sign-out-status.test.ts`.
+4. **Smoke** — tidak ada cek baru; smoke tidak menekan Tab dan penjaga baris
+   smoke 2748 tetap.
 5. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -119,10 +114,9 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    (tombol **Try again** boundary galat), `GraphDetailPanel.tsx` (tombol
    tutup), `theme-toggle.tsx`, dan `edu-psychology.tsx` (tombol akordeon) —
    semuanya tombol sinkron/UI, bukan operasi async; jangan menambah
-   `aria-busy` palsu. Kandidat berikutnya: poles fokus keyboard +
-   `type="button"`/`aria-hidden` pada **ThemeToggle** (lihat Tugas berikutnya),
-   lalu poles fokus keyboard navigasi sidebar, dan audit surface
-   pelajar/admin lain yang belum punya penanda. Tombol **Try again**
+   `aria-busy` palsu. Kandidat berikutnya: poles fokus keyboard kedua `<Link>`
+   sidebar (lihat Tugas berikutnya), lalu audit surface pelajar/admin lain yang
+   belum punya penanda. Tombol **Try again**
    `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183 dan dikunci
    `tests/study-today-refresh-status.test.ts`; `src/components/michi/`
    adalah kontrak Michi — jangan disentuh. Baris "Lanjutan:"
@@ -175,14 +169,31 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    Learners (PR #204), Knowledge States (PR #205), Prerequisites (PR #206),
    dan tombol per-key **Revoke** panel **Connect an AI assistant**
    `src/components/ApiAccess.tsx` (PR #207), serta tombol **Sign out** footer
-   sidebar `src/components/Sidebar.tsx` (PR #208). Kandidat berikutnya:
-   **ThemeToggle** `src/components/ui/theme-toggle.tsx` (lihat Tugas
-   berikutnya), kemudian poles fokus keyboard navigasi sidebar.
+   sidebar `src/components/Sidebar.tsx` (PR #208), serta **ThemeToggle**
+   `src/components/ui/theme-toggle.tsx` (lihat Riwayat). Kandidat berikutnya:
+   fokus keyboard kedua `<Link>` sidebar (lihat Tugas berikutnya).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-27: PR #TBD — **Tombol tema jadi tombol biasa dengan fokus keyboard
+  dan ikon dekoratif tersembunyi** — kedua `<button>` di
+  `src/components/ui/theme-toggle.tsx` (placeholder pra-mount + tombol asli)
+  kini diawali `type="button"` dan memuat baris kelas
+  `'focus-visible:outline-2 focus-visible:outline-primary'` sebagai baris
+  terakhir sebelum `className` di dalam `cn(...)`; tombol asli mempertahankan
+  `onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}` dan
+  `aria-label="Toggle theme"`, dan ketiga ikon (`Sun` placeholder, `Sun` +
+  `Moon` asli) mendapat `aria-hidden="true"` tanpa mengubah kelas/`style`/
+  animasi. Hitungan file: `type="button"` 2, `aria-label=` 1, `aria-hidden` 3,
+  `focus-visible` 4, `<button` 2, `className={cn(` 4 (dua tombol + dua ikon),
+  `className="sr-only"` 0, `aria-busy` 0, `aria-live` 0, `role=` 0. Test baru
+  `tests/theme-toggle-button.test.ts` (penjaga statis); tidak ada test lain
+  yang diubah. Tanpa cek smoke baru; penjaga baris smoke 2748 tetap. Satu
+  entri log bertanggal di `docs/ROADMAP.md`. `npm run ci` utuh hijau sebelum
+  merge (`TMPDIR=/tmp/opencode`).
 
 - 2026-11-27: PR #208 — **Status proses tombol Sign out footer sidebar** —
   tombol **Sign out** `src/components/Sidebar.tsx` kini membawa
