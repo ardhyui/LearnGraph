@@ -11,7 +11,8 @@
  * submit button with its type, classes, icons and label untouched, a new
  * `sr-only` polite `role="status"` line after the two-button row and before
  * `</form>` that says `Saving the item…` while saving and clears when idle,
- * the untouched Cancel, per-item Edit/Delete and Add item buttons, the
+ * the untouched Cancel, Add item and per-item Edit buttons (the per-row Delete
+ * marker is locked separately in `tests/content-delete-status.test.ts`), the
  * existing notice, error and "Loading lesson content…" lines, the untouched
  * `submit`/`load`/`openForm`/`edit`/`remove` flows, and that no server
  * function, RPC schema or migration was added.
@@ -64,7 +65,7 @@ describe('Lesson Content: the submit button announces it is busy', () => {
       SAVE.indexOf('disabled={saving}') < SAVE.indexOf('aria-busy={saving}'),
       'aria-busy sits right after disabled',
     );
-    assert.equal(count(page, /aria-busy=/g), 1, 'one aria-busy in the page');
+    assert.equal(count(page, /aria-busy=/g), 2, 'the submit button plus the per-row Delete marker');
   });
 
   it('keeps the submit classes, label and spinner untouched', () => {
@@ -90,8 +91,8 @@ describe('Lesson Content: one polite status line after the buttons', () => {
     );
     assert.equal(count(form, /aria-live="polite"/g), 1, 'one polite live region in the form');
     assert.equal(count(form, /role="status"/g), 1, 'one status line in the form');
-    assert.equal(count(page, /aria-live="polite"/g), 2, 'the notice plus one saving line');
-    assert.equal(count(page, /role="status"/g), 3, 'notice, loading line and one saving line');
+    assert.equal(count(page, /aria-live="polite"/g), 3, 'the notice plus saving and deleting lines');
+    assert.equal(count(page, /role="status"/g), 4, 'notice, loading line plus saving and deleting lines');
   });
 
   it('says Saving the item… while saving and clears when idle', () => {
@@ -126,15 +127,14 @@ describe('Lesson Content: the other buttons and the existing status lines stay',
     assert.equal(CANCEL.includes('aria-busy'), false, 'no aria-busy on Cancel');
   });
 
-  it('leaves Add item, Edit and Delete without aria-busy', () => {
+  it('leaves Add item and Edit without aria-busy', () => {
     const add = buttonOf('Add item', page);
     assert.equal(add.includes('aria-busy'), false, 'no aria-busy on Add item');
     assert.ok(page.includes('aria-label={`Edit ${c.title}`}'), 'Edit keeps its label');
-    assert.ok(page.includes('aria-label={`Delete ${c.title}`}'), 'Delete keeps its label');
     assert.equal(
       count(page, /aria-busy=\{saving\}/g),
       1,
-      'only the submit button is marked busy',
+      'only the submit button is marked busy by saving',
     );
   });
 
