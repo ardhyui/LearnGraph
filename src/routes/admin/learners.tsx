@@ -42,6 +42,7 @@ function LearnersPage() {
   const [error, setError] = useState('');
   const [importing, setImporting] = useState(false);
   const [importNotice, setImportNotice] = useState('');
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   async function handleImport(file: File) {
     setError('');
@@ -92,7 +93,9 @@ function LearnersPage() {
   }
 
   async function handleDelete(userId: string, button?: HTMLElement) {
+    if (deleting) return;
     if (!confirm('Are you sure you want to delete this learner?')) return;
+    setDeleting(userId);
     const focus = rememberRowFocus(button);
 
     try {
@@ -100,6 +103,8 @@ function LearnersPage() {
       restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -418,6 +423,8 @@ function LearnersPage() {
                             <button
                               onClick={(e) => handleDelete(learner.userId, e.currentTarget)}
                               className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                              disabled={deleting !== null}
+                              aria-busy={deleting === learner.userId}
                               title="Delete"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -429,6 +436,9 @@ function LearnersPage() {
                   </tbody>
                 </table>
               </div>
+              <p role="status" aria-live="polite" className="sr-only">
+                {deleting ? 'Deleting the learner…' : ''}
+              </p>
             </motion.div>
           )}
         </div>
