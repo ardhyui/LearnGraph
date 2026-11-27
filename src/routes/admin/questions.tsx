@@ -72,6 +72,7 @@ function QuestionsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const formHeadingRef = useRef<HTMLHeadingElement>(null);
   const ids = { concept: useId(), prompt: useId(), explanation: useId(), form: useId() };
 
@@ -156,8 +157,10 @@ function QuestionsPage() {
   };
 
   const remove = async (q: QuizQuestion, button?: HTMLElement) => {
+    if (deleting) return;
     if (!confirm(`Delete this question?\n\n${q.prompt}`)) return;
     setError(null);
+    setDeleting(q.id);
     const focus = rememberRowFocus(button);
     try {
       await deleteQuizQuestion({ data: { id: q.id } });
@@ -167,6 +170,8 @@ function QuestionsPage() {
       restoreRowFocus(focus);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not delete the question.');
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -432,6 +437,8 @@ function QuestionsPage() {
                               onClick={(e) => remove(q, e.currentTarget)}
                               aria-label={`Delete question ${n + 1}`}
                               className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              disabled={deleting !== null}
+                              aria-busy={deleting === q.id}
                             >
                               <Trash2 className="h-4 w-4" aria-hidden="true" />
                             </button>
@@ -458,6 +465,9 @@ function QuestionsPage() {
                         {q.explanation && <p className="mt-2 text-sm text-muted-foreground">{q.explanation}</p>}
                       </li>
                     ))}
+                    <p role="status" aria-live="polite" className="sr-only">
+                      {deleting ? 'Deleting the question…' : ''}
+                    </p>
                   </ol>
                 )}
               </>

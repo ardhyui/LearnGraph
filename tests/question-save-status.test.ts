@@ -65,7 +65,7 @@ describe('Quiz Questions: the submit button announces it is busy', () => {
       SAVE.indexOf('disabled={saving}') < SAVE.indexOf('aria-busy={saving}'),
       'aria-busy sits right after disabled',
     );
-    assert.equal(count(page, /aria-busy=/g), 1, 'one aria-busy in the page');
+    assert.equal(count(page, /aria-busy=/g), 2, 'the submit and the per-row Delete marker');
   });
 
   it('keeps the submit classes, label and spinner untouched', () => {
@@ -91,8 +91,8 @@ describe('Quiz Questions: one polite status line after the buttons', () => {
     );
     assert.equal(count(form, /aria-live="polite"/g), 1, 'one polite live region in the form');
     assert.equal(count(form, /role="status"/g), 1, 'one status line in the form');
-    assert.equal(count(page, /aria-live="polite"/g), 2, 'the notice plus one saving line');
-    assert.equal(count(page, /role="status"/g), 3, 'notice, loading line and one saving line');
+    assert.equal(count(page, /aria-live="polite"/g), 3, 'the notice, one saving line and one deleting line');
+    assert.equal(count(page, /role="status"/g), 4, 'notice, loading line, saving line and deleting line');
   });
 
   it('says Saving the question… while saving and clears when idle', () => {
@@ -132,7 +132,7 @@ describe('Quiz Questions: the other buttons and the existing status lines stay',
     assert.equal(CANCEL.includes('aria-busy'), false, 'no aria-busy on Cancel');
   });
 
-  it('leaves Add question, Edit and Delete without aria-busy', () => {
+  it('leaves Add question and Edit without the save busy marker', () => {
     const add = buttonOf('Add question', page);
     assert.equal(add.includes('aria-busy'), false, 'no aria-busy on Add question');
     assert.ok(page.includes('aria-label={`Edit question ${n + 1}`}'), 'Edit keeps its label');
@@ -140,8 +140,9 @@ describe('Quiz Questions: the other buttons and the existing status lines stay',
     assert.equal(
       count(page, /aria-busy=\{saving\}/g),
       1,
-      'only the submit button is marked busy',
+      'only the submit button follows the save state',
     );
+    // The per-row Delete marker (`deleting`) is locked by question-delete-status.test.ts.
   });
 
   it('keeps the notice, the error and the "Loading questions…" line', () => {
