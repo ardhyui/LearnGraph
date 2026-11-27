@@ -1,81 +1,79 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
 Terakhir diperbarui: 2026-11-27 (status proses tombol per-baris **Delete**
-halaman admin Knowledge States selesai lewat PR #205; berikutnya: tombol
-per-baris **Delete** halaman admin Prerequisites
-`src/routes/admin/prerequisites.tsx`)
+halaman admin Prerequisites selesai lewat PR #206; berikutnya: status proses
+tombol per-key **Revoke** panel **Connect an AI assistant**
+`src/components/ApiAccess.tsx`)
 
 ## Tugas berikutnya
 
-Poles kecil + fitur: **Status proses tombol per-baris Delete halaman admin
-Prerequisites** — `src/routes/admin/prerequisites.tsx` (Admin → Prerequisites,
-tabel prerequisite dalam `<motion.div variants={containerVariants} ...
-className="glass-card overflow-hidden">`, kartu sekitar baris 374). Tombol
-**Delete** per baris (sekitar baris 444–450) `<button onClick={(e) =>
-handleDelete(edge.from, edge.to, e.currentTarget)}
-className="p-2 rounded-lg hover:bg-destructive/10 text-destructive
-transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>` —
-memanggil `handleDelete` (async) tanpa `disabled`/`aria-busy` dan tanpa
-pengumuman, sehingga selama penghapusan pembaca layar tidak tahu prerequisite
-sedang dihapus dan klik ganda bisa memicu dua `deleteEdge`. Halaman ini tidak
-punya tombol **Edit** per baris; tombol **Add Prerequisite** header/empty state,
-form **Create** dengan tombol **Cancel**, dan status **Saving the
-prerequisite…** (PR #192) harus dipertahankan. Hitungan file saat ini:
-`aria-busy` 1, `aria-busy=` 1, `aria-live` 1, `role="status"` 1, `role="alert"`
-0, `aria-label=` 0, `aria-labelledby` 0, `aria-atomic` 0,
-`className="sr-only"` 2 (radio **Strength** + baris status simpan), `role="` 16
-(lima `cell`, lima `columnheader`, dua `row`, dua `rowgroup`, satu `table`, satu
-`status`). UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
+Poles kecil + fitur: **Status proses tombol per-key Revoke panel "Connect an
+AI assistant"** — `src/components/ApiAccess.tsx` (panel di `/profile`, kartu
+`<section aria-labelledby={ids.heading} className="mt-10 rounded-xl border
+border-border p-4 sm:p-6" data-testid="api-access">`; daftar kunci `<ul
+className="mt-4 space-y-2 text-sm" aria-label="Your API keys">`, tombol
+**Revoke** sekitar baris 164–170). Tombol per-kunci:
+`<button type="button" onClick={() => void revoke(k)}
+className="rounded-lg px-2 py-1 text-sm font-medium text-red-700
+hover:bg-red-500/10 dark:text-red-400">Revoke<span className="sr-only">
+{k.name}</span></button>` — memanggil `revoke` (async) tanpa
+`disabled`/`aria-busy` dan tanpa pengumuman, sehingga selama pencabutan
+pembaca layar tidak tahu kunci sedang dicabut dan klik ganda bisa memicu dua
+`revokeMyApiKey`. Tombol **Create a read-only key** sudah membawa
+`aria-busy={busy}` + status **Creating your key…** (PR #166); tombol **Copy**
+dan blok kunci baru tidak boleh berubah. Hitungan file saat ini: `aria-busy` 1,
+`aria-busy=` 1, `aria-live` 1, `role="status"` 1, `role="alert"` 1,
+`aria-label=` 1, `aria-labelledby` 1, `aria-atomic` 0,
+`className="sr-only"` 2 (baris status create + nama kunci di tombol Revoke),
+`role="` 2. UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
 
-Tujuan: state baru `const [deleting, setDeleting] = useState<string | null>
-(null);` sesudah `const [saving, setSaving] = useState(false);`; kunci baris
-adalah `${from}:${to}` (dihitung sekali di awal `handleDelete`). `handleDelete`
-diawali guard `if (deleting) return;` sebelum `confirm(...)`, `setDeleting(key)`
-disetel sesudah `const focus = rememberRowFocus(button);` dan sebelum `try`, dan
-`finally { setDeleting(null); }` ditambahkan pada `try/catch` yang sudah ada —
-isi `try` (`await deleteEdge(from, to)`, `restoreRowFocus(focus)`), `catch`
-(`An error occurred`), dan pemanggilan `confirm` tidak berubah (tidak ada blok
-`if (!db)` di halaman ini). Tombol **Delete** mempertahankan `onClick`,
-`className` persis, `title="Delete"`, dan ikon `<Trash2 className="w-4 h-4" />`,
-lalu membawa `disabled={deleting !== null}` dan
-``aria-busy={deleting === `${edge.from}:${edge.to}`}`` tepat sesudah `className`.
-**Satu** pengumuman baru: `<p role="status" aria-live="polite"
-className="sr-only">{deleting ? 'Deleting the prerequisite…' : ''}</p>` sebagai
-anak terakhir wadah kartu tabel — sesudah `</div>` penutup `<div
-className="overflow-x-auto">` dan sebelum `</motion.div>` (jangan diletakkan di
-dalam `<tbody>`; paragraf tidak sah di sana). Hitungan file sesudah:
+Tujuan: state baru `const [revoking, setRevoking] = useState<string | null>
+(null);` sesudah `const [busy, setBusy] = useState(false);`. `revoke` diawali
+guard `if (revoking) return;` sebelum `window.confirm(...)`, `setRevoking(key.id)`
+disetel sesudah `setError(null);` dan sebelum `try`, dan `finally {
+setRevoking(null); }` ditambahkan pada `try/catch` yang sudah ada — isi `try`
+(`await revokeMyApiKey({ data: { id: key.id } });`, `await load();`), `catch`
+(`Could not revoke the key.`), dan pemanggilan `confirm` tidak berubah. Tombol
+**Revoke** mempertahankan `type="button"`, `onClick={() => void revoke(k)}`,
+`className` persis, dan label `Revoke<span className="sr-only"> {k.name}</span>`,
+lalu membawa `disabled={revoking !== null}` dan `aria-busy={revoking === k.id}`
+tepat sesudah `className`. **Satu** pengumuman baru: `<p role="status"
+aria-live="polite" className="sr-only">{revoking ? 'Revoking the key…' : ''}</p>`
+sebagai anak terakhir `<section>` sesudah `)}` penutup kondisi daftar kunci
+(jangan di dalam `<ul>`; paragraf tidak sah di sana). Hitungan file sesudah:
 `aria-busy` 2, `aria-busy=` 2, `aria-live` 2, `role="status"` 2,
-`role="alert"` 0, `aria-label=` 0, `aria-labelledby` 0, `aria-atomic` 0,
-`className="sr-only"` 3, `role="` 17.
+`role="alert"` 1, `aria-label=` 1, `aria-labelledby` 1, `aria-atomic` 0,
+`className="sr-only"` 3, `role="` 3.
 
 Rancangan:
 
-1. **State + handler** — `deleting` sesudah `saving`; guard baris pertama
-   `handleDelete`, kunci `${from}:${to}` dihitung sekali, `setDeleting(key)`
-   sesudah `rememberRowFocus` dan sebelum `try`, `finally` membersihkan; isi
-   lama utuh.
-2. **Tombol** — per-baris **Delete**: `onClick`, `title`, `className`,
-   `disabled={deleting !== null}`, ``aria-busy={deleting === `${edge.from}:${edge.to}`}``
-   sesuai urutan; ikon `Trash2` utuh.
+1. **State + handler** — `revoking` sesudah `busy`; guard baris pertama
+   `revoke`, `setRevoking(key.id)` sesudah `setError(null)` dan sebelum `try`,
+   `finally` membersihkan; isi lama utuh.
+2. **Tombol** — per-kunci **Revoke**: `type`, handler, `className`, label +
+   nama tersembunyi utuh, lalu `disabled={revoking !== null}` dan
+   `aria-busy={revoking === k.id}` sesuai urutan.
 3. **Status** — satu `<p role="status" aria-live="polite"
-   className="sr-only">` berteks `Deleting the prerequisite…`/kosong sebagai
-   anak terakhir kartu tabel (di luar `<table>`/`<tbody>`).
-4. **Test** — tambahkan `tests/prerequisite-delete-status.test.ts` (penjaga
-   statis, pola `tests/knowledge-state-delete-status.test.ts`): tombol
-   **Delete** dengan atribut berurutan dan `title`/ikon utuh, satu status baru
-   berteks `Deleting the prerequisite…`/kosong dan berada di luar tabel sebagai
-   anak terakhir kartu, state `deleting` sesudah `saving`, guard + kunci baris
-   sebelum `confirm`, penanda sesudah `rememberRowFocus` + `finally`
-   membersihkan, isi `try` lama utuh, tombol **Add Prerequisite** header/empty
-   state serta status **Saving the prerequisite…** (PR #192) tetap, hitungan
-   file `aria-busy` 2/`aria-live` 2/`role="status"` 2/`role="alert"` 0/
-   `aria-label=` 0/`aria-labelledby` 0/`aria-atomic` 0/`className="sr-only"` 3/
-   `role="` 17, serta tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi
-   baru. Sesuaikan test lama (`tests/prerequisite-save-status.test.ts`) hanya
-   untuk hitungan `aria-busy=` 1→2, `aria-live="polite"` 1→2, `role="status"`
-   1→2, `className="sr-only"` 2→3, tanpa melonggarkan penjaga posisi/kunci.
-5. **Smoke** — tidak ada cek baru (menghapus butuh data edge dan dialog
-   `confirm`); jangan mengubah penjaga baris smoke 2748.
+   className="sr-only">` berteks `Revoking the key…`/kosong sebagai anak
+   terakhir `<section>` (di luar `<ul>`).
+4. **Test** — tambahkan `tests/api-access-revoke-status.test.ts` (penjaga
+   statis, pola `tests/knowledge-state-delete-status.test.ts`): tombol Revoke
+   dengan atribut berurutan dan label/nama tersembunyi utuh, satu status baru
+   berteks `Revoking the key…`/kosong dan berada di luar `<ul>` sebagai anak
+   terakhir section, state `revoking` sesudah `busy`, guard + penanda sesudah
+   `setError(null)` + `finally` membersihkan, isi `try`/`catch` lama utuh,
+   tombol **Create a read-only key** + status **Creating your key…** serta
+   tombol **Copy** tetap, hitungan file `aria-busy` 2/`aria-live` 2/
+   `role="status"` 2/`role="alert"` 1/`aria-label=` 1/`aria-labelledby` 1/
+   `aria-atomic` 0/`className="sr-only"` 3/`role="` 3, serta tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Sesuaikan test lama
+   (`tests/api-access-create-status.test.ts`) hanya untuk hitungan
+   `aria-busy=` 1→2 dan mempersempit penjaga "Copy dan Revoke tanpa
+   aria-busy" menjadi **Copy** saja, tanpa melonggarkan penjaga
+   posisi/kunci.
+5. **Smoke** — tidak ada cek baru (mencabut butuh membuat kunci dan dialog
+   `window.confirm`); smoke sudah memeriksa kunci yang dicabut berhenti
+   bekerja. Jangan mengubah penjaga baris smoke 2748.
 6. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
@@ -106,15 +104,16 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    halaman admin Quiz Questions (PR #201), dan tombol per-baris **Delete**
    halaman admin Lesson Content (PR #202), tombol per-baris **Delete**
    halaman admin Concepts (PR #203), tombol per-baris **Delete**
-   halaman admin Learners (PR #204), dan tombol per-baris **Delete**
-   halaman admin Knowledge States (PR #205) selesai: tombol per-baris **Delete**
-   halaman admin Prerequisites (lihat Tugas berikutnya), lalu audit surface
-   pelajar/admin lain yang belum punya penanda (mis. tombol per-baris
-   **Delete** di halaman admin lain; tombol **Try again** `StudyToday.tsx`
-   sengaja dibiarkan tanpa penanda oleh PR #183 dan dikunci
-   `tests/study-today-refresh-status.test.ts`). Baris "Lanjutan:" yang belum
-   dicoret saat ini hanya butuh keputusan pemilik, error SSR langka, atau
-   migrasi data — jangan dipilih tanpa perubahan kondisi.
+   halaman admin Learners (PR #204), tombol per-baris **Delete**
+   halaman admin Knowledge States (PR #205), dan tombol per-baris **Delete**
+   halaman admin Prerequisites (PR #206) selesai: tombol per-key **Revoke**
+   panel **Connect an AI assistant** `src/components/ApiAccess.tsx` (lihat
+   Tugas berikutnya), lalu audit surface pelajar/admin lain yang belum punya
+   penanda (mis. tombol per-baris **Delete** di halaman admin lain; tombol
+   **Try again** `StudyToday.tsx` sengaja dibiarkan tanpa penanda oleh PR #183
+   dan dikunci `tests/study-today-refresh-status.test.ts`). Baris "Lanjutan:"
+   yang belum dicoret saat ini hanya butuh keputusan pemilik, error SSR langka,
+   atau migrasi data — jangan dipilih tanpa perubahan kondisi.
 2. Audit 2026-11-25: pemilih learner di `/progress`, `/gaps`,
    `/recommendations` ternyata sudah memakai pola yang sama (`useId` + `<label
    htmlFor>` + `<select>`); kandidat "pemilih learner yang lebih ringkas"
@@ -159,15 +158,42 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `src/components/LearningOverview.tsx` (PR #200), dan tombol per-baris
    **Delete** halaman admin Quiz Questions (PR #201), serta tombol per-baris
    **Delete** halaman admin Lesson Content (PR #202), Concepts (PR #203),
-   Learners (PR #204), dan Knowledge States (PR #205). Kandidat berikutnya:
-   tombol per-baris **Delete** halaman admin Prerequisites (lihat Tugas
-   berikutnya), kemudian audit surface pelajar/admin lain yang belum punya
-   penanda.
+   Learners (PR #204), Knowledge States (PR #205), dan Prerequisites (PR #206).
+   Kandidat berikutnya: tombol per-key **Revoke** panel **Connect an AI
+   assistant** `src/components/ApiAccess.tsx` (lihat Tugas berikutnya), kemudian
+   audit surface pelajar/admin lain yang belum punya penanda.
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-27: PR #206 — **Status proses tombol per-baris Delete halaman admin
+  Prerequisites** — tombol **Delete** per baris kini membawa
+  `disabled={deleting !== null}` dan
+  ``aria-busy={deleting === `${edge.from}:${edge.to}`}`` tepat sesudah
+  `className` (handler/`title`/kelas/ikon `Trash2` utuh); state baru `deleting`
+  sesudah `saving`, kunci baris `${from}:${to}` dihitung sekali, `handleDelete`
+  diawali guard `if (deleting) return;` sebelum `confirm`, penanda disetel
+  sesudah `rememberRowFocus` dan sebelum `try`, serta `finally {
+  setDeleting(null); }` membersihkan — isi `try` (`deleteEdge`,
+  `restoreRowFocus`)/`catch` (`An error occurred`) lama utuh. Satu pengumuman
+  baru `<p role="status" aria-live="polite" className="sr-only">{deleting ?
+  'Deleting the prerequisite…' : ''}</p>` sebagai anak terakhir kartu tabel (di
+  luar `<table>`). Halaman ini tidak punya tombol **Edit** per baris; kedua
+  tombol **Add Prerequisite** header/empty state serta status **Saving the
+  prerequisite…** (PR #192) tetap. Hitungan file: `aria-busy` 2, `aria-busy=` 2,
+  `aria-live` 2, `role="status"` 2, `role="alert"` 0, `aria-label=` 0,
+  `aria-labelledby` 0, `aria-atomic` 0, `className="sr-only"` 3, `role="` 17.
+  Test baru `tests/prerequisite-delete-status.test.ts` (penjaga statis);
+  `tests/prerequisite-save-status.test.ts` hanya menyesuaikan hitungan
+  (`aria-busy=` 1→2, `aria-live="polite"` 1→2, `role="status"` 1→2,
+  `className="sr-only"` 2→3) tanpa melonggarkan penjaga posisi/kunci. Tanpa
+  cek smoke baru; penjaga baris smoke 2748 tetap. Satu entri log bertanggal
+  di `docs/ROADMAP.md`. `npm run ci` utuh hijau sebelum merge
+  (`TMPDIR=/tmp/opencode`, `CI_PORT=9441 CI_PREVIEW_PORT=9443`; percobaan
+  pertama gagal hanya pada satu cek smoke rekomendasi yang flaky, lolos saat
+  dijalankan ulang utuh).
 
 - 2026-11-27: PR #205 — **Status proses tombol per-baris Delete halaman
   admin Knowledge States** — tombol **Delete** per baris kini membawa

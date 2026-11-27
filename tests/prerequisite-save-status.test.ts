@@ -84,7 +84,7 @@ describe('/admin/prerequisites: the submit button announces it is busy', () => {
       typeAt < classAt && classAt < disabledAt && disabledAt < busyAt,
       'type, class, disabled and aria-busy stay in order',
     );
-    assert.equal(count(page, /aria-busy=/g), 1, 'one aria-busy in the page');
+    assert.equal(count(page, /aria-busy=/g), 2, 'the save marker plus the delete row marker');
   });
 
   it('keeps the Save icon and the Create label', () => {
@@ -137,16 +137,16 @@ describe('/admin/prerequisites: one polite status line after the buttons', () =>
       form.includes('<p role="status" aria-live="polite" className="sr-only">'),
       'the saving line is a sr-only paragraph carrying role and politeness',
     );
-    assert.equal(count(page, /aria-live="polite"/g), 1, 'one polite live region on the page');
-    assert.equal(count(page, /role="status"/g), 1, 'one status line on the page');
+    assert.equal(count(page, /aria-live="polite"/g), 2, 'the saving and deleting live regions');
+    assert.equal(count(page, /role="status"/g), 2, 'the saving and deleting status lines');
     assert.equal(count(page, /role="alert"/g), 0, 'no alert is added');
     assert.equal(count(page, /aria-label=/g), 0, 'no aria-label is added');
     assert.equal(count(page, /aria-labelledby=/g), 0, 'no aria-labelledby is added');
     assert.equal(count(page, /aria-atomic=/g), 0, 'no aria-atomic is added');
     assert.equal(
       count(page, /className="sr-only"/g),
-      2,
-      'the Strength radio and the saving line are the only sr-only nodes',
+      3,
+      'the Strength radio and the two status lines are the only sr-only nodes',
     );
   });
 
