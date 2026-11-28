@@ -47,7 +47,7 @@ describe('sign-in pending: the submit button announces it is busy', () => {
     assert.ok(submitOpen().includes('disabled={pending}'), 'disabled stays driven by pending');
     assert.ok(
       submitOpen().includes(
-        "className={cn('btn btn-primary w-full flex items-center justify-center gap-2')}",
+        "className={cn('btn btn-primary w-full flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-primary')}",
       ),
       'button classes untouched',
     );
