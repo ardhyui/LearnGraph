@@ -1,7 +1,7 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
 Terakhir diperbarui: 2026-11-28 (fokus keyboard enam elemen tiga halaman auth
-selesai lewat PR #215; berikutnya: fokus keyboard + `type="button"` delapan
+selesai lewat PR #216; berikutnya: fokus keyboard + `type="button"` delapan
 tombol halaman admin `/admin/concepts`)
 
 ## Tugas berikutnya
@@ -152,7 +152,7 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `aria-busy` palsu. Fokus keyboard + `type="button"` kedua tombol
     `src/routes/edu-psychology.tsx` selesai (PR #214), lalu fokus keyboard
     enam elemen tiga halaman auth `/sign-in`, `/forgot-password`,
-    `/reset-password` selesai (PR #215). Kandidat berikutnya: fokus keyboard
+    `/reset-password` selesai (PR #216). Kandidat berikutnya: fokus keyboard
     + `type="button"` delapan tombol `/admin/concepts` (lihat Tugas
     berikutnya), lalu surface pelajar/admin lain yang belum punya penanda
     (audit 2026-11-28: banyak tombol admin di
@@ -218,7 +218,7 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    **Close details** panel detail grafik
    `src/components/GraphDetailPanel.tsx` (PR #213), serta fokus keyboard kedua tombol
    `src/routes/edu-psychology.tsx` (PR #214), serta fokus keyboard enam elemen
-   tiga halaman auth `/sign-in`/`/forgot-password`/`/reset-password` (PR #215).
+   tiga halaman auth `/sign-in`/`/forgot-password`/`/reset-password` (PR #216).
    Kandidat berikutnya: fokus keyboard + `type="button"` delapan tombol
    `/admin/concepts` (lihat Tugas berikutnya).
 
@@ -227,7 +227,7 @@ jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
 
-- 2026-11-28: PR #215 — **Fokus keyboard pada tombol dan tautan tiga halaman
+- 2026-11-28: PR #216 — **Fokus keyboard pada tombol dan tautan tiga halaman
   auth** — tombol submit `/sign-in` kini memakai `cn('btn btn-primary w-full
   flex items-center justify-center gap-2 focus-visible:outline-2
   focus-visible:outline-primary')`, tombol toggle mode kelas persis
