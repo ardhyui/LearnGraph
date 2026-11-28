@@ -1,110 +1,93 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-28 (fokus keyboard delapan tombol halaman admin
-`/admin/learners` selesai lewat PR #219; berikutnya: fokus keyboard +
-`type="button"` tujuh tombol halaman admin `/admin/prerequisites`)
+Terakhir diperbarui: 2026-11-28 (fokus keyboard tujuh tombol halaman admin
+`/admin/prerequisites` selesai lewat PR #220; berikutnya: fokus keyboard +
+`type="button"` lima tombol halaman admin `/admin/psychometrics`)
 
 ## Tugas berikutnya
 
 Poles aksesibilitas terlihat admin: **fokus keyboard + `type="button"` pada
-tujuh tombol halaman admin Prerequisites** — `src/routes/admin/prerequisites.tsx`
-(halaman pengelolaan relasi prasyarat antar-konsep). Ketujuh `<button>` di
-berkas ini **tidak punya** kelas `:focus-visible` sama sekali dan enam di
-antaranya **tidak punya** `type` (hanya **Cancel** yang sudah `type="button"`),
+lima tombol halaman admin Psychometrics** — `src/routes/admin/psychometrics.tsx`
+(halaman lihat/edit skor psikometrik learner). Kelima `<button>` sumber di
+berkas ini **tidak punya** kelas `:focus-visible` sama sekali dan **tidak satu
+pun** punya `type` (tidak ada `type="button"` maupun `type="submit"`),
 sedangkan `src/styles.css` tidak punya aturan `:focus-visible` global —
-pengguna keyboard yang menekan Tab dari banner galat ke tombol **Add
-Prerequisite**, tombol tutup form, **Create**, **Cancel**, **Add
-Prerequisite** empty state, atau **Delete** tidak melihat indikator fokus, dan
-tombol tanpa `type` bisa ikut men-submit bila kelak dipindah ke dalam
-`<form>`.
+pengguna keyboard yang menekan Tab dari banner galat ke tombol tutup, tombol
+tutup banner sukses, **Compute Profiles**, **Save Scores**, atau header
+kategori domain tidak melihat indikator fokus, dan tombol tanpa `type` bisa
+ikut men-submit bila kelak dipindah ke dalam `<form>`.
 
 Semua tombol memakai pasangan `focus-visible:outline-2
 focus-visible:outline-primary` di **akhir** kelas; **jangan** mengubah kelas
 lain, handler, ikon, atau urutan atribut selain menambahkan `type="button"`
-sebagai atribut **pertama** pada tombol yang belum punya `type`. Tujuh tombol
-dan perilaku yang dikunci:
+sebagai atribut **pertama**. Lima tombol dan perilaku yang dikunci:
 
-1. **Tutup banner galat** (baris ~163–168, di dalam `AnimatePresence` banner
-   galat): `type="button"` baru, `onClick={() => setError('')}`, kelas menjadi
-   `ml-auto text-destructive/70 hover:text-destructive
+1. **Tutup banner galat** (baris ~340–345): `type="button"` baru,
+   `onClick={() => setError('')}`, kelas menjadi
+   `ml-auto text-destructive/70 hover:text-destructive focus-visible:outline-2
+   focus-visible:outline-primary`, ikon `<X className="w-4 h-4" />` utuh.
+2. **Tutup banner sukses** (baris ~361–366): `type="button"` baru,
+   `onClick={() => setSuccess('')}`, kelas menjadi
+   `ml-auto text-emerald-500/70 hover:text-emerald-500 focus-visible:outline-2
+   focus-visible:outline-primary`, ikon `<X className="w-4 h-4" />` utuh.
+3. **Compute Profiles** (baris ~535–542): `type="button"` baru,
+   `onClick={handleComputeProfiles}`, `disabled={saving || !hasScores}` dan
+   `aria-busy={computing}` **tetap** sesudah `onClick` dengan urutan
+   `disabled` lalu `aria-busy`, kelas menjadi
+   `btn btn-secondary flex items-center gap-2 disabled:opacity-50
    focus-visible:outline-2 focus-visible:outline-primary`, ikon
-   `<X className="w-4 h-4" />` utuh.
-2. **Add Prerequisite header** (baris ~194–201, di toolbar): `type="button"`
-   baru, `onClick={() => setShowForm(true)}`,
-   `disabled={concepts.length < 2}` **tetap** sesudah `onClick`, kelas menjadi
-   `btn btn-primary flex items-center gap-2 disabled:opacity-50
-   disabled:cursor-not-allowed focus-visible:outline-2
-   focus-visible:outline-primary`, ikon `Plus` dan label **Add Prerequisite**
-   utuh.
-3. **Tutup form** (baris ~215–220, tombol X di header form): `type="button"`
-   baru, `onClick={() => setShowForm(false)}`, kelas menjadi `p-2 rounded-lg
-   hover:bg-muted transition-colors focus-visible:outline-2
-   focus-visible:outline-primary`, ikon `<X className="w-5 h-5
-   text-muted-foreground" />` utuh.
-4. **Submit form** (baris ~323–331): `type="submit"` **tetap**, kelas menjadi
-   `btn btn-success flex items-center gap-2 focus-visible:outline-2
-   focus-visible:outline-primary`, `disabled={saving}` dan `aria-busy={saving}`
-   tetap sesudah `className`, ikon `Save` dan label **Create** utuh.
-5. **Cancel form** (baris ~332–339): `type="button"` **tetap**,
-   `onClick={() => setShowForm(false)}`, kelas menjadi `btn btn-secondary
-   focus-visible:outline-2 focus-visible:outline-primary`, `disabled={saving}`
-   tetap sesudah `className`, label **Cancel** utuh; **tanpa** `aria-busy`
-   baru.
-6. **Add Prerequisite empty state** (baris ~370–377): `type="button"` baru,
-   `onClick={() => setShowForm(true)}`, `disabled={concepts.length < 2}`
-   **tetap** sesudah `onClick`, kelas menjadi `btn btn-primary
-   disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2
-   focus-visible:outline-primary`, ikon `<Plus className="w-4 h-4 mr-2" />`
-   dan label **Add Prerequisite** utuh.
-7. **Delete per baris** (baris ~450–458): `type="button"` baru,
-   `onClick={(e) => handleDelete(edge.from, edge.to, e.currentTarget)}`,
-   `title="Delete"` tetap, `disabled={deleting !== null}` dan
-   `aria-busy={deleting === `${edge.from}:${edge.to}`}` tetap sesudah
-   `className`, kelas menjadi `p-2 rounded-lg hover:bg-destructive/10
-   text-destructive transition-colors focus-visible:outline-2
-   focus-visible:outline-primary`, ikon `Trash2` utuh.
+   `<RefreshCw className={cn('w-4 h-4', saving && 'animate-spin')} />` dan
+   label **Compute Profiles** utuh.
+4. **Save Scores** (baris ~544–551): `type="button"` baru,
+   `onClick={handleSaveScores}`, `disabled={saving ||
+   Object.keys(editedScores).length === 0}` dan `aria-busy={savingScores}`
+   **tetap**, kelas menjadi `btn btn-success flex items-center gap-2
+   disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary`,
+   ikon `<Save className="w-4 h-4" />` dan label **Save Scores** utuh.
+5. **Header kategori domain** di dalam `Object.entries(DOMAIN_CATEGORIES).map`
+   (baris ~568–571): `type="button"` baru,
+   `onClick={() => toggleCategory(category)}`, kelas menjadi `w-full px-6 py-4
+   flex items-center justify-between bg-muted/30 hover:bg-muted/50
+   transition-colors focus-visible:outline-2 focus-visible:outline-primary`,
+   ikon `ChevronDown`/`ChevronRight` (masing-masing `w-5 h-5
+   text-muted-foreground`), nama kategori, dan hitungan domain utuh. Tombol ini
+   **tidak punya** `aria-expanded`/`aria-controls` saat ini — jangan
+   menambahkannya di sesi ini (di luar lingkup fokus keyboard).
 
-Halaman ini **tidak punya** tombol **Edit** per baris; tiga label radio
-**Strength** (`<label>` dengan `input type="radio" className="sr-only"`) bukan
-`<button>` — **jangan diubah**. Banner peringatan **You need at least 2
-concepts…**, form **New Prerequisite**, status **Saving the
-prerequisite…**, baris status **Deleting the prerequisite…** (PR #206),
-tabel semantik, `handleSubmit`/`handleDelete`/`getConceptName`/
-`getStrengthStyle`, dan `STRENGTH_OPTIONS` tetap.
-
-Hitungan berkas saat ini: `<button` 7, `focus-visible` 0, `type="submit"` 1,
-`type="button"` 1, `aria-busy` 2, `aria-live` 2, `role=` 17,
-`className="sr-only"` 3, `title="Delete"` 1, `disabled={concepts.length < 2}`
-2, `disabled={saving}` 2, `disabled={deleting !== null}` 1. Sesudah:
-`focus-visible` 14 (tujuh elemen × dua kelas), `type="button"` 6,
-`type="submit"` 1. UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi
+Status `sr-only` **Computing profiles…/Saving scores…** (PR #178), banner
+peringatan/sukses, kartu **Score Progress**, `hasScores`, slider skor,
+`handleComputeProfiles`/`handleSaveScores`/`toggleCategory`, dan
+`expandedCategories` tetap. Hitungan berkas saat ini: `<button` 5,
+`focus-visible` 0, `type="button"` 0, `type="submit"` 0, `aria-busy` 2,
+`aria-expanded` 0, `aria-live` 1, `role=` 1, `className="sr-only"` 1,
+`disabled=` 2. Sesudah: `focus-visible` 10 (lima elemen × dua kelas),
+`type="button"` 5. UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi
 baru.
 
 Rancangan:
 
-1. Ubah ketujuh pembuka `<button>` sesuai daftar di atas; tambahkan
-   `type="button"` sebagai atribut pertama pada tombol 1, 2, 3, 6, 7
-   (Cancel sudah punya).
-2. **Test** — buat `tests/admin-prerequisites-button-focus.test.ts` (penjaga
-   statis, pola `tests/admin-learners-button-focus.test.ts`): tujuh elemen
-   memuat kelas persis dengan pasangan fokus di akhir, masing-masing tepat
-   satu kali; `type="submit"` tetap di tombol 4 dan `type="button"` di enam
-   tombol lain (`type` sebelum `onClick`/`className`/`disabled`); handler
-   `setError('')`/`setShowForm(true)`/`setShowForm(false)`/`handleDelete`,
-   `title="Delete"`, label **Add Prerequisite**/**Create**/**Cancel**, ikon
-   `X`/`Plus`/`Save`/`Trash2`, `disabled={concepts.length < 2}` pada kedua
-   tombol Add, `disabled={saving}` pada submit/Cancel,
-   `aria-busy={saving}`, serta `disabled={deleting !== null}`/
-   ``aria-busy={deleting === `${edge.from}:${edge.to}`}`` pada Delete; tanpa
-   `aria-busy` baru pada Cancel dan kedua tombol Add; hitungan berkas (`focus-visible` 14,
-   `<button` 7, `type="button"` 6, `type="submit"` 1, `aria-busy` 2,
-   `aria-live` 2, `role=` 17, `className="sr-only"` 3, `title="Delete"` 1);
-   tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Sesuaikan
-   hanya literal kelas yang memang dikunci:
-   `tests/prerequisite-delete-status.test.ts` (kelas tombol **Delete**) dan
-   `tests/prerequisite-save-status.test.ts` (kelas submit dan **Cancel**).
+1. Ubah kelima pembuka `<button>` sesuai daftar di atas; tambahkan
+   `type="button"` sebagai atribut pertama.
+2. **Test** — buat `tests/admin-psychometrics-button-focus.test.ts` (penjaga
+   statis, pola `tests/admin-prerequisites-button-focus.test.ts`): lima elemen
+   memuat kelas persis dengan pasangan fokus di akhir, masing-masing tepat satu
+   kali; `type="button"` di kelima tombol (`type` sebelum
+   `onClick`/`className`/`disabled`/`aria-busy`); handler
+   `setError('')`/`setSuccess('')`/`handleComputeProfiles`/`handleSaveScores`/
+   `toggleCategory(category)`, label **Compute Profiles**/**Save Scores**,
+   ikon `X`/`RefreshCw`/`Save`/`ChevronDown`/`ChevronRight`,
+   `disabled={saving || !hasScores}`,
+   `disabled={saving || Object.keys(editedScores).length === 0}`,
+   `aria-busy={computing}`/`aria-busy={savingScores}`, dan status **Computing
+   profiles…**/**Saving scores…**; tanpa `aria-expanded`/`aria-controls` baru;
+   hitungan berkas (`focus-visible` 10, `<button` 5, `type="button"` 5,
+   `type="submit"` 0, `aria-busy` 2, `aria-live` 1, `role=` 1,
+   `className="sr-only"` 1); tanpa
+   `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru. Sesuaikan hanya
+   literal kelas yang memang dikunci: `tests/psychometrics-save-status.test.ts`
+   (kelas **Compute Profiles** dan **Save Scores**).
 3. **Smoke** — tidak ada cek baru (smoke tidak membuka
-   `/admin/prerequisites` dan tidak menekan Tab); penjaga baris smoke 2748
+   `/admin/psychometrics` dan tidak menekan Tab); penjaga baris smoke 2748
    tetap.
 4. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
@@ -163,11 +146,12 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
     enam elemen tiga halaman auth `/sign-in`, `/forgot-password`,
     `/reset-password` selesai (PR #216), lalu fokus keyboard delapan tombol
     `/admin/concepts` selesai (PR #218), lalu fokus keyboard delapan tombol
-    `/admin/learners` selesai (PR #219). Kandidat berikutnya: fokus keyboard
-    + `type="button"` tujuh tombol `/admin/prerequisites` (lihat Tugas
+    `/admin/learners` selesai (PR #219), lalu fokus keyboard tujuh tombol
+    `/admin/prerequisites` selesai (PR #220). Kandidat berikutnya: fokus
+    keyboard + `type="button"` lima tombol `/admin/psychometrics` (lihat Tugas
     berikutnya), lalu surface pelajar/admin lain yang belum punya penanda
     (audit 2026-11-28: banyak tombol admin di
-    `src/routes/admin/{prerequisites,psychometrics,states}.tsx`,
+    `src/routes/admin/{psychometrics,states}.tsx`,
     `src/routes/profile.tsx`, `src/routes/japanese.tsx`, dan tombol
     **Run All Tests** `src/routes/tests.tsx` masih tanpa kelas fokus).
    Tombol **Try again**
@@ -230,15 +214,37 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    `src/components/GraphDetailPanel.tsx` (PR #213), serta fokus keyboard kedua tombol
    `src/routes/edu-psychology.tsx` (PR #214), serta fokus keyboard enam elemen
    tiga halaman auth `/sign-in`/`/forgot-password`/`/reset-password` (PR #216),
-   serta fokus keyboard delapan tombol `/admin/concepts` (PR #218) dan
-   `/admin/learners` (PR #219).
-   Kandidat berikutnya: fokus keyboard + `type="button"` tujuh tombol
-   `/admin/prerequisites` (lihat Tugas berikutnya).
+   serta fokus keyboard delapan tombol `/admin/concepts` (PR #218),
+   `/admin/learners` (PR #219), dan tujuh tombol `/admin/prerequisites`
+   (PR #220).
+   Kandidat berikutnya: fokus keyboard + `type="button"` lima tombol
+   `/admin/psychometrics` (lihat Tugas berikutnya).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-28: PR #220 — **Fokus keyboard pada tujuh tombol halaman admin
+  Prerequisites** — ketujuh tombol `src/routes/admin/prerequisites.tsx` (tutup
+  banner galat, **Add Prerequisite** toolbar, tutup form, **Create**,
+  **Cancel**, **Add Prerequisite** empty state, **Delete** per baris) kini
+  memakai pasangan `focus-visible:outline-2 focus-visible:outline-primary` di
+  akhir kelas persis masing-masing, dan `type="button"` ditambahkan sebagai
+  atribut pertama pada lima tombol (Cancel sudah ada; submit tetap
+  `type="submit"`); handler, ikon, label, `title="Delete"`, serta
+  `disabled={concepts.length < 2}`/`disabled={saving}`/`aria-busy={saving}`
+  dan `disabled={deleting !== null}`/`aria-busy={deleting ===
+  `${edge.from}:${edge.to}`}` tetap utuh; kedua tombol Add dan Cancel tanpa
+  `aria-busy` baru. Hitungan file: `focus-visible` 14, `<button` 7,
+  `type="button"` 6, `type="submit"` 1, `aria-busy` 2, `aria-live` 2,
+  `role=` 17, `className="sr-only"` 3, `title="Delete"` 1. Test baru
+  `tests/admin-prerequisites-button-focus.test.ts` (penjaga statis);
+  `tests/prerequisite-delete-status.test.ts` hanya menyesuaikan literal kelas
+  Delete, `tests/prerequisite-save-status.test.ts` hanya menyesuaikan literal
+  kelas submit dan **Cancel**. Tanpa cek smoke baru; penjaga baris smoke 2748
+  tetap. Satu entri log bertanggal di `docs/ROADMAP.md`. `npm run ci` utuh
+  hijau sebelum merge (`TMPDIR=/tmp/opencode`).
 
 - 2026-11-28: PR #219 — **Fokus keyboard pada delapan tombol halaman admin
   Learners** — kedelapan tombol `src/routes/admin/learners.tsx` (tutup banner
