@@ -91,7 +91,9 @@ describe('Psychometrics: each button announces its own busy state', () => {
 
   it('keeps classes, icons and labels untouched', () => {
     assert.ok(
-      COMPUTE.includes('className="btn btn-secondary flex items-center gap-2 disabled:opacity-50"'),
+      COMPUTE.includes(
+        'className="btn btn-secondary flex items-center gap-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"',
+      ),
       'the Compute Profiles classes stay',
     );
     assert.ok(
@@ -99,7 +101,9 @@ describe('Psychometrics: each button announces its own busy state', () => {
       'the Compute Profiles spinner stays driven by saving',
     );
     assert.ok(
-      SAVE.includes('className="btn btn-success flex items-center gap-2 disabled:opacity-50"'),
+      SAVE.includes(
+        'className="btn btn-success flex items-center gap-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"',
+      ),
       'the Save Scores classes stay',
     );
     assert.ok(SAVE.includes('<Save className="w-4 h-4" />'), 'the Save Scores icon stays');

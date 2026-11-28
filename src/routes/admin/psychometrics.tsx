@@ -338,8 +338,9 @@ function PsychometricsPage() {
                 <AlertCircle className="w-5 h-5 text-destructive" />
                 <span className="text-destructive">{error}</span>
                 <button
+                  type="button"
                   onClick={() => setError('')}
-                  className="ml-auto text-destructive/70 hover:text-destructive"
+                  className="ml-auto text-destructive/70 hover:text-destructive focus-visible:outline-2 focus-visible:outline-primary"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -359,8 +360,9 @@ function PsychometricsPage() {
                 <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                 <span className="text-emerald-600 dark:text-emerald-400">{success}</span>
                 <button
+                  type="button"
                   onClick={() => setSuccess('')}
-                  className="ml-auto text-emerald-500/70 hover:text-emerald-500"
+                  className="ml-auto text-emerald-500/70 hover:text-emerald-500 focus-visible:outline-2 focus-visible:outline-primary"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -533,19 +535,21 @@ function PsychometricsPage() {
                   </div>
                   <div className="flex gap-3">
                     <button
+                      type="button"
                       onClick={handleComputeProfiles}
                       disabled={saving || !hasScores}
                       aria-busy={computing}
-                      className="btn btn-secondary flex items-center gap-2 disabled:opacity-50"
+                      className="btn btn-secondary flex items-center gap-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
                     >
                       <RefreshCw className={cn('w-4 h-4', saving && 'animate-spin')} />
                       Compute Profiles
                     </button>
                     <button
+                      type="button"
                       onClick={handleSaveScores}
                       disabled={saving || Object.keys(editedScores).length === 0}
                       aria-busy={savingScores}
-                      className="btn btn-success flex items-center gap-2 disabled:opacity-50"
+                      className="btn btn-success flex items-center gap-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
                     >
                       <Save className="w-4 h-4" />
                       Save Scores
@@ -566,8 +570,9 @@ function PsychometricsPage() {
                     className="glass-card overflow-hidden"
                   >
                     <button
+                      type="button"
                       onClick={() => toggleCategory(category)}
-                      className="w-full px-6 py-4 flex items-center justify-between bg-muted/30 hover:bg-muted/50 transition-colors"
+                      className="w-full px-6 py-4 flex items-center justify-between bg-muted/30 hover:bg-muted/50 transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                     >
                       <div className="flex items-center gap-3">
                         {expandedCategories.has(category) ? (
