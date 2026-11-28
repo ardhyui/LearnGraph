@@ -1,99 +1,103 @@
 # State otomasi LearnGraph — dibaca & diperbarui setiap sesi
 
-Terakhir diperbarui: 2026-11-28 (fokus keyboard + `type="button"` kedua tombol
-`/edu-psychology` selesai lewat PR #214; berikutnya: fokus keyboard pada empat
-tombol dan dua tautan tiga halaman auth — `/sign-in`, `/forgot-password`,
-`/reset-password` — pintu masuk produk yang terlihat pelajar)
+Terakhir diperbarui: 2026-11-28 (fokus keyboard enam elemen tiga halaman auth
+selesai lewat PR #216; berikutnya: fokus keyboard + `type="button"` delapan
+tombol halaman admin `/admin/concepts`)
 
 ## Tugas berikutnya
 
-Poles aksesibilitas terlihat pelajar: **fokus keyboard pada tombol dan tautan
-tiga halaman auth** — `src/routes/sign-in.tsx`,
-`src/routes/forgot-password.tsx`, `src/routes/reset-password.tsx` (halaman
-publik pintu masuk produk, terlihat pelajar sebelum sign-in). Keenam elemen
-interaktif yang bisa terfokus di ketiga berkas **tidak punya** kelas
-`:focus-visible` sama sekali; `src/styles.css` tidak punya aturan
-`:focus-visible` global, sehingga pengguna keyboard yang menekan Tab dari
-kolom email ke tombol sign-in, tombol ganti mode, atau tautan footer tidak
-melihat indikator fokus sama sekali.
+Poles aksesibilitas terlihat admin: **fokus keyboard + `type="button"` pada
+delapan tombol halaman admin Concepts** — `src/routes/admin/concepts.tsx`
+(halaman pengelolaan konsep; pemilik/admin sering memakainya untuk
+menyunting kurikulum). Kedelapan `<button>` di berkas ini **tidak punya**
+kelas `:focus-visible` sama sekali dan enam di antaranya **tidak punya**
+`type`, sedangkan `src/styles.css` tidak punya aturan `:focus-visible` global
+— pengguna keyboard yang menekan Tab dari filter ke tombol **Add Concept**,
+tombol tutup form, **Create**/**Update**, **Cancel**, **Edit**, atau
+**Delete** tidak melihat indikator fokus, dan tombol tanpa `type` bisa ikut
+men-submit bila kelak dipindah ke dalam `<form>`.
 
-1. **Tombol submit `/sign-in`** (baris ~161–169, di dalam `<form>`):
-   `<button type="submit" disabled={pending} aria-busy={pending}
-   className={cn('btn btn-primary w-full flex items-center justify-center
-   gap-2')}>` — `type="submit"` **jangan diubah** (tombol submit form);
-   tambahkan ` focus-visible:outline-2 focus-visible:outline-primary` **di
-   akhir literal** di dalam `cn(...)`. Ikon `Loader2` `aria-hidden`, label
-   `{mode === 'sign-in' ? 'Sign in' : 'Create account'}`, status
-   `role="status"` sesudah tombol, dan urutan atribut
-   (`type`/`disabled`/`aria-busy`/`className`) utuh.
-2. **Tombol toggle mode `/sign-in`** (baris ~177–186, di luar form):
-   `type="button"` sudah ada; kelas `text-foreground font-medium
-   hover:underline` → tambahkan dua kelas fokus **di akhir** string kelas.
-   Handler `setError(null)` + `setMode(mode === 'sign-in' ? 'sign-up' :
-   'sign-in')` dan label `{mode === 'sign-in' ? 'Create one' : 'Sign in'}`
-   utuh.
-3. **Dua tautan footer `/sign-in`** (baris ~191 & ~197): `<Link
-   to="/forgot-password" className="hover:underline">` dan `<Link
-   to="/privacy" className="hover:underline">` → masing-masing kelas menjadi
-   `hover:underline focus-visible:outline-2 focus-visible:outline-primary`
-   (dua kelas fokus di akhir); teks **Forgot your password?**/**How your data
-   is handled**, kondisi `mode === 'sign-in' &&` pembungkus tautan pertama,
-   dan pemisah `{' · '}` utuh.
-4. **Tombol submit `/forgot-password`** (baris ~76–84): `type="submit"`,
-   `disabled={pending}`, `aria-busy={pending}`, kelas string `btn btn-primary
-   flex w-full items-center justify-center gap-2` → dua kelas fokus di akhir
-   string; label **Send the reset link** dan ikon `Loader2` `aria-hidden`
-   utuh.
-5. **Tombol submit `/reset-password`** (baris ~97–105): sama — kelas string
-   `btn btn-primary flex w-full items-center justify-center gap-2` → dua kelas
-   fokus di akhir; label **Save the new password** dan ikon `Loader2`
-   `aria-hidden` utuh.
+Semua tombol memakai pasangan `focus-visible:outline-2
+focus-visible:outline-primary` di **akhir** kelas; **jangan** mengubah kelas
+lain, handler, ikon, atau urutan atribut selain menambahkan `type="button"`
+sebagai atribut **pertama** pada tombol yang belum punya `type`. Delapan
+tombol dan perilaku yang dikunci:
 
-Hitungan berkas saat ini (semuanya tanpa `focus-visible`): `sign-in.tsx`
-`<button` 2, `type="submit"` 1, `type="button"` 1, `className={cn(` 1,
-`aria-hidden` 1, `aria-busy` 1, `aria-live` 1, `role=` 2,
-`className="sr-only"` 1, `<Link` 2 (footer); `forgot-password.tsx` `<button` 1,
-`type="submit"` 1, `role=` 3; `reset-password.tsx` `<button` 1,
-`type="submit"` 1, `role=` 4. Sesudah: `sign-in.tsx` `focus-visible` 8 (empat
-elemen: submit, toggle, dua tautan), `forgot-password.tsx` dan
-`reset-password.tsx` `focus-visible` 2 (tombol submit saja). Semua tombol
-async sudah punya `aria-busy` + status sr-only — **jangan** menambah
-`aria-busy`/live region baru. Jangan sentuh skema `credentialsSchema`,
-`safeRedirect`, `authClient.*`, `rateLimitMessage`, alur
-`pending`/`setPending`, pasangan `<label htmlFor>`/`id` field
-name/email/password, `form-error`, struktur `<form>`, atau komponen lain di
+1. **Tutup banner galat** (baris ~237–243, di dalam `AnimatePresence`
+   banner `role="alert"`): `type="button"` baru, `onClick={() => setError('')}`,
+   kelas menjadi `ml-auto text-destructive/70 hover:text-destructive
+   focus-visible:outline-2 focus-visible:outline-primary`, ikon
+   `<X className="w-4 h-4" />` utuh.
+2. **Add Concept header** (baris ~254–257, di toolbar): `type="button"` baru,
+   `onClick={openNewForm}`, kelas menjadi `btn btn-primary flex items-center
+   gap-2 focus-visible:outline-2 focus-visible:outline-primary`, ikon `Plus`
+   dan label **Add Concept** utuh.
+3. **Tutup form** (baris ~289–295, tombol X di header form): `type="button"`
+   baru, `onClick={() => setShowForm(false)}`, kelas menjadi `p-2 rounded-lg
+   hover:bg-muted transition-colors focus-visible:outline-2
+   focus-visible:outline-primary`, ikon `<X className="w-5 h-5
+   text-muted-foreground" />` utuh.
+4. **Submit form** (baris ~439–446): `type="submit"` **tetap** (jangan
+   diubah), `disabled={saving}` dan `aria-busy={saving}` tetap sesudah
+   `className`, kelas menjadi `btn btn-success flex items-center gap-2
+   focus-visible:outline-2 focus-visible:outline-primary`, ikon `Save` dan
+   label `{editingConcept ? 'Update' : 'Create'}` utuh.
+5. **Cancel form** (baris ~448–455): `type="button"` **tetap**,
+   `onClick={() => setShowForm(false)}`, `disabled={saving}` tetap sesudah
+   `className`, kelas menjadi `btn btn-secondary focus-visible:outline-2
+   focus-visible:outline-primary`, label **Cancel** utuh.
+6. **Add Concept empty state** (baris ~486–489): `type="button"` baru,
+   `onClick={openNewForm}`, kelas menjadi `btn btn-primary
+   focus-visible:outline-2 focus-visible:outline-primary`, ikon
+   `<Plus className="w-4 h-4 mr-2" />` dan label **Add Concept** utuh.
+7. **Edit per kartu** (baris ~533–539): `type="button"` baru,
+   `onClick={() => openEditForm(concept)}`, `title="Edit"` tetap, kelas
+   menjadi `p-2 rounded-lg hover:bg-blue-500/10 text-blue-500
+   transition-colors focus-visible:outline-2 focus-visible:outline-primary`,
+   ikon `Edit` utuh.
+8. **Delete per kartu** (baris ~540–546): `type="button"` baru,
+   `onClick={(e) => handleDelete(concept.conceptId, e.currentTarget)}`,
+   `title="Delete"` tetap, `disabled={deleting !== null}` dan
+   `aria-busy={deleting === concept.conceptId}` tetap sesudah `className`,
+   kelas menjadi `p-2 rounded-lg hover:bg-destructive/10 text-destructive
+   transition-colors focus-visible:outline-2 focus-visible:outline-primary`,
+   ikon `Trash2` utuh.
+
+Hitungan berkas saat ini: `<button` 8, `focus-visible` 0, `type="submit"` 1,
+`type="button"` 1, `aria-busy` 2, `aria-live` 2, `role=` 2,
+`className="sr-only"` 2. Sesudah: `focus-visible` 16 (delapan elemen × dua
+kelas), `type="button"` 7, `type="submit"` 1. Jangan sentuh `handleSubmit`,
+`handleDelete`/`deleting`, `openNewForm`/`openEditForm`, form field, filter
+domain, `filteredConcepts`, banner galat `role="alert"`, baris status
+**Saving the concept…** (PR #191), tombol **Edit** (tetap sinkron, tanpa
+`aria-busy`) dan **Delete** (penanda PR #203 tetap), atau komponen lain di
 berkas. UI bahasa Inggris (D2). Tanpa query/RPC/migrasi/dependensi baru.
 
 Rancangan:
 
-1. `/sign-in` submit — kelas menjadi `cn('btn btn-primary w-full flex
-   items-center justify-center gap-2 focus-visible:outline-2
-   focus-visible:outline-primary')`.
-2. `/sign-in` toggle — kelas menjadi `"text-foreground font-medium
-   hover:underline focus-visible:outline-2 focus-visible:outline-primary"`.
-3. `/sign-in` tautan footer — kelas masing-masing menjadi `"hover:underline
-   focus-visible:outline-2 focus-visible:outline-primary"`.
-4. `/forgot-password` submit — kelas menjadi `"btn btn-primary flex w-full
-   items-center justify-center gap-2 focus-visible:outline-2
-   focus-visible:outline-primary"`.
-5. `/reset-password` submit — sama seperti forgot-password.
-6. **Test** — buat `tests/auth-button-focus.test.ts` (penjaga statis, pola
-   `tests/edu-psychology-button-focus.test.ts`): keenam elemen memuat
-   pasangan fokus masing-masing tepat satu kali; kelas persis keenam elemen;
-   `type="submit"` tetap di ketiga tombol submit dan `type="button"` tetap di
-   toggle; handler/label/`Link to` utuh; hitungan berkas (`focus-visible`
-   8/2/2, `<button` 2/1/1, `type="submit"` 1/1/1, `<Link` 2 di sign-in);
-   tanpa `createServerFn`/`graphCall`/`rpc-schemas`/migrasi baru.
-   Sesuaikan dua test lama **hanya** pada kunci kelas:
-   `tests/password-reset-pending-status.test.ts` `BUTTON_CLASS` (baris ~48)
-   ke string kelas baru (pemakaian `includes` baris ~58 & ~112 tetap), dan
-   `tests/sign-in-pending-status.test.ts` literal `className={cn('btn
-   btn-primary w-full flex items-center justify-center gap-2')}` (baris ~50)
-   ke literal baru — tanpa melonggarkan penjaga posisi/kunci lain.
-7. **Smoke** — tidak ada cek baru (smoke mengklik tombol-tombol ini dan kelas
-   tidak mengubah perilaku; smoke tidak menekan Tab); penjaga baris smoke
-   2748 tetap.
-8. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
+1. Ubah kedelapan pembuka `<button>` sesuai daftar di atas; tambahkan
+   `type="button"` sebagai atribut pertama pada tombol 1, 2, 3, 6, 7, 8.
+2. **Test** — buat `tests/admin-concepts-button-focus.test.ts` (penjaga
+   statis, pola `tests/edu-psychology-button-focus.test.ts`): delapan elemen
+   memuat kelas persis dengan pasangan fokus di akhir, masing-masing tepat
+   satu kali; `type="submit"` tetap di tombol 4 dan `type="button"` di tujuh
+   tombol lain (`type` sebelum `onClick`/`className`); handler
+   `setError('')`/`openNewForm`/`setShowForm(false)`/`openEditForm`/
+   `handleDelete`, `title` **Edit**/**Delete**, label **Add Concept**/
+   **Cancel**/`{editingConcept ? 'Update' : 'Create'}`, ikon `X`/`Plus`/
+   `Save`/`Edit`/`Trash2`, `disabled={saving}`/`aria-busy={saving}` pada
+   submit, `disabled={deleting !== null}`/`aria-busy={deleting ===
+   concept.conceptId}` pada Delete, dan baris status **Saving the concept…**
+   utuh; hitungan berkas (`focus-visible` 16, `<button` 8, `type="button"` 7,
+   `type="submit"` 1, `aria-busy` 2, `aria-live` 2, `role=` 2,
+   `className="sr-only"` 2); tanpa `createServerFn`/`graphCall`/`rpc-schemas`/
+   migrasi baru. Jangan mengubah test lama selain bila sebuah literal kelas
+   lama memang dikunci (periksa `tests/concept-save-status.test.ts` dan
+   `tests/concept-delete-status.test.ts`; sesuaikan **hanya** literal kelas
+   yang berubah, tanpa melonggarkan penjaga posisi/kunci lain).
+3. **Smoke** — tidak ada cek baru (smoke tidak membuka `/admin/concepts` dan
+   tidak menekan Tab); penjaga baris smoke 2748 tetap.
+4. **Dokumentasi** — satu entri log bertanggal di `docs/ROADMAP.md`; tidak
    menandai milestone.
 
 Gerbang: `npm run ci` utuh hijau sebelum PR (`TMPDIR=/tmp/opencode`; lint 0
@@ -146,9 +150,10 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    tutup), `theme-toggle.tsx`, dan `edu-psychology.tsx` (tombol akordeon) —
    semuanya tombol sinkron/UI, bukan operasi async; jangan menambah
    `aria-busy` palsu. Fokus keyboard + `type="button"` kedua tombol
-    `src/routes/edu-psychology.tsx` selesai (PR #214). Kandidat berikutnya:
-    fokus keyboard empat tombol dan dua tautan tiga halaman auth —
-    `/sign-in`, `/forgot-password`, `/reset-password` (lihat Tugas
+    `src/routes/edu-psychology.tsx` selesai (PR #214), lalu fokus keyboard
+    enam elemen tiga halaman auth `/sign-in`, `/forgot-password`,
+    `/reset-password` selesai (PR #216). Kandidat berikutnya: fokus keyboard
+    + `type="button"` delapan tombol `/admin/concepts` (lihat Tugas
     berikutnya), lalu surface pelajar/admin lain yang belum punya penanda
     (audit 2026-11-28: banyak tombol admin di
     `src/routes/admin/{concepts,learners,prerequisites,psychometrics,states}.tsx`,
@@ -212,14 +217,41 @@ otomatis; baca kodenya dulu lalu tulis spek konkret seperti tugas di atas.
    sidebar `src/components/Sidebar.tsx` (PR #211), serta fokus keyboard tombol
    **Close details** panel detail grafik
    `src/components/GraphDetailPanel.tsx` (PR #213), serta fokus keyboard kedua tombol
-   `src/routes/edu-psychology.tsx` (PR #214). Kandidat berikutnya: fokus
-   keyboard empat tombol dan dua tautan tiga halaman auth (lihat Tugas
-   berikutnya).
+   `src/routes/edu-psychology.tsx` (PR #214), serta fokus keyboard enam elemen
+   tiga halaman auth `/sign-in`/`/forgot-password`/`/reset-password` (PR #216).
+   Kandidat berikutnya: fokus keyboard + `type="button"` delapan tombol
+   `/admin/concepts` (lihat Tugas berikutnya).
 
 Jangan mengulang pekerjaan yang sudah dicoret di `docs/ROADMAP.md`, dan
 jangan membuat PR test-only (lihat `TASK_PROMPT.md`).
 
 ## Riwayat
+
+- 2026-11-28: PR #216 — **Fokus keyboard pada tombol dan tautan tiga halaman
+  auth** — tombol submit `/sign-in` kini memakai `cn('btn btn-primary w-full
+  flex items-center justify-center gap-2 focus-visible:outline-2
+  focus-visible:outline-primary')`, tombol toggle mode kelas persis
+  `text-foreground font-medium hover:underline focus-visible:outline-2
+  focus-visible:outline-primary`, kedua tautan footer kelas persis
+  `hover:underline focus-visible:outline-2 focus-visible:outline-primary`,
+  serta tombol submit `/forgot-password` dan `/reset-password` kelas persis
+  `btn btn-primary flex w-full items-center justify-center gap-2
+  focus-visible:outline-2 focus-visible:outline-primary` (dua kelas fokus di
+  akhir tiap kelas; `type="submit"` tetap di tiga tombol submit,
+  `type="button"` tetap di toggle, `disabled={pending}`/`aria-busy={pending}`,
+  label, handler, `to`, kondisi `mode === 'sign-in' &&`, pemisah `{' · '}`,
+  ikon `Loader2` `aria-hidden`, dan status `sr-only` utuh). Hitungan file:
+  `sign-in.tsx` `focus-visible` 8, `<button` 2, `type="submit"` 1,
+  `type="button"` 1, `className={cn(` 1, `<Link` 2, `aria-hidden` 1,
+  `aria-busy` 1, `aria-live` 1, `role=` 2, `className="sr-only"` 1;
+  `forgot-password.tsx` dan `reset-password.tsx` `focus-visible` 2,
+  `<button` 1, `type="submit"` 1 (role 3/4). Test baru
+  `tests/auth-button-focus.test.ts` (penjaga statis);
+  `tests/password-reset-pending-status.test.ts` hanya menyesuaikan
+  `BUTTON_CLASS`, `tests/sign-in-pending-status.test.ts` hanya literal
+  `className={cn(...)}`. Tanpa cek smoke baru; penjaga baris smoke 2748 tetap.
+  Satu entri log bertanggal di `docs/ROADMAP.md`. `npm run ci` utuh hijau
+  sebelum merge (`TMPDIR=/tmp/opencode`).
 
 - 2026-11-28: PR #214 — **Fokus keyboard + `type="button"` pada kedua tombol
   halaman Educational Psychology** — tombol akordeon `ExpandableSection`

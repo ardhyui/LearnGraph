@@ -77,7 +77,7 @@ function ForgotPasswordPage() {
               type="submit"
               disabled={pending}
               aria-busy={pending}
-              className="btn btn-primary flex w-full items-center justify-center gap-2"
+              className="btn btn-primary flex w-full items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-primary"
             >
               {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               Send the reset link
