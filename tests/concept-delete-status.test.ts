@@ -69,7 +69,7 @@ describe('/admin/concepts: the per-card Delete button announces it is busy', () 
       'Delete still passes its element for focus restoration',
     );
     assert.ok(
-      DELETE.includes('className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"'),
+      DELETE.includes('className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors focus-visible:outline-2 focus-visible:outline-primary"'),
       'the classes stay exactly',
     );
     assert.ok(DELETE.includes('disabled={deleting !== null}'), 'every card disables while deleting');
@@ -168,7 +168,7 @@ describe('/admin/concepts: the save status and page counts stay locked', () => {
   it('keeps the Create/Update and Cancel markers', () => {
     assert.ok(SUBMIT.includes('type="submit"'), 'the submit button stays a submit');
     assert.ok(
-      SUBMIT.includes('className="btn btn-success flex items-center gap-2"'),
+      SUBMIT.includes('className="btn btn-success flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-primary"'),
       'the submit classes are untouched',
     );
     assert.ok(SUBMIT.includes('disabled={saving}'), 'disabled is driven by saving');
@@ -181,7 +181,7 @@ describe('/admin/concepts: the save status and page counts stay locked', () => {
     );
     assert.ok(CANCEL.includes('type="button"'), 'Cancel stays a plain button');
     assert.ok(CANCEL.includes('onClick={() => setShowForm(false)}'), 'Cancel still closes the form');
-    assert.ok(CANCEL.includes('className="btn btn-secondary"'), 'Cancel classes are untouched');
+    assert.ok(CANCEL.includes('className="btn btn-secondary focus-visible:outline-2 focus-visible:outline-primary"'), 'Cancel classes are untouched');
     assert.ok(CANCEL.includes('disabled={saving}'), 'Cancel disables while saving');
     assert.equal(CANCEL.includes('aria-busy'), false, 'no aria-busy on Cancel');
   });
