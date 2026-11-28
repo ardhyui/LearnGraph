@@ -71,13 +71,13 @@ describe('/admin/prerequisites: the submit button announces it is busy', () => {
   it('adds disabled and aria-busy right after the submit class', () => {
     assert.ok(SUBMIT.includes('type="submit"'), 'the button stays a submit');
     assert.ok(
-      SUBMIT.includes('className="btn btn-success flex items-center gap-2"'),
+      SUBMIT.includes('className="btn btn-success flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-primary"'),
       'the submit classes are untouched',
     );
     assert.ok(SUBMIT.includes('disabled={saving}'), 'disabled is driven by saving');
     assert.ok(SUBMIT.includes('aria-busy={saving}'), 'aria-busy is driven by saving');
     const typeAt = SUBMIT.indexOf('type="submit"');
-    const classAt = SUBMIT.indexOf('className="btn btn-success flex items-center gap-2"');
+    const classAt = SUBMIT.indexOf('className="btn btn-success flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-primary"');
     const disabledAt = SUBMIT.indexOf('disabled={saving}');
     const busyAt = SUBMIT.indexOf('aria-busy={saving}');
     assert.ok(
@@ -178,7 +178,10 @@ describe('/admin/prerequisites: Cancel and the existing flows stay intact', () =
   it('leaves Cancel disabled while saving without aria-busy', () => {
     assert.ok(CANCEL.includes('type="button"'), 'Cancel stays a plain button');
     assert.ok(CANCEL.includes('onClick={() => setShowForm(false)}'), 'Cancel still closes the form');
-    assert.ok(CANCEL.includes('className="btn btn-secondary"'), 'Cancel classes are untouched');
+    assert.ok(
+      CANCEL.includes('className="btn btn-secondary focus-visible:outline-2 focus-visible:outline-primary"'),
+      'Cancel keeps its classes plus the focus pair',
+    );
     assert.ok(CANCEL.includes('disabled={saving}'), 'Cancel disables while saving');
     assert.equal(CANCEL.includes('aria-busy'), false, 'no aria-busy on Cancel');
   });

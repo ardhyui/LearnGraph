@@ -161,8 +161,9 @@ function PrerequisitesPage() {
                 <AlertCircle className="w-5 h-5 text-destructive" />
                 <span className="text-destructive">{error}</span>
                 <button
+                  type="button"
                   onClick={() => setError('')}
-                  className="ml-auto text-destructive/70 hover:text-destructive"
+                  className="ml-auto text-destructive/70 hover:text-destructive focus-visible:outline-2 focus-visible:outline-primary"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -192,9 +193,10 @@ function PrerequisitesPage() {
             className="mb-6"
           >
             <button
+              type="button"
               onClick={() => setShowForm(true)}
               disabled={concepts.length < 2}
-              className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-primary"
             >
               <Plus className="w-4 h-4" />
               Add Prerequisite
@@ -213,8 +215,9 @@ function PrerequisitesPage() {
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-lg font-semibold text-foreground">New Prerequisite</h2>
                   <button
+                    type="button"
                     onClick={() => setShowForm(false)}
-                    className="p-2 rounded-lg hover:bg-muted transition-colors"
+                    className="p-2 rounded-lg hover:bg-muted transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     <X className="w-5 h-5 text-muted-foreground" />
                   </button>
@@ -322,7 +325,7 @@ function PrerequisitesPage() {
                   <div className="flex gap-3 pt-2">
                     <button
                       type="submit"
-                      className="btn btn-success flex items-center gap-2"
+                      className="btn btn-success flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-primary"
                       disabled={saving}
                       aria-busy={saving}
                     >
@@ -332,7 +335,7 @@ function PrerequisitesPage() {
                     <button
                       type="button"
                       onClick={() => setShowForm(false)}
-                      className="btn btn-secondary"
+                      className="btn btn-secondary focus-visible:outline-2 focus-visible:outline-primary"
                       disabled={saving}
                     >
                       Cancel
@@ -368,9 +371,10 @@ function PrerequisitesPage() {
                 Click &quot;Add Prerequisite&quot; to define concept relationships
               </p>
               <button
+                type="button"
                 onClick={() => setShowForm(true)}
                 disabled={concepts.length < 2}
-                className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-primary"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Prerequisite
@@ -448,8 +452,9 @@ function PrerequisitesPage() {
                         </td>
                         <td role="cell" className="px-6 py-4 whitespace-nowrap text-right">
                           <button
+                            type="button"
                             onClick={(e) => handleDelete(edge.from, edge.to, e.currentTarget)}
-                            className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                            className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                             disabled={deleting !== null}
                             aria-busy={deleting === `${edge.from}:${edge.to}`}
                             title="Delete"
