@@ -68,7 +68,7 @@ describe('/admin/prerequisites: the per-row Delete button announces it is busy',
       'Delete still passes its element for focus restoration',
     );
     assert.ok(
-      DELETE.includes('className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"'),
+      DELETE.includes('className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors focus-visible:outline-2 focus-visible:outline-primary"'),
       'the classes stay exactly',
     );
     assert.ok(DELETE.includes('disabled={deleting !== null}'), 'every row disables while deleting');
