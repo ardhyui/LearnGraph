@@ -235,8 +235,9 @@ function ConceptsPage() {
                 <AlertCircle className="w-5 h-5 text-destructive" />
                 <span className="text-destructive">{error}</span>
                 <button
+                  type="button"
                   onClick={() => setError('')}
-                  className="ml-auto text-destructive/70 hover:text-destructive"
+                  className="ml-auto text-destructive/70 hover:text-destructive focus-visible:outline-2 focus-visible:outline-primary"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -251,7 +252,11 @@ function ConceptsPage() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="flex justify-between items-center mb-6"
           >
-            <button onClick={openNewForm} className="btn btn-primary flex items-center gap-2">
+            <button
+              type="button"
+              onClick={openNewForm}
+              className="btn btn-primary flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-primary"
+            >
               <Plus className="w-4 h-4" />
               Add Concept
             </button>
@@ -287,8 +292,9 @@ function ConceptsPage() {
                     {editingConcept ? 'Edit Concept' : 'New Concept'}
                   </h2>
                   <button
+                    type="button"
                     onClick={() => setShowForm(false)}
-                    className="p-2 rounded-lg hover:bg-muted transition-colors"
+                    className="p-2 rounded-lg hover:bg-muted transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     <X className="w-5 h-5 text-muted-foreground" />
                   </button>
@@ -438,7 +444,7 @@ function ConceptsPage() {
                   <div className="flex gap-3 pt-2">
                     <button
                       type="submit"
-                      className="btn btn-success flex items-center gap-2"
+                      className="btn btn-success flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-primary"
                       disabled={saving}
                       aria-busy={saving}
                     >
@@ -448,7 +454,7 @@ function ConceptsPage() {
                     <button
                       type="button"
                       onClick={() => setShowForm(false)}
-                      className="btn btn-secondary"
+                      className="btn btn-secondary focus-visible:outline-2 focus-visible:outline-primary"
                       disabled={saving}
                     >
                       Cancel
@@ -483,7 +489,11 @@ function ConceptsPage() {
               <p className="text-muted-foreground mb-6">
                 Click &quot;Add Concept&quot; to create your first concept node
               </p>
-              <button onClick={openNewForm} className="btn btn-primary">
+              <button
+                type="button"
+                onClick={openNewForm}
+                className="btn btn-primary focus-visible:outline-2 focus-visible:outline-primary"
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Concept
               </button>
@@ -531,15 +541,17 @@ function ConceptsPage() {
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       <button
+                        type="button"
                         onClick={() => openEditForm(concept)}
-                        className="p-2 rounded-lg hover:bg-blue-500/10 text-blue-500 transition-colors"
+                        className="p-2 rounded-lg hover:bg-blue-500/10 text-blue-500 transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                         title="Edit"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
+                        type="button"
                         onClick={(e) => handleDelete(concept.conceptId, e.currentTarget)}
-                        className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                        className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                         disabled={deleting !== null}
                         aria-busy={deleting === concept.conceptId}
                         title="Delete"
