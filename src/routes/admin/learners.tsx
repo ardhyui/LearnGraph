@@ -189,8 +189,9 @@ function LearnersPage() {
                 <AlertCircle className="w-5 h-5 text-destructive" />
                 <span className="text-destructive">{error}</span>
                 <button
+                  type="button"
                   onClick={() => setError('')}
-                  className="ml-auto text-destructive/70 hover:text-destructive"
+                  className="ml-auto text-destructive/70 hover:text-destructive focus-visible:outline-2 focus-visible:outline-primary"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -206,8 +207,9 @@ function LearnersPage() {
             className="mb-6 flex flex-wrap items-center gap-2"
           >
             <button
+              type="button"
               onClick={openNewForm}
-              className="btn btn-primary flex items-center gap-2"
+              className="btn btn-primary flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-primary"
             >
               <Plus className="w-4 h-4" />
               Add Learner
@@ -256,8 +258,9 @@ function LearnersPage() {
                     {editingLearner ? 'Edit Learner' : 'New Learner'}
                   </h2>
                   <button
+                    type="button"
                     onClick={() => setShowForm(false)}
-                    className="p-2 rounded-lg hover:bg-muted transition-colors"
+                    className="p-2 rounded-lg hover:bg-muted transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     <X className="w-5 h-5 text-muted-foreground" />
                   </button>
@@ -307,14 +310,14 @@ function LearnersPage() {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <button type="submit" className="btn btn-success flex items-center gap-2">
+                    <button type="submit" className="btn btn-success flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-primary">
                       <Save className="w-4 h-4" />
                       {editingLearner ? 'Update' : 'Create'}
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowForm(false)}
-                      className="btn btn-secondary"
+                      className="btn btn-secondary focus-visible:outline-2 focus-visible:outline-primary"
                     >
                       Cancel
                     </button>
@@ -347,7 +350,7 @@ function LearnersPage() {
               <p className="text-muted-foreground mb-6">
                 Click &quot;Add Learner&quot; to create your first learner profile
               </p>
-              <button onClick={openNewForm} className="btn btn-primary">
+              <button type="button" onClick={openNewForm} className="btn btn-primary focus-visible:outline-2 focus-visible:outline-primary">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Learner
               </button>
@@ -414,15 +417,17 @@ function LearnersPage() {
                         <td role="cell" className="px-6 py-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
+                              type="button"
                               onClick={() => openEditForm(learner)}
-                              className="p-2 rounded-lg hover:bg-blue-500/10 text-blue-500 transition-colors"
+                              className="p-2 rounded-lg hover:bg-blue-500/10 text-blue-500 transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                               title="Edit"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
+                              type="button"
                               onClick={(e) => handleDelete(learner.userId, e.currentTarget)}
-                              className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                              className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                               disabled={deleting !== null}
                               aria-busy={deleting === learner.userId}
                               title="Delete"
